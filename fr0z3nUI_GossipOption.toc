@@ -11,14 +11,16 @@ fr0z3nUI_GossipOptionXP12.lua
 fr0z3nUI_GossipOptionXP11.lua
 fr0z3nUI_GossipOptionXP10.lua
 fr0z3nUI_GossipOptionXP09.lua
-fr0z3nUI_GossipOptionXP08.lua
+fr0z3nUI_GossipOptionXP08ZZ.lua
+fr0z3nUI_GossipOptionXP08KT.lua
 fr0z3nUI_GossipOptionXP07.lua
 fr0z3nUI_GossipOptionXP06.lua
 fr0z3nUI_GossipOptionXP05.lua
 fr0z3nUI_GossipOptionXP04.lua
 fr0z3nUI_GossipOptionXP03.lua
 fr0z3nUI_GossipOptionXP02.lua
-fr0z3nUI_GossipOptionXP01.lua
+fr0z3nUI_GossipOptionXP01EK.lua
+fr0z3nUI_GossipOptionXP01KD.lua
 fr0z3nUI_GossipOptionXPEV.lua
 
 fr0z3nUI_GossipOptionTutorial.lua

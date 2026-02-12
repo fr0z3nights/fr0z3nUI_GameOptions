@@ -132,11 +132,62 @@ local function InitSV()
     if type(AutoGossip_CharSettings.disabled) ~= "table" then
         AutoGossip_CharSettings.disabled = {}
     end
+    if type(AutoGossip_CharSettings.disabledAcc) ~= "table" then
+        AutoGossip_CharSettings.disabledAcc = {}
+    end
+    if type(AutoGossip_CharSettings.disabledDB) ~= "table" then
+        AutoGossip_CharSettings.disabledDB = {}
+    end
 
     -- Migrate legacy flat keys ("npcID:optionID") => nested disabled[npcID][optionID].
     AutoGossip_Settings.disabled = MigrateDisabledFlatToNested(AutoGossip_Settings.disabled)
     AutoGossip_Settings.disabledDB = MigrateDisabledFlatToNested(AutoGossip_Settings.disabledDB)
     AutoGossip_CharSettings.disabled = MigrateDisabledFlatToNested(AutoGossip_CharSettings.disabled)
+    AutoGossip_CharSettings.disabledAcc = MigrateDisabledFlatToNested(AutoGossip_CharSettings.disabledAcc)
+    AutoGossip_CharSettings.disabledDB = MigrateDisabledFlatToNested(AutoGossip_CharSettings.disabledDB)
+
+    -- Migrate user rule tables to match DB pack layout (per-NPC __meta + minimal per-option entries).
+    local function MigrateRulesDb(db)
+        if type(db) ~= "table" then
+            return
+        end
+        for _, npcTable in pairs(db) do
+            if type(npcTable) == "table" then
+                local meta = npcTable.__meta
+                if type(meta) ~= "table" then
+                    meta = {}
+                    npcTable.__meta = meta
+                end
+
+                -- Promote any per-rule zone/npc fields into __meta (first non-empty wins).
+                if not meta.zone or meta.zone == "" or not meta.npc or meta.npc == "" then
+                    for optionID, data in pairs(npcTable) do
+                        if optionID ~= "__meta" and type(data) == "table" then
+                            if (not meta.zone or meta.zone == "") then
+                                meta.zone = data.zoneName or data.zone or meta.zone
+                            end
+                            if (not meta.npc or meta.npc == "") then
+                                meta.npc = data.npcName or data.npc or meta.npc
+                            end
+                        end
+                    end
+                end
+
+                -- Strip redundant per-rule fields to keep entries compact.
+                for optionID, data in pairs(npcTable) do
+                    if optionID ~= "__meta" and type(data) == "table" then
+                        data.zoneName = nil
+                        data.zone = nil
+                        data.npcName = nil
+                        data.npc = nil
+                    end
+                end
+            end
+        end
+    end
+
+    MigrateRulesDb(AutoGossip_Acc)
+    MigrateRulesDb(AutoGossip_Char)
 end
 
 local function GetQueueAcceptState()
@@ -429,6 +480,37 @@ local function GetCurrentZoneName()
     return ""
 end
 
+local function GetCurrentContinentName()
+    if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetMapInfo) then
+        return ""
+    end
+
+    local mapID = C_Map.GetBestMapForUnit("player")
+    if not mapID then
+        return ""
+    end
+
+    local maxHops = 25
+    while mapID and maxHops > 0 do
+        maxHops = maxHops - 1
+        local info = C_Map.GetMapInfo(mapID)
+        if not info then
+            break
+        end
+        if Enum and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent then
+            if type(info.name) == "string" and info.name ~= "" then
+                return info.name
+            end
+            break
+        end
+        if not info.parentMapID or info.parentMapID == 0 then
+            break
+        end
+        mapID = info.parentMapID
+    end
+    return ""
+end
+
 local function MakeRuleKey(npcID, optionID)
     return tostring(npcID) .. ":" .. tostring(optionID)
 end
@@ -453,6 +535,40 @@ local function IsDisabled(scope, npcID, optionID)
         return true
     end
     return (t and t[MakeRuleKey(npcID, optionID)]) and true or false
+end
+
+-- Per-character override for Account-scoped rules.
+-- (When an Account rule exists, the Character button represents "disabled on this character".)
+local function IsDisabledAccOnChar(npcID, optionID)
+    npcID = NormalizeID(npcID)
+    optionID = NormalizeID(optionID)
+
+    local t = AutoGossip_CharSettings and AutoGossip_CharSettings.disabledAcc
+    local npcTable = t and t[npcID]
+    if type(npcTable) == "table" and npcTable[optionID] then
+        return true
+    end
+    return (t and t[MakeRuleKey(npcID, optionID)]) and true or false
+end
+
+local function SetDisabledAccOnChar(npcID, optionID, disabled)
+    npcID = NormalizeID(npcID)
+    optionID = NormalizeID(optionID)
+
+    AutoGossip_CharSettings.disabledAcc = AutoGossip_CharSettings.disabledAcc or {}
+    local t = AutoGossip_CharSettings.disabledAcc
+
+    local key = MakeRuleKey(npcID, optionID)
+    t[key] = nil
+    t[npcID] = t[npcID] or {}
+    if disabled then
+        t[npcID][optionID] = true
+    else
+        t[npcID][optionID] = nil
+        if next(t[npcID]) == nil then
+            t[npcID] = nil
+        end
+    end
 end
 
 local function SetDisabled(scope, npcID, optionID, disabled)
@@ -505,6 +621,39 @@ local function SetDisabledDB(npcID, optionID, disabled)
 
     local key = MakeRuleKey(npcID, optionID)
     local t = AutoGossip_Settings.disabledDB
+    t[key] = nil
+    t[npcID] = t[npcID] or {}
+    if disabled then
+        t[npcID][optionID] = true
+    else
+        t[npcID][optionID] = nil
+        if next(t[npcID]) == nil then
+            t[npcID] = nil
+        end
+    end
+end
+
+-- Per-character disable for DB pack rules.
+local function IsDisabledDBOnChar(npcID, optionID)
+    npcID = NormalizeID(npcID)
+    optionID = NormalizeID(optionID)
+
+    local t = AutoGossip_CharSettings and AutoGossip_CharSettings.disabledDB
+    local npcTable = t and t[npcID]
+    if type(npcTable) == "table" and npcTable[optionID] then
+        return true
+    end
+    return (t and t[MakeRuleKey(npcID, optionID)]) and true or false
+end
+
+local function SetDisabledDBOnChar(npcID, optionID, disabled)
+    npcID = NormalizeID(npcID)
+    optionID = NormalizeID(optionID)
+
+    AutoGossip_CharSettings.disabledDB = AutoGossip_CharSettings.disabledDB or {}
+    local t = AutoGossip_CharSettings.disabledDB
+
+    local key = MakeRuleKey(npcID, optionID)
     t[key] = nil
     t[npcID] = t[npcID] or {}
     if disabled then
@@ -570,10 +719,19 @@ local function HasRule(scope, npcID, optionID)
     return false
 end
 
-local function DeleteRule(scope, npcID, optionID)
+local function DeleteRule(scope, npcID, optionID, preserveToDb)
     if not (npcID and optionID) then
         return
     end
+
+    preserveToDb = preserveToDb and true or false
+    local hadDb = preserveToDb and HasDbRule(npcID, optionID) and true or false
+    local wasDisabled = preserveToDb and IsDisabled(scope, npcID, optionID) and true or false
+    local wasDisabledAccOnChar = false
+    if preserveToDb and scope == "acc" then
+        wasDisabledAccOnChar = IsDisabledAccOnChar(npcID, optionID) and true or false
+    end
+
     local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
     local npcTable = db[npcID]
     if type(npcTable) ~= "table" then
@@ -591,7 +749,27 @@ local function DeleteRule(scope, npcID, optionID)
     if next(npcTable) == nil then
         db[npcID] = nil
     end
+    -- If the only remaining key is __meta, also remove the NPC bucket.
+    if db[npcID] then
+        local firstKey = next(npcTable)
+        if firstKey == "__meta" and next(npcTable, firstKey) == nil then
+            db[npcID] = nil
+        end
+    end
     SetDisabled(scope, npcID, optionID, false)
+    if scope == "acc" then
+        SetDisabledAccOnChar(npcID, optionID, false)
+    end
+
+    if hadDb then
+        -- If a DB rule exists for this option, keep the user's A/C disable state by applying it to the DB disable tables.
+        if scope == "acc" then
+            SetDisabledDB(npcID, optionID, wasDisabled)
+            SetDisabledDBOnChar(npcID, optionID, wasDisabledAccOnChar)
+        elseif scope == "char" then
+            SetDisabledDBOnChar(npcID, optionID, wasDisabled)
+        end
+    end
 end
 
 local function AddRule(scope, npcID, optionID, optionText, optionType)
@@ -601,21 +779,89 @@ local function AddRule(scope, npcID, optionID, optionText, optionType)
 
     local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
     db[npcID] = db[npcID] or {}
+    local npcTable = db[npcID]
+    npcTable.__meta = (type(npcTable.__meta) == "table") and npcTable.__meta or {}
 
-    if db[npcID][optionID] then
+    if npcTable[optionID] then
         return false, "Already exists"
     end
 
-    db[npcID][optionID] = {
+    local zoneName = GetCurrentZoneName()
+    local continentName = GetCurrentContinentName()
+    if type(zoneName) ~= "string" then
+        zoneName = ""
+    end
+    if type(continentName) == "string" and continentName ~= "" and (not zoneName:find(continentName, 1, true)) then
+        if zoneName ~= "" then
+            zoneName = zoneName .. ", " .. continentName
+        else
+            zoneName = continentName
+        end
+    end
+
+    npcTable.__meta.zone = zoneName
+    npcTable.__meta.npc = GetCurrentNpcName() or ""
+
+    npcTable[optionID] = {
         text = optionText or "",
         type = optionType or "",
         addedAt = time(),
-        zoneName = GetCurrentZoneName(),
-        npcName = GetCurrentNpcName() or "",
     }
 
     SetDisabled(scope, npcID, optionID, false)
+    if scope == "acc" then
+        SetDisabledAccOnChar(npcID, optionID, false)
+    end
     return true
+end
+
+local didDedupUserRulesAgainstDb = false
+
+local function DeduplicateUserRulesAgainstDb()
+    if didDedupUserRulesAgainstDb then
+        return
+    end
+    didDedupUserRulesAgainstDb = true
+
+    InitSV()
+
+    -- DB packs are authored as ns.db.rules; if no DB exists, nothing to do.
+    if not (ns and ns.db and type(ns.db.rules) == "table") then
+        return
+    end
+
+    local function RemoveDupes(scope, db)
+        if type(db) ~= "table" then
+            return
+        end
+        local toDelete = {}
+        local seen = {}
+        for npcID, npcTable in pairs(db) do
+            if type(npcTable) == "table" then
+                local nNpcID = NormalizeID(npcID)
+                for optionID in pairs(npcTable) do
+                    if optionID ~= "__meta" then
+                        local nOptID = NormalizeID(optionID)
+                        if nNpcID and nOptID and HasDbRule(nNpcID, nOptID) then
+                            local k = tostring(nNpcID) .. ":" .. tostring(nOptID)
+                            if not seen[k] then
+                                seen[k] = true
+                                table.insert(toDelete, { npcID = nNpcID, optionID = nOptID })
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        for _, it in ipairs(toDelete) do
+            DeleteRule(scope, it.npcID, it.optionID, true)
+        end
+    end
+
+    -- Process Account first, then Character so per-character DB disables win.
+    RemoveDupes("acc", AutoGossip_Acc)
+    RemoveDupes("char", AutoGossip_Char)
 end
 
 local function FindOptionInfoByID(optionID)
@@ -632,6 +878,11 @@ end
 
 local function TryAutoSelect()
     if IsShiftKeyDown() then
+        return
+    end
+    -- When the options window is open, behave like Shift is held:
+    -- don't auto-select while the user is inspecting/editing rules.
+    if AutoGossipOptions and AutoGossipOptions.IsShown and AutoGossipOptions:IsShown() then
         return
     end
     if InCombatLockdown() then
@@ -660,7 +911,7 @@ local function TryAutoSelect()
         if type(npcTable) == "table" then
             for _, opt in ipairs(options) do
                 local optionID = opt and opt.gossipOptionID
-                if optionID and npcTable[optionID] and (not IsDisabled(scope, npcID, optionID)) then
+                if optionID and npcTable[optionID] and (not IsDisabled(scope, npcID, optionID)) and (scope ~= "acc" or (not IsDisabledAccOnChar(npcID, optionID))) then
                     lastSelectAt = now
                     C_GossipInfo.SelectOption(optionID)
                     return
@@ -673,7 +924,7 @@ local function TryAutoSelect()
     if dbNpc then
         for _, opt in ipairs(options) do
             local optionID = opt and opt.gossipOptionID
-            if optionID and (dbNpc[optionID] or dbNpc[tostring(optionID)]) and (not IsDisabledDB(npcID, optionID)) then
+            if optionID and (dbNpc[optionID] or dbNpc[tostring(optionID)]) and (not IsDisabledDB(npcID, optionID)) and (not IsDisabledDBOnChar(npcID, optionID)) then
                 lastSelectAt = now
                 C_GossipInfo.SelectOption(optionID)
                 return
@@ -828,6 +1079,9 @@ local function CreateOptionsWindow()
         if f.edit and f.edit.SetText then
             f.edit:SetText("")
         end
+        if f.edit and f.edit.ClearFocus then
+            f.edit:ClearFocus()
+        end
         if f._currentOptions then
             f._currentOptions = {}
         end
@@ -867,6 +1121,17 @@ local function CreateOptionsWindow()
         end
     end
 
+    local reloadBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    reloadBtn:SetSize(90, 22)
+    reloadBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
+    reloadBtn:SetFrameLevel((f.GetFrameLevel and f:GetFrameLevel() or 0) + 10)
+    reloadBtn:SetText("Reload UI")
+    reloadBtn:SetScript("OnClick", function()
+        local r = _G and _G["ReloadUI"]
+        if r then r() end
+    end)
+    f._reloadBtn = reloadBtn
+
     -- Edit/Add layout: one full-width area containing 2 stacked boxes.
     local leftArea = CreateFrame("Frame", nil, editPanel)
     leftArea:SetPoint("TOPLEFT", editPanel, "TOPLEFT", 10, -54)
@@ -904,20 +1169,65 @@ local function CreateOptionsWindow()
 
     local browserHint = browserPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     browserHint:SetPoint("BOTTOMLEFT", browserPanel, "BOTTOMLEFT", 12, 28)
-    browserHint:SetText("Click a rule to edit; use +/- to expand.")
+    browserHint:SetText("")
+    browserHint:Hide()
 
     local browserEmpty = browserArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
     browserEmpty:SetPoint("CENTER", browserArea, "CENTER", 0, 0)
     browserEmpty:SetText("No rules found")
 
+    local function HideFauxScrollBarAndEnableWheel(sf, rowHeight)
+        if not sf then
+            return
+        end
+
+        local sb = sf.ScrollBar or sf.scrollBar
+        if not sb and sf.GetChildren then
+            local n = select("#", sf:GetChildren())
+            for i = 1, n do
+                local child = select(i, sf:GetChildren())
+                if child and child.GetObjectType and child:GetObjectType() == "Slider" then
+                    sb = child
+                    break
+                end
+            end
+        end
+        sf._fgoScrollBar = sb
+
+        if sb then
+            sb:Hide()
+            sb.Show = function() end
+            if sb.SetAlpha then
+                sb:SetAlpha(0)
+            end
+            if sb.EnableMouse then
+                sb:EnableMouse(false)
+            end
+        end
+
+        if sf.EnableMouseWheel then
+            sf:EnableMouseWheel(true)
+        end
+        sf:SetScript("OnMouseWheel", function(self, delta)
+            local bar = self._fgoScrollBar or self.ScrollBar or self.scrollBar
+            if not (bar and bar.GetValue and bar.SetValue) then
+                return
+            end
+            local step = rowHeight or 16
+            bar:SetValue((bar:GetValue() or 0) - (delta * step))
+        end)
+    end
+
     local browserScroll = CreateFrame("ScrollFrame", nil, browserArea, "FauxScrollFrameTemplate")
     browserScroll:SetPoint("TOPLEFT", browserArea, "TOPLEFT", 4, -4)
-    browserScroll:SetPoint("BOTTOMRIGHT", browserArea, "BOTTOMRIGHT", -26, 4)
+    browserScroll:SetPoint("BOTTOMRIGHT", browserArea, "BOTTOMRIGHT", -4, 4)
     f.browserScroll = browserScroll
 
     local BROW_ROW_H = 18
     local BROW_ROWS = 18
     local browRows = {}
+
+    HideFauxScrollBarAndEnableWheel(browserScroll, BROW_ROW_H)
 
     local function CollectAllRules()
         InitSV()
@@ -930,28 +1240,36 @@ local function CreateOptionsWindow()
             end
             for npcID, npcTable in pairs(db) do
                 if type(npcTable) == "table" then
+                    local defaultZoneName, defaultNpcName
+                    if type(npcTable.__meta) == "table" then
+                        defaultZoneName = npcTable.__meta.zoneName or npcTable.__meta.zone
+                        defaultNpcName = npcTable.__meta.npcName or npcTable.__meta.npc
+                    end
+
                     for optionID, data in pairs(npcTable) do
-                        local numericID = tonumber(optionID) or optionID
-                        local text = ""
-                        local expansion = "User"
-                        local zoneName = "Unknown"
-                        local npcName = ""
-                        if type(data) == "table" then
-                            text = data.text or ""
-                            expansion = data.expansion or expansion
-                            zoneName = data.zoneName or data.zone or zoneName
-                            npcName = data.npcName or npcName
+                        if optionID ~= "__meta" then
+                            local numericID = tonumber(optionID) or optionID
+                            local text = ""
+                            local ruleType = ""
+                            local zoneName = "Unknown"
+                            local npcName = ""
+                            if type(data) == "table" then
+                                text = data.text or ""
+                                ruleType = data.type or ""
+                                zoneName = data.zoneName or data.zone or defaultZoneName or zoneName
+                                npcName = data.npcName or data.npc or defaultNpcName or npcName
+                            end
+                            table.insert(out, {
+                                scope = scope,
+                                npcID = tonumber(npcID) or npcID,
+                                optionID = numericID,
+                                text = text,
+                                ruleType = ruleType,
+                                zone = zoneName,
+                                npcName = npcName,
+                                isDisabled = IsDisabled(scope, npcID, numericID),
+                            })
                         end
-                        table.insert(out, {
-                            scope = scope,
-                            npcID = tonumber(npcID) or npcID,
-                            optionID = numericID,
-                            text = text,
-                            expansion = expansion,
-                            zone = zoneName,
-                            npcName = npcName,
-                            isDisabled = IsDisabled(scope, npcID, numericID),
-                        })
                     end
                 end
             end
@@ -964,28 +1282,36 @@ local function CreateOptionsWindow()
         if type(rules) == "table" then
             for npcID, npcTable in pairs(rules) do
                 if type(npcTable) == "table" then
+                    local defaultZoneName, defaultNpcName
+                    if type(npcTable.__meta) == "table" then
+                        defaultZoneName = npcTable.__meta.zoneName or npcTable.__meta.zone
+                        defaultNpcName = npcTable.__meta.npcName or npcTable.__meta.npc
+                    end
+
                     for optionID, data in pairs(npcTable) do
-                        local numericID = tonumber(optionID) or optionID
-                        local text = ""
-                        local expansion = "DB"
-                        local zoneName = "Unknown"
-                        local npcName = ""
-                        if type(data) == "table" then
-                            text = data.text or ""
-                            expansion = data.expansion or expansion
-                            zoneName = data.zoneName or data.zone or zoneName
-                            npcName = data.npcName or npcName
+                        if optionID ~= "__meta" then
+                            local numericID = tonumber(optionID) or optionID
+                            local text = ""
+                            local ruleType = ""
+                            local zoneName = "Unknown"
+                            local npcName = ""
+                            if type(data) == "table" then
+                                text = data.text or ""
+                                ruleType = data.type or ""
+                                zoneName = data.zoneName or data.zone or defaultZoneName or zoneName
+                                npcName = data.npcName or data.npc or defaultNpcName or npcName
+                            end
+                            table.insert(out, {
+                                scope = "db",
+                                npcID = tonumber(npcID) or npcID,
+                                optionID = numericID,
+                                text = text,
+                                ruleType = ruleType,
+                                zone = zoneName,
+                                npcName = npcName,
+                                isDisabled = (IsDisabledDB(npcID, numericID) or IsDisabledDBOnChar(npcID, numericID)) and true or false,
+                            })
                         end
-                        table.insert(out, {
-                            scope = "db",
-                            npcID = tonumber(npcID) or npcID,
-                            optionID = numericID,
-                            text = text,
-                            expansion = expansion,
-                            zone = zoneName,
-                            npcName = npcName,
-                            isDisabled = IsDisabledDB(npcID, numericID),
-                        })
                     end
                 end
             end
@@ -995,83 +1321,230 @@ local function CreateOptionsWindow()
     end
 
     local function BuildVisibleTreeNodes(allRules)
-        local expMap = {}
+        local function Trim(s)
+            if type(s) ~= "string" then
+                return ""
+            end
+            return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+        end
+
+        local function SplitZoneContinent(zoneString)
+            zoneString = Trim(zoneString)
+            if zoneString == "" then
+                return "Unknown", nil
+            end
+
+            -- Split on the last comma so e.g. "The Waking Shores, Dragon Isles" works.
+            local zonePart, continentPart = zoneString:match("^(.*),%s*([^,]+)$")
+            zonePart = Trim(zonePart)
+            continentPart = Trim(continentPart)
+            if zonePart ~= "" and continentPart ~= "" then
+                return zonePart, continentPart
+            end
+
+            return zoneString, nil
+        end
+
+        -- continent -> zone -> npc -> rules
+        local contMap = {}
         for _, r in ipairs(allRules) do
-            local exp = r.expansion or "Unknown"
-            local zone = r.zone or "Unknown"
-            expMap[exp] = expMap[exp] or {}
-            expMap[exp][zone] = expMap[exp][zone] or {}
+            local zoneString = (type(r.zone) == "string" and r.zone ~= "") and r.zone or "Unknown"
+            local zone, continent = SplitZoneContinent(zoneString)
+            continent = continent or "Unknown"
+
+            contMap[continent] = contMap[continent] or {}
+            contMap[continent][zone] = contMap[continent][zone] or {}
+
             local npcID = r.npcID
-            expMap[exp][zone][npcID] = expMap[exp][zone][npcID] or { npcName = r.npcName or "", rules = {} }
-            local npcBucket = expMap[exp][zone][npcID]
+            contMap[continent][zone][npcID] = contMap[continent][zone][npcID] or { npcName = r.npcName or "", rules = {} }
+            local npcBucket = contMap[continent][zone][npcID]
             if (npcBucket.npcName == "" or npcBucket.npcName == nil) and r.npcName and r.npcName ~= "" then
                 npcBucket.npcName = r.npcName
             end
             table.insert(npcBucket.rules, r)
         end
 
-        local exps = {}
-        for exp in pairs(expMap) do
-            table.insert(exps, exp)
+        local continents = {}
+        for continent in pairs(contMap) do
+            table.insert(continents, continent)
         end
-        table.sort(exps)
+        table.sort(continents)
 
         local visible = {}
-        for _, exp in ipairs(exps) do
-            local expKey = "exp:" .. exp
-            local expExpanded = GetTreeExpanded(expKey, true)
-            table.insert(visible, { kind = "exp", key = expKey, label = exp, level = 0, expanded = expExpanded })
+        for _, continent in ipairs(continents) do
+            local contKey = "cont:" .. continent
+            local contExpanded = GetTreeExpanded(contKey, true)
+            table.insert(visible, { kind = "continent", key = contKey, label = continent, level = 0, expanded = contExpanded })
 
-            if expExpanded then
+            if contExpanded then
                 local zones = {}
-                for zone in pairs(expMap[exp]) do
+                for zone in pairs(contMap[continent]) do
                     table.insert(zones, zone)
                 end
                 table.sort(zones)
+
                 for _, zone in ipairs(zones) do
-                    local zoneKey = "zone:" .. exp .. ":" .. zone
-                    local zoneExpanded = GetTreeExpanded(zoneKey, false)
-                    table.insert(visible, { kind = "zone", key = zoneKey, label = zone, level = 1, expanded = zoneExpanded, exp = exp })
+                    local zoneKey = "zone:" .. continent .. ":" .. zone
+                    local zoneExpanded = GetTreeExpanded(zoneKey, true)
+                    table.insert(visible, { kind = "zone", key = zoneKey, label = zone, level = 1, expanded = zoneExpanded, continent = continent, zone = zone })
 
                     if zoneExpanded then
-                        local npcs = {}
-                        for npcID in pairs(expMap[exp][zone]) do
-                            table.insert(npcs, npcID)
-                        end
-                        table.sort(npcs, function(a, b) return (tonumber(a) or 0) < (tonumber(b) or 0) end)
-                        for _, npcID in ipairs(npcs) do
-                            local npcBucket = expMap[exp][zone][npcID]
-                            local npcName = npcBucket.npcName
-                            local npcLabel = tostring(npcID)
-                            if type(npcName) == "string" and npcName ~= "" then
-                                npcLabel = npcLabel .. " - " .. npcName
+                        local npcNameMap = {}
+                        for npcID, npcBucket in pairs(contMap[continent][zone]) do
+                            if type(npcBucket) == "table" then
+                                local npcName = npcBucket.npcName
+                                if type(npcName) ~= "string" or npcName == "" then
+                                    npcName = "Unknown"
+                                end
+                                npcNameMap[npcName] = npcNameMap[npcName] or { npcName = npcName, npcIDs = {}, rules = {} }
+                                table.insert(npcNameMap[npcName].npcIDs, npcID)
+                                if type(npcBucket.rules) == "table" then
+                                    for _, rule in ipairs(npcBucket.rules) do
+                                        table.insert(npcNameMap[npcName].rules, rule)
+                                    end
+                                end
                             end
-                            local npcKey = "npc:" .. exp .. ":" .. zone .. ":" .. tostring(npcID)
+                        end
+
+                        local npcNames = {}
+                        for npcName in pairs(npcNameMap) do
+                            table.insert(npcNames, npcName)
+                        end
+                        table.sort(npcNames)
+
+                        for _, npcName in ipairs(npcNames) do
+                            local npcBucket = npcNameMap[npcName]
+                            table.sort(npcBucket.npcIDs, function(a, b) return (tonumber(a) or 0) < (tonumber(b) or 0) end)
+
+                            local idParts = {}
+                            for _, id in ipairs(npcBucket.npcIDs) do
+                                idParts[#idParts + 1] = tostring(id)
+                            end
+
+                            local npcLabel = npcBucket.npcName .. "  (" .. table.concat(idParts, "/") .. ")"
+                            local npcKey = "npc:" .. continent .. ":" .. zone .. ":" .. npcBucket.npcName .. ":" .. table.concat(idParts, "/")
                             local npcExpanded = GetTreeExpanded(npcKey, false)
-                            table.insert(visible, { kind = "npc", key = npcKey, label = npcLabel, level = 2, expanded = npcExpanded, exp = exp, zone = zone, npcID = npcID })
+                            table.insert(visible, { kind = "npc", key = npcKey, label = npcLabel, level = 2, expanded = npcExpanded, continent = continent, zone = zone, npcIDs = npcBucket.npcIDs, npcName = npcBucket.npcName })
 
                             if npcExpanded then
-                                table.sort(npcBucket.rules, function(a, b)
-                                    local sa = tostring(a.scope)
-                                    local sb = tostring(b.scope)
-                                    if sa ~= sb then
-                                        local rank = { char = 1, acc = 2, db = 3 }
-                                        return (rank[sa] or 9) < (rank[sb] or 9)
+                                local byOption = {}
+                                local function Ensure(optionID)
+                                    local key = tostring(optionID)
+                                    local e = byOption[key]
+                                    if not e then
+                                        e = {
+                                            npcID = npcBucket.npcIDs and npcBucket.npcIDs[1] or nil,
+                                            npcName = npcBucket.npcName or "",
+                                            allNpcIDs = npcBucket.npcIDs or {},
+                                            optionID = tonumber(optionID) or optionID,
+                                            text = "",
+                                            ruleType = "",
+                                            hasChar = false,
+                                            hasAcc = false,
+                                            hasDb = false,
+                                            disabledChar = false,
+                                            disabledAcc = false,
+                                            disabledDb = false,
+                                            disabledDbAcc = false,
+                                            disabledDbChar = false,
+                                            _accNpcIDs = {},
+                                            _charNpcIDs = {},
+                                            _dbNpcIDs = {},
+                                        }
+                                        byOption[key] = e
                                     end
+                                    return e
+                                end
+
+                                for _, rule in ipairs(npcBucket.rules) do
+                                    local e = Ensure(rule.optionID)
+                                    if (e.text == "" or e.text == nil) and type(rule.text) == "string" and rule.text ~= "" then
+                                        e.text = rule.text
+                                    end
+                                    if (e.ruleType == "" or e.ruleType == nil) and type(rule.ruleType) == "string" and rule.ruleType ~= "" then
+                                        e.ruleType = rule.ruleType
+                                    end
+                                    if rule.scope == "char" then
+                                        e.hasChar = true
+                                        e._charNpcIDs[rule.npcID] = true
+                                        if rule.isDisabled then
+                                            e.disabledChar = true
+                                        end
+                                    elseif rule.scope == "acc" then
+                                        e.hasAcc = true
+                                        e._accNpcIDs[rule.npcID] = true
+                                        if rule.isDisabled then
+                                            e.disabledAcc = true
+                                        end
+                                    elseif rule.scope == "db" then
+                                        e.hasDb = true
+                                        e._dbNpcIDs[rule.npcID] = true
+                                        if rule.isDisabled then
+                                            e.disabledDb = true
+                                        end
+                                    end
+                                end
+
+                                local entries = {}
+                                for _, e in pairs(byOption) do
+                                    local function SetToSortedList(set)
+                                        local out = {}
+                                        for id in pairs(set or {}) do
+                                            table.insert(out, id)
+                                        end
+                                        table.sort(out, function(a, b) return (tonumber(a) or 0) < (tonumber(b) or 0) end)
+                                        return out
+                                    end
+
+                                    e.accNpcIDs = SetToSortedList(e._accNpcIDs)
+                                    e.charNpcIDs = SetToSortedList(e._charNpcIDs)
+                                    e.dbNpcIDs = SetToSortedList(e._dbNpcIDs)
+                                    e._accNpcIDs, e._charNpcIDs, e._dbNpcIDs = nil, nil, nil
+
+                                    e.disabledDbAcc = false
+                                    e.disabledDbChar = false
+                                    if e.hasDb then
+                                        for _, id in ipairs(e.dbNpcIDs or {}) do
+                                            if IsDisabledDB(id, e.optionID) then
+                                                e.disabledDbAcc = true
+                                            end
+                                            if IsDisabledDBOnChar(id, e.optionID) then
+                                                e.disabledDbChar = true
+                                            end
+                                            if e.disabledDbAcc and e.disabledDbChar then
+                                                break
+                                            end
+                                        end
+                                    end
+                                    e.disabledDb = (e.disabledDbAcc or e.disabledDbChar) and true or false
+
+                                    -- For Account rules, Character button represents "disabled on this character".
+                                    e.disabledAccOnChar = false
+                                    if e.hasAcc then
+                                        for _, id in ipairs(e.accNpcIDs or {}) do
+                                            if IsDisabledAccOnChar(id, e.optionID) then
+                                                e.disabledAccOnChar = true
+                                                break
+                                            end
+                                        end
+                                    end
+                                    table.insert(entries, e)
+                                end
+                                table.sort(entries, function(a, b)
                                     return (tonumber(a.optionID) or 0) < (tonumber(b.optionID) or 0)
                                 end)
-                                for _, rule in ipairs(npcBucket.rules) do
-                                    local scopeLabel = (rule.scope == "char") and "C" or "A"
-                                    if rule.scope == "db" then
-                                        scopeLabel = "DB"
+
+                                for _, entry in ipairs(entries) do
+                                    local text = entry.text
+                                    if type(text) ~= "string" or text == "" then
+                                        text = "(no text)"
                                     end
-                                    local text = rule.text or ""
-                                    local line = string.format("[%s] %s: %s", scopeLabel, tostring(rule.optionID), text)
+                                    local line = string.format("%s: %s", tostring(entry.optionID), text)
                                     table.insert(visible, {
                                         kind = "rule",
                                         level = 3,
                                         label = line,
-                                        rule = rule,
+                                        entry = entry,
                                     })
                                 end
                             end
@@ -1090,6 +1563,11 @@ local function CreateOptionsWindow()
         row:SetPoint("TOPLEFT", browserArea, "TOPLEFT", 8, -6 - (i - 1) * BROW_ROW_H)
         row:SetPoint("TOPRIGHT", browserArea, "TOPRIGHT", -8, -6 - (i - 1) * BROW_ROW_H)
 
+        local bg = row:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(row)
+        bg:Hide()
+        row.bg = bg
+
         local expBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
         expBtn:SetSize(18, BROW_ROW_H - 2)
         expBtn:SetPoint("LEFT", row, "LEFT", 0, 0)
@@ -1102,21 +1580,28 @@ local function CreateOptionsWindow()
         del:SetText("Del")
         row.btnDel = del
 
-        local toggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        toggle:SetSize(60, BROW_ROW_H - 2)
-        toggle:SetPoint("RIGHT", del, "LEFT", -4, 0)
-        toggle:SetText("Disable")
-        row.btnToggle = toggle
+        local btnCharToggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        btnCharToggle:SetSize(22, BROW_ROW_H - 2)
+        btnCharToggle:SetPoint("RIGHT", del, "LEFT", -4, 0)
+        btnCharToggle:SetText("C")
+        row.btnCharToggle = btnCharToggle
+
+        local btnAccToggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        btnAccToggle:SetSize(22, BROW_ROW_H - 2)
+        btnAccToggle:SetPoint("RIGHT", btnCharToggle, "LEFT", -4, 0)
+        btnAccToggle:SetText("A")
+        row.btnAccToggle = btnAccToggle
 
         local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         fs:SetPoint("LEFT", expBtn, "RIGHT", 6, 0)
-        fs:SetPoint("RIGHT", toggle, "LEFT", -6, 0)
+        fs:SetPoint("RIGHT", btnAccToggle, "LEFT", -6, 0)
         fs:SetJustifyH("LEFT")
         fs:SetWordWrap(false)
         row.text = fs
 
         local click = CreateFrame("Button", nil, row)
-        click:SetAllPoints(row)
+        click:SetPoint("TOPLEFT", expBtn, "TOPRIGHT", 0, 0)
+        click:SetPoint("BOTTOMRIGHT", btnAccToggle, "BOTTOMLEFT", 0, 0)
         click:RegisterForClicks("LeftButtonUp")
         row.btnClick = click
 
@@ -1151,21 +1636,26 @@ local function CreateOptionsWindow()
             else
                 row:Show()
 
+                local zebra = (idx % 2) == 0
+                row.bg:SetShown(zebra)
+                row.bg:SetColorTexture(1, 1, 1, zebra and 0.05 or 0)
+
                 local indent = (node.level or 0) * 14
                 row.btnExpand:ClearAllPoints()
                 row.btnExpand:SetPoint("LEFT", row, "LEFT", indent, 0)
 
-                if node.kind == "exp" or node.kind == "zone" or node.kind == "npc" then
+                if node.kind == "continent" or node.kind == "zone" or node.kind == "npc" then
                     row.btnExpand:Show()
                     row.btnExpand:SetText(node.expanded and "-" or "+")
-                    row.btnToggle:Hide()
+                    row.btnAccToggle:Hide()
+                    row.btnCharToggle:Hide()
                     row.btnDel:Hide()
 
                     row.text:SetText(node.label)
-                    if node.kind == "exp" then
-                        row.text:SetTextColor(1, 0.82, 0, 1)
-                    elseif node.kind == "zone" then
+                    if node.kind == "continent" then
                         row.text:SetTextColor(0.8, 0.9, 1, 1)
+                    elseif node.kind == "zone" then
+                        row.text:SetTextColor(0.75, 0.85, 1, 1)
                     else
                         row.text:SetTextColor(1, 1, 1, 1)
                     end
@@ -1181,63 +1671,399 @@ local function CreateOptionsWindow()
                 else
                     -- rule
                     row.btnExpand:Hide()
-                    row.btnToggle:Show()
                     row.btnDel:Show()
                     row.text:SetText(node.label)
 
-                    local rule = node.rule
-                    local npcID = rule and rule.npcID
-                    local optionID = rule and rule.optionID
+                    local entry = node.entry
+                    local npcID = entry and entry.npcID
+                    local optionID = entry and entry.optionID
 
-                    local isDisabled = rule and rule.isDisabled
-                    if isDisabled then
-                        row.text:SetTextColor(0.67, 0.67, 0.67, 1)
-                        row.btnToggle:SetText("Enable")
-                    else
-                        row.text:SetTextColor(1, 1, 1, 1)
-                        row.btnToggle:SetText("Disable")
+                    local function SetScopeText(btn, label, state)
+                        if state == "inactive" then
+                            btn:SetText("|cffffff00" .. label .. "|r")
+                        elseif state == "active" then
+                            btn:SetText("|cff00ff00" .. label .. "|r")
+                        elseif state == "disabled" then
+                            btn:SetText("|cffff9900" .. label .. "|r")
+                        else
+                            btn:SetText("|cff666666" .. label .. "|r")
+                        end
                     end
 
-                    row.btnToggle:SetScript("OnClick", function()
-                        InitSV()
-                        if rule.scope == "db" then
-                            SetDisabledDB(npcID, optionID, not IsDisabledDB(npcID, optionID))
-                        else
-                            SetDisabled(rule.scope, npcID, optionID, not IsDisabled(rule.scope, npcID, optionID))
-                        end
-                        f:RefreshBrowserList()
-                        if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
-                    end)
+                    local function ConfigureDbProxyButton(btn, label, dbScope)
+                        btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-                    if rule.scope == "db" then
-                        row.btnDel:Disable()
-                        row.btnDel:SetText("DB")
-                        row.btnDel:SetScript("OnClick", nil)
+                        local state
+                        if dbScope == "acc" then
+                            state = entry.disabledDbAcc and "disabled" or "active"
+                        else
+                            -- Character DB disable is effectively overridden if Account disables the DB rule.
+                            state = (entry.disabledDbAcc or entry.disabledDbChar) and "disabled" or "active"
+                        end
+                        SetScopeText(btn, label, state)
+                        btn:SetEnabled(true)
+
+                        btn:SetScript("OnClick", function(_, mouseButton)
+                            if mouseButton == "RightButton" then
+                                return
+                            end
+                            InitSV()
+                            local ids = entry.dbNpcIDs or {}
+                            if dbScope == "acc" then
+                                local newDisabled = not (entry.disabledDbAcc and true or false)
+                                for _, id in ipairs(ids) do
+                                    SetDisabledDB(id, optionID, newDisabled)
+                                end
+                            else
+                                local newDisabled = not (entry.disabledDbChar and true or false)
+                                for _, id in ipairs(ids) do
+                                    SetDisabledDBOnChar(id, optionID, newDisabled)
+                                end
+                            end
+                            f:RefreshBrowserList()
+                            if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
+                        end)
+
+                        btn:SetScript("OnEnter", function()
+                            if not GameTooltip then
+                                return
+                            end
+                            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+                            if dbScope == "acc" then
+                                GameTooltip:SetText("DB (Account)")
+                                if entry.disabledDbAcc then
+                                    GameTooltip:AddLine("State: Disabled", 1, 0.6, 0, true)
+                                    GameTooltip:AddLine("Left-click: Enable DB rule", 1, 1, 1, true)
+                                else
+                                    GameTooltip:AddLine("State: Active", 0, 1, 0, true)
+                                    GameTooltip:AddLine("Left-click: Disable DB rule", 1, 1, 1, true)
+                                end
+                            else
+                                GameTooltip:SetText("DB (Character)")
+                                if entry.disabledDbAcc then
+                                    GameTooltip:AddLine("Disabled by Account.", 1, 0.6, 0, true)
+                                    GameTooltip:AddLine("(Character override applies when Account is enabled)", 1, 1, 1, true)
+                                elseif entry.disabledDbChar then
+                                    GameTooltip:AddLine("State: Disabled on this character", 1, 0.6, 0, true)
+                                    GameTooltip:AddLine("Left-click: Enable on this character", 1, 1, 1, true)
+                                else
+                                    GameTooltip:AddLine("State: Active on this character", 0, 1, 0, true)
+                                    GameTooltip:AddLine("Left-click: Disable on this character", 1, 1, 1, true)
+                                end
+                            end
+                            GameTooltip:Show()
+                        end)
+                        btn:SetScript("OnLeave", function()
+                            if GameTooltip then GameTooltip:Hide() end
+                        end)
+                    end
+
+                    local function CopyRuleData(data)
+                        if type(data) ~= "table" then
+                            return { text = "", type = "" }
+                        end
+                        return {
+                            text = data.text or "",
+                            type = data.type or "",
+                            addedAt = data.addedAt,
+                        }
+                    end
+
+                    local function ConvertCharToAccForIDs(npcIDs)
+                        InitSV()
+                        npcIDs = npcIDs or {}
+                        for _, id in ipairs(npcIDs) do
+                            local charNpc = AutoGossip_Char and AutoGossip_Char[id]
+                            local charData = charNpc and (charNpc[optionID] or charNpc[tostring(optionID)])
+                            if type(charData) == "table" then
+                                AutoGossip_Acc[id] = AutoGossip_Acc[id] or {}
+                                local accNpc = AutoGossip_Acc[id]
+                                accNpc.__meta = (type(accNpc.__meta) == "table") and accNpc.__meta or {}
+                                if type(charNpc.__meta) == "table" then
+                                    if (not accNpc.__meta.zone) and (charNpc.__meta.zone or charNpc.__meta.zoneName) then
+                                        accNpc.__meta.zone = charNpc.__meta.zone or charNpc.__meta.zoneName
+                                    end
+                                    if (not accNpc.__meta.npc) and (charNpc.__meta.npc or charNpc.__meta.npcName) then
+                                        accNpc.__meta.npc = charNpc.__meta.npc or charNpc.__meta.npcName
+                                    end
+                                end
+                                accNpc[optionID] = CopyRuleData(charData)
+                                SetDisabled("acc", id, optionID, false)
+                                SetDisabledAccOnChar(id, optionID, false)
+                                DeleteRule("char", id, optionID)
+                            end
+                        end
+                    end
+
+                    local function ConvertAccToCharForIDs(npcIDs)
+                        InitSV()
+                        npcIDs = npcIDs or {}
+                        for _, id in ipairs(npcIDs) do
+                            local accNpc = AutoGossip_Acc and AutoGossip_Acc[id]
+                            local accData = accNpc and (accNpc[optionID] or accNpc[tostring(optionID)])
+                            if type(accData) == "table" then
+                                AutoGossip_Char[id] = AutoGossip_Char[id] or {}
+                                local charNpc = AutoGossip_Char[id]
+                                charNpc.__meta = (type(charNpc.__meta) == "table") and charNpc.__meta or {}
+                                if type(accNpc.__meta) == "table" then
+                                    if (not charNpc.__meta.zone) and (accNpc.__meta.zone or accNpc.__meta.zoneName) then
+                                        charNpc.__meta.zone = accNpc.__meta.zone or accNpc.__meta.zoneName
+                                    end
+                                    if (not charNpc.__meta.npc) and (accNpc.__meta.npc or accNpc.__meta.npcName) then
+                                        charNpc.__meta.npc = accNpc.__meta.npc or accNpc.__meta.npcName
+                                    end
+                                end
+                                charNpc[optionID] = CopyRuleData(accData)
+                                SetDisabled("char", id, optionID, false)
+                            end
+                        end
+                    end
+
+                    local function ConfigureAccountButton()
+                        row.btnAccToggle:RegisterForClicks("LeftButtonUp")
+
+                        if entry.hasAcc then
+                            local aState = entry.disabledAcc and "disabled" or "active"
+                            SetScopeText(row.btnAccToggle, "A", aState)
+                            row.btnAccToggle:SetEnabled(true)
+                            row.btnAccToggle:SetScript("OnClick", function()
+                                InitSV()
+                                local newDisabled = not (entry.disabledAcc and true or false)
+                                for _, id in ipairs(entry.accNpcIDs or {}) do
+                                    SetDisabled("acc", id, optionID, newDisabled)
+                                end
+                                f:RefreshBrowserList()
+                                if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
+                            end)
+
+                            row.btnAccToggle:SetScript("OnEnter", function()
+                                if not GameTooltip then
+                                    return
+                                end
+                                GameTooltip:SetOwner(row.btnAccToggle, "ANCHOR_RIGHT")
+                                GameTooltip:SetText("Account")
+                                if entry.disabledAcc then
+                                    GameTooltip:AddLine("State: Disabled", 1, 0.6, 0, true)
+                                    GameTooltip:AddLine("Left-click: Enable (Account)", 1, 1, 1, true)
+                                else
+                                    GameTooltip:AddLine("State: Active", 0, 1, 0, true)
+                                    GameTooltip:AddLine("Left-click: Disable (Account)", 1, 1, 1, true)
+                                end
+                                GameTooltip:AddLine("When Account is active, C controls 'disabled on this character'.", 1, 1, 1, true)
+                                GameTooltip:Show()
+                            end)
+                            row.btnAccToggle:SetScript("OnLeave", function()
+                                if GameTooltip then GameTooltip:Hide() end
+                            end)
+                        else
+                            -- If only Character exists, clicking A converts/moves it to Account.
+                            SetScopeText(row.btnAccToggle, "A", "inactive")
+                            row.btnAccToggle:SetEnabled(entry.hasChar and true or false)
+                            row.btnAccToggle:SetScript("OnClick", function()
+                                if not entry.hasChar then
+                                    return
+                                end
+                                ConvertCharToAccForIDs(entry.charNpcIDs)
+                                f:RefreshBrowserList()
+                                if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
+                            end)
+
+                            row.btnAccToggle:SetScript("OnEnter", function()
+                                if not GameTooltip then
+                                    return
+                                end
+                                GameTooltip:SetOwner(row.btnAccToggle, "ANCHOR_RIGHT")
+                                GameTooltip:SetText("Account")
+                                if entry.hasChar then
+                                    GameTooltip:AddLine("State: Inactive", 1, 1, 0, true)
+                                    GameTooltip:AddLine("Left-click: Move/convert C -> A", 1, 1, 1, true)
+                                    GameTooltip:AddLine("(Creates an Account rule and removes the Character rule)", 1, 1, 1, true)
+                                else
+                                    GameTooltip:AddLine("State: Inactive", 1, 1, 0, true)
+                                    GameTooltip:AddLine("No Account or Character rule here.", 1, 1, 1, true)
+                                end
+                                GameTooltip:Show()
+                            end)
+                            row.btnAccToggle:SetScript("OnLeave", function()
+                                if GameTooltip then GameTooltip:Hide() end
+                            end)
+                        end
+                    end
+
+                    local function ConfigureCharacterButton()
+                        row.btnCharToggle:RegisterForClicks("LeftButtonUp")
+
+                        -- If a real Character rule exists, C controls it (even if an Account rule also exists).
+                        if entry.hasChar then
+                            local cState = entry.disabledChar and "disabled" or "active"
+                            SetScopeText(row.btnCharToggle, "C", cState)
+                            row.btnCharToggle:SetEnabled(true)
+                            row.btnCharToggle:SetScript("OnClick", function()
+                                InitSV()
+                                local newDisabled = not (entry.disabledChar and true or false)
+                                for _, id in ipairs(entry.charNpcIDs or {}) do
+                                    SetDisabled("char", id, optionID, newDisabled)
+                                end
+                                f:RefreshBrowserList()
+                                if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
+                            end)
+
+                            row.btnCharToggle:SetScript("OnEnter", function()
+                                if not GameTooltip then
+                                    return
+                                end
+                                GameTooltip:SetOwner(row.btnCharToggle, "ANCHOR_RIGHT")
+                                GameTooltip:SetText("Character")
+                                if entry.disabledChar then
+                                    GameTooltip:AddLine("State: Disabled", 1, 0.6, 0, true)
+                                    GameTooltip:AddLine("Left-click: Enable (Character)", 1, 1, 1, true)
+                                else
+                                    GameTooltip:AddLine("State: Active", 0, 1, 0, true)
+                                    GameTooltip:AddLine("Left-click: Disable (Character)", 1, 1, 1, true)
+                                end
+                                GameTooltip:AddLine("Click A to move/convert to Account.", 1, 1, 1, true)
+                                GameTooltip:Show()
+                            end)
+                            row.btnCharToggle:SetScript("OnLeave", function()
+                                if GameTooltip then GameTooltip:Hide() end
+                            end)
+                        elseif entry.hasAcc then
+                            if entry.disabledAcc then
+                                -- Account rule exists but is disabled; allow enabling on this character by creating a Character copy.
+                                SetScopeText(row.btnCharToggle, "C", "inactive")
+                                row.btnCharToggle:SetEnabled(true)
+                                row.btnCharToggle:SetScript("OnClick", function()
+                                    ConvertAccToCharForIDs(entry.accNpcIDs)
+                                    f:RefreshBrowserList()
+                                    if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
+                                end)
+
+                                row.btnCharToggle:SetScript("OnEnter", function()
+                                    if not GameTooltip then
+                                        return
+                                    end
+                                    GameTooltip:SetOwner(row.btnCharToggle, "ANCHOR_RIGHT")
+                                    GameTooltip:SetText("Character")
+                                    GameTooltip:AddLine("Account is disabled.", 1, 0.6, 0, true)
+                                    GameTooltip:AddLine("Left-click: Enable on this character (creates Character rule)", 1, 1, 1, true)
+                                    GameTooltip:AddLine("(Account stays disabled)", 1, 1, 1, true)
+                                    GameTooltip:Show()
+                                end)
+                                row.btnCharToggle:SetScript("OnLeave", function()
+                                    if GameTooltip then GameTooltip:Hide() end
+                                end)
+                            else
+                                -- Character = "disabled on this character" for the Account rule.
+                                local cDisabled = (entry.disabledAccOnChar and true or false)
+                                SetScopeText(row.btnCharToggle, "C", cDisabled and "disabled" or "active")
+                                row.btnCharToggle:SetEnabled(true)
+                                row.btnCharToggle:SetScript("OnClick", function()
+                                    InitSV()
+                                    local newDisabled = not (entry.disabledAccOnChar and true or false)
+                                    for _, id in ipairs(entry.accNpcIDs or {}) do
+                                        SetDisabledAccOnChar(id, optionID, newDisabled)
+                                    end
+                                    f:RefreshBrowserList()
+                                    if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
+                                end)
+
+                                row.btnCharToggle:SetScript("OnEnter", function()
+                                    if not GameTooltip then
+                                        return
+                                    end
+                                    GameTooltip:SetOwner(row.btnCharToggle, "ANCHOR_RIGHT")
+                                    GameTooltip:SetText("Character")
+                                    if entry.disabledAccOnChar then
+                                        GameTooltip:AddLine("State: Disabled on this character", 1, 0.6, 0, true)
+                                        GameTooltip:AddLine("Left-click: Enable on this character", 1, 1, 1, true)
+                                    else
+                                        GameTooltip:AddLine("State: Active on this character", 0, 1, 0, true)
+                                        GameTooltip:AddLine("Left-click: Disable on this character", 1, 1, 1, true)
+                                    end
+                                    GameTooltip:Show()
+                                end)
+                                row.btnCharToggle:SetScript("OnLeave", function()
+                                    if GameTooltip then GameTooltip:Hide() end
+                                end)
+                            end
+                        else
+                            SetScopeText(row.btnCharToggle, "C", "inactive")
+                            row.btnCharToggle:SetEnabled(false)
+                            row.btnCharToggle:SetScript("OnClick", nil)
+
+                            row.btnCharToggle:SetScript("OnEnter", function()
+                                if not GameTooltip then
+                                    return
+                                end
+                                GameTooltip:SetOwner(row.btnCharToggle, "ANCHOR_RIGHT")
+                                GameTooltip:SetText("Character")
+                                GameTooltip:AddLine("State: Inactive", 1, 1, 0, true)
+                                GameTooltip:AddLine("No Character rule here.", 1, 1, 1, true)
+                                GameTooltip:Show()
+                            end)
+                            row.btnCharToggle:SetScript("OnLeave", function()
+                                if GameTooltip then GameTooltip:Hide() end
+                            end)
+                        end
+                    end
+
+                    local isAnyDisabled = (entry.disabledAcc or entry.disabledChar or entry.disabledDb or entry.disabledAccOnChar) and true or false
+                    row.text:SetTextColor(isAnyDisabled and 0.67 or 1, isAnyDisabled and 0.67 or 1, isAnyDisabled and 0.67 or 1, 1)
+
+                    local dbOnly = entry.hasDb and (not entry.hasAcc) and (not entry.hasChar)
+
+                    -- Always show both scope buttons in the Rules tab.
+                    row.btnAccToggle:Show()
+                    row.btnCharToggle:Show()
+
+                    -- Re-anchor buttons (fixed positions).
+                    row.btnCharToggle:ClearAllPoints()
+                    row.btnAccToggle:ClearAllPoints()
+                    row.btnCharToggle:SetPoint("RIGHT", row.btnDel, "LEFT", -4, 0)
+                    row.btnAccToggle:SetPoint("RIGHT", row.btnCharToggle, "LEFT", -4, 0)
+
+                    -- Ensure text doesn't overlap buttons.
+                    row.text:ClearAllPoints()
+                    row.text:SetPoint("LEFT", row.btnExpand, "RIGHT", 6, 0)
+                    row.text:SetPoint("RIGHT", row.btnAccToggle, "LEFT", -6, 0)
+                    row.text:SetJustifyH("LEFT")
+                    row.text:SetWordWrap(false)
+
+                    if dbOnly then
+                        -- Treat DB-only rules as active for both A and C; A/C toggles DB enable/disable in place.
+                        ConfigureDbProxyButton(row.btnAccToggle, "A", "acc")
+                        ConfigureDbProxyButton(row.btnCharToggle, "C", "char")
                     else
+                        ConfigureAccountButton()
+                        ConfigureCharacterButton()
+                    end
+
+                    if entry.hasAcc or entry.hasChar then
                         row.btnDel:Enable()
                         row.btnDel:SetText("Del")
                         row.btnDel:SetScript("OnClick", function()
                             InitSV()
-                            DeleteRule(rule.scope, npcID, optionID)
+                            if entry.hasAcc then
+                                for _, id in ipairs(entry.accNpcIDs or {}) do
+                                    DeleteRule("acc", id, optionID, true)
+                                end
+                            end
+                            if entry.hasChar then
+                                for _, id in ipairs(entry.charNpcIDs or {}) do
+                                    DeleteRule("char", id, optionID, true)
+                                end
+                            end
                             f:RefreshBrowserList()
                             if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
                         end)
+                    else
+                        row.btnDel:Disable()
+                        row.btnDel:SetText("DB")
+                        row.btnDel:SetScript("OnClick", nil)
                     end
 
-                    row.btnClick:SetScript("OnClick", function()
-                        f.selectedNpcID = npcID
-                        f.selectedNpcName = rule.npcName
-                        if f.SelectTab then
-                            f.SelectTab(2)
-                        end
-                        if f.edit and optionID then
-                            f.edit:SetText(tostring(optionID))
-                            f.edit:HighlightText()
-                        end
-                        if f.UpdateFromInput then
-                            f:UpdateFromInput()
-                        end
-                    end)
+                    -- Rules tab is toggle-only; clicking a rule row does not jump to the edit tab.
+                    row.btnClick:SetScript("OnClick", nil)
                 end
             end
         end
@@ -1357,12 +2183,14 @@ local function CreateOptionsWindow()
 
     local scrollFrame = CreateFrame("ScrollFrame", nil, rulesArea, "FauxScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", rulesArea, "TOPLEFT", 4, -4)
-    scrollFrame:SetPoint("BOTTOMRIGHT", rulesArea, "BOTTOMRIGHT", -26, 4)
+    scrollFrame:SetPoint("BOTTOMRIGHT", rulesArea, "BOTTOMRIGHT", -4, 4)
     f.scrollFrame = scrollFrame
 
     local RULE_ROW_H = 18
     local RULE_ROWS = 8
     local rows = {}
+
+    HideFauxScrollBarAndEnableWheel(scrollFrame, RULE_ROW_H)
 
     local function SetRowVisible(row, visible)
         if visible then
@@ -1556,16 +2384,22 @@ local function CreateOptionsWindow()
 
                     btn:Enable()
                     if isDisabled then
-                        btn:SetText("|cffffff00" .. label .. "|r")
+                        btn:SetText("|cffff9900" .. label .. "|r")
                     else
-                        btn:SetText("|cffff0000" .. label .. "|r")
+                        btn:SetText("|cff00ff00" .. label .. "|r")
                     end
                     btn:SetScript("OnClick", onClick)
                     btn:SetScript("OnEnter", function()
                         if GameTooltip then
                             GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
                             GameTooltip:SetText(tooltipLabel)
-                            GameTooltip:AddLine(isDisabled and "Yellow = re-enable" or "Red = disable", 1, 1, 1, true)
+                            if isDisabled then
+                                GameTooltip:AddLine("State: Disabled", 1, 0.6, 0, true)
+                                GameTooltip:AddLine("Left-click: Enable", 1, 1, 1, true)
+                            else
+                                GameTooltip:AddLine("State: Active", 0, 1, 0, true)
+                                GameTooltip:AddLine("Left-click: Disable", 1, 1, 1, true)
+                            end
                             GameTooltip:Show()
                         end
                     end)
@@ -1634,12 +2468,14 @@ local function CreateOptionsWindow()
 
     local optScroll = CreateFrame("ScrollFrame", nil, optionsArea, "FauxScrollFrameTemplate")
     optScroll:SetPoint("TOPLEFT", optionsArea, "TOPLEFT", 4, -4)
-    optScroll:SetPoint("BOTTOMRIGHT", optionsArea, "BOTTOMRIGHT", -26, 4)
+    optScroll:SetPoint("BOTTOMRIGHT", optionsArea, "BOTTOMRIGHT", -4, 4)
     f.optScroll = optScroll
 
     local OPT_ROW_H = 18
     local OPT_ROWS = 8
     local optRows = {}
+
+    HideFauxScrollBarAndEnableWheel(optScroll, OPT_ROW_H)
 
     for i = 1, OPT_ROWS do
         local row = CreateFrame("Button", nil, optionsArea)
@@ -1819,6 +2655,9 @@ local function CreateOptionsWindow()
 
     -- Keep the option list in sync when the frame is shown.
     f:SetScript("OnShow", function()
+        if f.edit and f.edit.ClearFocus then
+            f.edit:ClearFocus()
+        end
         if f.SelectTab then
             f:SelectTab(1)
         end
@@ -2028,6 +2867,9 @@ local function ToggleUI(optionID)
         end
         AutoGossipOptions.edit:SetText(optionID and tostring(optionID) or "")
         AutoGossipOptions.edit:HighlightText()
+        if AutoGossipOptions.edit and AutoGossipOptions.edit.ClearFocus then
+            AutoGossipOptions.edit:ClearFocus()
+        end
         if AutoGossipOptions.UpdateFromInput then
             AutoGossipOptions:UpdateFromInput()
         end
@@ -2111,7 +2953,8 @@ local function PrintDebugOptionsOnShow()
     end
 
     -- Don't print debug if we'd auto-select for this NPC/options.
-    if npcID and (not IsShiftKeyDown()) and (not InCombatLockdown()) then
+    -- Treat the UI window being open like Shift held (suppresses auto-select).
+    if npcID and (not IsShiftKeyDown()) and (not InCombatLockdown()) and (not (AutoGossipOptions and AutoGossipOptions.IsShown and AutoGossipOptions:IsShown())) then
         for _, opt in ipairs(options) do
             local optionID = opt and opt.gossipOptionID
             if optionID then
@@ -2180,6 +3023,7 @@ frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:SetScript("OnEvent", function(_, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         InitSV()
+        DeduplicateUserRulesAgainstDb()
         return
     end
 
