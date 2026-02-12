@@ -1097,6 +1097,47 @@ local function CreateOptionsWindow()
         end
     end
 
+    local function BumpFontsInFrame(root, delta)
+        if not root then
+            return
+        end
+
+        local seen = {}
+        local function bump(obj)
+            if not obj or seen[obj] then
+                return
+            end
+            seen[obj] = true
+
+            local objType = obj.GetObjectType and obj:GetObjectType() or nil
+            if objType == "FontString" then
+                BumpFont(obj, delta)
+            elseif objType == "EditBox" and obj.GetFont and obj.SetFont then
+                local fontPath, fontSize, fontFlags = obj:GetFont()
+                if fontPath and fontSize then
+                    obj:SetFont(fontPath, fontSize + (delta or 0), fontFlags)
+                end
+            end
+
+            if obj.GetFontString then
+                BumpFont(obj:GetFontString(), delta)
+            end
+
+            if obj.GetRegions then
+                for i = 1, select("#", obj:GetRegions()) do
+                    bump(select(i, obj:GetRegions()))
+                end
+            end
+            if obj.GetChildren then
+                for i = 1, select("#", obj:GetChildren()) do
+                    bump(select(i, obj:GetChildren()))
+                end
+            end
+        end
+
+        bump(root)
+    end
+
     local function CloseOptionsWindow()
         if f and f.Hide then
             f:Hide()
@@ -2841,6 +2882,12 @@ local function CreateOptionsWindow()
             UpdateQueueAcceptButton()
             UpdateDebugButton()
         end
+    end
+
+    -- Creation tab (Edit/Add) font bump (+2pt) only.
+    if not f._editFontsBumped then
+        BumpFontsInFrame(editPanel, 2)
+        f._editFontsBumped = true
     end
 
     -- Default tab
