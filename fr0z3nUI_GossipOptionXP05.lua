@@ -25,9 +25,14 @@ end
 
 -- PANDARIA
 
---SetZone("Dornogal, Khaz Algar")
+SetZone("Kun-Lai Summit, Pandaria")
 
-   -- Delver's Guide
-        --local t = NPC(227675, "Delver's Guide")
-        --t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
+    local t = NPC(68465, "Thundering Pandaren Spirit")
+    t[41955] = { text = "Another challenge?", type = "" }
+
+SetZone("Townlong Steppes, Pandaria")
+
+    local t = NPC(68463, "Burning Pandaren Spirit")
+    t[41951] = { text = "Another challenge?", type = "" }
+
 

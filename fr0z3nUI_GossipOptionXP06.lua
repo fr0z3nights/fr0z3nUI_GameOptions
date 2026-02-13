@@ -26,9 +26,8 @@ end
 
 -- DRAENOR
 
---SetZone("Dornogal, Khaz Algar")
+--SetZone("Talador, Draenor")
 
-   -- Delver's Guide
-        --local t = NPC(227675, "Delver's Guide")
-        --t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
+    local t = NPC(87125, "Taralune")
+    t[42883] = { text = "Let's do this!", type = "" }
 

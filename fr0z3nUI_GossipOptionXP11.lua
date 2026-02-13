@@ -29,19 +29,20 @@ end
 
 SetZone("Dornogal, Khaz Algar")
 
-    -- Brann Bronzebeard
-        local t = NPC(206017, "Brann Bronzebeard")
-        t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r", type = "" }
-        t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r", type = "" }
+    local t = NPC(206017, "Brann Bronzebeard")
+    t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r", type = "" }
+    t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r", type = "" }
 
-   -- Delver's Guide
-        local t = NPC(227675, "Delver's Guide")
-        t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
+    local t = NPC(227675, "Delver's Guide")
+    t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
 
-   -- Ronesh (Dornogal Innkeeper)
-        local t = NPC(212370, "Ronesh")
-        t[121503] = { text = "I want to browse your goods.", type = "" }
+    local t = NPC(212370, "Ronesh")
+    t[121503] = { text = "I want to browse your goods.", type = "" }
 
 
+SetZone("Hallowfall, Khaz Algar")
+
+    local t = NPC(220293, "Aliya Hillhelm")
+    t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this.", type = "" }
 
 
