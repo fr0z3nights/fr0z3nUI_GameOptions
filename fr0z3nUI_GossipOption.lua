@@ -118,6 +118,10 @@ local function InitSV()
     if type(AutoGossip_Settings.debugPetPopupsAcc) ~= "boolean" then
         AutoGossip_Settings.debugPetPopupsAcc = false
     end
+    if type(AutoGossip_Settings.autoAcceptPetPrepareAcc) ~= "boolean" then
+        -- Default ON: used for pet battle "Prepare yourself!" confirmation popup.
+        AutoGossip_Settings.autoAcceptPetPrepareAcc = true
+    end
 
     -- Queue accept overlay: 3-state UX via two SVs.
     -- - Acc On: queueAcceptAcc=true,  queueAcceptMode="acc"
@@ -235,6 +239,44 @@ local function GetShortStack(skip)
 end
 
 local petPopupDebugHooked = false
+
+local function TryAutoAcceptPetPreparePopup(which, text_arg1)
+    InitSV()
+    if not (AutoGossip_Settings and AutoGossip_Settings.autoAcceptPetPrepareAcc) then
+        return
+    end
+    if which ~= "GOSSIP_CONFIRM" then
+        return
+    end
+    local a1 = text_arg1 and tostring(text_arg1) or ""
+    if a1 == "" or not a1:find("Prepare yourself", 1, true) then
+        return
+    end
+
+    -- Defer one frame so StaticPopup has finished setting up.
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function()
+            for i = 1, 4 do
+                local popup = _G["StaticPopup" .. i]
+                if popup and popup.IsShown and popup:IsShown() and popup.which == which then
+                    local ok = false
+                    if popup.button1 and popup.button1.Click then
+                        ok = pcall(popup.button1.Click, popup.button1)
+                    elseif StaticPopup_OnClick then
+                        ok = pcall(StaticPopup_OnClick, popup, 1)
+                    end
+                    if ok then
+                        if AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc then
+                            Print("Auto-accepted: " .. a1)
+                        end
+                    end
+                    return
+                end
+            end
+        end)
+    end
+end
+
 local function SetupPetPopupDebug()
     if petPopupDebugHooked then
         return
@@ -245,23 +287,35 @@ local function SetupPetPopupDebug()
         hooksecurefunc("StaticPopup_Show", function(which, text_arg1, text_arg2)
             InitSV()
             if not (AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc) then
-                return
-            end
-            if not petBattleOpenStartInPandaria then
-                return
-            end
-            if not GetTime or (GetTime() - (petBattleOpenStartAt or 0)) > 10 then
+                -- Debug can be off while auto-accept is on.
+                TryAutoAcceptPetPreparePopup(which, text_arg1)
                 return
             end
 
             local whichStr = which and tostring(which) or "(nil)"
             local a1 = text_arg1 and tostring(text_arg1) or ""
             local a2 = text_arg2 and tostring(text_arg2) or ""
-            local stack = GetShortStack(2)
-            Print(string.format("PetBattle popup: %s | a1=%s | a2=%s", whichStr, a1, a2))
-            if stack ~= "" then
-                Print("PetBattle popup stack: " .. stack)
+            local dialogText = ""
+            local dialog = (StaticPopupDialogs and which) and StaticPopupDialogs[which] or nil
+            if dialog and dialog.text then
+                if type(dialog.text) == "function" then
+                    local ok, val = pcall(dialog.text)
+                    dialogText = ok and tostring(val or "") or ""
+                else
+                    dialogText = tostring(dialog.text or "")
+                end
             end
+            local stack = GetShortStack(2)
+            if dialogText ~= "" then
+                Print(string.format("StaticPopup: %s | text=%s | a1=%s | a2=%s", whichStr, dialogText, a1, a2))
+            else
+                Print(string.format("StaticPopup: %s | a1=%s | a2=%s", whichStr, a1, a2))
+            end
+            if stack ~= "" then
+                Print("StaticPopup stack: " .. stack)
+            end
+
+            TryAutoAcceptPetPreparePopup(which, text_arg1)
         end)
     end
 end
@@ -2237,8 +2291,17 @@ local function CreateOptionsWindow()
     HideEditBoxFrame(edit)
 
     -- NPC header (top center)
+    local zoneContinentLabel = editPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    zoneContinentLabel:SetPoint("TOP", leftArea, "TOP", 0, -2)
+    zoneContinentLabel:SetPoint("LEFT", leftArea, "LEFT", 0, 0)
+    zoneContinentLabel:SetPoint("RIGHT", leftArea, "RIGHT", 0, 0)
+    zoneContinentLabel:SetJustifyH("CENTER")
+    zoneContinentLabel:SetWordWrap(true)
+    zoneContinentLabel:SetText("")
+    f.zoneContinentLabel = zoneContinentLabel
+
     local nameLabel = editPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    nameLabel:SetPoint("TOP", leftArea, "TOP", 0, -2)
+    nameLabel:SetPoint("TOP", zoneContinentLabel, "BOTTOM", 0, -1)
     nameLabel:SetPoint("LEFT", leftArea, "LEFT", 0, 0)
     nameLabel:SetPoint("RIGHT", leftArea, "RIGHT", 0, 0)
     nameLabel:SetJustifyH("CENTER")
@@ -2247,7 +2310,7 @@ local function CreateOptionsWindow()
     f.nameLabel = nameLabel
 
     local reasonLabel = editPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    reasonLabel:SetPoint("TOP", nameLabel, "BOTTOM", 0, -2)
+    reasonLabel:SetPoint("TOP", nameLabel, "BOTTOM", 0, -1)
     reasonLabel:SetPoint("LEFT", leftArea, "LEFT", 0, 0)
     reasonLabel:SetPoint("RIGHT", leftArea, "RIGHT", 0, 0)
     reasonLabel:SetJustifyH("CENTER")
@@ -2746,10 +2809,40 @@ local function CreateOptionsWindow()
         end
     end)
 
+    local function GetPlayerContinentNameForHeader()
+        if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetMapInfo) then
+            return ""
+        end
+        local mapID = C_Map.GetBestMapForUnit("player")
+        local safety = 0
+        while mapID and safety < 30 do
+            local info = C_Map.GetMapInfo(mapID)
+            if not info then
+                break
+            end
+            if Enum and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent then
+                return info.name or ""
+            end
+            mapID = info.parentMapID
+            safety = safety + 1
+        end
+        return ""
+    end
+
     function f:UpdateFromInput()
         InitSV()
         local npcID = GetCurrentNpcID() or f.selectedNpcID
         local npcName = GetCurrentNpcName() or f.selectedNpcName or ""
+
+        if f.zoneContinentLabel and f.zoneContinentLabel.SetText then
+            local zone = (GetZoneText and GetZoneText()) or ""
+            local continent = GetPlayerContinentNameForHeader()
+            if zone ~= "" and continent ~= "" then
+                f.zoneContinentLabel:SetText(zone .. ", " .. continent)
+            else
+                f.zoneContinentLabel:SetText(zone ~= "" and zone or (continent ~= "" and continent or ""))
+            end
+        end
 
         nameLabel:SetText(npcName or "")
         if npcID then
@@ -2972,8 +3065,7 @@ local function CreateOptionsWindow()
             if GameTooltip then
                 GameTooltip:SetOwner(btnPetPopupDebug, "ANCHOR_RIGHT")
                 GameTooltip:SetText("Pet Popup Debug")
-                GameTooltip:AddLine("ON ACC: when a pet battle starts in Pandaria, log any StaticPopup shown.", 1, 1, 1, true)
-                GameTooltip:AddLine("Helps identify which popup is appearing.", 1, 1, 1, true)
+                GameTooltip:AddLine("ON ACC: log StaticPopup dialogs (name/text/args) so you can identify what is firing.", 1, 1, 1, true)
                 GameTooltip:Show()
             end
         end)
@@ -2983,12 +3075,52 @@ local function CreateOptionsWindow()
 
         UpdatePetPopupDebugButton()
 
+        local btnPetPrepareAccept = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnPetPrepareAccept:SetSize(BTN_W, BTN_H)
+        btnPetPrepareAccept:SetPoint("TOP", btnPetPopupDebug, "BOTTOM", 0, -GAP_Y)
+        f.btnPetPrepareAccept = btnPetPrepareAccept
+
+        local function SetYellowGreyAccText(btn, label, enabled)
+            if enabled then
+                btn:SetText(label .. ": |cffffff00ON ACC|r")
+            else
+                btn:SetText(label .. ": |cff888888OFF ACC|r")
+            end
+        end
+
+        local function UpdatePetPrepareAcceptButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.autoAcceptPetPrepareAcc) and true or false
+            SetYellowGreyAccText(btnPetPrepareAccept, "Pet Batte", on)
+        end
+
+        btnPetPrepareAccept:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.autoAcceptPetPrepareAcc = not (AutoGossip_Settings.autoAcceptPetPrepareAcc and true or false)
+            UpdatePetPrepareAcceptButton()
+        end)
+        btnPetPrepareAccept:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnPetPrepareAccept, "ANCHOR_RIGHT")
+                GameTooltip:SetText("Pet Battle")
+                GameTooltip:AddLine("Auto-accept the 'Prepare yourself!' (GOSSIP_CONFIRM) popup when starting pet battles.", 1, 1, 1, true)
+                GameTooltip:AddLine("Macro: /fgo petbattle (forces ON; no prints).", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnPetPrepareAccept:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdatePetPrepareAcceptButton()
+
         f.UpdateToggleButtons = function()
             UpdateTutorialButton()
             UpdateBorderButton()
             UpdateQueueAcceptButton()
             UpdateDebugButton()
             UpdatePetPopupDebugButton()
+            UpdatePetPrepareAcceptButton()
         end
     end
 
@@ -3158,6 +3290,14 @@ SlashCmdList["FROZENGOSSIPOPTION"] = function(msg)
         ToggleUI()
         return
     end
+
+    if msg:lower() == "petbattle" then
+        -- Force-enable pet battle "Prepare yourself!" auto-accept (macro-friendly; no prints).
+        InitSV()
+        AutoGossip_Settings.autoAcceptPetPrepareAcc = true
+        return
+    end
+
     local n = tonumber(msg)
     if n then
         ToggleUI(n)
@@ -3171,6 +3311,7 @@ SlashCmdList["FROZENGOSSIPOPTION"] = function(msg)
     Print("/fgo           - open/toggle window")
     Print("/fgo <id>      - open window + set option id")
     Print("/fgo list      - print current gossip options")
+    Print("/fgo petbattle - force-enable pet battle auto-accept")
 end
 
 frame:RegisterEvent("ADDON_LOADED")
