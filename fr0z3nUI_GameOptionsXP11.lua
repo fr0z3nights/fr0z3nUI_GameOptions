@@ -45,4 +45,9 @@ SetZone("Hallowfall, Khaz Algar")
     local t = NPC(220293, "Aliya Hillhelm")
     t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this.", type = "" }
 
+SetZone("Azj-Kahet, Khaz Algar")
+
+    local t = NPC(220462, "Weaver's Instructions")
+    t[121566] = { text = "(Delve) <Close the scroll and take the Weaver's web grappling hook.>", type = "" }
+
 

@@ -56,6 +56,7 @@ SetZone("Stormwind City, Eastern Kingdoms")
 
     -- 12.0.0 Prepatch
    local t = NPCs({ 246155, 246154 }, "Suspicious Citizen")
+   t[134631] = { text = "Are you talking about the Twilight's Blade?", type = "" }
    t[134634] = { text = "Are you talking about the Twilight's Blade?", type = "" }
 
 

@@ -109,6 +109,23 @@ local function BuildMacrosPanel(parent)
     local BTN_W, BTN_H = 95, 23 -- ~5% bigger than 90x22 (Reload UI)
     local BTN_GAP = BTN_H
 
+    -- Home content moved onto this tab (top area)
+    local homeArea = CreateFrame("Frame", nil, parent)
+    homeArea:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    homeArea:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+    homeArea:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 160)
+    homeArea:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 160)
+
+    local homeSep = parent:CreateTexture(nil, "ARTWORK")
+    homeSep:SetColorTexture(1, 1, 1, 0.12)
+    homeSep:SetHeight(1)
+    homeSep:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 12, 154)
+    homeSep:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -12, 154)
+
+    if type(ns.BuildHomePanel) == "function" then
+        ns.BuildHomePanel(homeArea)
+    end
+
     -- Forward declarations (used by Optional/Hearth helpers below)
     local btnHS06, btnHS07, btnHS11, btnHS78
     local btnInstanceIO, btnInstanceReset, btnRez, btnRezCombat
@@ -321,23 +338,15 @@ local function BuildMacrosPanel(parent)
         if optPopout:IsShown() then optPopout:Hide() else optPopout:Show() end
     end)
 
-    -- Macro scope (title-like control)
+    -- Macro scope (Account/Character) - keep this as a simple label-style button (not like the other buttons)
     local macroScopeBtn = CreateFrame("Button", nil, parent)
-    macroScopeBtn:SetHeight(28)
-    macroScopeBtn:SetPoint("TOP", 0, -56)
-    macroScopeBtn:SetPoint("LEFT", parent, "LEFT", 16, 0)
-    macroScopeBtn:SetPoint("RIGHT", parent, "RIGHT", -16, 0)
+    macroScopeBtn:SetSize(170, BTN_H)
 
     local macroScopeText = macroScopeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    macroScopeText:SetAllPoints(macroScopeBtn)
-    macroScopeText:SetJustifyH("CENTER")
-
-    do
-        local fontPath, fontSize, flags = macroScopeText:GetFont()
-        if fontPath and fontSize then
-            macroScopeText:SetFont(fontPath, fontSize + 2, flags)
-        end
-    end
+    macroScopeText:SetPoint("LEFT", macroScopeBtn, "LEFT", 0, 0)
+    macroScopeText:SetPoint("RIGHT", macroScopeBtn, "RIGHT", 0, 0)
+    macroScopeText:SetJustifyH("LEFT")
+    macroScopeBtn._text = macroScopeText
 
     SetButtonTooltip(macroScopeBtn, function()
         local perChar = M.GetMacroPerCharSetting()
@@ -350,9 +359,9 @@ local function BuildMacrosPanel(parent)
     local function UpdateMacroScopeUI()
         local perChar = M.GetMacroPerCharSetting()
         if perChar then
-            macroScopeText:SetText("MACRO SCOPE: CHARACTER")
+            macroScopeText:SetText("Character Macro")
         else
-            macroScopeText:SetText("MACRO SCOPE: ACCOUNT")
+            macroScopeText:SetText("Account Macro")
         end
     end
 
@@ -827,34 +836,72 @@ local function BuildMacrosPanel(parent)
 
     -- Layout
     local function LayoutMacroButtons()
-        local rowTotal = (BTN_W * 4) + (BTN_GAP * 3)
-        local left = math.floor(((GetPanelWidth(parent) - rowTotal) / 2) + 0.5)
-        if left < 10 then left = 10 end
+        local panelW = GetPanelWidth(parent)
+        local colGap = BTN_GAP - 2
+        if colGap < 4 then colGap = 4 end
+        local rowGap = BTN_GAP - 2
+        if rowGap < 4 then rowGap = 4 end
 
-        btnScriptErrors:ClearAllPoints()
-        btnScriptErrors:SetPoint("BOTTOM", parent, "BOTTOM", 0, 12)
+        local rowTotal = (BTN_W * 4) + (colGap * 3)
+        local scopeW = 170
+        local clusterTotal = scopeW + colGap + rowTotal + colGap + BTN_W
+        local clusterLeft = math.floor(((panelW - clusterTotal) / 2) + 0.5)
+        local maxLeft = panelW - clusterTotal - 10
+        if maxLeft < 10 then maxLeft = 10 end
+        if clusterLeft < 10 then clusterLeft = 10 end
+        if clusterLeft > maxLeft then clusterLeft = maxLeft end
+        local left = clusterLeft + scopeW + colGap
 
-        local row2Y = 12 + BTN_H + BTN_GAP
-        local row1Y = row2Y + BTN_H + BTN_GAP
-        local hearthRowY = row1Y + BTN_H + BTN_GAP
+        -- Bottom to top:
+        -- 1) Hearth selector row (was above; now moves to the bottom)
+        -- 2) HS 06/07/11/78 row (now under the Instance/Rez row)
+        -- 3) Instance/Rez row (Script Errors sits to the right of Rez Combat)
+        local hearthRowY = 12
+        local hsRowY = hearthRowY + BTN_H + rowGap
+        local row2Y = hsRowY + BTN_H + rowGap
 
-        local row1 = { btnHS06, btnHS07, btnHS11, btnHS78 }
+        -- Reserve everything above the macro rows for the Home UI.
+        do
+            local reservedY = row2Y + BTN_H + rowGap + 10
+            if reservedY < 140 then reservedY = 140 end
+
+            homeArea:ClearAllPoints()
+            homeArea:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+            homeArea:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+            homeArea:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, reservedY)
+            homeArea:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, reservedY)
+
+            homeSep:ClearAllPoints()
+            homeSep:SetHeight(1)
+            homeSep:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 12, reservedY - 6)
+            homeSep:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -12, reservedY - 6)
+        end
+
+        local rowHS = { btnHS06, btnHS07, btnHS11, btnHS78 }
         local row2 = { btnInstanceIO, btnInstanceReset, btnRez, btnRezCombat }
 
         for i = 1, 4 do
-            local b1 = row1[i]
+            local b1 = rowHS[i]
             b1:ClearAllPoints()
-            b1:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", left + ((i - 1) * (BTN_W + BTN_GAP)), row1Y)
+            b1:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", left + ((i - 1) * (BTN_W + colGap)), hsRowY)
 
             local b2 = row2[i]
             b2:ClearAllPoints()
-            b2:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", left + ((i - 1) * (BTN_W + BTN_GAP)), row2Y)
+            b2:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", left + ((i - 1) * (BTN_W + colGap)), row2Y)
         end
 
+        -- Script Errors: to the right of Rez Combat
+        btnScriptErrors:ClearAllPoints()
+        btnScriptErrors:SetPoint("LEFT", btnRezCombat, "RIGHT", colGap, 0)
+
+        -- Macro scope button: left side of the macro buttons
+        macroScopeBtn:ClearAllPoints()
+        macroScopeBtn:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", clusterLeft, row2Y)
+
         do
-            local threeBtnW = (BTN_W * 3) + (BTN_GAP * 2)
+            local threeBtnW = (BTN_W * 3) + (colGap * 2)
             local lineW = threeBtnW
-            local hzTotal = BTN_W + BTN_GAP + lineW
+            local hzTotal = BTN_W + colGap + lineW
             local hzLeft = math.floor(((GetPanelWidth(parent) - hzTotal) / 2) + 0.5)
             if hzLeft < 10 then hzLeft = 10 end
 
@@ -862,7 +909,7 @@ local function BuildMacrosPanel(parent)
             btnHSHearth:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", hzLeft, hearthRowY)
 
             hearthZoneLine:ClearAllPoints()
-            hearthZoneLine:SetPoint("LEFT", btnHSHearth, "RIGHT", BTN_GAP, 0)
+            hearthZoneLine:SetPoint("LEFT", btnHSHearth, "RIGHT", colGap, 0)
             hearthZoneLine:SetHeight(BTN_H)
             hearthZoneLine:SetWidth(lineW)
             hearthZoneLine._maxWidth = lineW

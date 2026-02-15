@@ -27,8 +27,8 @@ fr0z3nUI_GameOptionsTutorial.lua
 fr0z3nUI_GameOptionsTooltip.lua
 fr0z3nUI_GameOptionsTooltipX.lua
 
-fr0z3nUI_GameOptionsActionBar.lua
-fr0z3nUI_GameOptionsActionBarUI.lua
+fr0z3nUI_GameOptionsSituate.lua
+fr0z3nUI_GameOptionsSituateUI.lua
 
 fr0z3nUI_GameOptionsMacroCmd.lua
 fr0z3nUI_GameOptionsMacroCmdUI.lua

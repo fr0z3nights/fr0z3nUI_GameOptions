@@ -84,6 +84,33 @@ local function HideFauxScrollBarAndEnableWheel(sf, rowHeight)
     end)
 end
 
+local function HideScrollBarAndEnableWheel(sf, step)
+    if not sf then
+        return
+    end
+
+    local sb = sf.ScrollBar or sf.scrollBar
+    if sb then
+        sb:Hide()
+        sb.Show = function() end
+        if sb.SetAlpha then sb:SetAlpha(0) end
+        if sb.EnableMouse then sb:EnableMouse(false) end
+    end
+
+    if sf.EnableMouseWheel then
+        sf:EnableMouseWheel(true)
+    end
+    sf:SetScript("OnMouseWheel", function(self, delta)
+        local bar = self.ScrollBar or self.scrollBar
+        if not (bar and bar.GetValue and bar.SetValue) then
+            return
+        end
+        local cur = bar:GetValue() or 0
+        local s = step or 24
+        bar:SetValue(cur - (delta * s))
+    end)
+end
+
 local function SplitLines(text)
     text = tostring(text or "")
     text = text:gsub("\r\n", "\n"):gsub("\r", "\n")
@@ -119,21 +146,18 @@ function ns.MacroCmdUI_Build(panel)
     local selectedIndex = nil
     local isLoadingFields = false
 
-    local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOPLEFT", 12, -52)
-    title:SetJustifyH("LEFT")
-    title:SetText("Macro /")
+    local PAD_L, PAD_R = 10, 10
+    local PAD_B = 50 -- leave space for bottom footer buttons (Reload/Print/Debug)
+    local TOP_Y = 54
+    local GAP = 10
+    local CMD_H = 28
+    local LIST_W = 280
 
-    local hint = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
-    hint:SetJustifyH("LEFT")
-    hint:SetText("Create /fgo m <command> entries. Each command has MAIN + OTHER macro text and a MAIN character list.")
-
-    -- Left list area
+    -- Commands list (right)
     local listArea = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    listArea:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -96)
-    listArea:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 10, 50)
-    listArea:SetWidth(260)
+    listArea:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -PAD_R, -TOP_Y)
+    listArea:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -PAD_R, PAD_B)
+    listArea:SetWidth(LIST_W)
     listArea:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         tile = true,
@@ -192,93 +216,129 @@ function ns.MacroCmdUI_Build(panel)
         rows[i] = row
     end
 
-    -- Right editor
-    local editArea = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    editArea:SetPoint("TOPLEFT", listArea, "TOPRIGHT", 10, 0)
-    editArea:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -10, 50)
-    editArea:SetBackdrop({
+    -- Left side: command input + 3 equal stacked editor boxes
+    local leftArea = CreateFrame("Frame", nil, panel)
+    leftArea:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD_L, -TOP_Y)
+    leftArea:SetPoint("BOTTOMRIGHT", listArea, "BOTTOMLEFT", -GAP, PAD_B)
+
+    local status = leftArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    status:SetPoint("TOPRIGHT", leftArea, "TOPRIGHT", -2, -2)
+    status:SetJustifyH("RIGHT")
+    status:SetText("")
+
+    local cmdArea = CreateFrame("Frame", nil, leftArea, "BackdropTemplate")
+    cmdArea:SetPoint("TOPLEFT", leftArea, "TOPLEFT", 0, 0)
+    cmdArea:SetPoint("TOPRIGHT", leftArea, "TOPRIGHT", 0, 0)
+    cmdArea:SetHeight(CMD_H)
+    cmdArea:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         tile = true,
         tileSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    editArea:SetBackdropColor(0, 0, 0, 0.25)
+    cmdArea:SetBackdropColor(0, 0, 0, 0.25)
 
-    local editTitle = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    editTitle:SetPoint("TOPLEFT", editArea, "TOPLEFT", 6, -6)
-    editTitle:SetText("Entry")
+    local cmdPrefix = cmdArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    cmdPrefix:SetPoint("LEFT", cmdArea, "LEFT", 8, 0)
+    cmdPrefix:SetText("/fgo m")
 
-    local status = editArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    status:SetPoint("TOPRIGHT", editArea, "TOPRIGHT", -6, -6)
-    status:SetJustifyH("RIGHT")
-    status:SetText("")
-
-    local labelCmd = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    labelCmd:SetPoint("TOPLEFT", editArea, "TOPLEFT", 8, -30)
-    labelCmd:SetText("Command")
-
-    local editCmd = CreateFrame("EditBox", nil, editArea, "InputBoxTemplate")
-    editCmd:SetSize(200, 20)
-    editCmd:SetPoint("LEFT", labelCmd, "RIGHT", 8, 0)
+    local editCmd = CreateFrame("EditBox", nil, cmdArea)
     editCmd:SetAutoFocus(false)
+    editCmd:SetMultiLine(false)
+    editCmd:SetFontObject("GameFontNormalLarge")
+    editCmd:SetTextInsets(6, 6, 4, 4)
+    editCmd:SetPoint("TOPLEFT", cmdPrefix, "TOPRIGHT", 6, 0)
+    editCmd:SetPoint("BOTTOMRIGHT", cmdArea, "BOTTOMRIGHT", -8, 0)
+    editCmd:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    local labelUsage = editArea:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    labelUsage:SetPoint("LEFT", editCmd, "RIGHT", 10, 0)
-    labelUsage:SetJustifyH("LEFT")
-    labelUsage:SetText("Usage: /fgo m -")
+    local cmdGhost = cmdArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    cmdGhost:SetPoint("LEFT", editCmd, "LEFT", 2, 0)
+    cmdGhost:SetText("enter command name")
 
-    local labelMains = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    labelMains:SetPoint("TOPLEFT", labelCmd, "BOTTOMLEFT", 0, -12)
-    labelMains:SetText("MAIN characters (one per line; with or without -Realm)")
+    local function UpdateCmdGhost()
+        local txt = tostring(editCmd:GetText() or "")
+        local show = (txt == "") and not (editCmd.HasFocus and editCmd:HasFocus())
+        cmdGhost:SetShown(show)
+    end
 
-    local mainsScroll = CreateFrame("ScrollFrame", nil, editArea, "UIPanelScrollFrameTemplate")
-    mainsScroll:SetPoint("TOPLEFT", labelMains, "BOTTOMLEFT", -2, -6)
-    mainsScroll:SetPoint("TOPRIGHT", editArea, "TOPRIGHT", -28, -92)
-    mainsScroll:SetHeight(70)
+    local function MakeBox(labelText)
+        local box = CreateFrame("Frame", nil, leftArea, "BackdropTemplate")
+        box:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            tile = true,
+            tileSize = 16,
+            insets = { left = 3, right = 3, top = 3, bottom = 3 },
+        })
+        box:SetBackdropColor(0, 0, 0, 0.25)
 
-    local mainsBox = CreateFrame("EditBox", nil, mainsScroll)
-    mainsBox:SetMultiLine(true)
-    mainsBox:SetAutoFocus(false)
-    mainsBox:SetFontObject("ChatFontNormal")
-    mainsBox:SetWidth(1)
-    mainsBox:SetTextInsets(6, 6, 6, 6)
-    mainsBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    mainsScroll:SetScrollChild(mainsBox)
+        local label = box:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        label:SetPoint("TOP", box, "TOP", 0, -8)
+        label:SetJustifyH("CENTER")
+        label:SetText(tostring(labelText or ""))
 
-    local labelMainText = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    labelMainText:SetPoint("TOPLEFT", mainsScroll, "BOTTOMLEFT", 2, -12)
-    labelMainText:SetText("MAIN macro text")
+        do
+            local fontPath, fontSize, flags = label:GetFont()
+            if fontPath and fontSize then
+                label:SetFont(fontPath, fontSize + 2, flags)
+            end
+        end
 
-    local mainScroll = CreateFrame("ScrollFrame", nil, editArea, "UIPanelScrollFrameTemplate")
-    mainScroll:SetPoint("TOPLEFT", labelMainText, "BOTTOMLEFT", -2, -6)
-    mainScroll:SetPoint("TOPRIGHT", editArea, "TOPRIGHT", -28, -220)
-    mainScroll:SetHeight(110)
+        local sf = CreateFrame("ScrollFrame", nil, box, "UIPanelScrollFrameTemplate")
+        sf:SetPoint("TOPLEFT", box, "TOPLEFT", 6, -28)
+        sf:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -6, 6)
+        HideScrollBarAndEnableWheel(sf)
 
-    local mainBox = CreateFrame("EditBox", nil, mainScroll)
-    mainBox:SetMultiLine(true)
-    mainBox:SetAutoFocus(false)
-    mainBox:SetFontObject("ChatFontNormal")
-    mainBox:SetWidth(1)
-    mainBox:SetTextInsets(6, 6, 6, 6)
-    mainBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    mainScroll:SetScrollChild(mainBox)
+        local eb = CreateFrame("EditBox", nil, sf)
+        eb:SetMultiLine(true)
+        eb:SetAutoFocus(false)
+        eb:SetFontObject("ChatFontNormal")
+        eb:SetWidth(1)
+        eb:SetTextInsets(6, 6, 6, 6)
+        eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        sf:SetScrollChild(eb)
 
-    local labelOtherText = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    labelOtherText:SetPoint("TOPLEFT", mainScroll, "BOTTOMLEFT", 2, -12)
-    labelOtherText:SetText("OTHER macro text")
+        return box, eb
+    end
 
-    local otherScroll = CreateFrame("ScrollFrame", nil, editArea, "UIPanelScrollFrameTemplate")
-    otherScroll:SetPoint("TOPLEFT", labelOtherText, "BOTTOMLEFT", -2, -6)
-    otherScroll:SetPoint("BOTTOMRIGHT", editArea, "BOTTOMRIGHT", -28, 8)
+    local charsArea, mainsBox = MakeBox("CHARACTERS")
+    local mainArea, mainBox = MakeBox("CHARACTERS MACRO")
+    local otherArea, otherBox = MakeBox("OTHERS MACRO")
 
-    local otherBox = CreateFrame("EditBox", nil, otherScroll)
-    otherBox:SetMultiLine(true)
-    otherBox:SetAutoFocus(false)
-    otherBox:SetFontObject("ChatFontNormal")
-    otherBox:SetWidth(1)
-    otherBox:SetTextInsets(6, 6, 6, 6)
-    otherBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    otherScroll:SetScrollChild(otherBox)
+    local function LayoutLeft()
+        local h = leftArea.GetHeight and leftArea:GetHeight() or 0
+        if not h or h <= 0 then
+            return
+        end
+
+        local avail = h - CMD_H - (GAP * 3)
+        if avail < 180 then
+            avail = 180
+        end
+        local boxH = math.floor(avail / 3)
+        if boxH < 60 then
+            boxH = 60
+        end
+
+        charsArea:ClearAllPoints()
+        charsArea:SetPoint("TOPLEFT", cmdArea, "BOTTOMLEFT", 0, -GAP)
+        charsArea:SetPoint("TOPRIGHT", cmdArea, "BOTTOMRIGHT", 0, -GAP)
+        charsArea:SetHeight(boxH)
+
+        mainArea:ClearAllPoints()
+        mainArea:SetPoint("TOPLEFT", charsArea, "BOTTOMLEFT", 0, -GAP)
+        mainArea:SetPoint("TOPRIGHT", charsArea, "BOTTOMRIGHT", 0, -GAP)
+        mainArea:SetHeight(boxH)
+
+        otherArea:ClearAllPoints()
+        otherArea:SetPoint("TOPLEFT", mainArea, "BOTTOMLEFT", 0, -GAP)
+        otherArea:SetPoint("TOPRIGHT", mainArea, "BOTTOMRIGHT", 0, -GAP)
+        otherArea:SetPoint("BOTTOMLEFT", leftArea, "BOTTOMLEFT", 0, 0)
+        otherArea:SetPoint("BOTTOMRIGHT", leftArea, "BOTTOMRIGHT", 0, 0)
+    end
+
+    LayoutLeft()
+    leftArea:SetScript("OnShow", LayoutLeft)
+    leftArea:SetScript("OnSizeChanged", LayoutLeft)
 
     local function GetSelectedEntry()
         local cmds = EnsureCommandsArray()
@@ -297,8 +357,8 @@ function ns.MacroCmdUI_Build(panel)
             mainsBox:SetText("")
             mainBox:SetText("")
             otherBox:SetText("")
-            labelUsage:SetText("Usage: /fgo m -")
             status:SetText("")
+            UpdateCmdGhost()
             isLoadingFields = false
             return
         end
@@ -307,10 +367,9 @@ function ns.MacroCmdUI_Build(panel)
         mainsBox:SetText(JoinLines(entry.mains or {}))
         mainBox:SetText(entry.mainText and tostring(entry.mainText) or "")
         otherBox:SetText(entry.otherText and tostring(entry.otherText) or "")
-
-        local key = entry.key and tostring(entry.key) or "-"
-        labelUsage:SetText("Usage: /fgo m " .. key)
         status:SetText("")
+
+        UpdateCmdGhost()
 
         isLoadingFields = false
     end
@@ -335,7 +394,7 @@ function ns.MacroCmdUI_Build(panel)
             entry.mainText = tostring(mainBox:GetText() or "")
             entry.otherText = tostring(otherBox:GetText() or "")
 
-            labelUsage:SetText("Usage: /fgo m " .. (key ~= "" and key or "-"))
+            UpdateCmdGhost()
 
             if panel._MacroCmdUI_RefreshList then
                 panel:_MacroCmdUI_RefreshList()
@@ -352,7 +411,11 @@ function ns.MacroCmdUI_Build(panel)
         end
     end
 
-    editCmd:SetScript("OnEditFocusLost", function() SaveFields(false) end)
+    editCmd:SetScript("OnEditFocusGained", function() UpdateCmdGhost() end)
+    editCmd:SetScript("OnEditFocusLost", function()
+        UpdateCmdGhost()
+        SaveFields(false)
+    end)
     editCmd:SetScript("OnTextChanged", function() SaveFields(true) end)
     mainsBox:SetScript("OnEditFocusLost", function() SaveFields(false) end)
     mainsBox:SetScript("OnTextChanged", function() SaveFields(true) end)
@@ -399,8 +462,8 @@ function ns.MacroCmdUI_Build(panel)
                     row.bg:SetColorTexture(1, 1, 1, zebra and 0.05 or 0)
                 end
 
-                local keyTxt = (type(entry.key) == "string" and entry.key ~= "") and entry.key or "(no command)"
-                row.text:SetText(keyTxt)
+                local keyTxt = (type(entry.key) == "string" and entry.key ~= "") and entry.key or "<new>"
+                row.text:SetText("/fgo m " .. keyTxt)
 
                 row:SetScript("OnClick", function()
                     selectedIndex = idx

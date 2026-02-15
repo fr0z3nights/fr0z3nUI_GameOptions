@@ -32,12 +32,44 @@ local function GetBoolSetting(key, defaultValue)
     return v
 end
 
+local function GetActiveSpecID()
+    if not (GetSpecialization and GetSpecializationInfo) then
+        return nil
+    end
+    local specIndex = GetSpecialization()
+    if not specIndex then
+        return nil
+    end
+    local ok, specID = pcall(GetSpecializationInfo, specIndex)
+    if not ok or type(specID) ~= "number" then
+        return nil
+    end
+    return specID
+end
+
 local function EnsureLayoutArray()
     InitSV()
     local s = GetSettings()
     if not s then
         return {}
     end
+
+    local specID = GetActiveSpecID()
+    if specID then
+        if type(s.actionBarLayoutBySpecAcc) ~= "table" then
+            s.actionBarLayoutBySpecAcc = {}
+        end
+        if type(s.actionBarLayoutBySpecAcc[specID]) ~= "table" then
+            s.actionBarLayoutBySpecAcc[specID] = {}
+        end
+        local t = s.actionBarLayoutBySpecAcc[specID]
+        if t[1] == nil and next(t) ~= nil then
+            s.actionBarLayoutBySpecAcc[specID] = {}
+        end
+        return s.actionBarLayoutBySpecAcc[specID]
+    end
+
+    -- Fallback (no spec API): legacy global layout.
     if type(s.actionBarLayoutAcc) ~= "table" then
         s.actionBarLayoutAcc = {}
     end
@@ -72,6 +104,14 @@ local function SetAcc2StateTextYellow(btn, label, enabled)
         btn:SetText(label .. ": |cffffff00ON ACC|r")
     else
         btn:SetText(label .. ": |cff888888OFF ACC|r")
+    end
+end
+
+local function SetStateTextYellowNoOff(btn, label, enabled)
+    if enabled then
+        btn:SetText(label .. ": |cffffff00ON|r")
+    else
+        btn:SetText("|cff888888" .. label .. "|r")
     end
 end
 
@@ -132,6 +172,42 @@ local function SafeMacroIndexByName(name)
         return 0
     end
     return idx
+end
+
+local function Trim(s)
+    if type(s) ~= "string" then
+        return ""
+    end
+    return s:gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function GetSpellIDFromText(text)
+    text = Trim(text)
+    if text == "" then
+        return nil
+    end
+    local n = tonumber(text)
+    if n then
+        n = math.floor(n)
+        if n > 0 then
+            return n
+        end
+    end
+    if GetSpellInfo then
+        local ok, _, _, _, _, _, id = pcall(GetSpellInfo, text)
+        if ok and type(id) == "number" and id > 0 then
+            return id
+        end
+    end
+    return nil
+end
+
+local function GetEntryKind(entry)
+    local k = entry and entry.kind
+    if k == "spell" or k == "macro" then
+        return k
+    end
+    return "macro"
 end
 
 local function FindActionSlotFromFocus(focus)
@@ -198,7 +274,7 @@ function ns.ActionBarUI_CreateToggleButton(parent, anchorButton, gapY, btnW, btn
     local function Update()
         InitSV()
         local on = GetBoolSetting("actionBarEnabledAcc", false)
-        SetAcc2StateText(btn, "ActionBar Module", on)
+        SetAcc2StateText(btn, "Situate", on)
     end
 
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -225,7 +301,7 @@ function ns.ActionBarUI_CreateToggleButton(parent, anchorButton, gapY, btnW, btn
     return btn, Update
 end
 
-function ns.ActionBarUI_Build(panel)
+function ns.SituateUI_Build(panel)
     if not (panel and CreateFrame) then
         return function() end
     end
@@ -235,48 +311,52 @@ function ns.ActionBarUI_Build(panel)
     local selectedIndex = nil
     local isLoadingFields = false
 
-    -- Title + hint
-    local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOPLEFT", 12, -52)
-    title:SetJustifyH("LEFT")
-    title:SetText("ActionBar")
-
+    -- Hint (centered under the tab bar)
     local hint = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
-    hint:SetJustifyH("LEFT")
-    hint:SetText("Place macros into action slots. Slot range: 1-180. Applying is blocked in combat.")
+    hint:SetPoint("TOP", panel, "TOP", 0, -54)
+    hint:SetJustifyH("CENTER")
+    hint:SetText("Place existing macros/spells into action slots. Slot range: 1-180. Applying is blocked in combat.")
 
     -- Top buttons
-    local BTN_W, BTN_H = 180, 22
+    local BTN_H = 22
+
     local btnEnabled = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnEnabled:SetSize(BTN_W, BTN_H)
-    btnEnabled:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -54)
-
-    local btnOverwrite = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnOverwrite:SetSize(BTN_W, BTN_H)
-    btnOverwrite:SetPoint("TOP", btnEnabled, "BOTTOM", 0, -8)
-
-    local btnDebug = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnDebug:SetSize(BTN_W, BTN_H)
-    btnDebug:SetPoint("TOP", btnOverwrite, "BOTTOM", 0, -8)
+    btnEnabled:SetSize(150, BTN_H)
+    btnEnabled:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -74)
 
     local btnApply = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnApply:SetSize(BTN_W, BTN_H)
-    btnApply:SetPoint("TOP", btnDebug, "BOTTOM", 0, -8)
-    btnApply:SetText("Apply Now")
-
-    local btnDetect = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnDetect:SetSize(BTN_W, BTN_H)
-    btnDetect:SetPoint("TOP", btnApply, "BOTTOM", 0, -8)
+    btnApply:SetSize(110, BTN_H)
+    btnApply:SetPoint("LEFT", btnEnabled, "RIGHT", 8, 0)
+    btnApply:SetText("Apply")
 
     local btnUseHover = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnUseHover:SetSize(BTN_W, BTN_H)
-    btnUseHover:SetPoint("TOP", btnDetect, "BOTTOM", 0, -8)
-    btnUseHover:SetText("Use Hover Slot")
+    btnUseHover:SetSize(110, BTN_H)
+    btnUseHover:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 12, 12)
+    btnUseHover:SetText("Hover Fill")
+
+    local btnDetect = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnDetect:SetSize(110, BTN_H)
+    btnDetect:SetPoint("LEFT", btnUseHover, "RIGHT", 8, 0)
+
+    local btnOverwrite = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnOverwrite:SetSize(120, BTN_H)
+    btnOverwrite:SetPoint("LEFT", btnDetect, "RIGHT", 8, 0)
+
+    local btnDebug = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnDebug:SetSize(100, BTN_H)
+    do
+        local root = panel.GetParent and panel:GetParent() or nil
+        local reloadBtn = root and rawget(root, "_reloadBtn") or nil
+        if reloadBtn and reloadBtn.GetObjectType then
+            btnDebug:SetPoint("RIGHT", reloadBtn, "LEFT", -8, 0)
+        else
+            btnDebug:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 12)
+        end
+    end
 
     local hoverText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    hoverText:SetPoint("TOPRIGHT", btnUseHover, "BOTTOMRIGHT", 0, -6)
-    hoverText:SetJustifyH("RIGHT")
+    hoverText:SetPoint("BOTTOMLEFT", btnUseHover, "TOPLEFT", 0, 6)
+    hoverText:SetJustifyH("LEFT")
     hoverText:SetText("Hover: -")
 
     local detectorOn = false
@@ -286,11 +366,7 @@ function ns.ActionBarUI_Build(panel)
     detectorFrame:Hide()
 
     local function SetDetectorButtonText()
-        if detectorOn then
-            btnDetect:SetText("Detector: |cff00ccffON|r")
-        else
-            btnDetect:SetText("Detector: |cffff0000OFF|r")
-        end
+        SetStateTextYellowNoOff(btnDetect, "Detector", detectorOn)
     end
 
     local function UpdateHoverText()
@@ -343,10 +419,10 @@ function ns.ActionBarUI_Build(panel)
         RefreshHoverNow()
     end)
 
-    -- Left list area
+    -- Placements list (right)
     local listArea = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    listArea:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -96)
-    listArea:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 10, 50)
+    listArea:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -10, -88)
+    listArea:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -10, 50)
     listArea:SetWidth(340)
     listArea:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
@@ -406,10 +482,10 @@ function ns.ActionBarUI_Build(panel)
         rows[i] = row
     end
 
-    -- Right editor area
+    -- Editor area (left)
     local editArea = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    editArea:SetPoint("TOPLEFT", listArea, "TOPRIGHT", 10, 0)
-    editArea:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -10, 50)
+    editArea:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -88)
+    editArea:SetPoint("BOTTOMRIGHT", listArea, "BOTTOMLEFT", -10, 0)
     editArea:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         tile = true,
@@ -420,7 +496,7 @@ function ns.ActionBarUI_Build(panel)
 
     local editTitle = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     editTitle:SetPoint("TOPLEFT", editArea, "TOPLEFT", 6, -6)
-    editTitle:SetText("Entry")
+    editTitle:SetText("")
 
     local status = editArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
     status:SetPoint("TOPRIGHT", editArea, "TOPRIGHT", -6, -6)
@@ -446,43 +522,23 @@ function ns.ActionBarUI_Build(panel)
         editSlot:SetNumeric(true)
     end
 
-    local labelName = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    labelName:SetPoint("LEFT", editSlot, "RIGHT", 12, 0)
-    labelName:SetText("Name")
+    local labelKind = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    labelKind:SetPoint("LEFT", editSlot, "RIGHT", 12, 0)
+    labelKind:SetText("Type")
 
-    local editName = CreateFrame("EditBox", nil, editArea, "InputBoxTemplate")
-    editName:SetSize(200, 20)
-    editName:SetPoint("LEFT", labelName, "RIGHT", 8, 0)
-    editName:SetAutoFocus(false)
-    editName:SetMaxLetters(64)
+    local btnKind = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
+    btnKind:SetSize(90, 20)
+    btnKind:SetPoint("LEFT", labelKind, "RIGHT", 8, 0)
 
-    local labelIcon = CreateLabel("Icon (optional)", labelSlot, 0, -14)
-    local editIcon = CreateFrame("EditBox", nil, editArea, "InputBoxTemplate")
-    editIcon:SetSize(90, 20)
-    editIcon:SetPoint("LEFT", labelIcon, "RIGHT", 8, 0)
-    editIcon:SetAutoFocus(false)
-    if editIcon.SetNumeric then
-        editIcon:SetNumeric(true)
-    end
+    local labelValue = editArea:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    labelValue:SetPoint("LEFT", btnKind, "RIGHT", 12, 0)
+    labelValue:SetText("Macro")
 
-    local btnPerChar = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
-    btnPerChar:SetSize(140, 20)
-    btnPerChar:SetPoint("LEFT", editIcon, "RIGHT", 12, 0)
-
-    local labelBody = CreateLabel("Body", labelIcon, 0, -14)
-
-    local bodyScroll = CreateFrame("ScrollFrame", nil, editArea, "UIPanelScrollFrameTemplate")
-    bodyScroll:SetPoint("TOPLEFT", labelBody, "BOTTOMLEFT", -2, -6)
-    bodyScroll:SetPoint("BOTTOMRIGHT", editArea, "BOTTOMRIGHT", -28, 8)
-
-    local bodyBox = CreateFrame("EditBox", nil, bodyScroll)
-    bodyBox:SetMultiLine(true)
-    bodyBox:SetAutoFocus(false)
-    bodyBox:SetFontObject("ChatFontNormal")
-    bodyBox:SetWidth(1)
-    bodyBox:SetTextInsets(6, 6, 6, 6)
-    bodyBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    bodyScroll:SetScrollChild(bodyBox)
+    local editValue = CreateFrame("EditBox", nil, editArea, "InputBoxTemplate")
+    editValue:SetSize(220, 20)
+    editValue:SetPoint("LEFT", labelValue, "RIGHT", 8, 0)
+    editValue:SetAutoFocus(false)
+    editValue:SetMaxLetters(96)
 
     local function SetStatusForEntry(entry)
         if type(entry) ~= "table" then
@@ -490,9 +546,20 @@ function ns.ActionBarUI_Build(panel)
             return
         end
         local slot = NormalizeSlot(entry.slot)
-        local name = entry.name
-        local idx = SafeMacroIndexByName(name)
-        local macroState = (idx and idx > 0) and "macro ok" or "macro missing"
+        local kind = GetEntryKind(entry)
+        local valueText = Trim(entry.value or entry.name or "")
+        local macroState = ""
+        if kind == "spell" then
+            local sid = GetSpellIDFromText(valueText)
+            if sid then
+                macroState = "spell ok"
+            else
+                macroState = "spell missing"
+            end
+        else
+            local idx = SafeMacroIndexByName(valueText)
+            macroState = (idx and idx > 0) and "macro ok" or "macro missing"
+        end
         local slotState = ""
         if slot and GetActionInfo then
             local t = GetActionInfo(slot)
@@ -516,12 +583,14 @@ function ns.ActionBarUI_Build(panel)
         return layout[selectedIndex]
     end
 
-    local function UpdatePerCharButton(entry)
-        local on = (type(entry) == "table" and entry.perChar) and true or false
-        if on then
-            btnPerChar:SetText("Per-Char: |cff00ccffYES|r")
+    local function UpdateKindButton(entry)
+        local k = GetEntryKind(entry)
+        if k == "spell" then
+            btnKind:SetText("Spell")
+            labelValue:SetText("Spell")
         else
-            btnPerChar:SetText("Per-Char: |cffff0000NO|r")
+            btnKind:SetText("Macro")
+            labelValue:SetText("Macro")
         end
     end
 
@@ -531,20 +600,21 @@ function ns.ActionBarUI_Build(panel)
 
         if not entry then
             editSlot:SetText("")
-            editName:SetText("")
-            editIcon:SetText("")
-            bodyBox:SetText("")
-            UpdatePerCharButton({ perChar = false })
+            editValue:SetText("")
+            UpdateKindButton({ kind = "macro" })
             SetStatusForEntry(nil)
             isLoadingFields = false
             return
         end
 
         editSlot:SetText(entry.slot and tostring(entry.slot) or "")
-        editName:SetText(entry.name and tostring(entry.name) or "")
-        editIcon:SetText(entry.icon and tostring(entry.icon) or "")
-        bodyBox:SetText(entry.body and tostring(entry.body) or "")
-        UpdatePerCharButton(entry)
+        -- Back-compat: legacy entries used entry.name.
+        local v = entry.value
+        if type(v) ~= "string" or v == "" then
+            v = entry.name
+        end
+        editValue:SetText(v and tostring(v) or "")
+        UpdateKindButton(entry)
         SetStatusForEntry(entry)
         isLoadingFields = false
     end
@@ -564,23 +634,10 @@ function ns.ActionBarUI_Build(panel)
             local slot = NormalizeSlot(editSlot:GetText())
             entry.slot = slot
 
-            local name = editName:GetText()
-            if type(name) ~= "string" then
-                name = ""
-            end
-            name = name:gsub("^%s+", ""):gsub("%s+$", "")
-            entry.name = name
-
-            local iconText = editIcon:GetText()
-            local iconNum = tonumber(iconText)
-            if iconNum then
-                entry.icon = math.floor(iconNum)
-            else
-                entry.icon = nil
-            end
-
-            local body = bodyBox:GetText() or ""
-            entry.body = tostring(body)
+            local value = Trim(editValue:GetText() or "")
+            entry.value = value
+            -- keep legacy key in sync (core defaults to macro and reads entry.name)
+            entry.name = value
 
             SetStatusForEntry(entry)
             if panel._ActionBarUI_RefreshList then
@@ -598,35 +655,50 @@ function ns.ActionBarUI_Build(panel)
         end
     end
 
-    btnPerChar:SetScript("OnClick", function()
+    btnKind:SetScript("OnClick", function()
         local entry = GetSelectedEntry()
         if not entry then
             return
         end
-        entry.perChar = not (entry.perChar and true or false)
-        UpdatePerCharButton(entry)
+        local k = GetEntryKind(entry)
+        if k == "spell" then
+            entry.kind = "macro"
+        else
+            entry.kind = "spell"
+        end
+        UpdateKindButton(entry)
+        SetStatusForEntry(entry)
+        if panel._ActionBarUI_RefreshList then
+            panel:_ActionBarUI_RefreshList()
+        end
     end)
+
+    btnKind:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnKind, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Type")
+        GameTooltip:AddLine("Macro: places an existing macro by name.", 1, 1, 1, true)
+        GameTooltip:AddLine("Spell: places an existing spell by spell name or spellID.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnKind:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
     editSlot:SetScript("OnEditFocusLost", function() SaveFields(false) end)
     editSlot:SetScript("OnTextChanged", function() SaveFields(true) end)
-    editName:SetScript("OnEditFocusLost", function() SaveFields(false) end)
-    editName:SetScript("OnTextChanged", function() SaveFields(true) end)
-    editIcon:SetScript("OnEditFocusLost", function() SaveFields(false) end)
-    editIcon:SetScript("OnTextChanged", function() SaveFields(true) end)
-    bodyBox:SetScript("OnEditFocusLost", function() SaveFields(false) end)
-    bodyBox:SetScript("OnTextChanged", function() SaveFields(true) end)
+    editValue:SetScript("OnEditFocusLost", function() SaveFields(false) end)
+    editValue:SetScript("OnTextChanged", function() SaveFields(true) end)
 
     local function RefreshButtons()
         InitSV()
         local s = GetSettings()
         local on = (s and s.actionBarEnabledAcc) and true or false
-        SetAcc2StateText(btnEnabled, "Enabled", on)
+        SetAcc2StateTextYellow(btnEnabled, "Enabled", on)
 
         local ov = (s and s.actionBarOverwriteAcc) and true or false
-        SetAcc2StateTextYellow(btnOverwrite, "Overwrite", ov)
+        SetStateTextYellowNoOff(btnOverwrite, "Overwrite", ov)
 
         local dbg = (s and s.actionBarDebugAcc) and true or false
-        SetAcc2StateTextYellow(btnDebug, "Debug", dbg)
+        SetStateTextYellowNoOff(btnDebug, "Debug", dbg)
 
         btnDel:SetEnabled(selectedIndex ~= nil)
     end
@@ -670,6 +742,44 @@ function ns.ActionBarUI_Build(panel)
         end
     end)
 
+    btnEnabled:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnEnabled, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Enabled")
+        GameTooltip:AddLine("Toggles automatic applying of placements.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnEnabled:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnOverwrite:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnOverwrite, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Overwrite")
+        GameTooltip:AddLine("ON: allows replacing occupied action slots.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnOverwrite:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnDebug:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnDebug, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Debug")
+        GameTooltip:AddLine("Prints debug info when applying placements.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnDebug:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnUseHover:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnUseHover, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Hover Fill")
+        GameTooltip:AddLine("Copies detected action slot into Slot.", 1, 1, 1, true)
+        GameTooltip:AddLine("If hovering a macro/spell, also fills Type + Value.", 1, 1, 1, true)
+        GameTooltip:AddLine("Requires Detector ON and hovering a bar button.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnUseHover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
     btnDetect:SetScript("OnClick", function()
         detectorOn = not detectorOn
         if detectorOn then
@@ -692,7 +802,7 @@ function ns.ActionBarUI_Build(panel)
         GameTooltip:SetText("Slot Detector")
         GameTooltip:AddLine("ON: reads the underlying action slot from the bar button you are hovering.", 1, 1, 1, true)
         GameTooltip:AddLine("Works with Blizzard bars and most bar addons (e.g. Bartender) that use action slots.", 1, 1, 1, true)
-        GameTooltip:AddLine("Use 'Use Hover Slot' to fill the Slot field of the selected entry.", 1, 1, 1, true)
+        GameTooltip:AddLine("Use 'Hover Slot' to fill the Slot field of the selected entry.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
     btnDetect:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -707,6 +817,31 @@ function ns.ActionBarUI_Build(panel)
             return
         end
         editSlot:SetText(tostring(hoverSlot))
+
+        local entry = GetSelectedEntry()
+        if entry and hoverType == "macro" and hoverId then
+            entry.kind = "macro"
+            UpdateKindButton(entry)
+            if GetMacroInfo then
+                local ok, name = pcall(GetMacroInfo, hoverId)
+                if ok and type(name) == "string" and name ~= "" then
+                    editValue:SetText(name)
+                end
+            end
+        elseif entry and hoverType == "spell" and hoverId then
+            entry.kind = "spell"
+            UpdateKindButton(entry)
+            if GetSpellInfo then
+                local ok, spellName = pcall(GetSpellInfo, hoverId)
+                if ok and type(spellName) == "string" and spellName ~= "" then
+                    editValue:SetText(spellName)
+                else
+                    editValue:SetText(tostring(hoverId))
+                end
+            else
+                editValue:SetText(tostring(hoverId))
+            end
+        end
         SaveFields(false)
     end)
 
@@ -746,8 +881,13 @@ function ns.ActionBarUI_Build(panel)
                 end
 
                 local slotTxt = entry.slot and tostring(entry.slot) or "?"
-                local nameTxt = (type(entry.name) == "string" and entry.name ~= "") and entry.name or "(no name)"
-                row.text:SetText(string.format("%s: %s", slotTxt, nameTxt))
+                local kind = GetEntryKind(entry)
+                local value = Trim(entry.value or entry.name or "")
+                if value == "" then
+                    value = "(empty)"
+                end
+                local tag = (kind == "spell") and "[S]" or "[M]"
+                row.text:SetText(string.format("%s: %s %s", slotTxt, tag, value))
 
                 row:SetScript("OnClick", function()
                     selectedIndex = idx
@@ -771,7 +911,7 @@ function ns.ActionBarUI_Build(panel)
 
     btnAdd:SetScript("OnClick", function()
         local layout = EnsureLayoutArray()
-        layout[#layout + 1] = { slot = nil, name = "", body = "", icon = nil, perChar = false }
+        layout[#layout + 1] = { slot = nil, kind = "macro", value = "", name = "" }
         selectedIndex = #layout
         RefreshButtons()
         RefreshList()
@@ -815,3 +955,6 @@ function ns.ActionBarUI_Build(panel)
     UpdateAll()
     return UpdateAll
 end
+
+-- Back-compat alias (older core builds may still call this)
+ns.ActionBarUI_Build = ns.SituateUI_Build
