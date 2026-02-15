@@ -27,12 +27,15 @@ end
 
 SetZone("Kun-Lai Summit, Pandaria")
 
-    local t = NPC(68465, "Thundering Pandaren Spirit")
+    local t = NPC( 68465, "Thundering Pandaren Spirit")
     t[41955] = { text = "Another challenge?", type = "" }
+
+    local t = NPC(176655, "Anthea")
+    t[52501] = { text = "Let's rumble!", type = "" }
 
 SetZone("Townlong Steppes, Pandaria")
 
-    local t = NPC(68463, "Burning Pandaren Spirit")
+    local t = NPC( 68463, "Burning Pandaren Spirit")
     t[41951] = { text = "Another challenge?", type = "" }
 
 

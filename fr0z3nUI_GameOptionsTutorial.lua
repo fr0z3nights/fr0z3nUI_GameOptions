@@ -7,8 +7,19 @@ local pendingChanges
 
 local IsAddOnLoadedSafe = (_G.C_AddOns and rawget(_G.C_AddOns, "IsAddOnLoaded")) or rawget(_G, "IsAddOnLoaded")
 
+local function GetSettings()
+    if ns and type(ns._InitSV) == "function" then
+        ns._InitSV()
+    end
+    local acc = rawget(_G, "AutoGame_Settings") or rawget(_G, "AutoGossip_Settings")
+    if type(acc) ~= "table" then
+        return nil
+    end
+    return acc
+end
+
 local function GetTutorialEnabledEffective()
-    local acc = rawget(_G, "AutoGossip_Settings")
+    local acc = GetSettings()
     if type(acc) == "table" and type(acc.tutorialEnabledAcc) == "boolean" then
         return acc.tutorialEnabledAcc
     end
@@ -107,7 +118,7 @@ if _G.hooksecurefunc then
         end
         if _G.C_PlayerInfo and _G.C_PlayerInfo.IsPlayerNPERestricted and _G.UnitLevel and _G.SetCVar then
             if _G.C_PlayerInfo.IsPlayerNPERestricted() and _G.UnitLevel("player") == 1 then
-                print("fr0z3nUI_GossipOption: Disabling NPE tutorial, please disregard Blizzard debug prints.")
+                print("fr0z3nUI_GameOptions: Disabling NPE tutorial, please disregard Blizzard debug prints.")
                 _G.SetCVar("showTutorials", 0)
             end
         end
@@ -117,7 +128,7 @@ end
 local function OnEvent(_, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         local tocVersion = select(4, _G.GetBuildInfo())
-        local acc = rawget(_G, "AutoGossip_Settings")
+        local acc = GetSettings()
         if type(acc) == "table" and GetTutorialOffEffective() then
             if (not acc.tutorialBuild) or (acc.tutorialBuild < tocVersion) then
                 acc.tutorialBuild = tocVersion

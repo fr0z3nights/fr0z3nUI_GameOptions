@@ -1,0 +1,44 @@
+## Interface: 120001, 120000
+# Interface helper (in-game): /run print("TOC interface =", select(4, GetBuildInfo()))
+## Title: |cff00ccfffr0z3nUI|r GameOptions
+## Notes: Game options & helpers. UI: /fgo
+## Author: fr0z3nights
+## Version: 2026.01.25
+## SavedVariables: AutoGame_Acc, AutoGame_Settings, AutoGame_UI
+## SavedVariablesPerCharacter: AutoGame_Char, AutoGame_CharSettings
+
+fr0z3nUI_GameOptionsXP12.lua
+fr0z3nUI_GameOptionsXP11.lua
+fr0z3nUI_GameOptionsXP10.lua
+fr0z3nUI_GameOptionsXP09.lua
+fr0z3nUI_GameOptionsXP08ZZ.lua
+fr0z3nUI_GameOptionsXP08KT.lua
+fr0z3nUI_GameOptionsXP07.lua
+fr0z3nUI_GameOptionsXP06.lua
+fr0z3nUI_GameOptionsXP05.lua
+fr0z3nUI_GameOptionsXP04.lua
+fr0z3nUI_GameOptionsXP03.lua
+fr0z3nUI_GameOptionsXP02.lua
+fr0z3nUI_GameOptionsXP01EK.lua
+fr0z3nUI_GameOptionsXP01KD.lua
+fr0z3nUI_GameOptionsXPEV.lua
+
+fr0z3nUI_GameOptionsTutorial.lua
+fr0z3nUI_GameOptionsTooltip.lua
+fr0z3nUI_GameOptionsTooltipX.lua
+
+fr0z3nUI_GameOptionsActionBar.lua
+fr0z3nUI_GameOptionsActionBarUI.lua
+
+fr0z3nUI_GameOptionsMacroCmd.lua
+fr0z3nUI_GameOptionsMacroCmdUI.lua
+
+fr0z3nUI_GameOptionsMacros.lua
+fr0z3nUI_GameOptionsMacrosUI.lua
+
+fr0z3nUI_GameOptionsHome.lua
+fr0z3nUI_GameOptionsHomeUI.lua
+
+fr0z3nUI_GameOptionsPopup.lua
+
+fr0z3nUI_GameOptions.lua

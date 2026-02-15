@@ -4,9 +4,24 @@ ns = ns or {}
 
 local didInit = false
 
-local function IsHideEnabled()
-    local acc = rawget(_G, "AutoGossip_Settings")
+local function InitSV()
+    if ns and type(ns._InitSV) == "function" then
+        ns._InitSV()
+    end
+end
+
+local function GetSettings()
+    InitSV()
+    local acc = rawget(_G, "AutoGame_Settings") or rawget(_G, "AutoGossip_Settings")
     if type(acc) ~= "table" then
+        return nil
+    end
+    return acc
+end
+
+local function IsHideEnabled()
+    local acc = GetSettings()
+    if not acc then
         return true
     end
     if type(acc.hideTooltipBorderAcc) ~= "boolean" then

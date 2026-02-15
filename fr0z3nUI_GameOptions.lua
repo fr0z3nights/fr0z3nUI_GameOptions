@@ -82,11 +82,20 @@ local function MigrateDisabledFlatToNested(disabled)
 end
 
 local function InitSV()
-    AutoGossip_Acc = AutoGossip_Acc or {}
-    AutoGossip_Char = AutoGossip_Char or {}
-    AutoGossip_Settings = AutoGossip_Settings or { disabled = {}, disabledDB = {}, tutorialOffAcc = false, hideTooltipBorderAcc = true }
-    AutoGossip_CharSettings = AutoGossip_CharSettings or { disabled = {} }
-    AutoGossip_UI = AutoGossip_UI or {}
+    -- SavedVariables rename (2026): AutoGossip_* => AutoGame_*
+    -- If the old tables exist from a previous install, reuse them so settings migrate automatically.
+    AutoGame_Acc = AutoGame_Acc or AutoGossip_Acc or {}
+    AutoGame_Char = AutoGame_Char or AutoGossip_Char or {}
+    AutoGame_Settings = AutoGame_Settings or AutoGossip_Settings or { disabled = {}, disabledDB = {}, tutorialOffAcc = false, hideTooltipBorderAcc = true }
+    AutoGame_CharSettings = AutoGame_CharSettings or AutoGossip_CharSettings or { disabled = {} }
+    AutoGame_UI = AutoGame_UI or AutoGossip_UI or {}
+
+    -- Backward-compatible aliases so existing modules (and older saved snippets) keep working.
+    AutoGossip_Acc = AutoGame_Acc
+    AutoGossip_Char = AutoGame_Char
+    AutoGossip_Settings = AutoGame_Settings
+    AutoGossip_CharSettings = AutoGame_CharSettings
+    AutoGossip_UI = AutoGame_UI
 
     if type(AutoGossip_Settings.disabled) ~= "table" then
         AutoGossip_Settings.disabled = {}
@@ -112,14 +121,83 @@ local function InitSV()
         -- Hide tooltip borders ON (default).
         AutoGossip_Settings.hideTooltipBorderAcc = true
     end
+
+    -- TooltipX: combat hide + lightweight cleanup (safe, no async quest loads).
+    if type(AutoGossip_Settings.tooltipXEnabledAcc) ~= "boolean" then
+        -- Default OFF so it doesn't interfere after install.
+        AutoGossip_Settings.tooltipXEnabledAcc = false
+    end
+    if type(AutoGossip_Settings.tooltipXCombatHideAcc) ~= "boolean" then
+        AutoGossip_Settings.tooltipXCombatHideAcc = false
+    end
+    if type(AutoGossip_Settings.tooltipXCombatModifierAcc) ~= "string" then
+        AutoGossip_Settings.tooltipXCombatModifierAcc = "CTRL"
+    end
+    if type(AutoGossip_Settings.tooltipXCombatShowTargetAcc) ~= "boolean" then
+        AutoGossip_Settings.tooltipXCombatShowTargetAcc = true
+    end
+    if type(AutoGossip_Settings.tooltipXCombatShowFocusAcc) ~= "boolean" then
+        AutoGossip_Settings.tooltipXCombatShowFocusAcc = false
+    end
+    if type(AutoGossip_Settings.tooltipXCombatShowMouseoverAcc) ~= "boolean" then
+        AutoGossip_Settings.tooltipXCombatShowMouseoverAcc = true
+    end
+    if type(AutoGossip_Settings.tooltipXCombatShowFriendlyPlayersAcc) ~= "boolean" then
+        AutoGossip_Settings.tooltipXCombatShowFriendlyPlayersAcc = false
+    end
+    if type(AutoGossip_Settings.tooltipXCleanupAcc) ~= "boolean" then
+        AutoGossip_Settings.tooltipXCleanupAcc = false
+    end
+    if type(AutoGossip_Settings.tooltipXCleanupCombatOnlyAcc) ~= "boolean" then
+        AutoGossip_Settings.tooltipXCleanupCombatOnlyAcc = true
+    end
+    if type(AutoGossip_Settings.tooltipXCleanupModeAcc) ~= "string" then
+        AutoGossip_Settings.tooltipXCleanupModeAcc = "strict"
+    end
+    if type(AutoGossip_Settings.tooltipXDebugAcc) ~= "boolean" then
+        AutoGossip_Settings.tooltipXDebugAcc = false
+    end
+
+    -- ActionBar macro placement module.
+    if type(AutoGossip_Settings.actionBarEnabledAcc) ~= "boolean" then
+        -- Default OFF so it can't surprise-move buttons after install.
+        AutoGossip_Settings.actionBarEnabledAcc = false
+    end
+    if type(AutoGossip_Settings.actionBarDebugAcc) ~= "boolean" then
+        AutoGossip_Settings.actionBarDebugAcc = false
+    end
+    if type(AutoGossip_Settings.actionBarOverwriteAcc) ~= "boolean" then
+        -- Default OFF: only place into empty slots or matching macro slots.
+        AutoGossip_Settings.actionBarOverwriteAcc = false
+    end
+    if type(AutoGossip_Settings.actionBarMainAcc) ~= "boolean" then
+        -- Default OFF: treat this WoW account as a non-main profile.
+        AutoGossip_Settings.actionBarMainAcc = false
+    end
+    if type(AutoGossip_Settings.actionBarLayoutAcc) ~= "table" then
+        AutoGossip_Settings.actionBarLayoutAcc = {}
+    end
+    -- Keep layout as an array.
+    if AutoGossip_Settings.actionBarLayoutAcc[1] == nil and next(AutoGossip_Settings.actionBarLayoutAcc) ~= nil then
+        AutoGossip_Settings.actionBarLayoutAcc = {}
+    end
     if type(AutoGossip_Settings.debugAcc) ~= "boolean" then
         AutoGossip_Settings.debugAcc = false
     end
     if type(AutoGossip_Settings.debugPetPopupsAcc) ~= "boolean" then
         AutoGossip_Settings.debugPetPopupsAcc = false
     end
+
+    -- Macro / commands (/fgo m <command>)
+    if type(AutoGossip_Settings.macroCmdsAcc) ~= "table" then
+        AutoGossip_Settings.macroCmdsAcc = {}
+    end
+    -- Keep macroCmds as an array.
+    if AutoGossip_Settings.macroCmdsAcc[1] == nil and next(AutoGossip_Settings.macroCmdsAcc) ~= nil then
+        AutoGossip_Settings.macroCmdsAcc = {}
+    end
     if type(AutoGossip_Settings.autoAcceptPetPrepareAcc) ~= "boolean" then
-        -- Default ON: used for pet battle "Prepare yourself!" confirmation popup.
+        -- Default ON: used for pet battle confirmation popup (e.g. "Prepare yourself!", "Let's rumble!").
         AutoGossip_Settings.autoAcceptPetPrepareAcc = true
     end
 
@@ -197,128 +275,11 @@ local function InitSV()
     MigrateRulesDb(AutoGossip_Char)
 end
 
--- Pet battle popup debug (Pandaria): logs which StaticPopup is shown during pet battle start.
-local petBattleOpenStartAt = 0
-local petBattleOpenStartInPandaria = false
+-- Expose a couple of internals so helper modules (e.g. Popup) can share SV init + printing.
+ns._InitSV = InitSV
+ns._Print = Print
 
-local function IsInPandaria()
-    if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetMapInfo) then
-        return false
-    end
-    local mapID = C_Map.GetBestMapForUnit("player")
-    local safety = 0
-    while mapID and safety < 20 do
-        if mapID == 424 then
-            return true
-        end
-        local info = C_Map.GetMapInfo(mapID)
-        mapID = info and info.parentMapID or nil
-        safety = safety + 1
-    end
-    return false
-end
-
-local function GetShortStack(skip)
-    if not debugstack then
-        return ""
-    end
-    local raw = debugstack((skip or 0) + 1, 12, 12) or ""
-    local out = {}
-    local n = 0
-    for line in raw:gmatch("[^\n]+") do
-        -- Skip the first line which is usually just "debugstack" itself.
-        if not line:find("GetShortStack", 1, true) and not line:find("debugstack", 1, true) then
-            n = n + 1
-            out[#out + 1] = line
-            if n >= 4 then
-                break
-            end
-        end
-    end
-    return table.concat(out, " | ")
-end
-
-local petPopupDebugHooked = false
-
-local function TryAutoAcceptPetPreparePopup(which, text_arg1)
-    InitSV()
-    if not (AutoGossip_Settings and AutoGossip_Settings.autoAcceptPetPrepareAcc) then
-        return
-    end
-    if which ~= "GOSSIP_CONFIRM" then
-        return
-    end
-    local a1 = text_arg1 and tostring(text_arg1) or ""
-    if a1 == "" or not a1:find("Prepare yourself", 1, true) then
-        return
-    end
-
-    -- Defer one frame so StaticPopup has finished setting up.
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0, function()
-            for i = 1, 4 do
-                local popup = _G["StaticPopup" .. i]
-                if popup and popup.IsShown and popup:IsShown() and popup.which == which then
-                    local ok = false
-                    if popup.button1 and popup.button1.Click then
-                        ok = pcall(popup.button1.Click, popup.button1)
-                    elseif StaticPopup_OnClick then
-                        ok = pcall(StaticPopup_OnClick, popup, 1)
-                    end
-                    if ok then
-                        if AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc then
-                            Print("Auto-accepted: " .. a1)
-                        end
-                    end
-                    return
-                end
-            end
-        end)
-    end
-end
-
-local function SetupPetPopupDebug()
-    if petPopupDebugHooked then
-        return
-    end
-    petPopupDebugHooked = true
-
-    if hooksecurefunc and StaticPopup_Show then
-        hooksecurefunc("StaticPopup_Show", function(which, text_arg1, text_arg2)
-            InitSV()
-            if not (AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc) then
-                -- Debug can be off while auto-accept is on.
-                TryAutoAcceptPetPreparePopup(which, text_arg1)
-                return
-            end
-
-            local whichStr = which and tostring(which) or "(nil)"
-            local a1 = text_arg1 and tostring(text_arg1) or ""
-            local a2 = text_arg2 and tostring(text_arg2) or ""
-            local dialogText = ""
-            local dialog = (StaticPopupDialogs and which) and StaticPopupDialogs[which] or nil
-            if dialog and dialog.text then
-                if type(dialog.text) == "function" then
-                    local ok, val = pcall(dialog.text)
-                    dialogText = ok and tostring(val or "") or ""
-                else
-                    dialogText = tostring(dialog.text or "")
-                end
-            end
-            local stack = GetShortStack(2)
-            if dialogText ~= "" then
-                Print(string.format("StaticPopup: %s | text=%s | a1=%s | a2=%s", whichStr, dialogText, a1, a2))
-            else
-                Print(string.format("StaticPopup: %s | a1=%s | a2=%s", whichStr, a1, a2))
-            end
-            if stack ~= "" then
-                Print("StaticPopup stack: " .. stack)
-            end
-
-            TryAutoAcceptPetPreparePopup(which, text_arg1)
-        end)
-    end
-end
+-- Popup handling moved to fr0z3nUI_GameOptionsPopup.lua
 
 local function GetQueueAcceptState()
     InitSV()
@@ -1070,13 +1031,14 @@ local function CreateOptionsWindow()
     end
     InitSV()
 
-    local f = CreateFrame("Frame", "AutoGossipOptions", UIParent, "BackdropTemplate")
+    local f = CreateFrame("Frame", "AutoGameOptions", UIParent, "BackdropTemplate")
+    AutoGameOptions = f
     AutoGossipOptions = f
 
     do
         local special = _G and _G["UISpecialFrames"]
         if type(special) == "table" then
-            local name = "AutoGossipOptions"
+            local name = "AutoGameOptions"
             local exists = false
             for i = 1, #special do
                 if special[i] == name then
@@ -1136,10 +1098,30 @@ local function CreateOptionsWindow()
     togglesPanel:Hide()
     f.togglesPanel = togglesPanel
 
+    local actionBarPanel = CreateFrame("Frame", nil, f)
+    actionBarPanel:SetAllPoints()
+    actionBarPanel:Hide()
+    f.actionBarPanel = actionBarPanel
+
+    local macroPanel = CreateFrame("Frame", nil, f)
+    macroPanel:SetAllPoints()
+    macroPanel:Hide()
+    f.macroPanel = macroPanel
+
+    local homePanel = CreateFrame("Frame", nil, f)
+    homePanel:SetAllPoints()
+    homePanel:Hide()
+    f.homePanel = homePanel
+
+    local macrosPanel = CreateFrame("Frame", nil, f)
+    macrosPanel:SetAllPoints()
+    macrosPanel:Hide()
+    f.macrosPanel = macrosPanel
+
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 12, -10)
     title:SetJustifyH("LEFT")
-    title:SetText("|cff00ccff[FGO]|r GossipOption")
+    title:SetText("|cff00ccff[FGO]|r GameOptions")
 
     local panelTemplatesSetNumTabs = _G and _G["PanelTemplates_SetNumTabs"]
     local panelTemplatesSetTab = _G and _G["PanelTemplates_SetTab"]
@@ -1149,8 +1131,18 @@ local function CreateOptionsWindow()
         if f.editPanel then f.editPanel:SetShown(tabID == 1) end
         if f.browserPanel then f.browserPanel:SetShown(tabID == 2) end
         if f.togglesPanel then f.togglesPanel:SetShown(tabID == 3) end
+        if f.actionBarPanel then f.actionBarPanel:SetShown(tabID == 4) end
+        if f.macroPanel then f.macroPanel:SetShown(tabID == 5) end
+        if f.homePanel then f.homePanel:SetShown(tabID == 6) end
+        if f.macrosPanel then f.macrosPanel:SetShown(tabID == 7) end
         if tabID == 3 and f.UpdateToggleButtons then
             f.UpdateToggleButtons()
+        end
+        if tabID == 4 and f.UpdateActionBarButtons then
+            f.UpdateActionBarButtons()
+        end
+        if tabID == 5 and f.UpdateMacroButtons then
+            f.UpdateMacroButtons()
         end
         if type(panelTemplatesSetTab) == "function" then
             panelTemplatesSetTab(f, tabID)
@@ -1195,8 +1187,40 @@ local function CreateOptionsWindow()
     StyleTab(tab3)
     f.tab3 = tab3
 
+    local tab4 = CreateFrame("Button", "$parentTab4", f, "PanelTabButtonTemplate")
+    tab4:SetID(4)
+    tab4:SetText("ActionBar")
+    tab4:SetPoint("LEFT", tab3, "RIGHT", -16, 0)
+    tab4:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    StyleTab(tab4)
+    f.tab4 = tab4
+
+    local tab5 = CreateFrame("Button", "$parentTab5", f, "PanelTabButtonTemplate")
+    tab5:SetID(5)
+    tab5:SetText("Macro /")
+    tab5:SetPoint("LEFT", tab4, "RIGHT", -16, 0)
+    tab5:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    StyleTab(tab5)
+    f.tab5 = tab5
+
+    local tab6 = CreateFrame("Button", "$parentTab6", f, "PanelTabButtonTemplate")
+    tab6:SetID(6)
+    tab6:SetText("Home")
+    tab6:SetPoint("LEFT", tab5, "RIGHT", -16, 0)
+    tab6:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    StyleTab(tab6)
+    f.tab6 = tab6
+
+    local tab7 = CreateFrame("Button", "$parentTab7", f, "PanelTabButtonTemplate")
+    tab7:SetID(7)
+    tab7:SetText("Macros")
+    tab7:SetPoint("LEFT", tab6, "RIGHT", -16, 0)
+    tab7:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    StyleTab(tab7)
+    f.tab7 = tab7
+
     if type(panelTemplatesSetNumTabs) == "function" then
-        panelTemplatesSetNumTabs(f, 3)
+        panelTemplatesSetNumTabs(f, 7)
     end
     if type(panelTemplatesSetTab) == "function" then
         panelTemplatesSetTab(f, 1)
@@ -3103,7 +3127,7 @@ local function CreateOptionsWindow()
             if GameTooltip then
                 GameTooltip:SetOwner(btnPetPrepareAccept, "ANCHOR_RIGHT")
                 GameTooltip:SetText("Pet Battle")
-                GameTooltip:AddLine("Auto-accept the 'Prepare yourself!' (GOSSIP_CONFIRM) popup when starting pet battles.", 1, 1, 1, true)
+                GameTooltip:AddLine("Auto-accept the pet battle confirmation (GOSSIP_CONFIRM) popup when starting pet battles (e.g. 'Prepare yourself!', 'Let's rumble!').", 1, 1, 1, true)
                 GameTooltip:AddLine("Macro: /fgo petbattle (forces ON; no prints).", 1, 1, 1, true)
                 GameTooltip:Show()
             end
@@ -3114,6 +3138,454 @@ local function CreateOptionsWindow()
 
         UpdatePetPrepareAcceptButton()
 
+        -- TooltipX
+        local btnTooltipXEnabled = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXEnabled:SetSize(BTN_W, BTN_H)
+        btnTooltipXEnabled:SetPoint("TOP", btnPetPrepareAccept, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXEnabled = btnTooltipXEnabled
+
+        local function UpdateTooltipXEnabledButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXEnabledAcc) and true or false
+            if on then
+                btnTooltipXEnabled:SetText("TooltipX Module: |cff00ccffON ACC|r")
+            else
+                btnTooltipXEnabled:SetText("TooltipX Module: |cffff0000OFF ACC|r")
+            end
+        end
+
+        local function TooltipXDisabledPrefix()
+            InitSV()
+            if AutoGossip_Settings and AutoGossip_Settings.tooltipXEnabledAcc then
+                return ""
+            end
+            return "|cff888888(disabled)|r "
+        end
+
+        btnTooltipXEnabled:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXEnabledAcc = not (AutoGossip_Settings.tooltipXEnabledAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXEnabledButton()
+        end)
+        btnTooltipXEnabled:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXEnabled, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX Module")
+                GameTooltip:AddLine("Master enable/disable for all TooltipX behavior.", 1, 1, 1, true)
+                GameTooltip:AddLine("Default is OFF ACC to avoid interfering after install.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXEnabled:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXEnabledButton()
+
+        local btnTooltipXCombat = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXCombat:SetSize(BTN_W, BTN_H)
+        btnTooltipXCombat:SetPoint("TOP", btnTooltipXEnabled, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXCombat = btnTooltipXCombat
+
+        local function UpdateTooltipXCombatButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatHideAcc) and true or false
+            if on then
+                btnTooltipXCombat:SetText("TooltipX Combat Hide: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
+            else
+                btnTooltipXCombat:SetText("TooltipX Combat Hide: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
+            end
+        end
+
+        btnTooltipXCombat:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXCombatHideAcc = not (AutoGossip_Settings.tooltipXCombatHideAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXCombatButton()
+        end)
+        btnTooltipXCombat:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXCombat, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Combat Hide")
+                GameTooltip:AddLine("ON ACC: hides most tooltips while in combat.", 1, 1, 1, true)
+                GameTooltip:AddLine("Hold the configured reveal key to show them.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXCombat:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXCombatButton()
+
+        local btnTooltipXMod = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXMod:SetSize(BTN_W, BTN_H)
+        btnTooltipXMod:SetPoint("TOP", btnTooltipXCombat, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXMod = btnTooltipXMod
+
+        local function NormalizeMod(m)
+            m = (m or ""):upper()
+            if m == "CTRL" or m == "CONTROL" then return "CTRL" end
+            if m == "ALT" then return "ALT" end
+            if m == "SHIFT" then return "SHIFT" end
+            if m == "NONE" or m == "OFF" then return "NONE" end
+            return "CTRL"
+        end
+
+        local function UpdateTooltipXModButton()
+            InitSV()
+            local mod = NormalizeMod(AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatModifierAcc or "CTRL")
+            btnTooltipXMod:SetText("TooltipX Reveal Key: " .. TooltipXDisabledPrefix() .. "|cff00ccff" .. mod .. "|r")
+        end
+
+        btnTooltipXMod:SetScript("OnClick", function()
+            InitSV()
+            local mod = NormalizeMod(AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatModifierAcc or "CTRL")
+            if mod == "CTRL" then
+                mod = "ALT"
+            elseif mod == "ALT" then
+                mod = "SHIFT"
+            elseif mod == "SHIFT" then
+                mod = "NONE"
+            else
+                mod = "CTRL"
+            end
+            AutoGossip_Settings.tooltipXCombatModifierAcc = mod
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXModButton()
+        end)
+        btnTooltipXMod:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXMod, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Reveal Key")
+                GameTooltip:AddLine("Hold this key in combat to show hidden tooltips.", 1, 1, 1, true)
+                GameTooltip:AddLine("NONE: no key override (tooltips stay hidden in combat).", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXMod:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXModButton()
+
+        local btnTooltipXTarget = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXTarget:SetSize(BTN_W, BTN_H)
+        btnTooltipXTarget:SetPoint("TOP", btnTooltipXMod, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXTarget = btnTooltipXTarget
+
+        local function UpdateTooltipXTargetButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatShowTargetAcc) and true or false
+            if on then
+                btnTooltipXTarget:SetText("TooltipX Show Target: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
+            else
+                btnTooltipXTarget:SetText("TooltipX Show Target: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
+            end
+        end
+
+        btnTooltipXTarget:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXCombatShowTargetAcc = not (AutoGossip_Settings.tooltipXCombatShowTargetAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXTargetButton()
+        end)
+        btnTooltipXTarget:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXTarget, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Show Target")
+                GameTooltip:AddLine("If ON, your target's tooltip will remain visible in combat.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXTarget:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXTargetButton()
+
+        local btnTooltipXFocus = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXFocus:SetSize(BTN_W, BTN_H)
+        btnTooltipXFocus:SetPoint("TOP", btnTooltipXTarget, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXFocus = btnTooltipXFocus
+
+        local function UpdateTooltipXFocusButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatShowFocusAcc) and true or false
+            if on then
+                btnTooltipXFocus:SetText("TooltipX Show Focus: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
+            else
+                btnTooltipXFocus:SetText("TooltipX Show Focus: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
+            end
+        end
+
+        btnTooltipXFocus:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXCombatShowFocusAcc = not (AutoGossip_Settings.tooltipXCombatShowFocusAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXFocusButton()
+        end)
+        btnTooltipXFocus:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXFocus, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Show Focus")
+                GameTooltip:AddLine("If ON, your focus tooltip remains visible in combat.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXFocus:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXFocusButton()
+
+        local btnTooltipXMouseover = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXMouseover:SetSize(BTN_W, BTN_H)
+        btnTooltipXMouseover:SetPoint("TOP", btnTooltipXFocus, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXMouseover = btnTooltipXMouseover
+
+        local function UpdateTooltipXMouseoverButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatShowMouseoverAcc) and true or false
+            if on then
+                btnTooltipXMouseover:SetText("TooltipX Show Mouseover: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
+            else
+                btnTooltipXMouseover:SetText("TooltipX Show Mouseover: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
+            end
+        end
+
+        btnTooltipXMouseover:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXCombatShowMouseoverAcc = not (AutoGossip_Settings.tooltipXCombatShowMouseoverAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXMouseoverButton()
+        end)
+        btnTooltipXMouseover:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXMouseover, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Show Mouseover")
+                GameTooltip:AddLine("If ON, mouseover unit tooltips remain visible in combat.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXMouseover:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXMouseoverButton()
+
+        local btnTooltipXFriendly = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXFriendly:SetSize(BTN_W, BTN_H)
+        btnTooltipXFriendly:SetPoint("TOP", btnTooltipXMouseover, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXFriendly = btnTooltipXFriendly
+
+        local function UpdateTooltipXFriendlyButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatShowFriendlyPlayersAcc) and true or false
+            if on then
+                btnTooltipXFriendly:SetText("TooltipX Show Friendly: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
+            else
+                btnTooltipXFriendly:SetText("TooltipX Show Friendly: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
+            end
+        end
+
+        btnTooltipXFriendly:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXCombatShowFriendlyPlayersAcc = not (AutoGossip_Settings.tooltipXCombatShowFriendlyPlayersAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXFriendlyButton()
+        end)
+        btnTooltipXFriendly:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXFriendly, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Show Friendly Players")
+                GameTooltip:AddLine("If ON, friendly player tooltips remain visible in combat.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXFriendly:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXFriendlyButton()
+
+        local btnTooltipXCleanup = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXCleanup:SetSize(BTN_W, BTN_H)
+        btnTooltipXCleanup:SetPoint("TOP", btnTooltipXFriendly, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXCleanup = btnTooltipXCleanup
+
+        local function UpdateTooltipXCleanupButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCleanupAcc) and true or false
+            if on then
+                btnTooltipXCleanup:SetText("TooltipX Cleanup: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
+            else
+                btnTooltipXCleanup:SetText("TooltipX Cleanup: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
+            end
+        end
+
+        btnTooltipXCleanup:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXCleanupAcc = not (AutoGossip_Settings.tooltipXCleanupAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXCleanupButton()
+        end)
+        btnTooltipXCleanup:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXCleanup, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Cleanup")
+                GameTooltip:AddLine("Hides common quest objective progress lines (e.g. '0/1 ...').", 1, 1, 1, true)
+                GameTooltip:AddLine("This is intentionally lightweight and avoids async quest loads.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXCleanup:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXCleanupButton()
+
+        local btnTooltipXCleanupMode = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXCleanupMode:SetSize(BTN_W, BTN_H)
+        btnTooltipXCleanupMode:SetPoint("TOP", btnTooltipXCleanup, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXCleanupMode = btnTooltipXCleanupMode
+
+        local function NormalizeCleanupMode(v)
+            v = (v or ""):lower()
+            if v ~= "strict" and v ~= "more" then
+                return "strict"
+            end
+            return v
+        end
+
+        local function UpdateTooltipXCleanupModeButton()
+            InitSV()
+            local mode = NormalizeCleanupMode(AutoGossip_Settings and AutoGossip_Settings.tooltipXCleanupModeAcc or "strict")
+            btnTooltipXCleanupMode:SetText("TooltipX Cleanup Mode: " .. TooltipXDisabledPrefix() .. "|cff00ccff" .. mode:upper() .. "|r")
+        end
+
+        btnTooltipXCleanupMode:SetScript("OnClick", function()
+            InitSV()
+            local mode = NormalizeCleanupMode(AutoGossip_Settings and AutoGossip_Settings.tooltipXCleanupModeAcc or "strict")
+            if mode == "strict" then
+                mode = "more"
+            else
+                mode = "strict"
+            end
+            AutoGossip_Settings.tooltipXCleanupModeAcc = mode
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXCleanupModeButton()
+        end)
+        btnTooltipXCleanupMode:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXCleanupMode, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Cleanup Mode")
+                GameTooltip:AddLine("STRICT: hides the most common '0/1 ...' quest objective lines.", 1, 1, 1, true)
+                GameTooltip:AddLine("MORE: hides a few additional numeric progress formats.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXCleanupMode:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXCleanupModeButton()
+
+        local btnTooltipXCleanupScope = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXCleanupScope:SetSize(BTN_W, BTN_H)
+        btnTooltipXCleanupScope:SetPoint("TOP", btnTooltipXCleanupMode, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXCleanupScope = btnTooltipXCleanupScope
+
+        local function UpdateTooltipXCleanupScopeButton()
+            InitSV()
+            local combatOnly = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCleanupCombatOnlyAcc) and true or false
+            if combatOnly then
+                btnTooltipXCleanupScope:SetText("TooltipX Cleanup Scope: " .. TooltipXDisabledPrefix() .. "|cff00ccffCOMBAT|r")
+            else
+                btnTooltipXCleanupScope:SetText("TooltipX Cleanup Scope: " .. TooltipXDisabledPrefix() .. "|cff00ccffALWAYS|r")
+            end
+        end
+
+        btnTooltipXCleanupScope:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXCleanupCombatOnlyAcc = not (AutoGossip_Settings.tooltipXCleanupCombatOnlyAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXCleanupScopeButton()
+        end)
+        btnTooltipXCleanupScope:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXCleanupScope, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Cleanup Scope")
+                GameTooltip:AddLine("COMBAT: only clean tooltips while in combat.", 1, 1, 1, true)
+                GameTooltip:AddLine("ALWAYS: clean tooltips everywhere.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXCleanupScope:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXCleanupScopeButton()
+
+        local btnTooltipXDebug = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
+        btnTooltipXDebug:SetSize(BTN_W, BTN_H)
+        btnTooltipXDebug:SetPoint("TOP", btnTooltipXCleanupScope, "BOTTOM", 0, -GAP_Y)
+        f.btnTooltipXDebug = btnTooltipXDebug
+
+        local function UpdateTooltipXDebugButton()
+            InitSV()
+            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXDebugAcc) and true or false
+            if on then
+                btnTooltipXDebug:SetText("TooltipX Debug: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
+            else
+                btnTooltipXDebug:SetText("TooltipX Debug: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
+            end
+        end
+
+        btnTooltipXDebug:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.tooltipXDebugAcc = not (AutoGossip_Settings.tooltipXDebugAcc and true or false)
+            if ns and ns.ApplyTooltipXSetting then
+                ns.ApplyTooltipXSetting(true)
+            end
+            UpdateTooltipXDebugButton()
+        end)
+        btnTooltipXDebug:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnTooltipXDebug, "ANCHOR_RIGHT")
+                GameTooltip:SetText("TooltipX: Debug")
+                GameTooltip:AddLine("Prints a short reason when TooltipX hides/cleans a tooltip.", 1, 1, 1, true)
+                GameTooltip:AddLine("Throttled to avoid spam.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnTooltipXDebug:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+
+        UpdateTooltipXDebugButton()
+
         f.UpdateToggleButtons = function()
             UpdateTutorialButton()
             UpdateBorderButton()
@@ -3121,6 +3593,65 @@ local function CreateOptionsWindow()
             UpdateDebugButton()
             UpdatePetPopupDebugButton()
             UpdatePetPrepareAcceptButton()
+            UpdateTooltipXEnabledButton()
+            UpdateTooltipXCombatButton()
+            UpdateTooltipXModButton()
+            UpdateTooltipXTargetButton()
+            UpdateTooltipXFocusButton()
+            UpdateTooltipXMouseoverButton()
+            UpdateTooltipXFriendlyButton()
+            UpdateTooltipXCleanupButton()
+            UpdateTooltipXCleanupModeButton()
+            UpdateTooltipXCleanupScopeButton()
+            UpdateTooltipXDebugButton()
+        end
+    end
+
+    -- ActionBar tab content
+    do
+        local panel = f.actionBarPanel
+        if panel then
+            local UpdateUI = function() end
+            if ns and ns.ActionBarUI_Build then
+                UpdateUI = ns.ActionBarUI_Build(panel) or UpdateUI
+            end
+            f.UpdateActionBarButtons = function()
+                UpdateUI()
+            end
+        end
+    end
+
+    -- Macro / tab content
+    do
+        local panel = f.macroPanel
+        if panel then
+            local UpdateUI = function() end
+            if ns and ns.MacroCmdUI_Build then
+                UpdateUI = ns.MacroCmdUI_Build(panel) or UpdateUI
+            end
+            f.UpdateMacroButtons = function()
+                UpdateUI()
+            end
+        end
+    end
+
+    -- Home tab content
+    do
+        local panel = f.homePanel
+        if panel and ns and type(ns.BuildHomePanel) == "function" then
+            ns.BuildHomePanel(panel)
+        end
+    end
+
+    -- Macros tab content
+    do
+        local panel = f.macrosPanel
+        if panel and ns then
+            if type(ns.BuildMacrosPanel) == "function" then
+                ns.BuildMacrosPanel(panel)
+            elseif type(ns.BuildHearthMacrosPanel) == "function" then
+                ns.BuildHearthMacrosPanel(panel)
+            end
         end
     end
 
@@ -3282,13 +3813,131 @@ local function PrintDebugOptionsOnShow()
     end
 end
 
-SLASH_FROZENGOSSIPOPTION1 = "/fgo"
+SLASH_FROZENGAMEOPTIONS1 = "/fgo"
 ---@diagnostic disable-next-line: duplicate-set-field
-SlashCmdList["FROZENGOSSIPOPTION"] = function(msg)
+SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     msg = (msg or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if msg == "" then
         ToggleUI()
         return
+    end
+
+    do
+        local cmd, rest = msg:match("^(%S+)%s*(.-)$")
+        cmd = cmd and cmd:lower() or nil
+        if cmd == "m" then
+            if ns and ns.MacroCmd_HandleSlash then
+                ns.MacroCmd_HandleSlash(rest)
+            else
+                Print("Macro command module not loaded.")
+            end
+            return
+        end
+
+        if cmd == "hm" then
+            local sub, subarg = (rest or ""):match("^(%S*)%s*(.-)$")
+            if ns and ns.Home and type(ns.Home.HandleHM) == "function" then
+                ns.Home.HandleHM(sub, subarg)
+            else
+                Print("Housing module not loaded.")
+            end
+            return
+        end
+
+        if cmd == "scripterrors" or cmd == "script" then
+            if not (C_CVar and C_CVar.GetCVar and C_CVar.SetCVar) then
+                Print("CVar API unavailable")
+                return
+            end
+            local k = "ScriptErrors"
+            local v = tonumber(C_CVar.GetCVar(k)) or 0
+            C_CVar.SetCVar(k, (v == 1) and 0 or 1)
+            Print("ScriptErrors " .. ((v == 1) and "Disabled" or "Enabled"))
+            return
+        end
+
+        if cmd == "hs" or cmd == "hearth" then
+            local dest = (rest or ""):lower()
+
+            local function GetCooldownRemaining(itemID)
+                if not (GetItemCooldown and GetTime) then
+                    return 0
+                end
+                local s, d = GetItemCooldown(tonumber(itemID) or 0)
+                s = tonumber(s) or 0
+                d = tonumber(d) or 0
+                if s <= 0 or d <= 0 then
+                    return 0
+                end
+                local rem = (s + d) - (GetTime() or 0)
+                if rem < 0 then rem = 0 end
+                return rem
+            end
+
+            local function PrintHSMessage(itemID, onReadyText, onCdFmt)
+                local rem = GetCooldownRemaining(itemID)
+                if rem > 1 then
+                    Print(string.format(onCdFmt, rem / 60))
+                else
+                    Print(tostring(onReadyText))
+                end
+            end
+
+            if dest == "garrison" then
+                PrintHSMessage(110560, "Hearthing to Garrison", "Hearthing to Garrison in %d mins")
+                return
+            end
+            if dest == "dalaran" then
+                PrintHSMessage(140192, "Hearthing to Dalaran", "Hearthing to Dalaran in %d mins")
+                return
+            end
+            if dest == "dornogal" then
+                PrintHSMessage(243056, "Portal to Dornogal Opening", "Portal to Dornogal in %d mins")
+                return
+            end
+            if dest == "whistle" then
+                PrintHSMessage(230850, "Yay! Off To A Delve", "Ride to a Delve in %d mins")
+                return
+            end
+            if dest == "hearth" or dest == "" then
+                local useID = 6948
+                local bind = (GetBindLocation and GetBindLocation()) or ""
+                local zone = ""
+
+                if ns and ns.Hearth and type(ns.Hearth.EnsureInit) == "function" then
+                    local db, charKey = ns.Hearth.EnsureInit()
+                    if type(db) == "table" then
+                        local sel = tonumber(db.selectedUseItemID)
+                        if sel and sel > 0 then
+                            useID = sel
+                        end
+                        if db.zoneByChar and charKey then
+                            zone = tostring(db.zoneByChar[charKey] or "")
+                        end
+                    end
+                end
+
+                local to
+                if zone == "" then
+                    to = bind
+                elseif bind == "" then
+                    to = zone
+                else
+                    to = bind .. ", " .. zone
+                end
+
+                local rem = GetCooldownRemaining(useID)
+                if rem > 1 then
+                    Print(string.format("Hearthing in %d mins to %s", rem / 60, to))
+                else
+                    Print(string.format("Hearthing to %s", to))
+                end
+                return
+            end
+
+            Print("Usage: /fgo hs hearth|garrison|dalaran|dornogal|whistle")
+            return
+        end
     end
 
     if msg:lower() == "petbattle" then
@@ -3312,6 +3961,10 @@ SlashCmdList["FROZENGOSSIPOPTION"] = function(msg)
     Print("/fgo <id>      - open window + set option id")
     Print("/fgo list      - print current gossip options")
     Print("/fgo petbattle - force-enable pet battle auto-accept")
+    Print("/fgo m ...     - run a saved macro command (see 'Macro /' tab)")
+    Print("/fgo hm ...    - housing macros (see 'Home' tab)")
+    Print("/fgo hs ...    - hearth status helper (used by 'Macros' tab macros)")
+    Print("/fgo script    - toggle ScriptErrors (used by 'Macros' tab macros)")
 end
 
 frame:RegisterEvent("ADDON_LOADED")
@@ -3328,19 +3981,23 @@ frame:SetScript("OnEvent", function(_, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         InitSV()
         DeduplicateUserRulesAgainstDb()
-        SetupPetPopupDebug()
+        if ns and ns.Popup and type(ns.Popup.Setup) == "function" then
+            ns.Popup.Setup()
+        end
         return
     end
 
     if event == "PET_BATTLE_OPENING_START" then
         InitSV()
-        petBattleOpenStartAt = GetTime and GetTime() or 0
-        petBattleOpenStartInPandaria = IsInPandaria()
+        if ns and ns.Popup and type(ns.Popup.OnPetBattleOpeningStart) == "function" then
+            ns.Popup.OnPetBattleOpeningStart()
+        end
         return
     end
     if event == "PET_BATTLE_CLOSE" then
-        petBattleOpenStartAt = 0
-        petBattleOpenStartInPandaria = false
+        if ns and ns.Popup and type(ns.Popup.OnPetBattleClose) == "function" then
+            ns.Popup.OnPetBattleClose()
+        end
         return
     end
 
