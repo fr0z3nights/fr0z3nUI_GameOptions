@@ -1,7 +1,7 @@
 local _, ns = ...
 
 -- Home / Housing module.
--- UI is in fr0z3nUI_GameOptionsHomeUI.lua.
+-- UI is merged into fr0z3nUI_GameOptionsMacroUI.lua.
 
 ns.Home = ns.Home or {}
 
@@ -32,7 +32,6 @@ local ConfigureAllSavedTeleportButtons
 
 local AttachAttemptTracking
 local CaptureSavedTeleportFromCurrentHouse
-local MoveSavedTeleportById
 
 -- Home teleport engine (secure /click buttons + stale GUID retry).
 do
@@ -219,6 +218,70 @@ do
         return info
     end
 
+    -- One-shot event helpers.
+    -- Avoid creating new frames per request (leaks on repeated house-info polling).
+    local _onceFrame
+    local _onceCallbacksByEvent = {}
+
+    local function EnsureOnceFrame()
+        if _onceFrame then
+            return _onceFrame
+        end
+        _onceFrame = CreateFrame("Frame")
+        _onceFrame:SetScript("OnEvent", function(self, evName, ...)
+            local list = _onceCallbacksByEvent[evName]
+            if type(list) ~= "table" or #list == 0 then
+                pcall(self.UnregisterEvent, self, evName)
+                _onceCallbacksByEvent[evName] = nil
+                return
+            end
+
+            -- Clear before invoking callbacks.
+            _onceCallbacksByEvent[evName] = nil
+            pcall(self.UnregisterEvent, self, evName)
+
+            for i = 1, #list do
+                pcall(list[i], evName, ...)
+            end
+        end)
+        return _onceFrame
+    end
+
+    local function RemoveOnceCallback(evName, cb)
+        local list = _onceCallbacksByEvent[evName]
+        if type(list) ~= "table" then
+            return
+        end
+        for i = #list, 1, -1 do
+            if list[i] == cb then
+                table.remove(list, i)
+            end
+        end
+        if #list == 0 then
+            _onceCallbacksByEvent[evName] = nil
+            if _onceFrame and _onceFrame.UnregisterEvent then
+                pcall(_onceFrame.UnregisterEvent, _onceFrame, evName)
+            end
+        end
+    end
+
+    local function AddOnceCallback(evName, cb)
+        if type(evName) ~= "string" or evName == "" or type(cb) ~= "function" then
+            return false
+        end
+        local list = _onceCallbacksByEvent[evName]
+        if type(list) ~= "table" then
+            list = {}
+            _onceCallbacksByEvent[evName] = list
+        end
+        list[#list + 1] = cb
+        local f = EnsureOnceFrame()
+        if f and f.RegisterEvent then
+            pcall(f.RegisterEvent, f, evName)
+        end
+        return true
+    end
+
     local function RegisterOnceEvent(eventName, callback)
         if type(eventName) ~= "string" or type(callback) ~= "function" then
             return false
@@ -229,15 +292,10 @@ do
             return true
         end
 
-        -- Fallback for builds without EventUtil.
-        local f = CreateFrame("Frame")
-        f:RegisterEvent(eventName)
-        f:SetScript("OnEvent", function(self)
-            self:UnregisterEvent(eventName)
-            self:SetScript("OnEvent", nil)
-            pcall(callback)
+        -- Fallback: use shared once-frame manager.
+        return AddOnceCallback(eventName, function()
+            callback()
         end)
-        return true
     end
 
     local function RegisterOnceAnyEvent(eventNames, callback)
@@ -250,29 +308,33 @@ do
         if type(eventNames) ~= "table" or #eventNames == 0 then
             return false
         end
-        local f = CreateFrame("Frame")
+
         local fired = false
-        for i = 1, #eventNames do
-            local ev = eventNames[i]
-            if type(ev) == "string" and ev ~= "" then
-                f:RegisterEvent(ev)
-            end
-        end
-        f:SetScript("OnEvent", function(self, evName)
+        local wrapper
+        wrapper = function(evName)
             if fired then
                 return
             end
             fired = true
+
+            -- Unregister/remove from all sibling events.
             for i = 1, #eventNames do
                 local ev = eventNames[i]
                 if type(ev) == "string" and ev ~= "" then
-                    self:UnregisterEvent(ev)
+                    RemoveOnceCallback(ev, wrapper)
                 end
             end
-            self:SetScript("OnEvent", nil)
             pcall(callback, evName)
-        end)
-        return true
+        end
+
+        local anyOk = false
+        for i = 1, #eventNames do
+            local ev = eventNames[i]
+            if type(ev) == "string" and ev ~= "" then
+                anyOk = AddOnceCallback(ev, wrapper) or anyOk
+            end
+        end
+        return anyOk
     end
 
     local function RequestOwnedHousesRefresh()
@@ -784,6 +846,7 @@ do
     ---------------------------------------------------------------------------
 
     local lastTeleportAttempt = nil -- { kind = 'home'|'saved', which|id, time = GetTime() }
+    local lastTeleportAttemptKey = nil -- string
     local teleportAttemptCount = 0
     local RETRY_WINDOW = 1.5
 
@@ -986,11 +1049,11 @@ do
             -- If we're on visit cooldown, don't treat this click as a stale GUID attempt.
             if CheckTeleportCooldown() then
                 lastTeleportAttempt = nil
+                lastTeleportAttemptKey = nil
                 teleportAttemptCount = 0
                 return
             end
 
-            teleportAttemptCount = teleportAttemptCount + 1
             local attempt = { time = GetTime and GetTime() or 0 }
             if self._fgoTeleportKind == "home" then
                 attempt.kind = "home"
@@ -999,6 +1062,23 @@ do
                 attempt.kind = "saved"
                 attempt.id = tonumber(self._fgoTeleportId)
             end
+
+            local key
+            if attempt.kind == "home" then
+                key = "home:" .. tostring(tonumber(attempt.which) or 1)
+            elseif attempt.kind == "saved" then
+                key = "saved:" .. tostring(tonumber(attempt.id) or "")
+            end
+
+            -- Reset counters when switching between destinations.
+            if key and lastTeleportAttemptKey and key ~= lastTeleportAttemptKey then
+                teleportAttemptCount = 0
+            end
+            if key then
+                lastTeleportAttemptKey = key
+            end
+
+            teleportAttemptCount = teleportAttemptCount + 1
             attempt.displayName = DescribeAttempt(attempt)
             lastTeleportAttempt = attempt
 
@@ -1011,6 +1091,7 @@ do
                 C_Timer.After(RETRY_WINDOW + 0.5, function()
                     if lastTeleportAttempt == attemptInfo then
                         lastTeleportAttempt = nil
+                        lastTeleportAttemptKey = nil
                         if teleportAttemptCount > 1 and attemptInfo.displayName then
                             Print("Found ID for: " .. tostring(attemptInfo.displayName) .. ", teleport should now work during this session.")
                         end
@@ -1052,6 +1133,7 @@ do
                 end
                 if (GetTime and (GetTime() - (lastTeleportAttempt.time or 0)) or 0) > RETRY_WINDOW then
                     lastTeleportAttempt = nil
+                    lastTeleportAttemptKey = nil
                     teleportAttemptCount = 0
                     return
                 end
@@ -1107,7 +1189,8 @@ do
             for i = 1, 2 do
                 local existing = sv[i]
                 if type(existing) == "table" then
-                    if existing.neighborhoodGUID == neighborhoodGUID and existing.houseGUID == houseGUID and existing.plotID == plotID then
+                    -- Match by neighborhoodGUID+plotID so home-slot detection still works after houseGUID cycling.
+                    if existing.neighborhoodGUID == neighborhoodGUID and existing.plotID == plotID then
                         return i
                     end
                 end
@@ -1145,6 +1228,9 @@ do
     end
 
     CaptureSavedTeleportFromCurrentHouse = function(name)
+        if InCombatLockdown and InCombatLockdown() then
+            return false, nil, "In combat"
+        end
         if not (C_Housing and type(C_Housing.GetCurrentHouseInfo) == "function") then
             return false, nil, "C_Housing.GetCurrentHouseInfo unavailable"
         end
@@ -1203,40 +1289,6 @@ do
             ConfigureSavedTeleportClickButtonById(id)
         end
         return true, id, "created"
-    end
-
-    MoveSavedTeleportById = function(id, delta)
-        id = tonumber(id)
-        delta = tonumber(delta) or 0
-        if not id or delta == 0 then
-            return false, nil, "bad args"
-        end
-
-        local db = GetSavedTeleportsSV()
-        local list = db and db.list
-        if type(list) ~= "table" then
-            return false, nil, "db missing"
-        end
-
-        local idx
-        for i = 1, #list do
-            local e = list[i]
-            if type(e) == "table" and tonumber(e.id) == id then
-                idx = i
-                break
-            end
-        end
-        if not idx then
-            return false, nil, "not found"
-        end
-
-        local newIdx = idx + (delta < 0 and -1 or 1)
-        if newIdx < 1 or newIdx > #list then
-            return false, idx, "edge"
-        end
-
-        list[idx], list[newIdx] = list[newIdx], list[idx]
-        return true, newIdx, "moved"
     end
 
     do
@@ -1316,7 +1368,6 @@ ns.Home.GetSavedTeleportClickMacroBodyById = GetSavedTeleportClickMacroBodyById
 ns.Home.ConfigureSavedTeleportClickButtonById = ConfigureSavedTeleportClickButtonById
 ns.Home.ConfigureAllSavedTeleportButtons = ConfigureAllSavedTeleportButtons
 ns.Home.CaptureSavedTeleportFromCurrentHouse = CaptureSavedTeleportFromCurrentHouse
-ns.Home.MoveSavedTeleportById = MoveSavedTeleportById
 
 local function Trim(s)
 	s = tostring(s or "")
@@ -1332,9 +1383,8 @@ function ns.Home.HandleHM(sub, subarg)
         print("|cff00ccff[FGO]|r Housing commands:")
         print("|cff00ccff[FGO]|r /fgo hm list")
         print("|cff00ccff[FGO]|r /fgo hm add [name]")
-        print("|cff00ccff[FGO]|r /fgo hm up <id>")
-        print("|cff00ccff[FGO]|r /fgo hm down <id>")
         print("|cff00ccff[FGO]|r /fgo hm macro <id>")
+    print("|cff00ccff[FGO]|r /fgo hm portal")
         print("|cff00ccff[FGO]|r Note: secure teleports require a macro (/click).")
 	end
 
@@ -1369,6 +1419,31 @@ function ns.Home.HandleHM(sub, subarg)
 		return true
 	end
 
+    -- Convenience: one command that works on both factions.
+    -- Uses Home slot 1 for Alliance characters, slot 2 for Horde characters.
+    if sub == "portal" then
+        local faction = (type(UnitFactionGroup) == "function") and UnitFactionGroup("player") or nil
+        local which = (faction == "Horde") and 2 or 1
+        local body = (ns.Home.GetHomeClickMacroBody and ns.Home.GetHomeClickMacroBody(which)) or GetHomeClickMacroBody(which)
+
+        if InCombatLockdown and InCombatLockdown() then
+            print("|cff00ccff[FGO]|r Can't teleport in combat. Use: |cFFFFCC00" .. tostring(body) .. "|r")
+            return true
+        end
+
+        ---@diagnostic disable-next-line: undefined-global
+        if type(RunMacroText) == "function" then
+            ---@diagnostic disable-next-line: undefined-global
+            local ok = pcall(RunMacroText, tostring(body or ""))
+            if ok then
+                return true
+            end
+        end
+
+        print("|cff00ccff[FGO]|r Use: |cFFFFCC00" .. tostring(body) .. "|r")
+        return true
+    end
+
 	if sub == "add" then
 		local ok, id, mode = ns.Home.CaptureSavedTeleportFromCurrentHouse(subarg)
 		if not ok then
@@ -1398,26 +1473,6 @@ function ns.Home.HandleHM(sub, subarg)
 			return true
 		end
         print("|cff00ccff[FGO]|r Saved " .. tostring(id) .. " macro body: |cFFFFCC00" .. tostring(body) .. "|r")
-		return true
-	end
-
-	if sub == "up" or sub == "down" then
-		local id = tonumber(subarg)
-		if not id then
-            print("|cff00ccff[FGO]|r Usage: /fgo hm " .. sub .. " <id>")
-			return true
-		end
-		local delta = (sub == "up") and -1 or 1
-		local ok, newIndex, why = ns.Home.MoveSavedTeleportById(id, delta)
-		if ok then
-            print("|cff00ccff[FGO]|r Moved " .. tostring(id) .. " to position " .. tostring(newIndex))
-		else
-			if why == "edge" then
-                print("|cff00ccff[FGO]|r Already at edge")
-			else
-                print("|cff00ccff[FGO]|r Could not move: " .. tostring(why or ""))
-			end
-		end
 		return true
 	end
 

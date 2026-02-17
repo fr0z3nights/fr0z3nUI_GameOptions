@@ -1787,6 +1787,192 @@ InitSV = function()
     if AutoGossip_Settings.macroCmdsAcc[1] == nil and next(AutoGossip_Settings.macroCmdsAcc) ~= nil then
         AutoGossip_Settings.macroCmdsAcc = {}
     end
+
+    -- Seed built-in Macro CMD defaults (idempotent; does not overwrite user edits).
+    do
+        local function NormKey(s)
+            s = tostring(s or "")
+            s = s:gsub("^%s+", ""):gsub("%s+$", "")
+            return s:lower()
+        end
+
+        -- One-time migration: rename legacy c-mode keys to d-mode keys without the leading 'c'.
+        -- This avoids ending up with both old and new names after DB updates.
+        do
+            local rename = {
+                cloot = "loot",
+                cscript = "script",
+                cmouse = "mouse",
+                ctrade = "trade",
+                cfriend = "friend",
+                cbars = "bars",
+                cbagrev = "bagrev",
+                ctoken = "token",
+                csetup = "setup",
+                cfish = "fish",
+            }
+
+            local existing = {}
+            for i, c in ipairs(AutoGossip_Settings.macroCmdsAcc) do
+                if type(c) == "table" and type(c.key) == "string" then
+                    existing[NormKey(c.key)] = i
+                end
+            end
+
+            for oldKey, newKey in pairs(rename) do
+                local oldIdx = existing[oldKey]
+                local newIdx = existing[newKey]
+                if oldIdx and not newIdx then
+                    local entry = AutoGossip_Settings.macroCmdsAcc[oldIdx]
+                    if type(entry) == "table" then
+                        entry.key = newKey
+                        entry.mode = "d"
+                    end
+                end
+            end
+        end
+
+        local function HasCmdKey(key)
+            key = NormKey(key)
+            if key == "" then
+                return true
+            end
+            for _, c in ipairs(AutoGossip_Settings.macroCmdsAcc) do
+                if type(c) == "table" and type(c.key) == "string" and NormKey(c.key) == key then
+                    return true
+                end
+            end
+            return false
+        end
+
+        local function EnsureDefaultMainsAcc()
+            if type(AutoGossip_Settings) ~= "table" then
+                return {}
+            end
+            if type(AutoGossip_Settings.macroCmdMainsDefaultAcc) ~= "table" then
+                AutoGossip_Settings.macroCmdMainsDefaultAcc = {}
+            end
+            if AutoGossip_Settings.macroCmdMainsDefaultAcc[1] == nil and next(AutoGossip_Settings.macroCmdMainsDefaultAcc) ~= nil then
+                AutoGossip_Settings.macroCmdMainsDefaultAcc = {}
+            end
+            return AutoGossip_Settings.macroCmdMainsDefaultAcc
+        end
+
+        -- Fix a common macro bug pattern in older seeds: if a macro dismounts first and
+        -- only later does `/stopmacro [flying]`, you can dismount mid-air.
+        local function FixStopmacroBeforeDismount(text)
+            if type(text) ~= "string" or text == "" then
+                return text, false
+            end
+            local norm = text:gsub("\r\n", "\n"):gsub("\r", "\n")
+            local lines = {}
+            for line in norm:gmatch("([^\n]*)\n?") do
+                if line == "" and #lines > 0 and lines[#lines] == "" then
+                    break
+                end
+                lines[#lines + 1] = line
+            end
+
+            local disIdx, stopIdx = nil, nil
+            for i = 1, #lines do
+                local l = (lines[i] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                if not disIdx and l:match("^/dismount%s*%[.*noflying.*%]") then
+                    disIdx = i
+                end
+                if not stopIdx and l == "/stopmacro [flying]" then
+                    stopIdx = i
+                end
+            end
+
+            if not (disIdx and stopIdx and stopIdx > disIdx) then
+                return text, false
+            end
+
+            local stopLine = lines[stopIdx]
+            table.remove(lines, stopIdx)
+            table.insert(lines, disIdx, stopLine)
+            return table.concat(lines, "\n"), true
+        end
+
+        do
+            local cmds = AutoGossip_Settings.macroCmdsAcc
+            for _, c in ipairs(cmds) do
+                if type(c) == "table" then
+                    local fixed, changed = FixStopmacroBeforeDismount(c.otherText)
+                    if changed then
+                        c.otherText = fixed
+                    end
+                end
+            end
+        end
+
+        local db = ns and ns.MacroXCMD_DB
+        if type(db) == "table" then
+            for _, e in ipairs(db) do
+                if type(e) == "table" then
+                    local key = tostring(e.key or "")
+                    local keyTrim = key:gsub("^%s+", ""):gsub("%s+$", "")
+                    local mode = tostring(e.mode or "d")
+
+                    -- If the user has no shared Characters list yet, allow the DB to provide an initial default.
+                    if mode == "x" and type(e.mains) == "table" then
+                        local defaultMains = EnsureDefaultMainsAcc()
+                        if defaultMains[1] == nil and #e.mains > 0 then
+                            for i = 1, #e.mains do
+                                defaultMains[i] = tostring(e.mains[i] or "")
+                            end
+                        end
+                    end
+
+                    if keyTrim ~= "" and not HasCmdKey(keyTrim) then
+                        local out = {
+                            mode = mode,
+                            key = keyTrim,
+                            mains = {},
+                            mainText = "",
+                            otherText = "",
+                        }
+
+                        if mode == "x" then
+                            if type(e.mains) == "table" then
+                                for i = 1, #e.mains do
+                                    local v = e.mains[i]
+                                    if v ~= nil then
+                                        out.mains[#out.mains + 1] = tostring(v)
+                                    end
+                                end
+                            end
+                            out.mainText = tostring(e.mainText or "")
+                            out.otherText = tostring(e.otherText or "")
+                        else
+                            out.otherText = tostring(e.text or e.otherText or "")
+                        end
+
+                        AutoGossip_Settings.macroCmdsAcc[#AutoGossip_Settings.macroCmdsAcc + 1] = out
+                    end
+                end
+            end
+        else
+            -- Safety fallback if DB file didn't load.
+            if not HasCmdKey("logout") then
+                AutoGossip_Settings.macroCmdsAcc[#AutoGossip_Settings.macroCmdsAcc + 1] = {
+                    mode = "d",
+                    key = "logout",
+                    mains = {},
+                    mainText = "",
+                    otherText = [[/console Sound_MasterVolume 0.5
+/console Sound_EnableMusic 1
+/zygor hide
+/cancelaura safari hat
+/dejunk destroy
+/stopmacro [flying]
+/dugi automountoff
+/dismount
+/logout]],
+                }
+            end
+        end
+    end
     if type(AutoGossip_Settings.autoAcceptPetPrepareAcc) ~= "boolean" then
         -- Default ON: used for pet battle confirmation popup (e.g. "Prepare yourself!", "Let's rumble!").
         AutoGossip_Settings.autoAcceptPetPrepareAcc = true
@@ -1866,11 +2052,11 @@ InitSV = function()
     MigrateRulesDb(AutoGossip_Char)
 end
 
--- Expose a couple of internals so helper modules (e.g. Popup) can share SV init + printing.
+-- Expose a couple of internals so helper modules (e.g. TalkXPOP) can share SV init + printing.
 ns._InitSV = InitSV
 ns._Print = Print
 
--- Popup handling moved to fr0z3nUI_GameOptionsPopup.lua
+-- Popup handling moved to fr0z3nUI_GameOptionsTalkXPOP.lua
 
 local function GetQueueAcceptState()
     InitSV()
@@ -2934,20 +3120,21 @@ local function CreateOptionsWindow()
 
     local function SelectTab(self, tabID)
         f.activeTab = tabID
-        if f.editPanel then f.editPanel:SetShown(tabID == 1) end
-        if f.browserPanel then f.browserPanel:SetShown(tabID == 2) end
-        if f.macrosPanel then f.macrosPanel:SetShown(tabID == 3) end
-        if f.macroPanel then f.macroPanel:SetShown(tabID == 4) end
-        if f.actionBarPanel then f.actionBarPanel:SetShown(tabID == 5) end
-        if f.togglesPanel then f.togglesPanel:SetShown(tabID == 6) end
+        -- Tab order: 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tale, 6 Talk
+        if f.macrosPanel then f.macrosPanel:SetShown(tabID == 1) end
+        if f.macroPanel then f.macroPanel:SetShown(tabID == 2) end
+        if f.actionBarPanel then f.actionBarPanel:SetShown(tabID == 3) end
+        if f.togglesPanel then f.togglesPanel:SetShown(tabID == 4) end
+        if f.editPanel then f.editPanel:SetShown(tabID == 5) end
+        if f.browserPanel then f.browserPanel:SetShown(tabID == 6) end
 
-        if tabID == 4 and f.UpdateMacroButtons then
+        if tabID == 2 and f.UpdateMacroButtons then
             f.UpdateMacroButtons()
         end
-        if tabID == 5 and f.UpdateSituateButtons then
+        if tabID == 3 and f.UpdateSituateButtons then
             f.UpdateSituateButtons()
         end
-        if tabID == 6 and f.UpdateToggleButtons then
+        if tabID == 4 and f.UpdateToggleButtons then
             f.UpdateToggleButtons()
         end
 
@@ -2964,7 +3151,7 @@ local function CreateOptionsWindow()
 
     local tab1 = CreateFrame("Button", "$parentTab1", f, "UIPanelButtonTemplate")
     tab1:SetID(1)
-    tab1:SetText("Gossip")
+    tab1:SetText("Macro")
     tab1:SetPoint("LEFT", title, "RIGHT", 10, 0)
     tab1:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab1:SetHeight(22)
@@ -2973,7 +3160,7 @@ local function CreateOptionsWindow()
 
     local tab2 = CreateFrame("Button", "$parentTab2", f, "UIPanelButtonTemplate")
     tab2:SetID(2)
-    tab2:SetText("Gossiping")
+    tab2:SetText("Macro CMD")
     tab2:SetPoint("LEFT", tab1, "RIGHT", TAB_OVERLAP_X, 0)
     tab2:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab2:SetHeight(22)
@@ -2982,7 +3169,7 @@ local function CreateOptionsWindow()
 
     local tab3 = CreateFrame("Button", "$parentTab3", f, "UIPanelButtonTemplate")
     tab3:SetID(3)
-    tab3:SetText("Macros")
+    tab3:SetText("Situate")
     tab3:SetPoint("LEFT", tab2, "RIGHT", TAB_OVERLAP_X, 0)
     tab3:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab3:SetHeight(22)
@@ -2991,7 +3178,7 @@ local function CreateOptionsWindow()
 
     local tab4 = CreateFrame("Button", "$parentTab4", f, "UIPanelButtonTemplate")
     tab4:SetID(4)
-    tab4:SetText("Macros /")
+    tab4:SetText("Switches")
     tab4:SetPoint("LEFT", tab3, "RIGHT", TAB_OVERLAP_X, 0)
     tab4:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab4:SetHeight(22)
@@ -3000,7 +3187,7 @@ local function CreateOptionsWindow()
 
     local tab5 = CreateFrame("Button", "$parentTab5", f, "UIPanelButtonTemplate")
     tab5:SetID(5)
-    tab5:SetText("Situate")
+    tab5:SetText("Tale")
     tab5:SetPoint("LEFT", tab4, "RIGHT", TAB_OVERLAP_X, 0)
     tab5:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab5:SetHeight(22)
@@ -3009,7 +3196,7 @@ local function CreateOptionsWindow()
 
     local tab6 = CreateFrame("Button", "$parentTab6", f, "UIPanelButtonTemplate")
     tab6:SetID(6)
-    tab6:SetText("Toggles")
+    tab6:SetText("Talk")
     tab6:SetPoint("LEFT", tab5, "RIGHT", TAB_OVERLAP_X, 0)
     tab6:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab6:SetHeight(22)
@@ -3131,134 +3318,6 @@ local function CreateOptionsWindow()
     end)
     f._reloadBtn = reloadBtn
 
-    local function SetYellowGreyStateText(btn, label, enabled)
-        if not (btn and btn.SetText) then
-            return
-        end
-        btn:SetText(label)
-        local fs = (btn.GetFontString and btn:GetFontString()) or btn.Text
-        if fs and fs.SetTextColor then
-            if enabled then
-                fs:SetTextColor(1, 1, 0)
-            else
-                fs:SetTextColor(0.62, 0.62, 0.62)
-            end
-        end
-    end
-
-    -- Print/Debug: only shown on the Gossip (edit) tab
-    local btnPrint = CreateFrame("Button", nil, editPanel, "UIPanelButtonTemplate")
-    btnPrint:SetSize(90, 22)
-    btnPrint:SetPoint("BOTTOMLEFT", editPanel, "BOTTOMLEFT", 12, 12)
-    btnPrint:SetFrameLevel((editPanel.GetFrameLevel and editPanel:GetFrameLevel() or 0) + 10)
-    f._btnPrint = btnPrint
-
-    local function UpdatePrintButton()
-        InitSV()
-        local on = (AutoGossip_UI and AutoGossip_UI.printOnShow) and true or false
-        SetYellowGreyStateText(btnPrint, "Print", on)
-    end
-
-    btnPrint:SetScript("OnClick", function()
-        InitSV()
-        AutoGossip_UI.printOnShow = not (AutoGossip_UI.printOnShow and true or false)
-        UpdatePrintButton()
-    end)
-    btnPrint:SetScript("OnEnter", function()
-        if GameTooltip then
-            GameTooltip:SetOwner(btnPrint, "ANCHOR_TOPLEFT")
-            GameTooltip:SetText("Print")
-            GameTooltip:AddLine("ON: print current gossip options on show.", 1, 1, 1, true)
-            GameTooltip:AddLine("Useful for building rules.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end
-    end)
-    btnPrint:SetScript("OnLeave", function()
-        if GameTooltip then GameTooltip:Hide() end
-    end)
-
-    btnPrint:SetScript("OnShow", UpdatePrintButton)
-
-    UpdatePrintButton()
-
-    local btnDebug = CreateFrame("Button", nil, editPanel, "UIPanelButtonTemplate")
-    btnDebug:SetSize(90, 22)
-    btnDebug:SetPoint("LEFT", btnPrint, "RIGHT", 8, 0)
-    btnDebug:SetFrameLevel((editPanel.GetFrameLevel and editPanel:GetFrameLevel() or 0) + 10)
-    f._btnDebug = btnDebug
-
-    local function UpdateDebugButton()
-        InitSV()
-        local on = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
-        SetYellowGreyStateText(btnDebug, "Debug", on)
-    end
-
-    btnDebug:SetScript("OnClick", function()
-        InitSV()
-        AutoGossip_Settings.debugAcc = not (AutoGossip_Settings.debugAcc and true or false)
-        UpdateDebugButton()
-    end)
-    btnDebug:SetScript("OnEnter", function()
-        if GameTooltip then
-            GameTooltip:SetOwner(btnDebug, "ANCHOR_TOPLEFT")
-            GameTooltip:SetText("Debug")
-            GameTooltip:AddLine("ON: print detailed gossip info on show.", 1, 1, 1, true)
-            GameTooltip:AddLine("Also prints why auto-select did/didn't fire.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end
-    end)
-    btnDebug:SetScript("OnLeave", function()
-        if GameTooltip then GameTooltip:Hide() end
-    end)
-
-    btnDebug:SetScript("OnShow", UpdateDebugButton)
-
-    UpdateDebugButton()
-
-    -- Edit/Add layout: one full-width area containing 2 stacked boxes.
-    local leftArea = CreateFrame("Frame", nil, editPanel)
-    leftArea:SetPoint("TOPLEFT", editPanel, "TOPLEFT", 10, -54)
-    leftArea:SetPoint("BOTTOMRIGHT", editPanel, "BOTTOMRIGHT", -10, 50)
-
-    -- Legacy container (kept for minimal churn). Not used in the new layout.
-    local rightArea = CreateFrame("Frame", nil, editPanel)
-    rightArea:Hide()
-
-    -- Rules browser (all rules)
-    AutoGossip_UI.treeState = AutoGossip_UI.treeState or {}
-
-    local function GetTreeExpanded(key, defaultValue)
-        local v = AutoGossip_UI.treeState[key]
-        if v == nil then
-            return defaultValue and true or false
-        end
-        return v and true or false
-    end
-
-    local function SetTreeExpanded(key, expanded)
-        AutoGossip_UI.treeState[key] = expanded and true or false
-    end
-
-    local browserArea = CreateFrame("Frame", nil, browserPanel, "BackdropTemplate")
-    browserArea:SetPoint("TOPLEFT", browserPanel, "TOPLEFT", 10, -54)
-    browserArea:SetPoint("BOTTOMRIGHT", browserPanel, "BOTTOMRIGHT", -10, 50)
-    browserArea:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        tile = true,
-        tileSize = 16,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    browserArea:SetBackdropColor(0, 0, 0, 0.25)
-
-    local browserHint = browserPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    browserHint:SetPoint("BOTTOMLEFT", browserPanel, "BOTTOMLEFT", 12, 28)
-    browserHint:SetText("")
-    browserHint:Hide()
-
-    local browserEmpty = browserArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    browserEmpty:SetPoint("CENTER", browserArea, "CENTER", 0, 0)
-    browserEmpty:SetText("No rules found")
-
     local function HideFauxScrollBarAndEnableWheel(sf, rowHeight)
         if not sf then
             return
@@ -3301,2266 +3360,71 @@ local function CreateOptionsWindow()
         end)
     end
 
-    local browserScroll = CreateFrame("ScrollFrame", nil, browserArea, "FauxScrollFrameTemplate")
-    browserScroll:SetPoint("TOPLEFT", browserArea, "TOPLEFT", 4, -4)
-    browserScroll:SetPoint("BOTTOMRIGHT", browserArea, "BOTTOMRIGHT", -4, 4)
-    f.browserScroll = browserScroll
-
-    local BROW_ROW_H = 18
-    local BROW_ROWS = 18
-    local browRows = {}
-
-    HideFauxScrollBarAndEnableWheel(browserScroll, BROW_ROW_H)
-
-    local function CollectAllRules()
-        InitSV()
-        local out = {}
-
-        local function AddFrom(scope)
-            local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
-            if type(db) ~= "table" then
-                return
-            end
-            for npcID, npcTable in pairs(db) do
-                if type(npcTable) == "table" then
-                    local defaultZoneName, defaultNpcName
-                    if type(npcTable.__meta) == "table" then
-                        defaultZoneName = npcTable.__meta.zoneName or npcTable.__meta.zone
-                        defaultNpcName = npcTable.__meta.npcName or npcTable.__meta.npc
-                    end
-
-                    for optionID, data in pairs(npcTable) do
-                        if optionID ~= "__meta" then
-                            local numericID = tonumber(optionID) or optionID
-                            local text = ""
-                            local ruleType = ""
-                            local zoneName = "Unknown"
-                            local npcName = ""
-                            if type(data) == "table" then
-                                text = data.text or ""
-                                ruleType = data.type or ""
-                                zoneName = data.zoneName or data.zone or defaultZoneName or zoneName
-                                npcName = data.npcName or data.npc or defaultNpcName or npcName
-                            end
-                            table.insert(out, {
-                                scope = scope,
-                                npcID = tonumber(npcID) or npcID,
-                                optionID = numericID,
-                                text = text,
-                                ruleType = ruleType,
-                                zone = zoneName,
-                                npcName = npcName,
-                                isDisabled = IsDisabled(scope, npcID, numericID),
-                            })
-                        end
-                    end
-                end
-            end
-        end
-
-        AddFrom("char")
-        AddFrom("acc")
-
-        local rules = ns and ns.db and ns.db.rules
-        if type(rules) == "table" then
-            for npcID, npcTable in pairs(rules) do
-                if type(npcTable) == "table" then
-                    local defaultZoneName, defaultNpcName
-                    if type(npcTable.__meta) == "table" then
-                        defaultZoneName = npcTable.__meta.zoneName or npcTable.__meta.zone
-                        defaultNpcName = npcTable.__meta.npcName or npcTable.__meta.npc
-                    end
-
-                    for optionID, data in pairs(npcTable) do
-                        if optionID ~= "__meta" then
-                            local numericID = tonumber(optionID) or optionID
-                            local text = ""
-                            local ruleType = ""
-                            local zoneName = "Unknown"
-                            local npcName = ""
-                            if type(data) == "table" then
-                                text = data.text or ""
-                                ruleType = data.type or ""
-                                zoneName = data.zoneName or data.zone or defaultZoneName or zoneName
-                                npcName = data.npcName or data.npc or defaultNpcName or npcName
-                            end
-                            table.insert(out, {
-                                scope = "db",
-                                npcID = tonumber(npcID) or npcID,
-                                optionID = numericID,
-                                text = text,
-                                ruleType = ruleType,
-                                zone = zoneName,
-                                npcName = npcName,
-                                isDisabled = (IsDisabledDB(npcID, numericID) or IsDisabledDBOnChar(npcID, numericID)) and true or false,
-                            })
-                        end
-                    end
-                end
-            end
-        end
-
-        return out
-    end
-
-    local function BuildVisibleTreeNodes(allRules)
-        local function Trim(s)
-            if type(s) ~= "string" then
-                return ""
-            end
-            return (s:gsub("^%s+", ""):gsub("%s+$", ""))
-        end
-
-        local function SplitZoneContinent(zoneString)
-            zoneString = Trim(zoneString)
-            if zoneString == "" then
-                return "Unknown", nil
-            end
-
-            -- Split on the last comma so e.g. "The Waking Shores, Dragon Isles" works.
-            local zonePart, continentPart = zoneString:match("^(.*),%s*([^,]+)$")
-            zonePart = Trim(zonePart)
-            continentPart = Trim(continentPart)
-            if zonePart ~= "" and continentPart ~= "" then
-                return zonePart, continentPart
-            end
-
-            return zoneString, nil
-        end
-
-        -- continent -> zone -> npc -> rules
-        local contMap = {}
-        for _, r in ipairs(allRules) do
-            local zoneString = (type(r.zone) == "string" and r.zone ~= "") and r.zone or "Unknown"
-            local zone, continent = SplitZoneContinent(zoneString)
-            continent = continent or "Unknown"
-
-            contMap[continent] = contMap[continent] or {}
-            contMap[continent][zone] = contMap[continent][zone] or {}
-
-            local npcID = r.npcID
-            contMap[continent][zone][npcID] = contMap[continent][zone][npcID] or { npcName = r.npcName or "", rules = {} }
-            local npcBucket = contMap[continent][zone][npcID]
-            if (npcBucket.npcName == "" or npcBucket.npcName == nil) and r.npcName and r.npcName ~= "" then
-                npcBucket.npcName = r.npcName
-            end
-            table.insert(npcBucket.rules, r)
-        end
-
-        local continents = {}
-        for continent in pairs(contMap) do
-            table.insert(continents, continent)
-        end
-        table.sort(continents)
-
-        local visible = {}
-        for _, continent in ipairs(continents) do
-            local contKey = "cont:" .. continent
-            local contExpanded = GetTreeExpanded(contKey, true)
-            table.insert(visible, { kind = "continent", key = contKey, label = continent, level = 0, expanded = contExpanded })
-
-            if contExpanded then
-                local zones = {}
-                for zone in pairs(contMap[continent]) do
-                    table.insert(zones, zone)
-                end
-                table.sort(zones)
-
-                for _, zone in ipairs(zones) do
-                    local zoneKey = "zone:" .. continent .. ":" .. zone
-                    local zoneExpanded = GetTreeExpanded(zoneKey, true)
-                    table.insert(visible, { kind = "zone", key = zoneKey, label = zone, level = 1, expanded = zoneExpanded, continent = continent, zone = zone })
-
-                    if zoneExpanded then
-                        local npcNameMap = {}
-                        for npcID, npcBucket in pairs(contMap[continent][zone]) do
-                            if type(npcBucket) == "table" then
-                                local npcName = npcBucket.npcName
-                                if type(npcName) ~= "string" or npcName == "" then
-                                    npcName = "Unknown"
-                                end
-                                npcNameMap[npcName] = npcNameMap[npcName] or { npcName = npcName, npcIDs = {}, rules = {} }
-                                table.insert(npcNameMap[npcName].npcIDs, npcID)
-                                if type(npcBucket.rules) == "table" then
-                                    for _, rule in ipairs(npcBucket.rules) do
-                                        table.insert(npcNameMap[npcName].rules, rule)
-                                    end
-                                end
-                            end
-                        end
-
-                        local npcNames = {}
-                        for npcName in pairs(npcNameMap) do
-                            table.insert(npcNames, npcName)
-                        end
-                        table.sort(npcNames)
-
-                        for _, npcName in ipairs(npcNames) do
-                            local npcBucket = npcNameMap[npcName]
-                            table.sort(npcBucket.npcIDs, function(a, b) return (tonumber(a) or 0) < (tonumber(b) or 0) end)
-
-                            local idParts = {}
-                            for _, id in ipairs(npcBucket.npcIDs) do
-                                idParts[#idParts + 1] = tostring(id)
-                            end
-
-                            local npcLabel = npcBucket.npcName .. "  (" .. table.concat(idParts, "/") .. ")"
-                            local npcKey = "npc:" .. continent .. ":" .. zone .. ":" .. npcBucket.npcName .. ":" .. table.concat(idParts, "/")
-                            local npcExpanded = GetTreeExpanded(npcKey, false)
-                            table.insert(visible, { kind = "npc", key = npcKey, label = npcLabel, level = 2, expanded = npcExpanded, continent = continent, zone = zone, npcIDs = npcBucket.npcIDs, npcName = npcBucket.npcName })
-
-                            if npcExpanded then
-                                local byOption = {}
-                                local function Ensure(optionID)
-                                    local key = tostring(optionID)
-                                    local e = byOption[key]
-                                    if not e then
-                                        e = {
-                                            npcID = npcBucket.npcIDs and npcBucket.npcIDs[1] or nil,
-                                            npcName = npcBucket.npcName or "",
-                                            allNpcIDs = npcBucket.npcIDs or {},
-                                            optionID = tonumber(optionID) or optionID,
-                                            text = "",
-                                            ruleType = "",
-                                            hasChar = false,
-                                            hasAcc = false,
-                                            hasDb = false,
-                                            disabledChar = false,
-                                            disabledAcc = false,
-                                            disabledDb = false,
-                                            disabledDbAcc = false,
-                                            disabledDbChar = false,
-                                            _accNpcIDs = {},
-                                            _charNpcIDs = {},
-                                            _dbNpcIDs = {},
-                                        }
-                                        byOption[key] = e
-                                    end
-                                    return e
-                                end
-
-                                for _, rule in ipairs(npcBucket.rules) do
-                                    local e = Ensure(rule.optionID)
-                                    if (e.text == "" or e.text == nil) and type(rule.text) == "string" and rule.text ~= "" then
-                                        e.text = rule.text
-                                    end
-                                    if (e.ruleType == "" or e.ruleType == nil) and type(rule.ruleType) == "string" and rule.ruleType ~= "" then
-                                        e.ruleType = rule.ruleType
-                                    end
-                                    if rule.scope == "char" then
-                                        e.hasChar = true
-                                        e._charNpcIDs[rule.npcID] = true
-                                        if rule.isDisabled then
-                                            e.disabledChar = true
-                                        end
-                                    elseif rule.scope == "acc" then
-                                        e.hasAcc = true
-                                        e._accNpcIDs[rule.npcID] = true
-                                        if rule.isDisabled then
-                                            e.disabledAcc = true
-                                        end
-                                    elseif rule.scope == "db" then
-                                        e.hasDb = true
-                                        e._dbNpcIDs[rule.npcID] = true
-                                        if rule.isDisabled then
-                                            e.disabledDb = true
-                                        end
-                                    end
-                                end
-
-                                local entries = {}
-                                for _, e in pairs(byOption) do
-                                    local function SetToSortedList(set)
-                                        local out = {}
-                                        for id in pairs(set or {}) do
-                                            table.insert(out, id)
-                                        end
-                                        table.sort(out, function(a, b) return (tonumber(a) or 0) < (tonumber(b) or 0) end)
-                                        return out
-                                    end
-
-                                    e.accNpcIDs = SetToSortedList(e._accNpcIDs)
-                                    e.charNpcIDs = SetToSortedList(e._charNpcIDs)
-                                    e.dbNpcIDs = SetToSortedList(e._dbNpcIDs)
-                                    e._accNpcIDs, e._charNpcIDs, e._dbNpcIDs = nil, nil, nil
-
-                                    e.disabledDbAcc = false
-                                    e.disabledDbChar = false
-                                    if e.hasDb then
-                                        for _, id in ipairs(e.dbNpcIDs or {}) do
-                                            if IsDisabledDB(id, e.optionID) then
-                                                e.disabledDbAcc = true
-                                            end
-                                            if IsDisabledDBOnChar(id, e.optionID) then
-                                                e.disabledDbChar = true
-                                            end
-                                            if e.disabledDbAcc and e.disabledDbChar then
-                                                break
-                                            end
-                                        end
-                                    end
-                                    e.disabledDb = (e.disabledDbAcc or e.disabledDbChar) and true or false
-
-                                    -- For Account rules, Character button represents "disabled on this character".
-                                    e.disabledAccOnChar = false
-                                    if e.hasAcc then
-                                        for _, id in ipairs(e.accNpcIDs or {}) do
-                                            if IsDisabledAccOnChar(id, e.optionID) then
-                                                e.disabledAccOnChar = true
-                                                break
-                                            end
-                                        end
-                                    end
-                                    table.insert(entries, e)
-                                end
-                                table.sort(entries, function(a, b)
-                                    return (tonumber(a.optionID) or 0) < (tonumber(b.optionID) or 0)
-                                end)
-
-                                for _, entry in ipairs(entries) do
-                                    local text = entry.text
-                                    if type(text) ~= "string" or text == "" then
-                                        text = "(no text)"
-                                    end
-                                    local line = string.format("%s: %s", tostring(entry.optionID), text)
-                                    table.insert(visible, {
-                                        kind = "rule",
-                                        level = 3,
-                                        label = line,
-                                        entry = entry,
-                                    })
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        return visible
-    end
-
-    for i = 1, BROW_ROWS do
-        local row = CreateFrame("Frame", nil, browserArea)
-        row:SetHeight(BROW_ROW_H)
-        row:SetPoint("TOPLEFT", browserArea, "TOPLEFT", 8, -6 - (i - 1) * BROW_ROW_H)
-        row:SetPoint("TOPRIGHT", browserArea, "TOPRIGHT", -8, -6 - (i - 1) * BROW_ROW_H)
-
-        local bg = row:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints(row)
-        bg:Hide()
-        row.bg = bg
-
-        local expBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        expBtn:SetSize(18, BROW_ROW_H - 2)
-        expBtn:SetPoint("LEFT", row, "LEFT", 0, 0)
-        expBtn:SetText("+")
-        row.btnExpand = expBtn
-
-        local del = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        del:SetSize(34, BROW_ROW_H - 2)
-        del:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-        del:SetText("Del")
-        row.btnDel = del
-
-        local btnCharToggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        btnCharToggle:SetSize(22, BROW_ROW_H - 2)
-        btnCharToggle:SetPoint("RIGHT", del, "LEFT", -4, 0)
-        btnCharToggle:SetText("C")
-        row.btnCharToggle = btnCharToggle
-
-        local btnAccToggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        btnAccToggle:SetSize(22, BROW_ROW_H - 2)
-        btnAccToggle:SetPoint("RIGHT", btnCharToggle, "LEFT", -4, 0)
-        btnAccToggle:SetText("A")
-        row.btnAccToggle = btnAccToggle
-
-        local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        fs:SetPoint("LEFT", expBtn, "RIGHT", 6, 0)
-        fs:SetPoint("RIGHT", btnAccToggle, "LEFT", -6, 0)
-        fs:SetJustifyH("LEFT")
-        fs:SetWordWrap(false)
-        row.text = fs
-
-        local click = CreateFrame("Button", nil, row)
-        click:SetPoint("TOPLEFT", expBtn, "TOPRIGHT", 0, 0)
-        click:SetPoint("BOTTOMRIGHT", btnAccToggle, "BOTTOMLEFT", 0, 0)
-        click:RegisterForClicks("LeftButtonUp")
-        row.btnClick = click
-
-        row:Hide()
-        browRows[i] = row
-    end
-
-    function f:RefreshBrowserList()
-        InitSV()
-        local allRules = CollectAllRules()
-        local nodes = BuildVisibleTreeNodes(allRules)
-        self._browserNodes = nodes
-
-        browserEmpty:SetShown(#nodes == 0)
-
-        if FauxScrollFrame_Update then
-            FauxScrollFrame_Update(browserScroll, #nodes, BROW_ROWS, BROW_ROW_H)
-        end
-
-        local offset = 0
-        if FauxScrollFrame_GetOffset then
-            offset = FauxScrollFrame_GetOffset(browserScroll)
-        end
-
-        for i = 1, BROW_ROWS do
-            local idx = offset + i
-            local row = browRows[i]
-            local node = nodes[idx]
-
-            if not node then
-                row:Hide()
-            else
-                row:Show()
-
-                local zebra = (idx % 2) == 0
-                row.bg:SetShown(zebra)
-                row.bg:SetColorTexture(1, 1, 1, zebra and 0.05 or 0)
-
-                local indent = (node.level or 0) * 14
-                row.btnExpand:ClearAllPoints()
-                row.btnExpand:SetPoint("LEFT", row, "LEFT", indent, 0)
-
-                if node.kind == "continent" or node.kind == "zone" or node.kind == "npc" then
-                    row.btnExpand:Show()
-                    row.btnExpand:SetText(node.expanded and "-" or "+")
-                    row.btnAccToggle:Hide()
-                    row.btnCharToggle:Hide()
-                    row.btnDel:Hide()
-
-                    row.text:SetText(node.label)
-                    if node.kind == "continent" then
-                        row.text:SetTextColor(0.8, 0.9, 1, 1)
-                    elseif node.kind == "zone" then
-                        row.text:SetTextColor(0.75, 0.85, 1, 1)
-                    else
-                        row.text:SetTextColor(1, 1, 1, 1)
-                    end
-
-                    row.btnExpand:SetScript("OnClick", function()
-                        SetTreeExpanded(node.key, not node.expanded)
-                        f:RefreshBrowserList()
-                    end)
-                    row.btnClick:SetScript("OnClick", function()
-                        SetTreeExpanded(node.key, not node.expanded)
-                        f:RefreshBrowserList()
-                    end)
-                else
-                    -- rule
-                    row.btnExpand:Hide()
-                    row.btnDel:Show()
-                    row.text:SetText(node.label)
-
-                    local entry = node.entry
-                    local npcID = entry and entry.npcID
-                    local optionID = entry and entry.optionID
-
-                    local function SetScopeText(btn, label, state)
-                        if state == "inactive" then
-                            btn:SetText("|cffffff00" .. label .. "|r")
-                        elseif state == "active" then
-                            btn:SetText("|cff00ff00" .. label .. "|r")
-                        elseif state == "disabled" then
-                            btn:SetText("|cffff9900" .. label .. "|r")
-                        else
-                            btn:SetText("|cff666666" .. label .. "|r")
-                        end
-                    end
-
-                    local function ConfigureDbProxyButton(btn, label, dbScope)
-                        btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-
-                        local state
-                        if dbScope == "acc" then
-                            state = entry.disabledDbAcc and "disabled" or "active"
-                        else
-                            -- Character DB disable is effectively overridden if Account disables the DB rule.
-                            state = (entry.disabledDbAcc or entry.disabledDbChar) and "disabled" or "active"
-                        end
-                        SetScopeText(btn, label, state)
-                        btn:SetEnabled(true)
-
-                        btn:SetScript("OnClick", function(_, mouseButton)
-                            if mouseButton == "RightButton" then
-                                return
-                            end
-                            InitSV()
-                            local ids = entry.dbNpcIDs or {}
-                            if dbScope == "acc" then
-                                local newDisabled = not (entry.disabledDbAcc and true or false)
-                                for _, id in ipairs(ids) do
-                                    SetDisabledDB(id, optionID, newDisabled)
-                                end
-                            else
-                                local newDisabled = not (entry.disabledDbChar and true or false)
-                                for _, id in ipairs(ids) do
-                                    SetDisabledDBOnChar(id, optionID, newDisabled)
-                                end
-                            end
-                            f:RefreshBrowserList()
-                            if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
-                        end)
-
-                        btn:SetScript("OnEnter", function()
-                            if not GameTooltip then
-                                return
-                            end
-                            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-                            if dbScope == "acc" then
-                                GameTooltip:SetText("DB (Account)")
-                                if entry.disabledDbAcc then
-                                    GameTooltip:AddLine("State: Disabled", 1, 0.6, 0, true)
-                                    GameTooltip:AddLine("Left-click: Enable DB rule", 1, 1, 1, true)
-                                else
-                                    GameTooltip:AddLine("State: Active", 0, 1, 0, true)
-                                    GameTooltip:AddLine("Left-click: Disable DB rule", 1, 1, 1, true)
-                                end
-                            else
-                                GameTooltip:SetText("DB (Character)")
-                                if entry.disabledDbAcc then
-                                    GameTooltip:AddLine("Disabled by Account.", 1, 0.6, 0, true)
-                                    GameTooltip:AddLine("(Character override applies when Account is enabled)", 1, 1, 1, true)
-                                elseif entry.disabledDbChar then
-                                    GameTooltip:AddLine("State: Disabled on this character", 1, 0.6, 0, true)
-                                    GameTooltip:AddLine("Left-click: Enable on this character", 1, 1, 1, true)
-                                else
-                                    GameTooltip:AddLine("State: Active on this character", 0, 1, 0, true)
-                                    GameTooltip:AddLine("Left-click: Disable on this character", 1, 1, 1, true)
-                                end
-                            end
-                            GameTooltip:Show()
-                        end)
-                        btn:SetScript("OnLeave", function()
-                            if GameTooltip then GameTooltip:Hide() end
-                        end)
-                    end
-
-                    local function CopyRuleData(data)
-                        if type(data) ~= "table" then
-                            return { text = "", type = "" }
-                        end
-                        return {
-                            text = data.text or "",
-                            type = data.type or "",
-                            addedAt = data.addedAt,
-                        }
-                    end
-
-                    local function ConvertCharToAccForIDs(npcIDs)
-                        InitSV()
-                        npcIDs = npcIDs or {}
-                        for _, id in ipairs(npcIDs) do
-                            local charNpc = AutoGossip_Char and AutoGossip_Char[id]
-                            local charData = charNpc and (charNpc[optionID] or charNpc[tostring(optionID)])
-                            if type(charData) == "table" then
-                                AutoGossip_Acc[id] = AutoGossip_Acc[id] or {}
-                                local accNpc = AutoGossip_Acc[id]
-                                accNpc.__meta = (type(accNpc.__meta) == "table") and accNpc.__meta or {}
-                                if type(charNpc.__meta) == "table" then
-                                    if (not accNpc.__meta.zone) and (charNpc.__meta.zone or charNpc.__meta.zoneName) then
-                                        accNpc.__meta.zone = charNpc.__meta.zone or charNpc.__meta.zoneName
-                                    end
-                                    if (not accNpc.__meta.npc) and (charNpc.__meta.npc or charNpc.__meta.npcName) then
-                                        accNpc.__meta.npc = charNpc.__meta.npc or charNpc.__meta.npcName
-                                    end
-                                end
-                                accNpc[optionID] = CopyRuleData(charData)
-                                SetDisabled("acc", id, optionID, false)
-                                SetDisabledAccOnChar(id, optionID, false)
-                                DeleteRule("char", id, optionID)
-                            end
-                        end
-                    end
-
-                    local function ConvertAccToCharForIDs(npcIDs)
-                        InitSV()
-                        npcIDs = npcIDs or {}
-                        for _, id in ipairs(npcIDs) do
-                            local accNpc = AutoGossip_Acc and AutoGossip_Acc[id]
-                            local accData = accNpc and (accNpc[optionID] or accNpc[tostring(optionID)])
-                            if type(accData) == "table" then
-                                AutoGossip_Char[id] = AutoGossip_Char[id] or {}
-                                local charNpc = AutoGossip_Char[id]
-                                charNpc.__meta = (type(charNpc.__meta) == "table") and charNpc.__meta or {}
-                                if type(accNpc.__meta) == "table" then
-                                    if (not charNpc.__meta.zone) and (accNpc.__meta.zone or accNpc.__meta.zoneName) then
-                                        charNpc.__meta.zone = accNpc.__meta.zone or accNpc.__meta.zoneName
-                                    end
-                                    if (not charNpc.__meta.npc) and (accNpc.__meta.npc or accNpc.__meta.npcName) then
-                                        charNpc.__meta.npc = accNpc.__meta.npc or accNpc.__meta.npcName
-                                    end
-                                end
-                                charNpc[optionID] = CopyRuleData(accData)
-                                SetDisabled("char", id, optionID, false)
-                            end
-                        end
-                    end
-
-                    local function ConfigureAccountButton()
-                        row.btnAccToggle:RegisterForClicks("LeftButtonUp")
-
-                        if entry.hasAcc then
-                            local aState = entry.disabledAcc and "disabled" or "active"
-                            SetScopeText(row.btnAccToggle, "A", aState)
-                            row.btnAccToggle:SetEnabled(true)
-                            row.btnAccToggle:SetScript("OnClick", function()
-                                InitSV()
-                                local newDisabled = not (entry.disabledAcc and true or false)
-                                for _, id in ipairs(entry.accNpcIDs or {}) do
-                                    SetDisabled("acc", id, optionID, newDisabled)
-                                end
-                                f:RefreshBrowserList()
-                                if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
-                            end)
-
-                            row.btnAccToggle:SetScript("OnEnter", function()
-                                if not GameTooltip then
-                                    return
-                                end
-                                GameTooltip:SetOwner(row.btnAccToggle, "ANCHOR_RIGHT")
-                                GameTooltip:SetText("Account")
-                                if entry.disabledAcc then
-                                    GameTooltip:AddLine("State: Disabled", 1, 0.6, 0, true)
-                                    GameTooltip:AddLine("Left-click: Enable (Account)", 1, 1, 1, true)
-                                else
-                                    GameTooltip:AddLine("State: Active", 0, 1, 0, true)
-                                    GameTooltip:AddLine("Left-click: Disable (Account)", 1, 1, 1, true)
-                                end
-                                GameTooltip:AddLine("When Account is active, C controls 'disabled on this character'.", 1, 1, 1, true)
-                                GameTooltip:Show()
-                            end)
-                            row.btnAccToggle:SetScript("OnLeave", function()
-                                if GameTooltip then GameTooltip:Hide() end
-                            end)
-                        else
-                            -- If only Character exists, clicking A converts/moves it to Account.
-                            SetScopeText(row.btnAccToggle, "A", "inactive")
-                            row.btnAccToggle:SetEnabled(entry.hasChar and true or false)
-                            row.btnAccToggle:SetScript("OnClick", function()
-                                if not entry.hasChar then
-                                    return
-                                end
-                                ConvertCharToAccForIDs(entry.charNpcIDs)
-                                f:RefreshBrowserList()
-                                if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
-                            end)
-
-                            row.btnAccToggle:SetScript("OnEnter", function()
-                                if not GameTooltip then
-                                    return
-                                end
-                                GameTooltip:SetOwner(row.btnAccToggle, "ANCHOR_RIGHT")
-                                GameTooltip:SetText("Account")
-                                if entry.hasChar then
-                                    GameTooltip:AddLine("State: Inactive", 1, 1, 0, true)
-                                    GameTooltip:AddLine("Left-click: Move/convert C -> A", 1, 1, 1, true)
-                                    GameTooltip:AddLine("(Creates an Account rule and removes the Character rule)", 1, 1, 1, true)
-                                else
-                                    GameTooltip:AddLine("State: Inactive", 1, 1, 0, true)
-                                    GameTooltip:AddLine("No Account or Character rule here.", 1, 1, 1, true)
-                                end
-                                GameTooltip:Show()
-                            end)
-                            row.btnAccToggle:SetScript("OnLeave", function()
-                                if GameTooltip then GameTooltip:Hide() end
-                            end)
-                        end
-                    end
-
-                    local function ConfigureCharacterButton()
-                        row.btnCharToggle:RegisterForClicks("LeftButtonUp")
-
-                        -- If a real Character rule exists, C controls it (even if an Account rule also exists).
-                        if entry.hasChar then
-                            local cState = entry.disabledChar and "disabled" or "active"
-                            SetScopeText(row.btnCharToggle, "C", cState)
-                            row.btnCharToggle:SetEnabled(true)
-                            row.btnCharToggle:SetScript("OnClick", function()
-                                InitSV()
-                                local newDisabled = not (entry.disabledChar and true or false)
-                                for _, id in ipairs(entry.charNpcIDs or {}) do
-                                    SetDisabled("char", id, optionID, newDisabled)
-                                end
-                                f:RefreshBrowserList()
-                                if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
-                            end)
-
-                            row.btnCharToggle:SetScript("OnEnter", function()
-                                if not GameTooltip then
-                                    return
-                                end
-                                GameTooltip:SetOwner(row.btnCharToggle, "ANCHOR_RIGHT")
-                                GameTooltip:SetText("Character")
-                                if entry.disabledChar then
-                                    GameTooltip:AddLine("State: Disabled", 1, 0.6, 0, true)
-                                    GameTooltip:AddLine("Left-click: Enable (Character)", 1, 1, 1, true)
-                                else
-                                    GameTooltip:AddLine("State: Active", 0, 1, 0, true)
-                                    GameTooltip:AddLine("Left-click: Disable (Character)", 1, 1, 1, true)
-                                end
-                                GameTooltip:AddLine("Click A to move/convert to Account.", 1, 1, 1, true)
-                                GameTooltip:Show()
-                            end)
-                            row.btnCharToggle:SetScript("OnLeave", function()
-                                if GameTooltip then GameTooltip:Hide() end
-                            end)
-                        elseif entry.hasAcc then
-                            if entry.disabledAcc then
-                                -- Account rule exists but is disabled; allow enabling on this character by creating a Character copy.
-                                SetScopeText(row.btnCharToggle, "C", "inactive")
-                                row.btnCharToggle:SetEnabled(true)
-                                row.btnCharToggle:SetScript("OnClick", function()
-                                    ConvertAccToCharForIDs(entry.accNpcIDs)
-                                    f:RefreshBrowserList()
-                                    if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
-                                end)
-
-                                row.btnCharToggle:SetScript("OnEnter", function()
-                                    if not GameTooltip then
-                                        return
-                                    end
-                                    GameTooltip:SetOwner(row.btnCharToggle, "ANCHOR_RIGHT")
-                                    GameTooltip:SetText("Character")
-                                    GameTooltip:AddLine("Account is disabled.", 1, 0.6, 0, true)
-                                    GameTooltip:AddLine("Left-click: Enable on this character (creates Character rule)", 1, 1, 1, true)
-                                    GameTooltip:AddLine("(Account stays disabled)", 1, 1, 1, true)
-                                    GameTooltip:Show()
-                                end)
-                                row.btnCharToggle:SetScript("OnLeave", function()
-                                    if GameTooltip then GameTooltip:Hide() end
-                                end)
-                            else
-                                -- Character = "disabled on this character" for the Account rule.
-                                local cDisabled = (entry.disabledAccOnChar and true or false)
-                                SetScopeText(row.btnCharToggle, "C", cDisabled and "disabled" or "active")
-                                row.btnCharToggle:SetEnabled(true)
-                                row.btnCharToggle:SetScript("OnClick", function()
-                                    InitSV()
-                                    local newDisabled = not (entry.disabledAccOnChar and true or false)
-                                    for _, id in ipairs(entry.accNpcIDs or {}) do
-                                        SetDisabledAccOnChar(id, optionID, newDisabled)
-                                    end
-                                    f:RefreshBrowserList()
-                                    if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
-                                end)
-
-                                row.btnCharToggle:SetScript("OnEnter", function()
-                                    if not GameTooltip then
-                                        return
-                                    end
-                                    GameTooltip:SetOwner(row.btnCharToggle, "ANCHOR_RIGHT")
-                                    GameTooltip:SetText("Character")
-                                    if entry.disabledAccOnChar then
-                                        GameTooltip:AddLine("State: Disabled on this character", 1, 0.6, 0, true)
-                                        GameTooltip:AddLine("Left-click: Enable on this character", 1, 1, 1, true)
-                                    else
-                                        GameTooltip:AddLine("State: Active on this character", 0, 1, 0, true)
-                                        GameTooltip:AddLine("Left-click: Disable on this character", 1, 1, 1, true)
-                                    end
-                                    GameTooltip:Show()
-                                end)
-                                row.btnCharToggle:SetScript("OnLeave", function()
-                                    if GameTooltip then GameTooltip:Hide() end
-                                end)
-                            end
-                        else
-                            SetScopeText(row.btnCharToggle, "C", "inactive")
-                            row.btnCharToggle:SetEnabled(false)
-                            row.btnCharToggle:SetScript("OnClick", nil)
-
-                            row.btnCharToggle:SetScript("OnEnter", function()
-                                if not GameTooltip then
-                                    return
-                                end
-                                GameTooltip:SetOwner(row.btnCharToggle, "ANCHOR_RIGHT")
-                                GameTooltip:SetText("Character")
-                                GameTooltip:AddLine("State: Inactive", 1, 1, 0, true)
-                                GameTooltip:AddLine("No Character rule here.", 1, 1, 1, true)
-                                GameTooltip:Show()
-                            end)
-                            row.btnCharToggle:SetScript("OnLeave", function()
-                                if GameTooltip then GameTooltip:Hide() end
-                            end)
-                        end
-                    end
-
-                    local isAnyDisabled = (entry.disabledAcc or entry.disabledChar or entry.disabledDb or entry.disabledAccOnChar) and true or false
-                    row.text:SetTextColor(isAnyDisabled and 0.67 or 1, isAnyDisabled and 0.67 or 1, isAnyDisabled and 0.67 or 1, 1)
-
-                    local dbOnly = entry.hasDb and (not entry.hasAcc) and (not entry.hasChar)
-
-                    -- Always show both scope buttons in the Rules tab.
-                    row.btnAccToggle:Show()
-                    row.btnCharToggle:Show()
-
-                    -- Re-anchor buttons (fixed positions).
-                    row.btnCharToggle:ClearAllPoints()
-                    row.btnAccToggle:ClearAllPoints()
-                    row.btnCharToggle:SetPoint("RIGHT", row.btnDel, "LEFT", -4, 0)
-                    row.btnAccToggle:SetPoint("RIGHT", row.btnCharToggle, "LEFT", -4, 0)
-
-                    -- Ensure text doesn't overlap buttons.
-                    row.text:ClearAllPoints()
-                    row.text:SetPoint("LEFT", row.btnExpand, "RIGHT", 6, 0)
-                    row.text:SetPoint("RIGHT", row.btnAccToggle, "LEFT", -6, 0)
-                    row.text:SetJustifyH("LEFT")
-                    row.text:SetWordWrap(false)
-
-                    if dbOnly then
-                        -- Treat DB-only rules as active for both A and C; A/C toggles DB enable/disable in place.
-                        ConfigureDbProxyButton(row.btnAccToggle, "A", "acc")
-                        ConfigureDbProxyButton(row.btnCharToggle, "C", "char")
-                    else
-                        ConfigureAccountButton()
-                        ConfigureCharacterButton()
-                    end
-
-                    if entry.hasAcc or entry.hasChar then
-                        row.btnDel:Enable()
-                        row.btnDel:SetText("Del")
-                        row.btnDel:SetScript("OnClick", function()
-                            InitSV()
-                            if entry.hasAcc then
-                                for _, id in ipairs(entry.accNpcIDs or {}) do
-                                    DeleteRule("acc", id, optionID, true)
-                                end
-                            end
-                            if entry.hasChar then
-                                for _, id in ipairs(entry.charNpcIDs or {}) do
-                                    DeleteRule("char", id, optionID, true)
-                                end
-                            end
-                            f:RefreshBrowserList()
-                            if f.RefreshRulesList then f:RefreshRulesList(f.currentNpcID) end
-                        end)
-                    else
-                        row.btnDel:Disable()
-                        row.btnDel:SetText("DB")
-                        row.btnDel:SetScript("OnClick", nil)
-                    end
-
-                    -- Rules tab is toggle-only; clicking a rule row does not jump to the edit tab.
-                    row.btnClick:SetScript("OnClick", nil)
-                end
-            end
-        end
-    end
-
-    browserScroll:SetScript("OnVerticalScroll", function(self, offset)
-        if FauxScrollFrame_OnVerticalScroll then
-            FauxScrollFrame_OnVerticalScroll(self, offset, BROW_ROW_H, function()
-                if f.RefreshBrowserList then
-                    f:RefreshBrowserList()
-                end
-            end)
-        end
-    end)
-
-    -- OptionID input (hidden by default; quick A/C buttons are the primary workflow)
-    local info = editPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    info:SetPoint("TOPLEFT", leftArea, "TOPLEFT", 6, -2)
-    info:SetText("")
-    info:Hide()
-
-    local edit = CreateFrame("EditBox", nil, editPanel, "InputBoxTemplate")
-    edit:SetSize(1, 1)
-    edit:SetPoint("TOPLEFT", leftArea, "TOPLEFT", 0, 0)
-    edit:SetAutoFocus(false)
-    edit:SetMaxLetters(10)
-    edit:SetTextInsets(6, 6, 0, 0)
-    edit:SetJustifyH("CENTER")
-    if edit.SetJustifyV then
-        edit:SetJustifyV("MIDDLE")
-    end
-    if edit.SetNumeric then
-        edit:SetNumeric(true)
-    end
-    if edit.GetFont and edit.SetFont then
-        local fontPath, _, fontFlags = edit:GetFont()
-        if fontPath then
-            edit:SetFont(fontPath, 16, fontFlags)
-        end
-    end
-    f.edit = edit
-
-    local function HideEditBoxFrame(box)
-        if not box or not box.GetRegions then
-            return
-        end
-        for i = 1, select("#", box:GetRegions()) do
-            local region = select(i, box:GetRegions())
-            if region and region.Hide and region.GetObjectType and region:GetObjectType() == "Texture" then
-                region:Hide()
-            end
-        end
-    end
-    HideEditBoxFrame(edit)
-
-    -- NPC header (top center)
-    local zoneContinentLabel = editPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    zoneContinentLabel:SetPoint("TOP", leftArea, "TOP", 0, -2)
-    zoneContinentLabel:SetPoint("LEFT", leftArea, "LEFT", 0, 0)
-    zoneContinentLabel:SetPoint("RIGHT", leftArea, "RIGHT", 0, 0)
-    zoneContinentLabel:SetJustifyH("CENTER")
-    zoneContinentLabel:SetWordWrap(true)
-    zoneContinentLabel:SetText("")
-    f.zoneContinentLabel = zoneContinentLabel
-
-    local nameLabel = editPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    nameLabel:SetPoint("TOP", zoneContinentLabel, "BOTTOM", 0, -1)
-    nameLabel:SetPoint("LEFT", leftArea, "LEFT", 0, 0)
-    nameLabel:SetPoint("RIGHT", leftArea, "RIGHT", 0, 0)
-    nameLabel:SetJustifyH("CENTER")
-    nameLabel:SetWordWrap(true)
-    BumpFont(nameLabel, 4)
-    f.nameLabel = nameLabel
-
-    local reasonLabel = editPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    reasonLabel:SetPoint("TOP", nameLabel, "BOTTOM", 0, -1)
-    reasonLabel:SetPoint("LEFT", leftArea, "LEFT", 0, 0)
-    reasonLabel:SetPoint("RIGHT", leftArea, "RIGHT", 0, 0)
-    reasonLabel:SetJustifyH("CENTER")
-    reasonLabel:SetWordWrap(true)
-    f.reasonLabel = reasonLabel
-
-    -- Helpers
-    local function IsFontStringTruncated(fs)
-        if not fs then return false end
-        if fs.IsTruncated then
-            return fs:IsTruncated()
-        end
-        local w = fs.GetStringWidth and fs:GetStringWidth() or 0
-        local maxW = fs.GetWidth and fs:GetWidth() or 0
-        return w > (maxW + 1)
-    end
-
-    local function AttachTruncatedTooltip(owner, fs, getText)
-        owner:SetScript("OnEnter", function()
-            if not (GameTooltip and fs) then
-                return
-            end
-            if IsFontStringTruncated(fs) then
-                GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-                GameTooltip:SetText(getText())
-                GameTooltip:Show()
-            end
-        end)
-        owner:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-    end
-
-    -- Two stacked boxes: top = current rules, bottom = current options
-    local rulesArea = CreateFrame("Frame", nil, editPanel, "BackdropTemplate")
-    rulesArea:SetPoint("TOPLEFT", reasonLabel, "BOTTOMLEFT", -2, -8)
-    rulesArea:SetPoint("TOPRIGHT", reasonLabel, "BOTTOMRIGHT", 2, -8)
-    rulesArea:SetHeight(170)
-    rulesArea:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        tile = true,
-        tileSize = 16,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    rulesArea:SetBackdropColor(0, 0, 0, 0.25)
-
-    local emptyLabel = rulesArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    emptyLabel:SetPoint("CENTER", rulesArea, "CENTER", 0, 0)
-    emptyLabel:SetText("No rules for this NPC")
-
-    local scrollFrame = CreateFrame("ScrollFrame", nil, rulesArea, "FauxScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", rulesArea, "TOPLEFT", 4, -4)
-    scrollFrame:SetPoint("BOTTOMRIGHT", rulesArea, "BOTTOMRIGHT", -4, 4)
-    f.scrollFrame = scrollFrame
-
-    local RULE_ROW_H = 18
-    local RULE_ROWS = 8
-    local rows = {}
-
-    HideFauxScrollBarAndEnableWheel(scrollFrame, RULE_ROW_H)
-
-    local function SetRowVisible(row, visible)
-        if visible then
-            row:Show()
-        else
-            row:Hide()
-        end
-    end
-
-    for i = 1, RULE_ROWS do
-        local row = CreateFrame("Button", nil, rulesArea)
-        row:SetHeight(RULE_ROW_H)
-        row:SetPoint("TOPLEFT", rulesArea, "TOPLEFT", 8, -6 - (i - 1) * RULE_ROW_H)
-        row:SetPoint("TOPRIGHT", rulesArea, "TOPRIGHT", -8, -6 - (i - 1) * RULE_ROW_H)
-
-        local bg = row:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints(row)
-        bg:Hide()
-        row.bg = bg
-
-        local btnAccToggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        btnAccToggle:SetSize(22, RULE_ROW_H - 2)
-        btnAccToggle:SetPoint("LEFT", row, "LEFT", 0, 0)
-        btnAccToggle:SetText("A")
-        row.btnAccToggle = btnAccToggle
-
-        local btnCharToggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        btnCharToggle:SetSize(22, RULE_ROW_H - 2)
-        btnCharToggle:SetPoint("LEFT", btnAccToggle, "RIGHT", 4, 0)
-        btnCharToggle:SetText("C")
-        row.btnCharToggle = btnCharToggle
-
-        local btnDbToggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        btnDbToggle:SetSize(26, RULE_ROW_H - 2)
-        btnDbToggle:SetPoint("LEFT", btnCharToggle, "RIGHT", 4, 0)
-        btnDbToggle:SetText("DB")
-        row.btnDbToggle = btnDbToggle
-
-        local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        fs:SetPoint("LEFT", btnDbToggle, "RIGHT", 6, 0)
-        fs:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-        fs:SetJustifyH("LEFT")
-        fs:SetWordWrap(false)
-        row.text = fs
-
-        AttachTruncatedTooltip(row, fs, function()
-            return fs:GetText() or ""
-        end)
-
-        SetRowVisible(row, false)
-        rows[i] = row
-    end
-
-    local function CollectRulesForNpc(npcID)
-        local entries = {}
-        if not npcID then
-            return entries
-        end
-
-        local byOption = {}
-        local function Ensure(optionID)
-            local key = tostring(optionID)
-            local e = byOption[key]
-            if not e then
-                e = {
-                    optionID = tonumber(optionID) or optionID,
-                    text = "",
-                    hasChar = false,
-                    hasAcc = false,
-                    hasDb = false,
-                    disabledChar = false,
-                    disabledAcc = false,
-                    disabledDb = false,
-                    expansion = "",
-                }
-                byOption[key] = e
-                table.insert(entries, e)
-            end
-            return e
-        end
-
-        local function AddFrom(scope)
-            local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
-            local npcTable = db[npcID]
-            if type(npcTable) ~= "table" then
-                return
-            end
-            for optionID, data in pairs(npcTable) do
-                local numericID = tonumber(optionID) or optionID
-                local text = ""
-                if type(data) == "table" then
-                    text = data.text or ""
-                end
-
-                local e = Ensure(numericID)
-                if e.text == "" and type(text) == "string" and text ~= "" then
-                    e.text = text
-                end
-
-                if scope == "char" then
-                    e.hasChar = true
-                    e.disabledChar = IsDisabled("char", npcID, e.optionID)
-                else
-                    e.hasAcc = true
-                    e.disabledAcc = IsDisabled("acc", npcID, e.optionID)
-                end
-            end
-        end
-
-        AddFrom("char")
-        AddFrom("acc")
-
-        local dbNpc = GetDbNpcTable(npcID)
-        if dbNpc then
-            for optionID, data in pairs(dbNpc) do
-                local numericID = tonumber(optionID) or optionID
-                local text = ""
-                local expansion = ""
-                if type(data) == "table" then
-                    text = data.text or ""
-                    expansion = data.expansion or ""
-                end
-
-                local e = Ensure(numericID)
-                if e.text == "" and type(text) == "string" and text ~= "" then
-                    e.text = text
-                end
-                e.hasDb = true
-                e.disabledDb = IsDisabledDB(npcID, e.optionID)
-                e.expansion = expansion or e.expansion
-            end
-        end
-
-        table.sort(entries, function(a, b)
-            return (tonumber(a.optionID) or 0) < (tonumber(b.optionID) or 0)
-        end)
-
-        return entries
-    end
-
-    function f:RefreshRulesList(npcID)
-        InitSV()
-        self.currentNpcID = npcID
-
-        local entries = CollectRulesForNpc(npcID)
-        self._rulesEntries = entries
-
-        emptyLabel:SetShown(npcID and (#entries == 0) or false)
-
-        local total = #entries
-        if FauxScrollFrame_Update then
-            FauxScrollFrame_Update(scrollFrame, total, RULE_ROWS, RULE_ROW_H)
-        end
-
-        local offset = 0
-        if FauxScrollFrame_GetOffset then
-            offset = FauxScrollFrame_GetOffset(scrollFrame)
-        end
-
-        for i = 1, RULE_ROWS do
-            local idx = offset + i
-            local row = rows[i]
-            local entry = entries[idx]
-            if entry then
-                SetRowVisible(row, true)
-
-                local zebra = (idx % 2) == 0
-                row.bg:SetShown(zebra)
-                row.bg:SetColorTexture(1, 1, 1, zebra and 0.05 or 0)
-
-                local suffix = ""
-                if entry.hasDb and entry.expansion and entry.expansion ~= "" then
-                    suffix = " (" .. entry.expansion .. ")"
-                end
-
-                local text = entry.text
-                if type(text) ~= "string" or text == "" then
-                    text = "(no text)"
-                end
-                row.text:SetText(string.format("%s: %s%s", tostring(entry.optionID), text, suffix))
-
-                local function ConfigureToggle(btn, label, exists, isDisabled, onClick, tooltipLabel)
-                    if not exists then
-                        btn:Disable()
-                        btn:SetText("|cff666666" .. label .. "|r")
-                        btn:SetScript("OnClick", nil)
-                        btn:SetScript("OnEnter", nil)
-                        btn:SetScript("OnLeave", nil)
-                        return
-                    end
-
-                    btn:Enable()
-                    if isDisabled then
-                        btn:SetText("|cffff9900" .. label .. "|r")
-                    else
-                        btn:SetText("|cff00ff00" .. label .. "|r")
-                    end
-                    btn:SetScript("OnClick", onClick)
-                    btn:SetScript("OnEnter", function()
-                        if GameTooltip then
-                            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-                            GameTooltip:SetText(tooltipLabel)
-                            if isDisabled then
-                                GameTooltip:AddLine("State: Disabled", 1, 0.6, 0, true)
-                                GameTooltip:AddLine("Left-click: Enable", 1, 1, 1, true)
-                            else
-                                GameTooltip:AddLine("State: Active", 0, 1, 0, true)
-                                GameTooltip:AddLine("Left-click: Disable", 1, 1, 1, true)
-                            end
-                            GameTooltip:Show()
-                        end
-                    end)
-                    btn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-                end
-
-                ConfigureToggle(row.btnAccToggle, "A", entry.hasAcc, entry.disabledAcc, function()
-                    InitSV()
-                    SetDisabled("acc", npcID, entry.optionID, not IsDisabled("acc", npcID, entry.optionID))
-                    f:RefreshRulesList(npcID)
-                    if f.RefreshBrowserList then f:RefreshBrowserList() end
-                    CloseOptionsWindow()
-                    CloseGossipWindow()
-                end, "Account")
-
-                ConfigureToggle(row.btnCharToggle, "C", entry.hasChar, entry.disabledChar, function()
-                    InitSV()
-                    SetDisabled("char", npcID, entry.optionID, not IsDisabled("char", npcID, entry.optionID))
-                    f:RefreshRulesList(npcID)
-                    if f.RefreshBrowserList then f:RefreshBrowserList() end
-                    CloseOptionsWindow()
-                    CloseGossipWindow()
-                end, "Character")
-
-                ConfigureToggle(row.btnDbToggle, "DB", entry.hasDb, entry.disabledDb, function()
-                    InitSV()
-                    SetDisabledDB(npcID, entry.optionID, not IsDisabledDB(npcID, entry.optionID))
-                    f:RefreshRulesList(npcID)
-                    if f.RefreshBrowserList then f:RefreshBrowserList() end
-                    CloseOptionsWindow()
-                    CloseGossipWindow()
-                end, "DB")
-            else
-                SetRowVisible(row, false)
-            end
-        end
-    end
-
-    scrollFrame:SetScript("OnVerticalScroll", function(self, offset)
-        if FauxScrollFrame_OnVerticalScroll then
-            FauxScrollFrame_OnVerticalScroll(self, offset, RULE_ROW_H, function()
-                if f.RefreshRulesList then
-                    f:RefreshRulesList(f.currentNpcID)
-                end
-            end)
-        end
-    end)
-
-    -- Bottom: current NPC options list
-    local optionsArea = CreateFrame("Frame", nil, editPanel, "BackdropTemplate")
-    optionsArea:SetPoint("TOPLEFT", rulesArea, "BOTTOMLEFT", 0, -10)
-    optionsArea:SetPoint("TOPRIGHT", rulesArea, "BOTTOMRIGHT", 0, -10)
-    optionsArea:SetPoint("BOTTOMLEFT", leftArea, "BOTTOMLEFT", 0, 0)
-    optionsArea:SetPoint("BOTTOMRIGHT", leftArea, "BOTTOMRIGHT", 0, 0)
-    optionsArea:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        tile = true,
-        tileSize = 16,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    optionsArea:SetBackdropColor(0, 0, 0, 0.25)
-
-    local optEmpty = optionsArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    optEmpty:SetPoint("CENTER", optionsArea, "CENTER", 0, 0)
-    optEmpty:SetText("Open a gossip window")
-
-    local optScroll = CreateFrame("ScrollFrame", nil, optionsArea, "FauxScrollFrameTemplate")
-    optScroll:SetPoint("TOPLEFT", optionsArea, "TOPLEFT", 4, -4)
-    optScroll:SetPoint("BOTTOMRIGHT", optionsArea, "BOTTOMRIGHT", -4, 4)
-    f.optScroll = optScroll
-
-    local OPT_ROW_H = 18
-    local OPT_ROWS = 8
-    local optRows = {}
-
-    HideFauxScrollBarAndEnableWheel(optScroll, OPT_ROW_H)
-
-    for i = 1, OPT_ROWS do
-        local row = CreateFrame("Button", nil, optionsArea)
-        row:SetHeight(OPT_ROW_H)
-        row:SetPoint("TOPLEFT", optionsArea, "TOPLEFT", 8, -6 - (i - 1) * OPT_ROW_H)
-        row:SetPoint("TOPRIGHT", optionsArea, "TOPRIGHT", -8, -6 - (i - 1) * OPT_ROW_H)
-        row:RegisterForClicks("LeftButtonUp")
-
-        local bg = row:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints(row)
-        bg:Hide()
-        row.bg = bg
-
-        local btnAccQuick = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        btnAccQuick:SetSize(22, OPT_ROW_H - 2)
-        btnAccQuick:SetPoint("LEFT", row, "LEFT", 0, 0)
-        btnAccQuick:SetText("A")
-        row.btnAccQuick = btnAccQuick
-
-        local btnCharQuick = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        btnCharQuick:SetSize(22, OPT_ROW_H - 2)
-        btnCharQuick:SetPoint("LEFT", btnAccQuick, "RIGHT", 4, 0)
-        btnCharQuick:SetText("C")
-        row.btnCharQuick = btnCharQuick
-
-        local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        fs:SetPoint("LEFT", btnCharQuick, "RIGHT", 6, 0)
-        fs:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-        fs:SetJustifyH("LEFT")
-        fs:SetWordWrap(false)
-        row.text = fs
-
-        AttachTruncatedTooltip(row, fs, function()
-            return fs:GetText() or ""
-        end)
-
-        row:Hide()
-        optRows[i] = row
-    end
-
-    function f:RefreshOptionsList()
-        if not (C_GossipInfo and C_GossipInfo.GetOptions) then
-            self._currentOptions = {}
-            optEmpty:SetText("Gossip API not available")
-            optEmpty:Show()
-            for i = 1, OPT_ROWS do optRows[i]:Hide() end
-            return
-        end
-
-        local options = C_GossipInfo.GetOptions() or {}
-        table.sort(options, function(a, b)
-            return (a and a.gossipOptionID or 0) < (b and b.gossipOptionID or 0)
-        end)
-        self._currentOptions = options
-
-        optEmpty:SetShown(#options == 0)
-        optEmpty:SetText(#options == 0 and "Open a gossip window" or "")
-
-        if FauxScrollFrame_Update then
-            FauxScrollFrame_Update(optScroll, #options, OPT_ROWS, OPT_ROW_H)
-        end
-
-        local offset = 0
-        if FauxScrollFrame_GetOffset then
-            offset = FauxScrollFrame_GetOffset(optScroll)
-        end
-
-        for i = 1, OPT_ROWS do
-            local idx = offset + i
-            local row = optRows[i]
-            local opt = options[idx]
-            if not opt then
-                row:Hide()
-            else
-                row:Show()
-                local zebra = (idx % 2) == 0
-                row.bg:SetShown(zebra)
-                row.bg:SetColorTexture(1, 1, 1, zebra and 0.05 or 0)
-                local optionID = opt.gossipOptionID
-                local text = opt.name
-                if type(text) ~= "string" or text == "" then
-                    text = "(no text)"
-                end
-                row.text:SetText(string.format("%d: %s", optionID or 0, text))
-
-                local function QuickAdd(scope)
-                    InitSV()
-                    local npcID = GetCurrentNpcID()
-                    if not npcID then
-                        Print("Open a gossip window first (need an NPC).")
-                        return
-                    end
-                    if not optionID then
-                        return
-                    end
-                    local optInfo = FindOptionInfoByID(optionID)
-                    local optName = (optInfo and optInfo.name) or text
-                    local optType = optInfo and (rawget(optInfo, "type") or rawget(optInfo, "optionType")) or nil
-
-                    if HasRule(scope, npcID, optionID) then
-                        -- Toggle disable/enable for existing rule.
-                        local nowDisabled = not IsDisabled(scope, npcID, optionID)
-                        SetDisabled(scope, npcID, optionID, nowDisabled)
-                    else
-                        AddRule(scope, npcID, optionID, optName, optType)
-                    end
-
-                    if f.RefreshRulesList then f:RefreshRulesList(npcID) end
-                    if f.RefreshBrowserList then f:RefreshBrowserList() end
-                    if f.UpdateFromInput then f:UpdateFromInput() end
-
-                    CloseOptionsWindow()
-                    CloseGossipWindow()
-                end
-
-                row.btnCharQuick:SetScript("OnClick", function() QuickAdd("char") end)
-                row.btnAccQuick:SetScript("OnClick", function() QuickAdd("acc") end)
-
-                row.btnCharQuick:SetScript("OnEnter", function()
-                    if GameTooltip then
-                        GameTooltip:SetOwner(row.btnCharQuick, "ANCHOR_RIGHT")
-                        GameTooltip:SetText("Character")
-                        GameTooltip:AddLine("Add/enable this option for this character.", 1, 1, 1, true)
-                        GameTooltip:Show()
-                    end
-                end)
-                row.btnCharQuick:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-
-                row.btnAccQuick:SetScript("OnEnter", function()
-                    if GameTooltip then
-                        GameTooltip:SetOwner(row.btnAccQuick, "ANCHOR_RIGHT")
-                        GameTooltip:SetText("Account")
-                        GameTooltip:AddLine("Add/enable this option account-wide.", 1, 1, 1, true)
-                        GameTooltip:Show()
-                    end
-                end)
-                row.btnAccQuick:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-
-                row:SetScript("OnClick", nil)
-            end
-        end
-    end
-
-    optScroll:SetScript("OnVerticalScroll", function(self, offset)
-        if FauxScrollFrame_OnVerticalScroll then
-            FauxScrollFrame_OnVerticalScroll(self, offset, OPT_ROW_H, function()
-                if f.RefreshOptionsList then
-                    f:RefreshOptionsList()
-                end
-            end)
-        end
-    end)
-
-    local function GetPlayerContinentNameForHeader()
-        if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetMapInfo) then
-            return ""
-        end
-        local mapID = C_Map.GetBestMapForUnit("player")
-        local safety = 0
-        while mapID and safety < 30 do
-            local info = C_Map.GetMapInfo(mapID)
-            if not info then
-                break
-            end
-            if Enum and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent then
-                return info.name or ""
-            end
-            mapID = info.parentMapID
-            safety = safety + 1
-        end
-        return ""
-    end
-
-    function f:UpdateFromInput()
-        InitSV()
-        local npcID = GetCurrentNpcID() or f.selectedNpcID
-        local npcName = GetCurrentNpcName() or f.selectedNpcName or ""
-
-        if f.zoneContinentLabel and f.zoneContinentLabel.SetText then
-            local zone = (GetZoneText and GetZoneText()) or ""
-            local continent = GetPlayerContinentNameForHeader()
-            if zone ~= "" and continent ~= "" then
-                f.zoneContinentLabel:SetText(zone .. ", " .. continent)
-            else
-                f.zoneContinentLabel:SetText(zone ~= "" and zone or (continent ~= "" and continent or ""))
-            end
-        end
-
-        nameLabel:SetText(npcName or "")
-        if npcID then
-            reasonLabel:SetText(tostring(npcID))
-            if f.RefreshRulesList then f:RefreshRulesList(npcID) end
-        else
-            reasonLabel:SetText("")
-            if f.RefreshRulesList then f:RefreshRulesList(nil) end
-        end
-    end
-
-    edit:SetScript("OnTextChanged", function()
-        if f.UpdateFromInput then f:UpdateFromInput() end
-    end)
-
-    f:UpdateFromInput()
-    if f.RefreshOptionsList then
-        f:RefreshOptionsList()
-    end
-
-    -- Keep the option list in sync when the frame is shown.
-    f:SetScript("OnShow", function()
-        if f.edit and f.edit.ClearFocus then
-            f.edit:ClearFocus()
-        end
-        if f.UpdateChromieLabel then
-            f.UpdateChromieLabel()
-        end
-        if f.SelectTab then
-            f:SelectTab(1)
-        end
-        if f.RefreshOptionsList then
-            f:RefreshOptionsList()
-        end
-        if f.RefreshBrowserList then
-            f:RefreshBrowserList()
-        end
-        if f.UpdateFromInput then
-            f:UpdateFromInput()
-        end
-    end)
-
-    -- Toggles tab content
+    -- Tale tab content
     do
-        local BTN_W, BTN_H = 260, 22
-        local START_Y = -64
-        local GAP_Y = 10
-
-        -- Split screen (figuratively): TooltipX on the left, everything else on the right.
-        local COL_GAP = 40
-        local RIGHT_X = math.floor((BTN_W / 2) + COL_GAP + 0.5)
-        local LEFT_X = -RIGHT_X
-
-        local function SetAcc2StateText(btn, label, enabled)
-            if enabled then
-                btn:SetText(label .. ": |cff00ccffON ACC|r")
-            else
-                btn:SetText(label .. ": |cffff0000OFF ACC|r")
-            end
+        local panel = editPanel
+        if panel and ns and ns.TaleUI_Build then
+            ns.TaleUI_Build(f, panel, {
+                InitSV = InitSV,
+                Print = Print,
+                BumpFont = BumpFont,
+                HideFauxScrollBarAndEnableWheel = HideFauxScrollBarAndEnableWheel,
+                CloseOptionsWindow = CloseOptionsWindow,
+                CloseGossipWindow = CloseGossipWindow,
+                GetCurrentNpcID = GetCurrentNpcID,
+                GetCurrentNpcName = GetCurrentNpcName,
+                FindOptionInfoByID = FindOptionInfoByID,
+                HasRule = HasRule,
+                AddRule = AddRule,
+                GetDbNpcTable = GetDbNpcTable,
+                IsDisabled = IsDisabled,
+                SetDisabled = SetDisabled,
+                IsDisabledDB = IsDisabledDB,
+                SetDisabledDB = SetDisabledDB,
+            })
         end
+    end
 
-        local btnTutorial = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTutorial:SetSize(BTN_W, BTN_H)
-        btnTutorial:SetPoint("TOP", togglesPanel, "TOP", RIGHT_X, START_Y)
-        f.btnTutorial = btnTutorial
-
-        local function UpdateTutorialButton()
-            InitSV()
-            local enabled = (AutoGossip_Settings and AutoGossip_Settings.tutorialEnabledAcc) and true or false
-            SetAcc2StateText(btnTutorial, "Tutorials", enabled)
+    -- Talk tab content
+    do
+        local panel = browserPanel
+        if panel and ns and ns.TalkUI_Build then
+            ns.TalkUI_Build(f, panel, {
+                InitSV = InitSV,
+                HideFauxScrollBarAndEnableWheel = HideFauxScrollBarAndEnableWheel,
+                IsDisabled = IsDisabled,
+                IsDisabledDB = IsDisabledDB,
+                IsDisabledDBOnChar = IsDisabledDBOnChar,
+                IsDisabledAccOnChar = IsDisabledAccOnChar,
+                SetDisabled = SetDisabled,
+                SetDisabledDB = SetDisabledDB,
+                SetDisabledDBOnChar = SetDisabledDBOnChar,
+                SetDisabledAccOnChar = SetDisabledAccOnChar,
+                DeleteRule = DeleteRule,
+            })
         end
+    end
 
-        btnTutorial:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tutorialEnabledAcc = not (AutoGossip_Settings.tutorialEnabledAcc and true or false)
-            AutoGossip_Settings.tutorialOffAcc = not AutoGossip_Settings.tutorialEnabledAcc
-            if ns and ns.ApplyTutorialSetting then
-                ns.ApplyTutorialSetting(true)
+    -- Switches tab content
+    do
+        local panel = f.togglesPanel
+        if panel then
+            local UpdateUI = function() end
+            if ns and ns.SwitchesUI_Build then
+                UpdateUI = ns.SwitchesUI_Build(f, panel, {
+                    InitSV = InitSV,
+                    GetQueueAcceptState = GetQueueAcceptState,
+                    SetQueueAcceptState = SetQueueAcceptState,
+                    ShowQueueOverlayIfNeeded = ShowQueueOverlayIfNeeded,
+                    EnsureChromieIndicator = EnsureChromieIndicator,
+                    UpdateChromieIndicator = UpdateChromieIndicator,
+                    ForceHideChromieIndicator = ForceHideChromieIndicator,
+                    OpenChromieConfigPopup = OpenChromieConfigPopup,
+                }) or UpdateUI
             end
-            UpdateTutorialButton()
-        end)
-        btnTutorial:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTutorial, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Tutorials")
-                GameTooltip:AddLine("ON ACC: attempts to keep tutorials enabled.", 1, 1, 1, true)
-                GameTooltip:AddLine("OFF ACC: applies HideTutorial logic.", 1, 1, 1, true)
-                GameTooltip:Show()
+            f.UpdateToggleButtons = function()
+                UpdateUI()
             end
-        end)
-        btnTutorial:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTutorialButton()
-
-        local btnBorder = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnBorder:SetSize(BTN_W, BTN_H)
-        btnBorder:SetPoint("TOP", btnTutorial, "BOTTOM", 0, -GAP_Y)
-        f.btnBorder = btnBorder
-
-        local function UpdateBorderButton()
-            InitSV()
-            local hidden = (AutoGossip_Settings and AutoGossip_Settings.hideTooltipBorderAcc) and true or false
-            if hidden then
-                btnBorder:SetText("Tooltip Border: |cff00ccffHIDE ACC|r")
-            else
-                btnBorder:SetText("Tooltip Border: |cffff0000OFF ACC|r")
-            end
-        end
-
-        btnBorder:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.hideTooltipBorderAcc = not (AutoGossip_Settings.hideTooltipBorderAcc and true or false)
-            if ns and ns.ApplyTooltipBorderSetting then
-                ns.ApplyTooltipBorderSetting(true)
-            end
-            UpdateBorderButton()
-        end)
-        btnBorder:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnBorder, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Tooltip Border")
-                GameTooltip:AddLine("HIDE ACC: hide tooltip borders.", 1, 1, 1, true)
-                GameTooltip:AddLine("OFF ACC: stop forcing hide (does not restore).", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnBorder:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateBorderButton()
-
-        local btnQueueAccept = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnQueueAccept:SetSize(BTN_W, BTN_H)
-        btnQueueAccept:SetPoint("TOP", btnBorder, "BOTTOM", 0, -GAP_Y)
-        f.btnQueueAccept = btnQueueAccept
-
-        local function UpdateQueueAcceptButton()
-            local state = GetQueueAcceptState()
-            if state == "acc" then
-                btnQueueAccept:SetText("Queue Accept: |cff00ccffACC ON|r")
-            elseif state == "char" then
-                btnQueueAccept:SetText("Queue Accept: |cff00ccffON|r")
-            else
-                btnQueueAccept:SetText("Queue Accept: |cffff0000OFF|r")
-            end
-        end
-
-        btnQueueAccept:SetScript("OnClick", function()
-            local state = GetQueueAcceptState()
-            if state == "acc" then
-                SetQueueAcceptState("char")
-            elseif state == "char" then
-                SetQueueAcceptState("off")
-            else
-                SetQueueAcceptState("acc")
-            end
-            UpdateQueueAcceptButton()
-            ShowQueueOverlayIfNeeded()
-        end)
-        btnQueueAccept:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnQueueAccept, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Queue Accept")
-                GameTooltip:AddLine("ACC ON: enable for all characters.", 1, 1, 1, true)
-                GameTooltip:AddLine("ON: enable only this character.", 1, 1, 1, true)
-                GameTooltip:AddLine("OFF: disable.", 1, 1, 1, true)
-                GameTooltip:AddLine("When a dungeon queue pops, clicking the world will accept.", 1, 1, 1, true)
-                GameTooltip:AddLine("Clicks on other UI should not accept.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnQueueAccept:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateQueueAcceptButton()
-
-        local btnPetPopupDebug = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnPetPopupDebug:SetSize(BTN_W, BTN_H)
-        btnPetPopupDebug:SetPoint("TOP", btnQueueAccept, "BOTTOM", 0, -GAP_Y)
-        f.btnPetPopupDebug = btnPetPopupDebug
-
-        local function UpdatePetPopupDebugButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc) and true or false
-            SetAcc2StateText(btnPetPopupDebug, "Pet Popup Debug", on)
-        end
-
-        btnPetPopupDebug:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.debugPetPopupsAcc = not (AutoGossip_Settings.debugPetPopupsAcc and true or false)
-            UpdatePetPopupDebugButton()
-        end)
-        btnPetPopupDebug:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnPetPopupDebug, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Pet Popup Debug")
-                GameTooltip:AddLine("ON ACC: log StaticPopup dialogs (name/text/args) so you can identify what is firing.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnPetPopupDebug:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdatePetPopupDebugButton()
-
-        local btnPetPrepareAccept = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnPetPrepareAccept:SetSize(BTN_W, BTN_H)
-        btnPetPrepareAccept:SetPoint("TOP", btnPetPopupDebug, "BOTTOM", 0, -GAP_Y)
-        f.btnPetPrepareAccept = btnPetPrepareAccept
-
-        local function SetYellowGreyAccText(btn, label, enabled)
-            if enabled then
-                btn:SetText(label .. ": |cffffff00ON ACC|r")
-            else
-                btn:SetText(label .. ": |cff888888OFF ACC|r")
-            end
-        end
-
-        local function UpdatePetPrepareAcceptButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.autoAcceptPetPrepareAcc) and true or false
-            SetYellowGreyAccText(btnPetPrepareAccept, "Pet Battle", on)
-        end
-
-        btnPetPrepareAccept:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.autoAcceptPetPrepareAcc = not (AutoGossip_Settings.autoAcceptPetPrepareAcc and true or false)
-            UpdatePetPrepareAcceptButton()
-        end)
-        btnPetPrepareAccept:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnPetPrepareAccept, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Pet Battle")
-                GameTooltip:AddLine("Auto-accept the pet battle confirmation (GOSSIP_CONFIRM) popup when starting pet battles (e.g. 'Prepare yourself!', 'Let's rumble!').", 1, 1, 1, true)
-                GameTooltip:AddLine("Macro: /fgo petbattle (forces ON; no prints).", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnPetPrepareAccept:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdatePetPrepareAcceptButton()
-
-        local segContainer = CreateFrame("Frame", nil, togglesPanel)
-        segContainer:SetSize(BTN_W, BTN_H)
-        segContainer:SetPoint("TOP", btnPetPrepareAccept, "BOTTOM", 0, -GAP_Y)
-        f.chromieSegContainer = segContainer
-
-        local SEG_GAP = 2
-        local SEG_W = math.floor((BTN_W - (SEG_GAP * 2)) / 3)
-        local segChromie = CreateFrame("Button", nil, segContainer, "UIPanelButtonTemplate")
-        segChromie:SetSize(SEG_W, BTN_H)
-        segChromie:SetPoint("LEFT", segContainer, "LEFT", 0, 0)
-        f.btnChromieSegChromie = segChromie
-
-        local segLock = CreateFrame("Button", nil, segContainer, "UIPanelButtonTemplate")
-        segLock:SetSize(SEG_W, BTN_H)
-        segLock:SetPoint("LEFT", segChromie, "RIGHT", SEG_GAP, 0)
-        f.btnChromieSegLock = segLock
-
-        local segConfig = CreateFrame("Button", nil, segContainer, "UIPanelButtonTemplate")
-        segConfig:SetSize(BTN_W - (SEG_W * 2) - (SEG_GAP * 2), BTN_H)
-        segConfig:SetPoint("LEFT", segLock, "RIGHT", SEG_GAP, 0)
-        f.btnChromieSegConfig = segConfig
-
-        local function SetSegYellowGrey(btn, label, enabled)
-            if enabled then
-                btn:SetText("|cffffff00" .. label .. "|r")
-            else
-                btn:SetText("|cff888888" .. label .. "|r")
-            end
-        end
-
-        local function UpdateChromieSegments()
-            InitSV()
-            SetSegYellowGrey(segChromie, "Chromie", (AutoGossip_UI and AutoGossip_UI.chromieFrameEnabled) and true or false)
-            SetSegYellowGrey(segLock, "Lock", (AutoGossip_CharSettings and AutoGossip_CharSettings.chromieFrameLocked) and true or false)
-            segConfig:SetText("Config")
-        end
-
-        segChromie:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_UI.chromieFrameEnabled = not (AutoGossip_UI.chromieFrameEnabled and true or false)
-            EnsureChromieIndicator()
-            UpdateChromieIndicator()
-            UpdateChromieSegments()
-            if f and f.UpdateChromieLabel then
-                f.UpdateChromieLabel()
-            end
-        end)
-        segChromie:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(segChromie, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Chromie")
-                GameTooltip:AddLine("ON ACC: shows the on-screen Chromie indicator when available.", 1, 1, 1, true)
-                GameTooltip:AddLine("OFF ACC: disables the indicator.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        segChromie:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-
-        segLock:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_CharSettings.chromieFrameLocked = not (AutoGossip_CharSettings.chromieFrameLocked and true or false)
-            EnsureChromieIndicator()
-            UpdateChromieIndicator()
-            UpdateChromieSegments()
-        end)
-        segLock:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(segLock, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Lock")
-                GameTooltip:AddLine("ON CHAR: locks dragging for this character.", 1, 1, 1, true)
-                GameTooltip:AddLine("OFF CHAR: allow dragging.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        segLock:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-
-        segConfig:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(segConfig, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Config")
-                GameTooltip:AddLine("Edit the Chromie indicator frame style.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        segConfig:SetScript("OnClick", function()
-            OpenChromieConfigPopup()
-        end)
-        segConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-
-        UpdateChromieSegments()
-
-        -- TooltipX
-        local btnTooltipXEnabled = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXEnabled:SetSize(BTN_W, BTN_H)
-        btnTooltipXEnabled:SetPoint("TOP", togglesPanel, "TOP", LEFT_X, START_Y)
-        f.btnTooltipXEnabled = btnTooltipXEnabled
-
-        local function UpdateTooltipXEnabledButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXEnabledAcc) and true or false
-            if on then
-                btnTooltipXEnabled:SetText("TooltipX Module: |cff00ccffON ACC|r")
-            else
-                btnTooltipXEnabled:SetText("TooltipX Module: |cffff0000OFF ACC|r")
-            end
-        end
-
-        local function TooltipXDisabledPrefix()
-            InitSV()
-            if AutoGossip_Settings and AutoGossip_Settings.tooltipXEnabledAcc then
-                return ""
-            end
-            return "|cff888888(disabled)|r "
-        end
-
-        btnTooltipXEnabled:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXEnabledAcc = not (AutoGossip_Settings.tooltipXEnabledAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXEnabledButton()
-        end)
-        btnTooltipXEnabled:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXEnabled, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX Module")
-                GameTooltip:AddLine("Master enable/disable for all TooltipX behavior.", 1, 1, 1, true)
-                GameTooltip:AddLine("Default is OFF ACC to avoid interfering after install.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXEnabled:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXEnabledButton()
-
-        local btnTooltipXCombat = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXCombat:SetSize(BTN_W, BTN_H)
-        btnTooltipXCombat:SetPoint("TOP", btnTooltipXEnabled, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXCombat = btnTooltipXCombat
-
-        local function UpdateTooltipXCombatButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatHideAcc) and true or false
-            if on then
-                btnTooltipXCombat:SetText("TooltipX Combat Hide: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
-            else
-                btnTooltipXCombat:SetText("TooltipX Combat Hide: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
-            end
-        end
-
-        btnTooltipXCombat:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXCombatHideAcc = not (AutoGossip_Settings.tooltipXCombatHideAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXCombatButton()
-        end)
-        btnTooltipXCombat:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXCombat, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Combat Hide")
-                GameTooltip:AddLine("ON ACC: hides most tooltips while in combat.", 1, 1, 1, true)
-                GameTooltip:AddLine("Hold the configured reveal key to show them.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXCombat:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXCombatButton()
-
-        local btnTooltipXMod = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXMod:SetSize(BTN_W, BTN_H)
-        btnTooltipXMod:SetPoint("TOP", btnTooltipXCombat, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXMod = btnTooltipXMod
-
-        local function NormalizeMod(m)
-            m = (m or ""):upper()
-            if m == "CTRL" or m == "CONTROL" then return "CTRL" end
-            if m == "ALT" then return "ALT" end
-            if m == "SHIFT" then return "SHIFT" end
-            if m == "NONE" or m == "OFF" then return "NONE" end
-            return "CTRL"
-        end
-
-        local function UpdateTooltipXModButton()
-            InitSV()
-            local mod = NormalizeMod(AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatModifierAcc or "CTRL")
-            btnTooltipXMod:SetText("TooltipX Reveal Key: " .. TooltipXDisabledPrefix() .. "|cff00ccff" .. mod .. "|r")
-        end
-
-        btnTooltipXMod:SetScript("OnClick", function()
-            InitSV()
-            local mod = NormalizeMod(AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatModifierAcc or "CTRL")
-            if mod == "CTRL" then
-                mod = "ALT"
-            elseif mod == "ALT" then
-                mod = "SHIFT"
-            elseif mod == "SHIFT" then
-                mod = "NONE"
-            else
-                mod = "CTRL"
-            end
-            AutoGossip_Settings.tooltipXCombatModifierAcc = mod
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXModButton()
-        end)
-        btnTooltipXMod:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXMod, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Reveal Key")
-                GameTooltip:AddLine("Hold this key in combat to show hidden tooltips.", 1, 1, 1, true)
-                GameTooltip:AddLine("NONE: no key override (tooltips stay hidden in combat).", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXMod:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXModButton()
-
-        local btnTooltipXTarget = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXTarget:SetSize(BTN_W, BTN_H)
-        btnTooltipXTarget:SetPoint("TOP", btnTooltipXMod, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXTarget = btnTooltipXTarget
-
-        local function UpdateTooltipXTargetButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatShowTargetAcc) and true or false
-            if on then
-                btnTooltipXTarget:SetText("TooltipX Show Target: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
-            else
-                btnTooltipXTarget:SetText("TooltipX Show Target: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
-            end
-        end
-
-        btnTooltipXTarget:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXCombatShowTargetAcc = not (AutoGossip_Settings.tooltipXCombatShowTargetAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXTargetButton()
-        end)
-        btnTooltipXTarget:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXTarget, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Show Target")
-                GameTooltip:AddLine("If ON, your target's tooltip will remain visible in combat.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXTarget:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXTargetButton()
-
-        local btnTooltipXFocus = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXFocus:SetSize(BTN_W, BTN_H)
-        btnTooltipXFocus:SetPoint("TOP", btnTooltipXTarget, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXFocus = btnTooltipXFocus
-
-        local function UpdateTooltipXFocusButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatShowFocusAcc) and true or false
-            if on then
-                btnTooltipXFocus:SetText("TooltipX Show Focus: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
-            else
-                btnTooltipXFocus:SetText("TooltipX Show Focus: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
-            end
-        end
-
-        btnTooltipXFocus:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXCombatShowFocusAcc = not (AutoGossip_Settings.tooltipXCombatShowFocusAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXFocusButton()
-        end)
-        btnTooltipXFocus:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXFocus, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Show Focus")
-                GameTooltip:AddLine("If ON, your focus tooltip remains visible in combat.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXFocus:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXFocusButton()
-
-        local btnTooltipXMouseover = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXMouseover:SetSize(BTN_W, BTN_H)
-        btnTooltipXMouseover:SetPoint("TOP", btnTooltipXFocus, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXMouseover = btnTooltipXMouseover
-
-        local function UpdateTooltipXMouseoverButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatShowMouseoverAcc) and true or false
-            if on then
-                btnTooltipXMouseover:SetText("TooltipX Show Mouseover: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
-            else
-                btnTooltipXMouseover:SetText("TooltipX Show Mouseover: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
-            end
-        end
-
-        btnTooltipXMouseover:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXCombatShowMouseoverAcc = not (AutoGossip_Settings.tooltipXCombatShowMouseoverAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXMouseoverButton()
-        end)
-        btnTooltipXMouseover:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXMouseover, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Show Mouseover")
-                GameTooltip:AddLine("If ON, mouseover unit tooltips remain visible in combat.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXMouseover:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXMouseoverButton()
-
-        local btnTooltipXFriendly = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXFriendly:SetSize(BTN_W, BTN_H)
-        btnTooltipXFriendly:SetPoint("TOP", btnTooltipXMouseover, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXFriendly = btnTooltipXFriendly
-
-        local function UpdateTooltipXFriendlyButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCombatShowFriendlyPlayersAcc) and true or false
-            if on then
-                btnTooltipXFriendly:SetText("TooltipX Show Friendly: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
-            else
-                btnTooltipXFriendly:SetText("TooltipX Show Friendly: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
-            end
-        end
-
-        btnTooltipXFriendly:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXCombatShowFriendlyPlayersAcc = not (AutoGossip_Settings.tooltipXCombatShowFriendlyPlayersAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXFriendlyButton()
-        end)
-        btnTooltipXFriendly:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXFriendly, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Show Friendly Players")
-                GameTooltip:AddLine("If ON, friendly player tooltips remain visible in combat.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXFriendly:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXFriendlyButton()
-
-        local btnTooltipXCleanup = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXCleanup:SetSize(BTN_W, BTN_H)
-        btnTooltipXCleanup:SetPoint("TOP", btnTooltipXFriendly, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXCleanup = btnTooltipXCleanup
-
-        local function UpdateTooltipXCleanupButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCleanupAcc) and true or false
-            if on then
-                btnTooltipXCleanup:SetText("TooltipX Cleanup: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
-            else
-                btnTooltipXCleanup:SetText("TooltipX Cleanup: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
-            end
-        end
-
-        btnTooltipXCleanup:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXCleanupAcc = not (AutoGossip_Settings.tooltipXCleanupAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXCleanupButton()
-        end)
-        btnTooltipXCleanup:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXCleanup, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Cleanup")
-                GameTooltip:AddLine("Hides common quest objective progress lines (e.g. '0/1 ...').", 1, 1, 1, true)
-                GameTooltip:AddLine("This is intentionally lightweight and avoids async quest loads.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXCleanup:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXCleanupButton()
-
-        local btnTooltipXCleanupMode = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXCleanupMode:SetSize(BTN_W, BTN_H)
-        btnTooltipXCleanupMode:SetPoint("TOP", btnTooltipXCleanup, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXCleanupMode = btnTooltipXCleanupMode
-
-        local function NormalizeCleanupMode(v)
-            v = (v or ""):lower()
-            if v ~= "strict" and v ~= "more" then
-                return "strict"
-            end
-            return v
-        end
-
-        local function UpdateTooltipXCleanupModeButton()
-            InitSV()
-            local mode = NormalizeCleanupMode(AutoGossip_Settings and AutoGossip_Settings.tooltipXCleanupModeAcc or "strict")
-            btnTooltipXCleanupMode:SetText("TooltipX Cleanup Mode: " .. TooltipXDisabledPrefix() .. "|cff00ccff" .. mode:upper() .. "|r")
-        end
-
-        btnTooltipXCleanupMode:SetScript("OnClick", function()
-            InitSV()
-            local mode = NormalizeCleanupMode(AutoGossip_Settings and AutoGossip_Settings.tooltipXCleanupModeAcc or "strict")
-            if mode == "strict" then
-                mode = "more"
-            else
-                mode = "strict"
-            end
-            AutoGossip_Settings.tooltipXCleanupModeAcc = mode
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXCleanupModeButton()
-        end)
-        btnTooltipXCleanupMode:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXCleanupMode, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Cleanup Mode")
-                GameTooltip:AddLine("STRICT: hides the most common '0/1 ...' quest objective lines.", 1, 1, 1, true)
-                GameTooltip:AddLine("MORE: hides a few additional numeric progress formats.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXCleanupMode:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXCleanupModeButton()
-
-        local btnTooltipXCleanupScope = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXCleanupScope:SetSize(BTN_W, BTN_H)
-        btnTooltipXCleanupScope:SetPoint("TOP", btnTooltipXCleanupMode, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXCleanupScope = btnTooltipXCleanupScope
-
-        local function UpdateTooltipXCleanupScopeButton()
-            InitSV()
-            local combatOnly = (AutoGossip_Settings and AutoGossip_Settings.tooltipXCleanupCombatOnlyAcc) and true or false
-            if combatOnly then
-                btnTooltipXCleanupScope:SetText("TooltipX Cleanup Scope: " .. TooltipXDisabledPrefix() .. "|cff00ccffCOMBAT|r")
-            else
-                btnTooltipXCleanupScope:SetText("TooltipX Cleanup Scope: " .. TooltipXDisabledPrefix() .. "|cff00ccffALWAYS|r")
-            end
-        end
-
-        btnTooltipXCleanupScope:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXCleanupCombatOnlyAcc = not (AutoGossip_Settings.tooltipXCleanupCombatOnlyAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXCleanupScopeButton()
-        end)
-        btnTooltipXCleanupScope:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXCleanupScope, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Cleanup Scope")
-                GameTooltip:AddLine("COMBAT: only clean tooltips while in combat.", 1, 1, 1, true)
-                GameTooltip:AddLine("ALWAYS: clean tooltips everywhere.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXCleanupScope:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXCleanupScopeButton()
-
-        local btnTooltipXDebug = CreateFrame("Button", nil, togglesPanel, "UIPanelButtonTemplate")
-        btnTooltipXDebug:SetSize(BTN_W, BTN_H)
-        btnTooltipXDebug:SetPoint("TOP", btnTooltipXCleanupScope, "BOTTOM", 0, -GAP_Y)
-        f.btnTooltipXDebug = btnTooltipXDebug
-
-        local function UpdateTooltipXDebugButton()
-            InitSV()
-            local on = (AutoGossip_Settings and AutoGossip_Settings.tooltipXDebugAcc) and true or false
-            if on then
-                btnTooltipXDebug:SetText("TooltipX Debug: " .. TooltipXDisabledPrefix() .. "|cff00ccffON ACC|r")
-            else
-                btnTooltipXDebug:SetText("TooltipX Debug: " .. TooltipXDisabledPrefix() .. "|cffff0000OFF ACC|r")
-            end
-        end
-
-        btnTooltipXDebug:SetScript("OnClick", function()
-            InitSV()
-            AutoGossip_Settings.tooltipXDebugAcc = not (AutoGossip_Settings.tooltipXDebugAcc and true or false)
-            if ns and ns.ApplyTooltipXSetting then
-                ns.ApplyTooltipXSetting(true)
-            end
-            UpdateTooltipXDebugButton()
-        end)
-        btnTooltipXDebug:SetScript("OnEnter", function()
-            if GameTooltip then
-                GameTooltip:SetOwner(btnTooltipXDebug, "ANCHOR_RIGHT")
-                GameTooltip:SetText("TooltipX: Debug")
-                GameTooltip:AddLine("Prints a short reason when TooltipX hides/cleans a tooltip.", 1, 1, 1, true)
-                GameTooltip:AddLine("Throttled to avoid spam.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        btnTooltipXDebug:SetScript("OnLeave", function()
-            if GameTooltip then GameTooltip:Hide() end
-        end)
-
-        UpdateTooltipXDebugButton()
-
-        f.UpdateToggleButtons = function()
-            UpdateTutorialButton()
-            UpdateBorderButton()
-            UpdateQueueAcceptButton()
-            UpdatePetPopupDebugButton()
-            UpdatePetPrepareAcceptButton()
-            UpdateChromieSegments()
-            UpdateTooltipXEnabledButton()
-            UpdateTooltipXCombatButton()
-            UpdateTooltipXModButton()
-            UpdateTooltipXTargetButton()
-            UpdateTooltipXFocusButton()
-            UpdateTooltipXMouseoverButton()
-            UpdateTooltipXFriendlyButton()
-            UpdateTooltipXCleanupButton()
-            UpdateTooltipXCleanupModeButton()
-            UpdateTooltipXCleanupScopeButton()
-            UpdateTooltipXDebugButton()
         end
     end
 
@@ -5578,13 +3442,13 @@ local function CreateOptionsWindow()
         end
     end
 
-    -- Macros / tab content
+    -- XCMD tab content
     do
         local panel = f.macroPanel
         if panel then
             local UpdateUI = function() end
-            if ns and ns.MacroCmdUI_Build then
-                UpdateUI = ns.MacroCmdUI_Build(panel) or UpdateUI
+            if ns and ns.MacroXCMDUI_Build then
+                UpdateUI = ns.MacroXCMDUI_Build(panel) or UpdateUI
             end
             f.UpdateMacroButtons = function()
                 UpdateUI()
@@ -5636,7 +3500,7 @@ local function ToggleUI(optionID)
             AutoGossipOptions:RefreshBrowserList()
         end
         if AutoGossipOptions.SelectTab then
-            AutoGossipOptions:SelectTab(1)
+            AutoGossipOptions:SelectTab(5)
         end
         AutoGossipOptions.edit:SetText(optionID and tostring(optionID) or "")
         AutoGossipOptions.edit:HighlightText()
@@ -5772,11 +3636,101 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     end
 
     do
+        local function ToggleCVar(key, label)
+            if not (C_CVar and C_CVar.GetCVar and C_CVar.SetCVar) then
+                Print("CVar API unavailable")
+                return
+            end
+            key = tostring(key or "")
+            if key == "" then
+                return
+            end
+            local v = tonumber(C_CVar.GetCVar(key)) or 0
+            local newV = (v == 1) and 0 or 1
+            C_CVar.SetCVar(key, tostring(newV))
+            if label and label ~= "" then
+                Print(tostring(label) .. " " .. ((v == 1) and "Disabled" or "Enabled"))
+            else
+                Print(key .. " " .. ((v == 1) and "Disabled" or "Enabled"))
+            end
+        end
+
+        local function SetCVarSafe(key, value)
+            if SetCVar then
+                pcall(SetCVar, tostring(key or ""), tostring(value))
+                return
+            end
+            if C_CVar and C_CVar.SetCVar then
+                pcall(C_CVar.SetCVar, tostring(key or ""), tostring(value))
+                return
+            end
+        end
+
         local cmd, rest = msg:match("^(%S+)%s*(.-)$")
         cmd = cmd and cmd:lower() or nil
-        if cmd == "m" then
-            if ns and ns.MacroCmd_HandleSlash then
-                ns.MacroCmd_HandleSlash(rest)
+
+        -- Allow optional space after single-letter mode commands.
+        -- Examples:
+        --   /fgo mfoo   -> cmd='m', rest='foo'
+        --   /fgo xlist  -> cmd='x', rest='list'
+        -- Keep existing full commands working (e.g. /fgo chromie, /fgo mouse).
+        if cmd and #cmd > 1 then
+            local known = {
+                ["m"] = true,
+                ["hm"] = true,
+                ["hs"] = true,
+                ["debug"] = true,
+                ["arm"] = true,
+                ["armtest"] = true,
+                ["mk"] = true,
+                ["mkmacro"] = true,
+                ["script"] = true,
+                ["scripterrors"] = true,
+                ["chromie"] = true,
+                ["chromietime"] = true,
+                ["ct"] = true,
+                ["ctoff"] = true,
+
+                -- Macro CMD keys that would otherwise be mis-parsed as mode glue.
+                -- Example: /fgo mouse would become /fgo m ouse without this.
+                ["mouse"] = true,
+            }
+
+            if not known[cmd] then
+                local first = cmd:sub(1, 1)
+                if first == "x" or first == "m" or first == "c" or first == "d" then
+                    local glued = cmd:sub(2)
+                    if glued ~= "" then
+                        rest = glued .. ((rest and rest ~= "") and (" " .. rest) or "")
+                        cmd = first
+                    end
+                end
+            end
+        end
+
+        -- Macro CMD modes:
+        --  /fgo x ...  (Exclusion macros; old behavior)
+        --  /fgo m ...  (Macros; disables character boxes)
+        --  /fgo c ...  (CVar macros; disables character boxes)
+        --  /fgo d ...  (Other macros; everything not in x/m/c)
+        if cmd == "x" or cmd == "m" or cmd == "c" or cmd == "d" then
+            if ns and ns.MacroXCMD_SetMode then
+                ns.MacroXCMD_SetMode(cmd)
+            end
+
+            -- Treat bare /fgo x|m|c|d as a UI toggle + mode select.
+            local restTrim = (rest or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if restTrim == "" then
+                ToggleUI()
+                Print("Macro mode: /fgo " .. cmd)
+                return
+            end
+
+            if ns and ns.MacroXCMD_HandleSlashMode then
+                ns.MacroXCMD_HandleSlashMode(cmd, rest)
+            elseif ns and ns.MacroXCMD_HandleSlash then
+                -- Back-compat: treat as x-mode.
+                ns.MacroXCMD_HandleSlash(rest)
             else
                 Print("Macro command module not loaded.")
             end
@@ -5793,15 +3747,180 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             return
         end
 
-        if cmd == "scripterrors" or cmd == "script" then
-            if not (C_CVar and C_CVar.GetCVar and C_CVar.SetCVar) then
-                Print("CVar API unavailable")
+        if cmd == "debug" then
+            local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
+            if ns and type(ns.MacroXCMD_Debug) == "function" then
+                if a == "" then
+                    ns.MacroXCMD_Debug()
+                else
+                    local mode = a
+                    local key = (b or "")
+                    ns.MacroXCMD_Debug(mode, key)
+                end
+            else
+                Print("Macro command module not loaded.")
+            end
+            return
+        end
+
+        if cmd == "arm" then
+            if not (ns and type(ns.MacroXCMD_ArmClickButton) == "function") then
+                Print("Macro command module not loaded.")
                 return
             end
-            local k = "ScriptErrors"
-            local v = tonumber(C_CVar.GetCVar(k)) or 0
-            C_CVar.SetCVar(k, (v == 1) and 0 or 1)
-            Print("ScriptErrors " .. ((v == 1) and "Disabled" or "Enabled"))
+
+            local showHelperUsage = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
+
+            local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
+            if a == "" then
+                if showHelperUsage then
+                    Print("Usage: /fgo arm <key>")
+                    Print("   or: /fgo arm <mode> <key>")
+                    Print("Example: /fgo arm c XAB")
+                end
+                return
+            end
+
+            local mode = nil
+            local key = nil
+            if a == "x" or a == "m" or a == "c" or a == "d" then
+                mode = a
+                key = (b or ""):match("^(%S+)")
+            else
+                if ns and type(ns.MacroXCMD_GetMode) == "function" then
+                    mode = ns.MacroXCMD_GetMode()
+                end
+                mode = mode or "x"
+                key = a
+            end
+
+            key = tostring(key or "")
+            if key == "" then
+                if showHelperUsage then
+                    Print("Usage: /fgo arm <mode> <key>")
+                end
+                return
+            end
+
+            local ok, why = ns.MacroXCMD_ArmClickButton(mode, key)
+            if ok then
+                Print("Armed Macro CMD secure button for /fgo " .. tostring(mode) .. " " .. tostring(key))
+            else
+                Print("Arm failed: " .. tostring(why))
+            end
+            return
+        end
+
+        if cmd == "armtest" then
+            if not (ns and type(ns.MacroXCMD_ArmClickButtonWithMarker) == "function") then
+                Print("Macro command module not loaded.")
+                return
+            end
+
+            local showHelperUsage = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
+
+            local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
+            if a == "" then
+                if showHelperUsage then
+                    Print("Usage: /fgo armtest <key>")
+                    Print("   or: /fgo armtest <mode> <key>")
+                    Print("Example: /fgo armtest c XAB")
+                end
+                return
+            end
+
+            local mode = nil
+            local key = nil
+            if a == "x" or a == "m" or a == "c" or a == "d" then
+                mode = a
+                key = (b or ""):match("^(%S+)")
+            else
+                if ns and type(ns.MacroXCMD_GetMode) == "function" then
+                    mode = ns.MacroXCMD_GetMode()
+                end
+                mode = mode or "x"
+                key = a
+            end
+
+            key = tostring(key or "")
+            if key == "" then
+                if showHelperUsage then
+                    Print("Usage: /fgo armtest <mode> <key>")
+                end
+                return
+            end
+
+            local ok, why = ns.MacroXCMD_ArmClickButtonWithMarker(mode, key)
+            if ok then
+                Print("Armed (with marker) for /fgo " .. tostring(mode) .. " " .. tostring(key))
+            else
+                Print("Armtest failed: " .. tostring(why))
+            end
+            return
+        end
+
+        if cmd == "mk" or cmd == "mkmacro" then
+            local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
+            if not (ns and type(ns.MacroXCMD_MakeClickMacro) == "function") then
+                Print("Macro command module not loaded.")
+                return
+            end
+
+            local showHelperUsage = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
+
+            if a == "" then
+                if showHelperUsage then
+                    Print("Usage: /fgo mk <key> [macroName]")
+                    Print("   or: /fgo mk <mode> <key> [macroName]")
+                    Print("Example: /fgo mk c XAB")
+                end
+                return
+            end
+
+            local mode = nil
+            local key = nil
+            local macroName = nil
+
+            if a == "x" or a == "m" or a == "c" or a == "d" then
+                mode = a
+                key, macroName = (b or ""):match("^(%S+)%s*(.-)$")
+                key = key or ""
+            else
+                key = a
+                macroName = b
+            end
+
+            macroName = (macroName or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if macroName == "" then
+                macroName = nil
+            end
+
+            local ok, why, finalName, clickBody
+            if mode then
+                ok, why, finalName, clickBody = ns.MacroXCMD_MakeClickMacroMode(mode, key, macroName)
+            else
+                ok, why, finalName, clickBody = ns.MacroXCMD_MakeClickMacro(key, macroName)
+            end
+
+            if ok then
+                Print("Macro '" .. tostring(finalName) .. "' " .. tostring(why) .. ": " .. tostring(clickBody))
+            else
+                if clickBody and clickBody ~= "" then
+                    Print("Cannot make macro: " .. tostring(why) .. ". You can still create it manually with: " .. tostring(clickBody))
+                else
+                    Print("Cannot make macro: " .. tostring(why))
+                end
+            end
+            return
+        end
+
+        if cmd == "scripterrors" or cmd == "script" then
+            -- Keep /fgo script working, but route through Macro CMD so it stays editable.
+            if ns and ns.MacroXCMD_HandleSlashMode then
+                ns.MacroXCMD_HandleSlashMode("d", "script")
+                return
+            end
+            ToggleCVar("ScriptErrors", "ScriptErrors")
             return
         end
 
@@ -5900,31 +4019,66 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 PrintHSMessage(230850, "Yay! Off To A Delve", "Ride to a Delve in %d mins")
                 return
             end
-            if dest == "hearth" or dest == "" then
-                local useID = 6948
+
+            if dest == "loc" or dest == "location" then
                 local bind = (GetBindLocation and GetBindLocation()) or ""
                 local zone = ""
-
-                if ns and ns.Hearth and type(ns.Hearth.EnsureInit) == "function" then
-                    local db, charKey = ns.Hearth.EnsureInit()
-                    if type(db) == "table" then
-                        local sel = tonumber(db.selectedUseItemID)
-                        if sel and sel > 0 then
-                            useID = sel
-                        end
-                        if db.zoneByChar and charKey then
-                            zone = tostring(db.zoneByChar[charKey] or "")
-                        end
-                    end
+                if GetRealZoneText then
+                    zone = GetRealZoneText() or ""
+                end
+                if zone == "" and GetZoneText then
+                    zone = GetZoneText() or ""
                 end
 
-                local to
-                if zone == "" then
-                    to = bind
-                elseif bind == "" then
-                    to = zone
+                bind = tostring(bind or "")
+                zone = tostring(zone or "")
+
+                if bind == "" and ns and ns.Hearth and type(ns.Hearth.GetCurrentDisplayText) == "function" then
+                    local b2, z2 = ns.Hearth.GetCurrentDisplayText()
+                    bind = tostring(b2 or bind)
+                    zone = tostring(z2 or zone)
+                end
+
+                local msg = "|cFFFFD707Home Set To " .. bind
+                if zone ~= "" then
+                    msg = msg .. ", " .. zone
+                end
+                Print(msg)
+                return
+            end
+            if dest == "hearth" or dest == "" then
+                local useID = 6948
+                local bind = ""
+                local zone = ""
+
+                if ns and ns.Hearth then
+                    if type(ns.Hearth.GetCurrentDisplayText) == "function" then
+                        bind, zone = ns.Hearth.GetCurrentDisplayText()
+                    else
+                        bind = (GetBindLocation and GetBindLocation()) or ""
+                    end
+
+                    if type(ns.Hearth.EnsureInit) == "function" then
+                        local db = ns.Hearth.EnsureInit()
+                        if type(db) == "table" then
+                            local sel = tonumber(db.selectedUseItemID)
+                            if sel and sel > 0 then
+                                useID = sel
+                            end
+                        end
+                    end
                 else
-                    to = bind .. ", " .. zone
+                    bind = (GetBindLocation and GetBindLocation()) or ""
+                end
+
+                bind = tostring(bind or "")
+                zone = tostring(zone or "")
+
+                local to = bind
+                if to == "" then
+                    to = zone
+                elseif zone ~= "" then
+                    to = to .. ", " .. zone
                 end
 
                 local rem = GetCooldownRemaining(useID)
@@ -5936,7 +4090,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 return
             end
 
-            Print("Usage: /fgo hs hearth|garrison|dalaran|dornogal|whistle")
+            Print("Usage: /fgo hs hearth|loc|garrison|dalaran|dornogal|whistle")
             return
         end
     end
@@ -5958,14 +4112,38 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         return
     end
 
+    -- Fallback: treat unknown /fgo <key> as a d-mode Macro CMD entry.
+    -- This enables README-style macros like: /fgo logout
+    if ns and type(ns.MacroXCMD_RunAuto) == "function" then
+        if ns.MacroXCMD_RunAuto(msg) then
+            return
+        end
+    end
+    if ns and ns.MacroXCMD_HandleSlashMode then
+        ns.MacroXCMD_HandleSlashMode("d", msg)
+        return
+    end
+
     Print("/fgo           - open/toggle window")
     Print("/fgo <id>      - open window + set option id")
     Print("/fgo list      - print current gossip options")
     Print("/fgo petbattle - force-enable pet battle auto-accept")
-    Print("/fgo m ...     - run a saved macro command (see 'Macro /' tab)")
+    Print("/fgo x ...     - exclusion macros (old /fgo m behavior)")
+    Print("/fgo m ...     - macros (no character boxes)")
+    Print("/fgo c ...     - class macros (per-line tags like [DR]/[PD]; untagged lines run)")
+    Print("/fgo d ...     - other macros (everything not in x/m/c)")
     Print("/fgo hm ...    - housing macros (see 'Home' tab)")
     Print("/fgo hs ...    - hearth status helper (used by 'Macros' tab macros)")
     Print("/fgo script    - toggle ScriptErrors (used by 'Macros' tab macros)")
+    Print("/fgo loot      - toggle Auto Loot")
+    Print("/fgo mouse     - toggle Loot Under Mouse")
+    Print("/fgo trade     - toggle Block Trades")
+    Print("/fgo friend    - toggle Friendly Names")
+    Print("/fgo bars      - toggle ActionBar Lock")
+    Print("/fgo bagrev    - toggle Bag Sort Reverse")
+    Print("/fgo token     - print WoW Token price")
+    Print("/fgo setup     - apply common setup CVars")
+    Print("/fgo fish      - apply fishing prep CVars")
     Print("/fgo chromie   - print Chromie Time status")
     Print("/fgo ctoff     - attempt to disable Chromie Time (rested areas only)")
 end
@@ -5989,8 +4167,14 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         InitSV()
         SetupChromieSelectionTracking()
         DeduplicateUserRulesAgainstDb()
-        if ns and ns.Popup and type(ns.Popup.Setup) == "function" then
-            ns.Popup.Setup()
+
+        -- Macro CMD: pre-arm secure /click buttons so user macros work without a prep step.
+        if ns and type(ns.MacroXCMD_ArmAllClickButtons) == "function" then
+            pcall(ns.MacroXCMD_ArmAllClickButtons)
+        end
+        local talkXpop = ns and (ns.TalkXPOP or ns.Popup) or nil
+        if talkXpop and type(talkXpop.Setup) == "function" then
+            talkXpop.Setup()
         end
 
         if (AutoGossip_UI and AutoGossip_UI.chromieFrameEnabled) and IsChromieTimeAvailableToPlayer() then
@@ -6005,6 +4189,11 @@ frame:SetScript("OnEvent", function(_, event, arg1)
     if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LEVEL_UP" or event == "ZONE_CHANGED_NEW_AREA" then
         InitSV()
         SetupChromieSelectionTracking()
+
+        -- Macro CMD: arm per-character secure /click buttons once we have full player context.
+        if ns and type(ns.MacroXCMD_ArmAllClickButtons) == "function" then
+            pcall(ns.MacroXCMD_ArmAllClickButtons)
+        end
         if AutoGossipOptions and AutoGossipOptions.UpdateChromieLabel then
             AutoGossipOptions.UpdateChromieLabel()
         else
@@ -6034,20 +4223,27 @@ frame:SetScript("OnEvent", function(_, event, arg1)
 
     if event == "PET_BATTLE_OPENING_START" then
         InitSV()
-        if ns and ns.Popup and type(ns.Popup.OnPetBattleOpeningStart) == "function" then
-            ns.Popup.OnPetBattleOpeningStart()
+        local talkXpop = ns and (ns.TalkXPOP or ns.Popup) or nil
+        if talkXpop and type(talkXpop.OnPetBattleOpeningStart) == "function" then
+            talkXpop.OnPetBattleOpeningStart()
         end
         return
     end
     if event == "PET_BATTLE_CLOSE" then
-        if ns and ns.Popup and type(ns.Popup.OnPetBattleClose) == "function" then
-            ns.Popup.OnPetBattleClose()
+        local talkXpop = ns and (ns.TalkXPOP or ns.Popup) or nil
+        if talkXpop and type(talkXpop.OnPetBattleClose) == "function" then
+            talkXpop.OnPetBattleClose()
         end
         return
     end
 
     if event == "PLAYER_REGEN_ENABLED" then
         InitSV()
+
+        -- Macro CMD: if secure button arming was blocked in combat, retry now.
+        if ns and type(ns.MacroXCMD_ArmAllClickButtons) == "function" then
+            pcall(ns.MacroXCMD_ArmAllClickButtons)
+        end
         if queueOverlayPendingHide then
             HideQueueOverlay()
         end

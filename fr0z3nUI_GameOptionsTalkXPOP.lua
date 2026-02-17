@@ -1,10 +1,18 @@
-local _, ns = ...
-ns = ns or {}
+---@diagnostic disable: undefined-global
 
--- Popup helpers (StaticPopup hooks).
--- Extracted from fr0z3nUI_GameOptions.lua so popup logic is isolated.
+local addonName, ns = ...
+if type(ns) ~= "table" then
+    ns = {}
+end
 
-ns.Popup = ns.Popup or {}
+-- TalkXPOP helpers (StaticPopup hooks).
+-- Renamed from fr0z3nUI_GameOptionsPopup.lua.
+
+ns.TalkXPOP = ns.TalkXPOP or {}
+-- Back-compat: older code referenced ns.Popup
+ns.Popup = ns.TalkXPOP
+
+local M = ns.TalkXPOP
 
 local function InitSV()
     if ns and type(ns._InitSV) == "function" then
@@ -60,13 +68,13 @@ end
 local petBattleOpenStartAt = 0
 local petBattleOpenStartInPandaria = false
 
-function ns.Popup.OnPetBattleOpeningStart()
+function M.OnPetBattleOpeningStart()
     InitSV()
     petBattleOpenStartAt = GetTime and GetTime() or 0
     petBattleOpenStartInPandaria = IsInPandaria()
 end
 
-function ns.Popup.OnPetBattleClose()
+function M.OnPetBattleClose()
     petBattleOpenStartAt = 0
     petBattleOpenStartInPandaria = false
 end
@@ -127,7 +135,7 @@ end
 
 local petPopupDebugHooked = false
 
-function ns.Popup.Setup()
+function M.Setup()
     if petPopupDebugHooked then
         return
     end

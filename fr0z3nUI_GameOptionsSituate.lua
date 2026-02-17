@@ -10,6 +10,7 @@ local didRegister = false
 local applyTimer = nil
 local pendingReason = nil
 local pendingAfterCombat = false
+local didEnsureRememberedMacros = false
 
 local function GetActiveSpecID()
     if not (GetSpecialization and GetSpecializationInfo) then
@@ -26,21 +27,200 @@ local function GetActiveSpecID()
     return specID
 end
 
+local function GetPlayerClassTag()
+    if not UnitClass then
+        return nil
+    end
+    local ok, _, classTag = pcall(UnitClass, "player")
+    if not ok then
+        return nil
+    end
+    if type(classTag) ~= "string" or classTag == "" then
+        return nil
+    end
+    return classTag
+end
+
+local function Trim(s)
+    if type(s) ~= "string" then
+        return ""
+    end
+    return s:gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function GetActiveLoadoutName()
+    if not (C_ClassTalents and C_ClassTalents.GetActiveConfigID) then
+        return nil
+    end
+    local okCfg, configID = pcall(C_ClassTalents.GetActiveConfigID)
+    if not okCfg or type(configID) ~= "number" then
+        return nil
+    end
+    if C_Traits and C_Traits.GetConfigInfo then
+        local okInfo, info = pcall(C_Traits.GetConfigInfo, configID)
+        if okInfo and type(info) == "table" then
+            local name = Trim(info.name)
+            if name ~= "" then
+                return name
+            end
+        end
+    end
+    return nil
+end
+
+local function GetActiveLoadoutKey(classTag, specID)
+    if not (classTag and specID) then
+        return nil
+    end
+    local name = GetActiveLoadoutName()
+    if not name then
+        return nil
+    end
+    name = name:gsub("%s+", " ")
+    return tostring(classTag) .. ":" .. tostring(specID) .. ":" .. tostring(name)
+end
+
 local function GetActiveLayout()
     local s = GetSettings()
     if type(s) ~= "table" then
         return nil
     end
 
+    local function NormalizeSlot180(slot)
+        slot = tonumber(slot)
+        if not slot then
+            return nil
+        end
+        slot = math.floor(slot)
+        if slot < 1 or slot > 180 then
+            return nil
+        end
+        return slot
+    end
+
+    local function GetSharedLayoutForAccount()
+        local t = rawget(s, "actionBarLayoutSharedAcc")
+        if type(t) ~= "table" then
+            return nil
+        end
+        return t
+    end
+
+    local function GetSharedLayoutForClass(classTag)
+        if not classTag then
+            return nil
+        end
+        local byClass = rawget(s, "actionBarLayoutByClassAcc")
+        if type(byClass) ~= "table" then
+            return nil
+        end
+        local t = byClass[classTag]
+        if type(t) ~= "table" then
+            return nil
+        end
+        return t
+    end
+
+    local function GetSharedLayoutForLoadout(loadoutKey)
+        if not loadoutKey then
+            return nil
+        end
+        local byLoadout = rawget(s, "actionBarLayoutByLoadoutAcc")
+        if type(byLoadout) ~= "table" then
+            return nil
+        end
+        local t = byLoadout[loadoutKey]
+        if type(t) ~= "table" then
+            return nil
+        end
+        return t
+    end
+
+    local function Combine4(sharedAccount, sharedClass, spec, loadout)
+        if type(sharedAccount) ~= "table" and type(sharedClass) ~= "table" and type(spec) ~= "table" and type(loadout) ~= "table" then
+            return nil
+        end
+        local out = {}
+        local loadoutSlots, specSlots, classSlots = {}, {}, {}
+
+        if type(loadout) == "table" then
+            for _, e in ipairs(loadout) do
+                local slot = NormalizeSlot180(e and e.slot)
+                if slot then
+                    loadoutSlots[slot] = true
+                end
+            end
+        end
+
+        if type(spec) == "table" then
+            for _, e in ipairs(spec) do
+                local slot = NormalizeSlot180(e and e.slot)
+                if slot then
+                    specSlots[slot] = true
+                end
+            end
+        end
+
+        if type(sharedClass) == "table" then
+            for _, e in ipairs(sharedClass) do
+                local slot = NormalizeSlot180(e and e.slot)
+                if slot then
+                    classSlots[slot] = true
+                end
+            end
+        end
+
+        if type(sharedAccount) == "table" then
+            for _, e in ipairs(sharedAccount) do
+                local slot = NormalizeSlot180(e and e.slot)
+                if not slot or (not classSlots[slot] and not specSlots[slot] and not loadoutSlots[slot]) then
+                    out[#out + 1] = e
+                end
+            end
+        end
+
+        if type(sharedClass) == "table" then
+            for _, e in ipairs(sharedClass) do
+                local slot = NormalizeSlot180(e and e.slot)
+                if not slot or (not specSlots[slot] and not loadoutSlots[slot]) then
+                    out[#out + 1] = e
+                end
+            end
+        end
+
+        if type(spec) == "table" then
+            for _, e in ipairs(spec) do
+                local slot = NormalizeSlot180(e and e.slot)
+                if not slot or not loadoutSlots[slot] then
+                    out[#out + 1] = e
+                end
+            end
+        end
+
+        if type(loadout) == "table" then
+            for _, e in ipairs(loadout) do
+                out[#out + 1] = e
+            end
+        end
+
+        return out
+    end
+
     local specID = GetActiveSpecID()
     local bySpec = rawget(s, "actionBarLayoutBySpecAcc")
+    local classTag = GetPlayerClassTag()
+    local sharedAccount = GetSharedLayoutForAccount()
+    local sharedClass = GetSharedLayoutForClass(classTag)
+    local loadoutKey = (specID and classTag) and GetActiveLoadoutKey(classTag, specID) or nil
+    local sharedLoadout = GetSharedLayoutForLoadout(loadoutKey)
+
     if type(bySpec) == "table" and specID and type(bySpec[specID]) == "table" then
-        return bySpec[specID], specID
+        return Combine4(sharedAccount, sharedClass, bySpec[specID], sharedLoadout), specID
     end
 
     local legacy = rawget(s, "actionBarLayoutAcc")
     if type(legacy) == "table" then
-        return legacy, nil
+        return Combine4(sharedAccount, sharedClass, legacy, sharedLoadout), nil
     end
 
     return nil
@@ -125,6 +305,357 @@ local function SafeGetMacroIndexByName(name)
         return 0
     end
     return idx
+end
+
+local function NormalizeMacroBody(body)
+    if type(body) ~= "string" then
+        return ""
+    end
+    -- Macro bodies are sensitive; keep comparison mostly exact but normalize CRLF.
+    body = body:gsub("\r\n", "\n")
+    return body
+end
+
+local function GetMacroLimits()
+    local maxAcc = tonumber(rawget(_G, "MAX_ACCOUNT_MACROS")) or 120
+    local maxChar = tonumber(rawget(_G, "MAX_CHARACTER_MACROS")) or 18
+    return maxAcc, maxChar
+end
+
+local function FindMacroVersionsByName(name)
+    if type(name) ~= "string" or name == "" then
+        return nil, nil
+    end
+    if not (GetMacroInfo and GetNumMacros) then
+        return nil, nil
+    end
+
+    local maxAcc, maxChar = GetMacroLimits()
+    local acc, char = nil, nil
+
+    for i = 1, (maxAcc + maxChar) do
+        local ok, n, icon, body = pcall(GetMacroInfo, i)
+        if ok and n == name then
+            local info = {
+                index = i,
+                icon = icon,
+                body = NormalizeMacroBody(body),
+            }
+            if i > maxAcc then
+                char = info
+            else
+                acc = info
+            end
+        end
+    end
+
+    return acc, char
+end
+
+local macroConflictQueue = {}
+local macroConflictSeen = {}
+local macroConflictPopup = nil
+
+local function EnsureMacroConflictPopup()
+    if macroConflictPopup and macroConflictPopup.Show then
+        return macroConflictPopup
+    end
+
+    if not (CreateFrame and UIParent) then
+        return nil
+    end
+
+    local f = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    f:SetSize(760, 520)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:SetFrameLevel(200)
+    f:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        tile = true,
+        tileSize = 16,
+    })
+    f:SetBackdropColor(0, 0, 0, 0.92)
+    f:Hide()
+
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    title:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -10)
+    title:SetJustifyH("LEFT")
+    title:SetText("Macro Conflict")
+    f._title = title
+
+    local leftLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    leftLabel:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
+    leftLabel:SetText("Saved (Account SV)")
+
+    local rightLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    rightLabel:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -44)
+    rightLabel:SetText("Current (In-Game)")
+    rightLabel:SetJustifyH("RIGHT")
+
+    local boxW = 360
+    local boxH = 380
+    local topY = -66
+
+    local function BuildScrollBox(anchorPoint, xOff)
+        local sf = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+        sf:SetPoint("TOPLEFT", f, "TOPLEFT", xOff, topY)
+        sf:SetSize(boxW, boxH)
+
+        local eb = CreateFrame("EditBox", nil, sf)
+        eb:SetMultiLine(true)
+        eb:SetAutoFocus(false)
+        eb:SetFontObject(ChatFontNormal)
+        eb:SetWidth(boxW - 28)
+        eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        eb:EnableMouse(true)
+        eb:SetText("")
+        eb:HighlightText(0, 0)
+
+        sf:SetScrollChild(eb)
+        return sf, eb
+    end
+
+    local leftSF, leftEB = BuildScrollBox("TOPLEFT", 10)
+    local rightSF, rightEB = BuildScrollBox("TOPLEFT", 390)
+    f._leftEB = leftEB
+    f._rightEB = rightEB
+
+    local info = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    info:SetPoint("TOPLEFT", leftSF, "BOTTOMLEFT", 0, -8)
+    info:SetPoint("TOPRIGHT", rightSF, "BOTTOMRIGHT", 0, -8)
+    info:SetJustifyH("LEFT")
+    info:SetText("Choose which one to keep. The kept version updates the character macro and the Account SV.")
+    info:SetWordWrap(true)
+
+    local btnKeepSaved = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    btnKeepSaved:SetSize(170, 22)
+    btnKeepSaved:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
+    btnKeepSaved:SetText("Keep Saved")
+    f._btnKeepSaved = btnKeepSaved
+
+    local btnKeepCurrent = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    btnKeepCurrent:SetSize(170, 22)
+    btnKeepCurrent:SetPoint("LEFT", btnKeepSaved, "RIGHT", 10, 0)
+    btnKeepCurrent:SetText("Keep Current")
+    f._btnKeepCurrent = btnKeepCurrent
+
+    macroConflictPopup = f
+    return f
+end
+
+local function ApplyMacroBodyToIndex(index, name, icon, body)
+    if not (EditMacro and index and name) then
+        return false
+    end
+    body = NormalizeMacroBody(body)
+    local ok = pcall(EditMacro, index, name, icon, body)
+    return ok and true or false
+end
+
+local function ResolveMacroConflict(conflict, keepWhich)
+    if type(conflict) ~= "table" then
+        return
+    end
+    local name = conflict.name
+    if type(name) ~= "string" or name == "" then
+        return
+    end
+
+    local chooseSaved = (keepWhich == "saved")
+    local chosenIcon = chooseSaved and conflict.savedIcon or conflict.currentIcon
+    local chosenBody = chooseSaved and conflict.savedBody or conflict.currentBody
+    chosenBody = NormalizeMacroBody(chosenBody)
+
+    local s = GetSettings()
+    if type(s) ~= "table" then
+        return
+    end
+    local t = rawget(s, "actionBarRememberMacrosAcc")
+    if type(t) ~= "table" then
+        t = {}
+        s.actionBarRememberMacrosAcc = t
+    end
+    t[name] = { icon = chosenIcon, body = chosenBody }
+
+    -- If the user chose to keep the current in-game macro, do not touch it.
+    -- We only update the Account SV so the mismatch is resolved for future startups.
+    if keepWhich == "current" then
+        return
+    end
+
+    -- Sync in-game macro: update character macro; create it if missing.
+    local _, char = FindMacroVersionsByName(name)
+    local charIndex = char and char.index
+    if not charIndex then
+        local okCreate = TryCreateRememberedCharacterMacro(name)
+        if okCreate then
+            _, char = FindMacroVersionsByName(name)
+            charIndex = char and char.index
+        end
+    end
+    if charIndex then
+        ApplyMacroBodyToIndex(charIndex, name, chosenIcon, chosenBody)
+    end
+end
+
+local function ShowNextMacroConflict()
+    if InCombat() then
+        return
+    end
+
+    local conflict = macroConflictQueue[1]
+    if not conflict then
+        return
+    end
+
+    local f = EnsureMacroConflictPopup()
+    if not f then
+        return
+    end
+
+    f._title:SetText("Macro Conflict: " .. tostring(conflict.name or "?"))
+    if f._leftEB and f._leftEB.SetText then
+        f._leftEB:SetText(tostring(conflict.savedBody or ""))
+        if f._leftEB.SetCursorPosition then
+            f._leftEB:SetCursorPosition(0)
+        end
+    end
+    if f._rightEB and f._rightEB.SetText then
+        f._rightEB:SetText(tostring(conflict.currentBody or ""))
+        if f._rightEB.SetCursorPosition then
+            f._rightEB:SetCursorPosition(0)
+        end
+    end
+
+    f._btnKeepSaved:SetScript("OnClick", function()
+        ResolveMacroConflict(conflict, "saved")
+        table.remove(macroConflictQueue, 1)
+        f:Hide()
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, ShowNextMacroConflict)
+        else
+            ShowNextMacroConflict()
+        end
+    end)
+
+    f._btnKeepCurrent:SetScript("OnClick", function()
+        ResolveMacroConflict(conflict, "current")
+        table.remove(macroConflictQueue, 1)
+        f:Hide()
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, ShowNextMacroConflict)
+        else
+            ShowNextMacroConflict()
+        end
+    end)
+
+    f:Show()
+end
+
+local function QueueMacroConflict(name, savedIcon, savedBody, currentIcon, currentBody)
+    if type(name) ~= "string" or name == "" then
+        return
+    end
+    local key = name .. ":" .. tostring(savedBody or "") .. ":" .. tostring(currentBody or "")
+    if macroConflictSeen[key] then
+        return
+    end
+    macroConflictSeen[key] = true
+
+    macroConflictQueue[#macroConflictQueue + 1] = {
+        name = name,
+        savedIcon = savedIcon,
+        savedBody = NormalizeMacroBody(savedBody),
+        currentIcon = currentIcon,
+        currentBody = NormalizeMacroBody(currentBody),
+    }
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, ShowNextMacroConflict)
+    end
+end
+
+local function TryCreateRememberedCharacterMacro(name)
+    if type(name) ~= "string" or name == "" then
+        return false, "bad-name"
+    end
+    if not CreateMacro then
+        return false, "no-create-macro"
+    end
+
+    local s = GetSettings()
+    if type(s) ~= "table" then
+        return false, "no-settings"
+    end
+
+    local t = rawget(s, "actionBarRememberMacrosAcc")
+    if type(t) ~= "table" then
+        return false, "no-remember-table"
+    end
+
+    local info = t[name]
+    if type(info) ~= "table" then
+        return false, "not-remembered"
+    end
+
+    local body = rawget(info, "body")
+    if type(body) ~= "string" then
+        body = ""
+    end
+
+    local icon = rawget(info, "icon")
+    if type(icon) ~= "number" and type(icon) ~= "string" then
+        icon = "INV_MISC_QUESTIONMARK"
+    end
+
+    -- Create as character macro (not account).
+    local ok, idx = pcall(CreateMacro, name, icon, NormalizeMacroBody(body), true)
+    if not ok or not idx then
+        return false, "create-failed"
+    end
+    return true, "created"
+end
+
+local function EnsureRememberedAccountMacrosOnce(reason)
+    if didEnsureRememberedMacros then
+        return
+    end
+
+    -- Only on login/reload style startup.
+    if not (reason == "enable" or reason == "PLAYER_ENTERING_WORLD" or reason == "PLAYER_LOGIN" or reason == "VARIABLES_LOADED") then
+        return
+    end
+
+    didEnsureRememberedMacros = true
+
+    local s = GetSettings()
+    if type(s) ~= "table" then
+        return
+    end
+
+    local t = rawget(s, "actionBarRememberMacrosAcc")
+    if type(t) ~= "table" then
+        return
+    end
+
+    for name, info in pairs(t) do
+        if type(name) == "string" and name ~= "" and type(info) == "table" then
+            local savedBody = NormalizeMacroBody(rawget(info, "body"))
+            local savedIcon = rawget(info, "icon")
+
+            local _, char = FindMacroVersionsByName(name)
+            if not (char and char.index) then
+                TryCreateRememberedCharacterMacro(name)
+                _, char = FindMacroVersionsByName(name)
+            end
+
+            -- Compare remembered (SV) vs current in-game CHARACTER macro only.
+            if char and NormalizeMacroBody(char.body) ~= savedBody then
+                QueueMacroConflict(name, savedIcon, savedBody, char.icon, char.body)
+            end
+        end
+    end
 end
 
 local function GetEntryKind(entry)
@@ -294,6 +825,9 @@ local function ApplyLayout(reason)
 
     pendingAfterCombat = false
 
+    -- Remembered character macros: ensure character macros exist on initial login/reload only.
+    EnsureRememberedAccountMacrosOnce(reason)
+
     local layout = GetActiveLayout()
     if not layout then
         return
@@ -401,6 +935,14 @@ local function OnEvent(self, event, ...)
         if pendingAfterCombat then
             QueueApply("regen")
         end
+        -- If we queued macro conflict popups during combat, show them now.
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, function()
+                if type(ShowNextMacroConflict) == "function" then
+                    ShowNextMacroConflict()
+                end
+            end)
+        end
         return
     end
 
@@ -431,6 +973,10 @@ function ns.ApplyActionBarSetting(force)
         eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
         eventFrame:RegisterEvent("UPDATE_BINDINGS")
         eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        -- Talent/loadout changes (Retail). Safe to register even if never fires.
+        eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")
+        eventFrame:RegisterEvent("TRAIT_CONFIG_LIST_UPDATED")
+        eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
         QueueApply("enable")
         return
     end

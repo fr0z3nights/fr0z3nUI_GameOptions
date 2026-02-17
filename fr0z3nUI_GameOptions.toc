@@ -7,38 +7,45 @@
 ## SavedVariables: AutoGame_Acc, AutoGame_Settings, AutoGame_UI
 ## SavedVariablesPerCharacter: AutoGame_Char, AutoGame_CharSettings
 
-fr0z3nUI_GameOptionsXP12.lua
-fr0z3nUI_GameOptionsXP11.lua
-fr0z3nUI_GameOptionsXP10.lua
-fr0z3nUI_GameOptionsXP09.lua
-fr0z3nUI_GameOptionsXP08ZZ.lua
-fr0z3nUI_GameOptionsXP08KT.lua
-fr0z3nUI_GameOptionsXP07.lua
-fr0z3nUI_GameOptionsXP06.lua
-fr0z3nUI_GameOptionsXP05.lua
-fr0z3nUI_GameOptionsXP04.lua
-fr0z3nUI_GameOptionsXP03.lua
-fr0z3nUI_GameOptionsXP02.lua
-fr0z3nUI_GameOptionsXP01EK.lua
-fr0z3nUI_GameOptionsXP01KD.lua
-fr0z3nUI_GameOptionsXPEV.lua
+fr0z3nUI_GameOptionsTalkXP12.lua
+fr0z3nUI_GameOptionsTalkXP11.lua
+fr0z3nUI_GameOptionsTalkXP10.lua
+fr0z3nUI_GameOptionsTalkXP09.lua
+fr0z3nUI_GameOptionsTalkXP08ZZ.lua
+fr0z3nUI_GameOptionsTalkXP08KT.lua
+fr0z3nUI_GameOptionsTalkXP07.lua
+fr0z3nUI_GameOptionsTalkXP06.lua
+fr0z3nUI_GameOptionsTalkXP05.lua
+fr0z3nUI_GameOptionsTalkXP04.lua
+fr0z3nUI_GameOptionsTalkXP03.lua
+fr0z3nUI_GameOptionsTalkXP02.lua
+fr0z3nUI_GameOptionsTalkXP01EK.lua
+fr0z3nUI_GameOptionsTalkXP01KD.lua
+fr0z3nUI_GameOptionsTalkXPEV.lua
 
-fr0z3nUI_GameOptionsTutorial.lua
-fr0z3nUI_GameOptionsTooltip.lua
-fr0z3nUI_GameOptionsTooltipX.lua
+fr0z3nUI_GameOptionsSwitches.lua
+
+fr0z3nUI_GameOptionsTale.lua
+fr0z3nUI_GameOptionsTaleUI.lua
+
+fr0z3nUI_GameOptionsTalk.lua
+fr0z3nUI_GameOptionsTalkUI.lua
+fr0z3nUI_GameOptionsSwitchesUI.lua
 
 fr0z3nUI_GameOptionsSituate.lua
 fr0z3nUI_GameOptionsSituateUI.lua
 
-fr0z3nUI_GameOptionsMacroCmd.lua
-fr0z3nUI_GameOptionsMacroCmdUI.lua
+fr0z3nUI_GameOptionsMacroXCMD.lua
+fr0z3nUI_GameOptionsMacroXCMDB.lua
+fr0z3nUI_GameOptionsMacroXCMDUI.lua
 
-fr0z3nUI_GameOptionsMacros.lua
-fr0z3nUI_GameOptionsMacrosUI.lua
+fr0z3nUI_GameOptionsMacroHearth.lua
 
-fr0z3nUI_GameOptionsHome.lua
-fr0z3nUI_GameOptionsHomeUI.lua
+fr0z3nUI_GameOptionsMacro.lua
+fr0z3nUI_GameOptionsMacroUI.lua
 
-fr0z3nUI_GameOptionsPopup.lua
+fr0z3nUI_GameOptionsMacroHome.lua
+
+fr0z3nUI_GameOptionsTalkXPOP.lua
 
 fr0z3nUI_GameOptions.lua
