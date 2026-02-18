@@ -45,6 +45,16 @@ SetZone("Hallowfall, Khaz Algar")
     local t = NPC(220293, "Aliya Hillhelm")
     t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this.", type = "" }
 
+    local t = NPC(220354, "Chef Dinaire")
+    t[121539] = { text = "(Delve) I love scavenger hunts AND treasure. I'm in!", type = "" }
+    t[121541] = { text = "(Delve) Go get the treasure while I handle whatever is about to attack us.", type = "" }
+
+    local t = NPC(220585, "Lamplighter Havrik Chayvn")
+    t[121408] = { text = "(Delve) I'll go deeper in and stop the nerubian ritual.", type = "" }
+
+    local t = NPC(248927, "Zah'ran")
+    t[135013] = { text = "Show me.", type = "" }
+
 SetZone("Azj-Kahet, Khaz Algar")
 
     local t = NPC(220462, "Weaver's Instructions")

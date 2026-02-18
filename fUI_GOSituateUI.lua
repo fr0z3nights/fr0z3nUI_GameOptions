@@ -298,6 +298,22 @@ local function SetStateTextYellowNoOff(btn, label, enabled)
     end
 end
 
+local function SetAlwaysText(btn, enabled)
+    if enabled then
+        btn:SetText("|cffffff00Always|r")
+    else
+        btn:SetText("|cff888888Always|r")
+    end
+end
+
+local function SetClearText(btn, enabled)
+    if enabled then
+        btn:SetText("|cffffff00Clear|r")
+    else
+        btn:SetText("|cff888888Clear|r")
+    end
+end
+
 local function HideFauxScrollBarAndEnableWheel(sf, rowHeight)
     if not sf then
         return
@@ -623,6 +639,17 @@ function ns.SituateUI_Build(panel)
         return true
     end
 
+    local function CanEditScope(scope)
+        if scope == "account" or scope == "class" then
+            return true
+        end
+        if scope == "loadout" then
+            return IsViewingActiveSpec() and (GetActiveLoadoutKey() ~= nil)
+        end
+        -- spec scope: allow editing the currently viewed spec
+        return true
+    end
+
     local function GetSharedAccountLayoutArrayReadOnly()
         InitSV()
         local s = GetSettings()
@@ -945,11 +972,15 @@ function ns.SituateUI_Build(panel)
 
     local btnApply = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnApply:SetSize(BTN_W, BTN_H)
-    btnApply:SetText("Apply")
+    btnApply:SetText("Apply All")
 
     local btnUseHover = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnUseHover:SetSize(BTN_W, BTN_H)
     btnUseHover:SetText("Hover Fill")
+
+    local btnUseCursor = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnUseCursor:SetSize(BTN_W, BTN_H)
+    btnUseCursor:SetText("Cursor Fill")
 
     local btnDetect = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnDetect:SetSize(BTN_W, BTN_H)
@@ -969,6 +1000,7 @@ function ns.SituateUI_Build(panel)
     btnOverwrite:SetPoint("RIGHT", btnDebug, "LEFT", -BTN_GAP, 0)
     btnDetect:SetPoint("RIGHT", btnOverwrite, "LEFT", -BTN_GAP, 0)
     btnUseHover:SetPoint("RIGHT", btnDetect, "LEFT", -BTN_GAP, 0)
+    btnUseCursor:SetPoint("RIGHT", btnUseHover, "LEFT", -BTN_GAP, 0)
 
     local hoverText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
     hoverText:SetPoint("BOTTOMLEFT", btnUseHover, "TOPLEFT", 0, 6)
@@ -1059,8 +1091,14 @@ function ns.SituateUI_Build(panel)
 
     local btnDel = CreateFrame("Button", nil, listArea, "UIPanelButtonTemplate")
     btnDel:SetSize(60, 20)
-    btnDel:SetPoint("RIGHT", btnAdd, "LEFT", -6, 0)
+    btnDel:ClearAllPoints()
+    btnDel:SetPoint("TOPRIGHT", listArea, "TOPRIGHT", -6, -4)
     btnDel:SetText("Del")
+
+    local btnAlways = CreateFrame("Button", nil, listArea, "UIPanelButtonTemplate")
+    btnAlways:SetSize(70, 20)
+    SetAlwaysText(btnAlways, false)
+    btnAlways:Hide()
 
     local empty = listArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
     empty:SetPoint("CENTER", listArea, "CENTER", 0, 0)
@@ -1087,9 +1125,15 @@ function ns.SituateUI_Build(panel)
         bg:Hide()
         row.bg = bg
 
+        local rightFs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        rightFs:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        rightFs:SetJustifyH("RIGHT")
+        rightFs:SetWordWrap(false)
+        row.rightText = rightFs
+
         local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         fs:SetPoint("LEFT", row, "LEFT", 0, 0)
-        fs:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        fs:SetPoint("RIGHT", rightFs, "LEFT", -6, 0)
         fs:SetJustifyH("LEFT")
         fs:SetWordWrap(false)
         row.text = fs
@@ -1132,6 +1176,8 @@ function ns.SituateUI_Build(panel)
     local selectedMacroScope = nil -- nil | "acc" | "char" (only meaningful when selectedKind=="macro")
     local selectedMacroIndex = nil -- macro index in the macro list (1..MAX_ACCOUNT+MAX_CHARACTER)
     local selectedMacroRemember = false
+    local pendingAlwaysOverwrite = false
+    local pendingClearElsewhere = false
 
     local RefreshButtons
 
@@ -1159,15 +1205,50 @@ function ns.SituateUI_Build(panel)
     btnPickSpell:SetPoint("LEFT", btnPickMacro, "RIGHT", 8, 0)
     btnPickSpell:SetText("Spell")
 
+    local dropBox = CreateFrame("Button", nil, editArea, "BackdropTemplate")
+    dropBox:SetSize(140, 20)
+    dropBox:SetPoint("LEFT", btnPickSpell, "RIGHT", 8, 0)
+    dropBox:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        tile = true,
+        tileSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    dropBox:SetBackdropColor(0, 0, 0, 0.25)
+    dropBox:EnableMouse(true)
+
+    local dropText = dropBox:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    dropText:SetPoint("CENTER", dropBox, "CENTER", 0, 0)
+    dropText:SetText("Drop here")
+
     local pickedText = editArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
     pickedText:SetPoint("TOPLEFT", btnPickMacro, "BOTTOMLEFT", 0, -8)
     pickedText:SetJustifyH("LEFT")
     pickedText:SetText("Selected: -")
 
-    -- Apply belongs with the selection controls (not up in the header).
+    -- Add belongs with the selection controls.
+    btnAdd:ClearAllPoints()
+    btnAdd:SetParent(editArea)
+    btnAdd:SetSize(BTN_W, BTN_H)
+    btnAdd:SetPoint("TOPLEFT", pickedText, "BOTTOMLEFT", 0, -10)
+
+    -- Always belongs with the selection controls (not the placements header).
+    btnAlways:ClearAllPoints()
+    btnAlways:SetParent(editArea)
+    btnAlways:SetSize(70, BTN_H)
+    btnAlways:SetPoint("LEFT", btnAdd, "RIGHT", 8, 0)
+    btnAlways:Show()
+
+    local btnClear = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
+    btnClear:SetSize(60, BTN_H)
+    btnClear:SetPoint("LEFT", btnAlways, "RIGHT", 8, 0)
+    SetClearText(btnClear, false)
+    btnClear:Show()
+
+    -- Apply belongs in the panel bottom-left corner.
     btnApply:ClearAllPoints()
-    btnApply:SetParent(editArea)
-    btnApply:SetPoint("TOPLEFT", pickedText, "BOTTOMLEFT", 0, -10)
+    btnApply:SetParent(panel)
+    btnApply:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 12, 12)
 
     local btnRemember = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
     do
@@ -1180,7 +1261,7 @@ function ns.SituateUI_Build(panel)
         end
         btnRemember:SetSize(w, h)
     end
-    btnRemember:SetPoint("LEFT", btnApply, "RIGHT", 8, 0)
+    btnRemember:SetPoint("LEFT", btnClear, "RIGHT", 8, 0)
     btnRemember:Hide()
 
     local function SetRememberButtonText(on)
@@ -1224,16 +1305,41 @@ function ns.SituateUI_Build(panel)
 
     local function UpdatePickedText()
         if selectedKind == "spell" then
-            local sid = GetSpellIDFromText(selectedValue)
+            local raw = Trim(selectedValue or "")
+            local sid = GetSpellIDFromText(raw)
             local name = nil
-            if sid and GetSpellInfo then
-                local ok, spellName = pcall(GetSpellInfo, sid)
-                if ok then
-                    name = spellName
+
+            if (not sid or sid <= 0) and raw ~= "" and GetSpellInfo then
+                -- If we stored a spell name string, resolve it.
+                local ok, resolvedName, _, _, _, _, resolvedId = pcall(GetSpellInfo, raw)
+                if ok and type(resolvedId) == "number" and resolvedId > 0 then
+                    sid = math.floor(resolvedId)
+                    if type(resolvedName) == "string" and resolvedName ~= "" then
+                        name = resolvedName
+                    end
                 end
             end
-            if sid then
-                pickedText:SetText(string.format("Selected: %s %s", tostring(sid), tostring(name or "")))
+
+            if sid and sid > 0 then
+                if (not name or name == "") and C_Spell and C_Spell.GetSpellInfo then
+                    local ok, info = pcall(C_Spell.GetSpellInfo, sid)
+                    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then
+                        name = info.name
+                    end
+                end
+
+                if (not name or name == "") and GetSpellInfo then
+                    local ok, resolvedName = pcall(GetSpellInfo, sid)
+                    if ok and type(resolvedName) == "string" and resolvedName ~= "" then
+                        name = resolvedName
+                    end
+                end
+
+                if name and name ~= "" then
+                    pickedText:SetText(string.format("Selected: %s (%s)", tostring(name), tostring(sid)))
+                else
+                    pickedText:SetText(string.format("Selected: %s", tostring(sid)))
+                end
             else
                 pickedText:SetText("Selected: -")
             end
@@ -1303,6 +1409,19 @@ function ns.SituateUI_Build(panel)
         selectedMacroScope = nil
         selectedMacroIndex = nil
         selectedMacroRemember = false
+        UpdatePickedText()
+        SetStatusForSelection()
+        UpdateRememberButton()
+    end
+
+    local function ClearSelectionFields()
+        selectedIndex = nil
+        selectedKind = "macro"
+        selectedValue = ""
+        selectedMacroScope = nil
+        selectedMacroIndex = nil
+        selectedMacroRemember = false
+        SetSelectedSlot(nil)
         UpdatePickedText()
         SetStatusForSelection()
         UpdateRememberButton()
@@ -1404,6 +1523,9 @@ function ns.SituateUI_Build(panel)
         entry.kind = selectedKind
         entry.value = tostring(selectedValue or "")
         entry.name = tostring(selectedValue or "")
+
+        entry.alwaysOverwrite = pendingAlwaysOverwrite and true or nil
+        entry.clearElsewhere = pendingClearElsewhere and true or nil
 
         if panel._ActionBarUI_RefreshList then
             panel:_ActionBarUI_RefreshList()
@@ -1576,13 +1698,105 @@ function ns.SituateUI_Build(panel)
     pickerEmpty:SetText("No items")
 
     local pickerScroll = CreateFrame("ScrollFrame", nil, pickerFrame, "FauxScrollFrameTemplate")
-    pickerScroll:SetPoint("TOPLEFT", pickerFrame, "TOPLEFT", 4, -26)
+    pickerScroll:SetPoint("TOPLEFT", pickerFrame, "TOPLEFT", 4, -48)
     pickerScroll:SetPoint("BOTTOMRIGHT", pickerFrame, "BOTTOMRIGHT", -4, 4)
 
     local PICK_ROW_H = 18
+    local PICK_ROW_Y = 50 -- rows start at y = -PICK_ROW_Y
     local pickerRows = {}
     local pickerItems = {}
     local pickerMode = nil -- "macro" | "spell"
+
+    local function GetPlayerClassColorHex()
+        local classFile = nil
+        if UnitClass then
+            local _, cls = UnitClass("player")
+            classFile = cls
+        end
+
+        local c = nil
+        if classFile and C_ClassColor and C_ClassColor.GetClassColor then
+            local ok, cc = pcall(C_ClassColor.GetClassColor, classFile)
+            if ok and cc then
+                c = cc
+            end
+        end
+        if (not c) and classFile and RAID_CLASS_COLORS then
+            c = RAID_CLASS_COLORS[classFile]
+        end
+
+        local function Hex2(n)
+            n = tonumber(n) or 0
+            if n <= 1 then
+                n = math.floor(n * 255 + 0.5)
+            end
+            if n < 0 then n = 0 end
+            if n > 255 then n = 255 end
+            return string.format("%02X", n)
+        end
+
+        local r, g, b = 1, 1, 1
+        if c then
+            r = c.r or r
+            g = c.g or g
+            b = c.b or b
+        end
+
+        return "FF" .. Hex2(r) .. Hex2(g) .. Hex2(b)
+    end
+
+    local PLAYER_CLASS_HEX = GetPlayerClassColorHex()
+
+    local spellFilter = "all" -- "all" | "general" | "class"
+
+    local spellFilterBtn = CreateFrame("Button", nil, pickerFrame, "UIPanelButtonTemplate")
+    spellFilterBtn:SetSize(86, 18)
+    spellFilterBtn:SetPoint("TOPLEFT", pickerTitle, "BOTTOMLEFT", 0, -4)
+    spellFilterBtn:Hide()
+
+    local ONE_BUTTON_ASSISTANT_SPELLID = 1229376
+    local assistantSpellID = nil
+    local assistantBtn = CreateFrame("Button", nil, pickerFrame, "UIPanelButtonTemplate")
+    assistantBtn:SetSize(86, 18)
+    assistantBtn:SetPoint("LEFT", spellFilterBtn, "RIGHT", 6, 0)
+    assistantBtn:SetText("Assistant")
+    assistantBtn:Hide()
+    assistantBtn:Disable()
+
+    assistantBtn:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(assistantBtn, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Assistant")
+        GameTooltip:AddLine("Quick-picks the 'One Button Assistant' spell if it is in your spellbook.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    assistantBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    local function SetSpellFilterButtonText()
+        if spellFilter == "general" then
+            spellFilterBtn:SetText("General")
+        elseif spellFilter == "class" then
+            spellFilterBtn:SetText("Class")
+        else
+            spellFilterBtn:SetText("All")
+        end
+    end
+    SetSpellFilterButtonText()
+
+    spellFilterBtn:SetScript("OnClick", function()
+        if spellFilter == "all" then
+            spellFilter = "general"
+        elseif spellFilter == "general" then
+            spellFilter = "class"
+        else
+            spellFilter = "all"
+        end
+        SetSpellFilterButtonText()
+        if pickerMode == "spell" then
+            pickerItems = BuildSpellItems()
+            RefreshPicker()
+        end
+    end)
 
     if pickerFrame.SetClipsChildren then
         pickerFrame:SetClipsChildren(true)
@@ -1598,8 +1812,13 @@ function ns.SituateUI_Build(panel)
         for i = #pickerRows + 1, n do
             local r = CreateFrame("Button", nil, pickerFrame)
             r:SetHeight(PICK_ROW_H)
-            r:SetPoint("TOPLEFT", pickerFrame, "TOPLEFT", 8, -28 - (i - 1) * PICK_ROW_H)
-            r:SetPoint("TOPRIGHT", pickerFrame, "TOPRIGHT", -8, -28 - (i - 1) * PICK_ROW_H)
+            r:SetPoint("TOPLEFT", pickerFrame, "TOPLEFT", 8, -PICK_ROW_Y - (i - 1) * PICK_ROW_H)
+            r:SetPoint("TOPRIGHT", pickerFrame, "TOPRIGHT", -8, -PICK_ROW_Y - (i - 1) * PICK_ROW_H)
+
+            local bg = r:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints(r)
+            bg:Hide()
+            r._zebraBg = bg
 
             local fs = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             fs:SetPoint("LEFT", r, "LEFT", 0, 0)
@@ -1617,8 +1836,8 @@ function ns.SituateUI_Build(panel)
         local h = (pickerFrame.GetHeight and pickerFrame:GetHeight()) or 0
         h = tonumber(h) or 0
 
-        -- Rows begin at y=-28; keep a small bottom pad.
-        local usable = h - 34
+        -- Rows begin at y=-PICK_ROW_Y; keep a small bottom pad.
+        local usable = h - (PICK_ROW_Y + 6)
         local n = math.floor((usable > 0 and usable or 0) / PICK_ROW_H)
         if n < 8 then
             n = 8
@@ -1638,23 +1857,47 @@ function ns.SituateUI_Build(panel)
             local ok2, name = pcall(GetMacroInfo, i)
             if ok2 and type(name) == "string" and name ~= "" then
                 local scopeTag = (i > maxAcc) and "C" or "A"
+                local isChar = (i > maxAcc) and true or false
+                local displayName = name
+                if isChar then
+                    displayName = "|c" .. tostring(PLAYER_CLASS_HEX) .. tostring(name) .. "|r"
+                end
                 out[#out + 1] = {
-                    label = string.format("[%s] %s", scopeTag, name),
+                    label = string.format("[%s] %s", scopeTag, displayName),
                     macroName = name,
                     macroIndex = i,
-                    isCharacter = (i > maxAcc) and true or false,
+                    isCharacter = isChar,
+                    sortName = tostring(name),
                 }
             end
         end
-        table.sort(out, function(a, b) return tostring(a.label) < tostring(b.label) end)
+
+        table.sort(out, function(a, b)
+            local an = tostring(a.sortName or ""):lower()
+            local bn = tostring(b.sortName or ""):lower()
+            if an ~= bn then
+                return an < bn
+            end
+            if (a.isCharacter and true or false) ~= (b.isCharacter and true or false) then
+                return (a.isCharacter and true or false)
+            end
+            return (tonumber(a.macroIndex) or 0) < (tonumber(b.macroIndex) or 0)
+        end)
         return out
     end
 
     local function BuildSpellItems()
         local out = {}
         local seen = {}
+        assistantSpellID = nil
 
-        local function AddSpellID(sid)
+        local function IsGeneralCategory(cat)
+            cat = tostring(cat or "")
+            cat = cat:lower()
+            return cat == "general" or cat:find("general", 1, true) ~= nil
+        end
+
+        local function AddSpellID(sid, category, flyoutName)
             sid = tonumber(sid)
             if not sid or sid <= 0 or seen[sid] then
                 return
@@ -1675,37 +1918,144 @@ function ns.SituateUI_Build(panel)
                 end
             end
 
-            out[#out + 1] = { label = string.format("%s %s", tostring(sid), tostring(name or "")), spellID = sid }
+            local baseName = tostring(name or "")
+            if baseName == "" then
+                baseName = tostring(sid)
+            end
+
+            if sid == ONE_BUTTON_ASSISTANT_SPELLID then
+                assistantSpellID = sid
+            end
+
+            local cat = IsGeneralCategory(category) and "general" or "class"
+            if spellFilter ~= "all" and spellFilter ~= cat then
+                return
+            end
+
+            local coloredName = baseName
+            if cat == "class" then
+                coloredName = "|c" .. tostring(PLAYER_CLASS_HEX) .. tostring(baseName) .. "|r"
+            end
+
+            local fly = Trim(flyoutName or "")
+            local labelName = coloredName
+            if fly ~= "" then
+                labelName = tostring(fly) .. ": " .. tostring(coloredName)
+            end
+
+            out[#out + 1] = {
+                label = string.format("%s (%s)", tostring(labelName), tostring(sid)),
+                spellID = sid,
+                sortName = baseName,
+                flyoutName = fly ~= "" and fly or nil,
+                category = cat,
+            }
+        end
+
+        local function AddFlyoutSpells(flyoutID, category)
+            flyoutID = tonumber(flyoutID)
+            if not flyoutID or flyoutID <= 0 then
+                return
+            end
+
+            if type(GetFlyoutInfo) ~= "function" or type(GetFlyoutSlotInfo) ~= "function" then
+                return
+            end
+
+            local ok, flyoutName, _, numSlots = pcall(GetFlyoutInfo, flyoutID)
+            if not ok then
+                return
+            end
+            numSlots = tonumber(numSlots) or 0
+            if numSlots <= 0 then
+                return
+            end
+
+            for slot = 1, numSlots do
+                local ok2, spellID = pcall(GetFlyoutSlotInfo, flyoutID, slot)
+                if ok2 and spellID then
+                    AddSpellID(spellID, category, flyoutName)
+                end
+            end
         end
 
         local BOOKTYPE_SPELL = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or "spell"
 
+        local function CallMaybeArg(fn, arg)
+            if type(fn) ~= "function" then
+                return nil
+            end
+            local ok, r = pcall(fn, arg)
+            if ok then
+                return r
+            end
+            ok, r = pcall(fn)
+            if ok then
+                return r
+            end
+            return nil
+        end
+
+        local function CallMaybeTwo(fn, a1, a2)
+            if type(fn) ~= "function" then
+                return nil
+            end
+            local ok, r = pcall(fn, a1, a2)
+            if ok then
+                return r
+            end
+            ok, r = pcall(fn, a1)
+            if ok then
+                return r
+            end
+            ok, r = pcall(fn)
+            if ok then
+                return r
+            end
+            return nil
+        end
+
         -- Modern Retail API (C_SpellBook)
         if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo and C_SpellBook.GetSpellBookItemInfo then
-            local tabs = C_SpellBook.GetNumSpellBookSkillLines() or 0
+            local tabs = CallMaybeArg(C_SpellBook.GetNumSpellBookSkillLines, BOOKTYPE_SPELL)
+            if not tabs then
+                tabs = CallMaybeArg(C_SpellBook.GetNumSpellBookSkillLines)
+            end
+            tabs = tabs or 0
             for t = 1, tabs do
-                local ok, info = pcall(C_SpellBook.GetSpellBookSkillLineInfo, t)
-                if ok and type(info) == "table" then
+                local info = CallMaybeArg(C_SpellBook.GetSpellBookSkillLineInfo, t)
+                if not info then
+                    info = CallMaybeTwo(C_SpellBook.GetSpellBookSkillLineInfo, t, BOOKTYPE_SPELL)
+                end
+                if type(info) == "table" then
+                    local skillName = rawget(info, "name") or rawget(info, "skillLineName")
+                    local category = skillName
                     local offset = tonumber(info.itemIndexOffset) or 0
                     local num = tonumber(info.numSpellBookItems) or 0
                     for i = offset + 1, offset + num do
-                        local ok2, item = pcall(C_SpellBook.GetSpellBookItemInfo, i, BOOKTYPE_SPELL)
-                        if ok2 and type(item) == "table" then
+                        local item = CallMaybeTwo(C_SpellBook.GetSpellBookItemInfo, i, BOOKTYPE_SPELL)
+                        if type(item) == "table" then
                             local itemType = rawget(item, "itemType")
                             local sid = rawget(item, "spellID") or rawget(item, "spellId") or rawget(item, "actionID") or rawget(item, "actionId")
+                            local flyoutID = rawget(item, "flyoutID") or rawget(item, "flyoutId")
 
                             local enumType = Enum and Enum.SpellBookItemType or nil
                             local isSpell = false
+                            local isFlyout = false
                             if enumType and itemType then
                                 isSpell = (itemType == enumType.Spell) or (itemType == enumType.FutureSpell)
+                                isFlyout = (itemType == enumType.Flyout)
                             else
                                 -- Fallback for older shims/mappings:
                                 -- PA maps SPELL=1, FUTURESPELL=2, PETACTION=3, FLYOUT=4
                                 isSpell = (itemType == 1) or (itemType == 2) or (itemType == "SPELL") or (itemType == "FUTURESPELL")
+                                isFlyout = (itemType == 4) or (itemType == "FLYOUT")
                             end
 
                             if sid and isSpell then
-                                AddSpellID(sid)
+                                AddSpellID(sid, category)
+                            elseif isFlyout then
+                                AddFlyoutSpells(flyoutID or sid, category)
                             end
                         end
                     end
@@ -1715,19 +2065,34 @@ function ns.SituateUI_Build(panel)
             -- Legacy API
             local tabs = GetNumSpellTabs() or 0
             for t = 1, tabs do
-                local _, _, offset, numSpells = GetSpellTabInfo(t)
+                local tabName, _, offset, numSpells = GetSpellTabInfo(t)
                 offset = tonumber(offset) or 0
                 numSpells = tonumber(numSpells) or 0
                 for i = offset + 1, offset + numSpells do
                     local itemType, actionID, spellID = GetSpellBookItemInfo(i, "spell")
                     if itemType == "SPELL" then
-                        AddSpellID(spellID or actionID)
+                        AddSpellID(spellID or actionID, tabName)
+                    elseif itemType == "FLYOUT" then
+                        AddFlyoutSpells(actionID, tabName)
                     end
                 end
             end
         end
 
-        table.sort(out, function(a, b) return tostring(a.label) < tostring(b.label) end)
+        table.sort(out, function(a, b)
+            local ag = tostring(a.flyoutName or ""):lower()
+            local bg = tostring(b.flyoutName or ""):lower()
+            if ag ~= bg then
+                return ag < bg
+            end
+
+            local an = tostring(a.sortName or ""):lower()
+            local bn = tostring(b.sortName or ""):lower()
+            if an ~= bn then
+                return an < bn
+            end
+            return (tonumber(a.spellID) or 0) < (tonumber(b.spellID) or 0)
+        end)
         return out
     end
 
@@ -1751,6 +2116,14 @@ function ns.SituateUI_Build(panel)
                 r:Hide()
             else
                 r:Show()
+                if r._zebraBg then
+                    r._zebraBg:Show()
+                    if idx % 2 == 0 then
+                        r._zebraBg:SetColorTexture(1, 1, 1, 0.03)
+                    else
+                        r._zebraBg:SetColorTexture(0, 0, 0, 0.03)
+                    end
+                end
                 r.text:SetText(it.label)
                 r:SetScript("OnClick", function()
                     if pickerMode == "spell" and it.spellID then
@@ -1759,7 +2132,9 @@ function ns.SituateUI_Build(panel)
                         SetSelectedMacro(it.macroName, (it.isCharacter and "char") or "acc", it.macroIndex)
                     end
                     pickerFrame:Hide()
-                    WriteSelectionToTarget()
+                    if RefreshButtons then
+                        RefreshButtons()
+                    end
                 end)
             end
         end
@@ -1787,14 +2162,54 @@ function ns.SituateUI_Build(panel)
         PositionPicker()
         if mode == "spell" then
             pickerTitle:SetText("Pick Spell")
+            spellFilterBtn:Show()
+            assistantBtn:Show()
             pickerItems = BuildSpellItems()
+
+            local known = false
+            if type(IsSpellKnown) == "function" then
+                local ok, k = pcall(IsSpellKnown, ONE_BUTTON_ASSISTANT_SPELLID)
+                known = ok and k and true or false
+            end
+            if known or (assistantSpellID and assistantSpellID > 0) then
+                assistantBtn:Enable()
+            else
+                assistantBtn:Disable()
+            end
         else
             pickerTitle:SetText("Pick Macro")
+            spellFilterBtn:Hide()
+            assistantBtn:Hide()
             pickerItems = BuildMacroItems()
         end
         pickerFrame:Show()
         RefreshPicker()
     end
+
+    assistantBtn:SetScript("OnClick", function()
+        if pickerMode ~= "spell" then
+            return
+        end
+
+        local sid = ONE_BUTTON_ASSISTANT_SPELLID
+
+        local okKnown = true
+        local known = true
+        if type(IsSpellKnown) == "function" then
+            okKnown, known = pcall(IsSpellKnown, sid)
+            known = okKnown and known and true or false
+        end
+
+        if not known then
+            -- Still allow selection; the UI will show missing/unknown if it's truly unavailable.
+        end
+
+        SetSelectedSpell(sid)
+        pickerFrame:Hide()
+        if RefreshButtons then
+            RefreshButtons()
+        end
+    end)
 
     pickerFrame:SetScript("OnSizeChanged", function()
         if pickerFrame and pickerFrame.IsShown and pickerFrame:IsShown() then
@@ -1820,18 +2235,27 @@ function ns.SituateUI_Build(panel)
             else
                 SetSelectedMacro(v)
             end
+
+            pendingAlwaysOverwrite = (row.entry.alwaysOverwrite and true or false)
+            pendingClearElsewhere = (row.entry.clearElsewhere and true or false)
         elseif row and row.slot then
             SetSelectedSlot(row.slot)
             selectedValue = ""
             selectedKind = "macro"
             UpdatePickedText()
             SetStatusForSelection()
+
+            pendingAlwaysOverwrite = false
+            pendingClearElsewhere = false
         else
             SetSelectedSlot(nil)
             selectedValue = ""
             selectedKind = "macro"
             UpdatePickedText()
             SetStatusForSelection()
+
+            pendingAlwaysOverwrite = false
+            pendingClearElsewhere = false
         end
         isLoadingFields = false
     end
@@ -1853,11 +2277,33 @@ function ns.SituateUI_Build(panel)
         local row = GetSelectedRow()
         local canDelete = (row and row.entry) and true or false
         local hasSlot = NormalizeSlot(selectedSlot) ~= nil
+        local alwaysOn = false
+        local canAlways = false
+        local clearOn = false
+        local canClear = false
+        if row and row.entry then
+            alwaysOn = (row.entry.alwaysOverwrite and true or false)
+            canAlways = (row.sourceScope ~= nil) and CanEditScope(row.sourceScope)
+
+            clearOn = (row.entry.clearElsewhere and true or false)
+            canClear = (row.sourceScope ~= nil) and CanEditScope(row.sourceScope)
+        elseif hasSlot and canEdit then
+            alwaysOn = pendingAlwaysOverwrite
+            canAlways = true
+
+            clearOn = pendingClearElsewhere
+            canClear = true
+        end
 
         btnAdd:SetEnabled(canEdit)
         btnDel:SetEnabled(canEdit and canDelete)
+        btnAlways:SetEnabled(canAlways)
+        SetAlwaysText(btnAlways, alwaysOn)
+        btnClear:SetEnabled(canClear)
+        SetClearText(btnClear, clearOn)
         btnApply:SetEnabled(true)
         btnUseHover:SetEnabled(canEdit)
+        btnUseCursor:SetEnabled(canEdit)
         if btnSlot.SetEnabled then btnSlot:SetEnabled(canEdit) end
         btnPickMacro:SetEnabled(canEdit and hasSlot)
         btnPickSpell:SetEnabled(canEdit and hasSlot)
@@ -1944,6 +2390,38 @@ function ns.SituateUI_Build(panel)
     end)
     btnUseHover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
+    btnUseCursor:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnUseCursor, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Cursor Fill")
+        GameTooltip:AddLine("Use Blizzard's Macro or Spellbook UI:", 1, 1, 1, true)
+        GameTooltip:AddLine("1) Drag a macro/spell onto your cursor", 1, 1, 1, true)
+        GameTooltip:AddLine("2) Click Cursor Fill to set Type + Value", 1, 1, 1, true)
+        GameTooltip:AddLine("Then press Add to write it to the list.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnUseCursor:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnAdd:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnAdd, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Add")
+        GameTooltip:AddLine("Saves the selected Slot + Type + Value into the placements list.", 1, 1, 1, true)
+        GameTooltip:AddLine("Does not apply anything to your action bars.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnAdd:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnApply:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnApply, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Apply All")
+        GameTooltip:AddLine("Applies ALL placements now (merged from Account/Class/Spec/Loadout).", 1, 1, 1, true)
+        GameTooltip:AddLine("Does not change the saved list.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnApply:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
     btnDetect:SetScript("OnClick", function()
         detectorOn = not detectorOn
         if detectorOn then
@@ -1991,7 +2469,98 @@ function ns.SituateUI_Build(panel)
             SetSelectedSpell(hoverId)
         end
 
-        WriteSelectionToTarget()
+        status:SetText("Press Add to write")
+    end)
+
+    btnUseCursor:SetScript("OnClick", function()
+        if not CanEditTarget() then
+            status:SetText("Target not editable")
+            return
+        end
+        if not GetCursorInfo then
+            status:SetText("Cursor API missing")
+            return
+        end
+
+        local function FillFromCursor()
+            local cType, cId = GetCursorInfo()
+            if not cType then
+                status:SetText("Drag a macro/spell onto cursor")
+                return false
+            end
+
+            if cType == "macro" and cId and GetMacroInfo then
+                local ok, name = pcall(GetMacroInfo, cId)
+                if ok and type(name) == "string" and name ~= "" then
+                    SetSelectedMacro(name)
+                else
+                    status:SetText("Macro missing")
+                    return false
+                end
+            elseif cType == "spell" and cId then
+                SetSelectedSpell(cId)
+            elseif cType == "mount" and cId and C_MountJournal and C_MountJournal.GetMountInfoByID then
+                local ok, _, spellID = pcall(C_MountJournal.GetMountInfoByID, cId)
+                if ok and spellID then
+                    SetSelectedSpell(spellID)
+                else
+                    status:SetText("Mount spell missing")
+                    return false
+                end
+            else
+                status:SetText("Unsupported cursor: " .. tostring(cType))
+                return false
+            end
+
+            status:SetText("Press Add to write")
+            return true
+        end
+
+        local ok = FillFromCursor()
+        if ClearCursor then
+            ClearCursor()
+        end
+        return ok
+    end)
+
+    dropBox:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(dropBox, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Drop here")
+        GameTooltip:AddLine("Drag a macro/spell/mount here from Blizzard UI.", 1, 1, 1, true)
+        GameTooltip:AddLine("This only selects; press Add to write.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    dropBox:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    dropBox:SetScript("OnReceiveDrag", function()
+        if not CanEditTarget() then
+            status:SetText("Target not editable")
+            if ClearCursor then ClearCursor() end
+            return
+        end
+        if not (GetCursorInfo and ClearCursor) then
+            status:SetText("Cursor API missing")
+            return
+        end
+        -- Reuse the same cursor parsing logic as Cursor Fill by simulating a click.
+        if btnUseCursor and btnUseCursor.Click then
+            btnUseCursor:Click()
+        else
+            -- fallback: just clear cursor
+            ClearCursor()
+        end
+    end)
+
+    dropBox:SetScript("OnMouseUp", function()
+        if not CanEditTarget() then
+            status:SetText("Target not editable")
+            if ClearCursor then ClearCursor() end
+            return
+        end
+        if btnUseCursor and btnUseCursor.Click then
+            btnUseCursor:Click()
+        end
     end)
 
 
@@ -2115,6 +2684,53 @@ function ns.SituateUI_Build(panel)
             offset = FauxScrollFrame_GetOffset(scroll)
         end
 
+        local function GetSpellNameByID(spellID)
+            spellID = tonumber(spellID)
+            if not spellID or spellID <= 0 then
+                return nil
+            end
+            if C_Spell and C_Spell.GetSpellInfo then
+                local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
+                if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then
+                    return info.name
+                end
+            end
+            if GetSpellInfo then
+                local ok, name = pcall(GetSpellInfo, spellID)
+                if ok and type(name) == "string" and name ~= "" then
+                    return name
+                end
+            end
+            return nil
+        end
+
+        local function FormatEntryValue(entry)
+            if not entry then
+                return ""
+            end
+            local kind = GetEntryKind(entry)
+            local raw = ""
+            if kind == "spell" then
+                raw = Trim(entry.value or entry.spell or entry.spellID or entry.spellId or entry.name or "")
+                local sid = tonumber(rawget(entry, "spellID") or rawget(entry, "spellId")) or GetSpellIDFromText(raw)
+                if sid then
+                    local name = Trim(GetSpellNameByID(sid) or "")
+                    if name == "" then
+                        -- Fall back to any non-numeric text we have.
+                        if raw ~= "" and not tonumber(raw) then
+                            name = raw
+                        else
+                            name = tostring(sid)
+                        end
+                    end
+                    return string.format("%s (%d)", name, sid)
+                end
+                return raw
+            end
+            raw = Trim(entry.value or entry.name or "")
+            return raw
+        end
+
         for i = 1, ROWS do
             local idx = offset + i
             local row = rows[i]
@@ -2144,6 +2760,7 @@ function ns.SituateUI_Build(panel)
                     local open = barExpanded[r.bar] and true or false
                     row.text:SetText(string.format("%s %s", open and "[-]" or "[+]", label))
                     row.text:SetTextColor(0.75, 0.85, 1, 1)
+                    row.rightText:SetText("")
                     row:RegisterForClicks("LeftButtonUp")
                     row:SetScript("OnClick", function()
                         barExpanded[r.bar] = not (barExpanded[r.bar] and true or false)
@@ -2161,10 +2778,11 @@ function ns.SituateUI_Build(panel)
                         end
                     end
                     local kind = entry and GetEntryKind(entry) or "macro"
-                    local value = entry and Trim(entry.value or entry.name or "") or ""
+                    local value = FormatEntryValue(entry)
                     if value == "" then value = "(empty)" end
-                    local tag = (kind == "spell") and "[S]" or "[M]"
-                    row.text:SetText(string.format("      %s: %s %s [%s]", slotTxt, tag, value, ScopeTag(r.sourceScope)))
+                    local kindTag = (kind == "spell") and "S" or "M"
+                    row.text:SetText(string.format("      %s:  %s", slotTxt, value))
+                    row.rightText:SetText(string.format("[%s][%s]", ScopeTag(r.sourceScope), kindTag))
                     row.text:SetTextColor(0.75, 0.75, 0.75, 1)
                     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
                     row:SetScript("OnClick", function(_, btn)
@@ -2182,13 +2800,10 @@ function ns.SituateUI_Build(panel)
                     local entry = r.bestEntry
                     local slotTxt = string.format("%03d", tonumber(r.slot) or 0)
                     local kind = entry and GetEntryKind(entry) or "macro"
-                    local value = entry and Trim(entry.value or entry.name or "") or ""
-                    if not entry then
-                        value = "edit here"
-                    elseif value == "" then
+                    local value = FormatEntryValue(entry)
+                    if entry and value == "" then
                         value = "(empty)"
                     end
-                    local tag = (kind == "spell") and "[S]" or "[M]"
                     local srcTag = entry and ScopeTag(r.sourceScope) or "-"
 
                     local extra = ""
@@ -2201,7 +2816,14 @@ function ns.SituateUI_Build(panel)
                         end
                     end
 
-                    row.text:SetText(string.format("  %s: %s %s [%s]%s", slotTxt, tag, value, srcTag, extra))
+                    -- Indent so the ':' aligns with the end of "Bar 01".
+                    row.text:SetText(string.format("      %s:  %s%s", slotTxt, value, extra))
+                    if entry then
+                        local kindTag = (kind == "spell") and "S" or "M"
+                        row.rightText:SetText(string.format("[%s][%s]", srcTag, kindTag))
+                    else
+                        row.rightText:SetText("")
+                    end
                     if not entry then
                         row.text:SetTextColor(0.67, 0.67, 0.67, 1)
                     else
@@ -2240,21 +2862,70 @@ function ns.SituateUI_Build(panel)
             status:SetText("Target not editable")
             return
         end
-        local slot = NormalizeSlot(selectedSlot)
-        if not slot then
+        WriteSelectionToTarget()
+        status:SetText("Added")
+        ClearSelectionFields()
+        RefreshButtons()
+        RefreshList()
+    end)
+
+    btnAlways:SetScript("OnClick", function()
+        local row = GetSelectedRow()
+        if row and row.entry and row.sourceScope then
+            if not CanEditScope(row.sourceScope) then
+                status:SetText("Scope not editable")
+                return
+            end
+            row.entry.alwaysOverwrite = not (row.entry.alwaysOverwrite and true or false)
+            pendingAlwaysOverwrite = (row.entry.alwaysOverwrite and true or false)
+            RefreshButtons()
+            RefreshList()
+            status:SetText(row.entry.alwaysOverwrite and "Always overwrite: ON" or "Always overwrite: OFF")
+            return
+        end
+
+        if not CanEditTarget() then
+            status:SetText("Target not editable")
+            return
+        end
+        if not NormalizeSlot(selectedSlot) then
             status:SetText("Pick a slot")
             return
         end
-        local entry = GetOrCreateTargetEntryForSlot(slot)
-        if not entry then
-            status:SetText("Cannot add to target")
+
+        pendingAlwaysOverwrite = not pendingAlwaysOverwrite
+        RefreshButtons()
+        status:SetText(pendingAlwaysOverwrite and "Always overwrite (pending): ON" or "Always overwrite (pending): OFF")
+    end)
+
+    btnClear:SetScript("OnClick", function()
+        local row = GetSelectedRow()
+        if row and row.entry and row.sourceScope then
+            if not CanEditScope(row.sourceScope) then
+                status:SetText("Scope not editable")
+                return
+            end
+
+            row.entry.clearElsewhere = not (row.entry.clearElsewhere and true or false)
+            pendingClearElsewhere = (row.entry.clearElsewhere and true or false)
+            RefreshButtons()
+            RefreshList()
+            status:SetText(row.entry.clearElsewhere and "Clear elsewhere: ON" or "Clear elsewhere: OFF")
             return
         end
-        entry.slot = slot
+
+        if not CanEditTarget() then
+            status:SetText("Target not editable")
+            return
+        end
+        if not NormalizeSlot(selectedSlot) then
+            status:SetText("Pick a slot")
+            return
+        end
+
+        pendingClearElsewhere = not pendingClearElsewhere
         RefreshButtons()
-        RefreshList()
-        selectedIndex = FindIndexByEntryRef(entry)
-        LoadFields()
+        status:SetText(pendingClearElsewhere and "Clear elsewhere (pending): ON" or "Clear elsewhere (pending): OFF")
     end)
 
     btnDel:SetScript("OnClick", function()
@@ -2292,7 +2963,10 @@ function ns.SituateUI_Build(panel)
         LoadFields()
     end)
 
+    local UpdateScopeButton
+
     local function UpdateAll()
+        UpdateScopeButton()
         UpdateSpecHint()
         SetDetectorButtonText()
         RefreshButtons()
@@ -2300,7 +2974,7 @@ function ns.SituateUI_Build(panel)
         LoadFields()
     end
 
-    local function UpdateScopeButton()
+    UpdateScopeButton = function()
         if targetScope == "account" then
             btnScope:SetText("Account")
         elseif targetScope == "loadout" then

@@ -12,6 +12,30 @@ local pendingReason = nil
 local pendingAfterCombat = false
 local didEnsureRememberedMacros = false
 
+local function InitSV()
+    if ns and type(ns._InitSV) == "function" then
+        ns._InitSV()
+    end
+end
+
+local function GetSettings()
+    InitSV()
+    local s = rawget(_G, "AutoGame_Settings") or rawget(_G, "AutoGossip_Settings")
+    if type(s) ~= "table" then
+        return nil
+    end
+    return s
+end
+
+local function GetCharSettings()
+    InitSV()
+    local s = rawget(_G, "AutoGame_CharSettings") or rawget(_G, "AutoGossip_CharSettings")
+    if type(s) ~= "table" then
+        return nil
+    end
+    return s
+end
+
 local function GetActiveSpecID()
     if not (GetSpecialization and GetSpecializationInfo) then
         return nil
@@ -84,6 +108,22 @@ local function GetActiveLayout()
     local s = GetSettings()
     if type(s) ~= "table" then
         return nil
+    end
+
+    local function ScopeRank(scope)
+        if scope == "account" then
+            return 1
+        end
+        if scope == "class" then
+            return 2
+        end
+        if scope == "spec" then
+            return 3
+        end
+        if scope == "loadout" then
+            return 4
+        end
+        return 0
     end
 
     local function NormalizeSlot180(slot)
@@ -174,7 +214,7 @@ local function GetActiveLayout()
             for _, e in ipairs(sharedAccount) do
                 local slot = NormalizeSlot180(e and e.slot)
                 if not slot or (not classSlots[slot] and not specSlots[slot] and not loadoutSlots[slot]) then
-                    out[#out + 1] = e
+                    out[#out + 1] = { entry = e, scope = "account" }
                 end
             end
         end
@@ -183,7 +223,7 @@ local function GetActiveLayout()
             for _, e in ipairs(sharedClass) do
                 local slot = NormalizeSlot180(e and e.slot)
                 if not slot or (not specSlots[slot] and not loadoutSlots[slot]) then
-                    out[#out + 1] = e
+                    out[#out + 1] = { entry = e, scope = "class" }
                 end
             end
         end
@@ -192,14 +232,14 @@ local function GetActiveLayout()
             for _, e in ipairs(spec) do
                 local slot = NormalizeSlot180(e and e.slot)
                 if not slot or not loadoutSlots[slot] then
-                    out[#out + 1] = e
+                    out[#out + 1] = { entry = e, scope = "spec" }
                 end
             end
         end
 
         if type(loadout) == "table" then
             for _, e in ipairs(loadout) do
-                out[#out + 1] = e
+                out[#out + 1] = { entry = e, scope = "loadout" }
             end
         end
 
@@ -214,31 +254,42 @@ local function GetActiveLayout()
     local loadoutKey = (specID and classTag) and GetActiveLoadoutKey(classTag, specID) or nil
     local sharedLoadout = GetSharedLayoutForLoadout(loadoutKey)
 
+    local highestScopeRankBySlot = {}
+
+    local function ConsiderHighest(list, scope)
+        if type(list) ~= "table" then
+            return
+        end
+        local r = ScopeRank(scope)
+        for _, e in ipairs(list) do
+            local slot = NormalizeSlot180(e and e.slot)
+            if slot then
+                local prev = highestScopeRankBySlot[slot] or 0
+                if r > prev then
+                    highestScopeRankBySlot[slot] = r
+                end
+            end
+        end
+    end
+
+    ConsiderHighest(sharedAccount, "account")
+    ConsiderHighest(sharedClass, "class")
     if type(bySpec) == "table" and specID and type(bySpec[specID]) == "table" then
-        return Combine4(sharedAccount, sharedClass, bySpec[specID], sharedLoadout), specID
+        ConsiderHighest(bySpec[specID], "spec")
+    end
+    ConsiderHighest(sharedLoadout, "loadout")
+
+    if type(bySpec) == "table" and specID and type(bySpec[specID]) == "table" then
+        return Combine4(sharedAccount, sharedClass, bySpec[specID], sharedLoadout), specID, highestScopeRankBySlot
     end
 
     local legacy = rawget(s, "actionBarLayoutAcc")
     if type(legacy) == "table" then
-        return Combine4(sharedAccount, sharedClass, legacy, sharedLoadout), nil
+        ConsiderHighest(legacy, "spec")
+        return Combine4(sharedAccount, sharedClass, legacy, sharedLoadout), nil, highestScopeRankBySlot
     end
 
     return nil
-end
-
-local function InitSV()
-    if ns and type(ns._InitSV) == "function" then
-        ns._InitSV()
-    end
-end
-
-local function GetSettings()
-    InitSV()
-    local s = rawget(_G, "AutoGame_Settings") or rawget(_G, "AutoGossip_Settings")
-    if type(s) ~= "table" then
-        return nil
-    end
-    return s
 end
 
 local function GetBoolSetting(key, defaultValue)
@@ -271,6 +322,8 @@ local function DebugPrint(msg)
     end
     print("|cff00ccff[FGO]|r Situate: " .. tostring(msg))
 end
+
+local allowOverwriteThisApply = false
 
 local function SyncGlobals()
     local s = GetSettings()
@@ -453,6 +506,8 @@ local function ApplyMacroBodyToIndex(index, name, icon, body)
     return ok and true or false
 end
 
+local TryCreateRememberedCharacterMacro
+
 local function ResolveMacroConflict(conflict, keepWhich)
     if type(conflict) ~= "table" then
         return
@@ -576,7 +631,7 @@ local function QueueMacroConflict(name, savedIcon, savedBody, currentIcon, curre
     end
 end
 
-local function TryCreateRememberedCharacterMacro(name)
+TryCreateRememberedCharacterMacro = function(name)
     if type(name) ~= "string" or name == "" then
         return false, "bad-name"
     end
@@ -726,7 +781,7 @@ local function NormalizeSlot(slot)
     return slot
 end
 
-local function CanPlaceIntoSlot(slot, desiredKind, desiredId)
+local function CanPlaceIntoSlot(slot, desiredKind, desiredId, entryAlwaysOverwrite, entryScopeRank, highestScopeRankForSlot)
     if not (GetActionInfo and type(slot) == "number") then
         return false, "no-api"
     end
@@ -744,11 +799,96 @@ local function CanPlaceIntoSlot(slot, desiredKind, desiredId)
         return true, "already"
     end
 
-    if GetBoolSetting("actionBarOverwriteAcc", false) then
+    if allowOverwriteThisApply or GetBoolSetting("actionBarOverwriteAcc", false) then
         return true, "overwrite"
     end
 
+    if entryAlwaysOverwrite then
+        local highest = tonumber(highestScopeRankForSlot) or 0
+        local mine = tonumber(entryScopeRank) or 0
+        if highest > mine then
+            return false, "protected"
+        end
+        return true, "always"
+    end
+
     return false, "occupied"
+end
+
+local function GetSpecKeyForSV(specID)
+    specID = tonumber(specID)
+    if not specID then
+        return "0"
+    end
+    specID = math.floor(specID)
+    if specID < 0 then
+        specID = 0
+    end
+    return tostring(specID)
+end
+
+local function ShouldUseOneTimeOverwrite(specID)
+    if GetBoolSetting("actionBarOverwriteAcc", false) then
+        return false
+    end
+
+    local cs = GetCharSettings()
+    if not cs then
+        return false
+    end
+
+    if type(cs.actionBarDidInitialApplyBySpec) ~= "table" then
+        cs.actionBarDidInitialApplyBySpec = {}
+    end
+
+    local k = GetSpecKeyForSV(specID)
+    return not (cs.actionBarDidInitialApplyBySpec[k] and true or false)
+end
+
+local function MarkInitialApplyDone(specID)
+    local cs = GetCharSettings()
+    if not cs then
+        return
+    end
+    if type(cs.actionBarDidInitialApplyBySpec) ~= "table" then
+        cs.actionBarDidInitialApplyBySpec = {}
+    end
+    local k = GetSpecKeyForSV(specID)
+    cs.actionBarDidInitialApplyBySpec[k] = true
+end
+
+local function GetForceOverwriteFlag(specID)
+    local cs = GetCharSettings()
+    if not cs then
+        return false
+    end
+
+    if cs.actionBarForceOverwriteNextApply then
+        return true
+    end
+
+    local t = rawget(cs, "actionBarForceOverwriteNextApplyBySpec")
+    if type(t) ~= "table" then
+        return false
+    end
+    local k = GetSpecKeyForSV(specID)
+    return (t[k] and true or false)
+end
+
+local function ClearForceOverwriteFlag(specID)
+    local cs = GetCharSettings()
+    if not cs then
+        return
+    end
+
+    cs.actionBarForceOverwriteNextApply = false
+
+    local t = rawget(cs, "actionBarForceOverwriteNextApplyBySpec")
+    if type(t) ~= "table" then
+        return
+    end
+    local k = GetSpecKeyForSV(specID)
+    t[k] = nil
 end
 
 local function PickupExisting(kind, id)
@@ -810,6 +950,42 @@ local function PlaceIntoSlot(kind, id, slot)
     return true, "placed"
 end
 
+local function ClearSlot(slot)
+    if not (PickupAction and ClearCursor) then
+        return false
+    end
+    local ok = pcall(PickupAction, slot)
+    ClearCursor()
+    return ok and true or false
+end
+
+local function ClearOtherSlotsForAction(desiredKind, desiredId, keepSlot)
+    if not (GetActionInfo and desiredKind and desiredId and keepSlot) then
+        return 0
+    end
+    desiredId = tonumber(desiredId)
+    if not desiredId then
+        return 0
+    end
+    keepSlot = tonumber(keepSlot)
+    if not keepSlot then
+        return 0
+    end
+
+    local cleared = 0
+    for slot = 1, 180 do
+        if slot ~= keepSlot then
+            local t, id = GetActionInfo(slot)
+            if t == desiredKind and tonumber(id) == desiredId then
+                if ClearSlot(slot) then
+                    cleared = cleared + 1
+                end
+            end
+        end
+    end
+    return cleared
+end
+
 local function ApplyLayout(reason)
     InitSV()
 
@@ -825,10 +1001,15 @@ local function ApplyLayout(reason)
 
     pendingAfterCombat = false
 
+    local specID = GetActiveSpecID()
+    local forceOverwrite = GetForceOverwriteFlag(specID)
+    local oneTimeOverwrite = forceOverwrite or ShouldUseOneTimeOverwrite(specID)
+    allowOverwriteThisApply = oneTimeOverwrite or GetBoolSetting("actionBarOverwriteAcc", false)
+
     -- Remembered character macros: ensure character macros exist on initial login/reload only.
     EnsureRememberedAccountMacrosOnce(reason)
 
-    local layout = GetActiveLayout()
+    local layout, _, highestScopeRankBySlot = GetActiveLayout()
     if not layout then
         return
     end
@@ -836,10 +1017,34 @@ local function ApplyLayout(reason)
     local placed = 0
     local skipped = 0
 
-    for _, entry in ipairs(layout) do
+    local function ScopeRankForRow(row)
+        if not row then
+            return 0
+        end
+        local scope = row.scope
+        if scope == "account" then
+            return 1
+        end
+        if scope == "class" then
+            return 2
+        end
+        if scope == "spec" then
+            return 3
+        end
+        if scope == "loadout" then
+            return 4
+        end
+        return 0
+    end
+
+    for _, row in ipairs(layout) do
+        local entry = row and row.entry or nil
         local slot = NormalizeSlot(entry and entry.slot)
         if slot then
             local kind = GetEntryKind(entry)
+            local entryAlways = (entry and entry.alwaysOverwrite and true or false)
+            local entryRank = ScopeRankForRow(row)
+            local highestRankForSlot = (type(highestScopeRankBySlot) == "table") and highestScopeRankBySlot[slot] or nil
 
             local desiredId = nil
             local desiredLabel = nil
@@ -850,17 +1055,27 @@ local function ApplyLayout(reason)
                     skipped = skipped + 1
                     DebugPrint(string.format("Slot %d: spell '%s' (missing)", slot, desiredLabel))
                 else
-                    local okSlot, why = CanPlaceIntoSlot(slot, "spell", desiredId)
+                    local okSlot, why = CanPlaceIntoSlot(slot, "spell", desiredId, entryAlways, entryRank, highestRankForSlot)
                     if okSlot then
+                        local placedOrAlready = false
                         if why == "already" then
                             skipped = skipped + 1
+                            placedOrAlready = true
                         else
                             local okPlace, placeWhy = PlaceIntoSlot("spell", desiredId, slot)
                             if okPlace then
                                 placed = placed + 1
+                                placedOrAlready = true
                             else
                                 skipped = skipped + 1
                                 DebugPrint(string.format("Slot %d: spell %s (%s)", slot, tostring(desiredId), placeWhy))
+                            end
+                        end
+
+                        if placedOrAlready and (entry and entry.clearElsewhere and true or false) then
+                            local t, id = GetActionInfo(slot)
+                            if t == "spell" and tonumber(id) == tonumber(desiredId) then
+                                ClearOtherSlotsForAction("spell", desiredId, slot)
                             end
                         end
                     else
@@ -880,17 +1095,27 @@ local function ApplyLayout(reason)
                     skipped = skipped + 1
                     DebugPrint(string.format("Slot %d: macro '%s' (missing)", slot, desiredLabel))
                 else
-                    local okSlot, why = CanPlaceIntoSlot(slot, "macro", macroIndex)
+                    local okSlot, why = CanPlaceIntoSlot(slot, "macro", macroIndex, entryAlways, entryRank, highestRankForSlot)
                     if okSlot then
+                        local placedOrAlready = false
                         if why == "already" then
                             skipped = skipped + 1
+                            placedOrAlready = true
                         else
                             local okPlace, placeWhy = PlaceIntoSlot("macro", macroIndex, slot)
                             if okPlace then
                                 placed = placed + 1
+                                placedOrAlready = true
                             else
                                 skipped = skipped + 1
                                 DebugPrint(string.format("Slot %d: %s (%s)", slot, desiredLabel or "?", placeWhy))
+                            end
+                        end
+
+                        if placedOrAlready and (entry and entry.clearElsewhere and true or false) then
+                            local t, id = GetActionInfo(slot)
+                            if t == "macro" and tonumber(id) == tonumber(macroIndex) then
+                                ClearOtherSlotsForAction("macro", macroIndex, slot)
                             end
                         end
                     else
@@ -901,6 +1126,18 @@ local function ApplyLayout(reason)
             end
         end
     end
+
+    if oneTimeOverwrite and placed > 0 then
+        MarkInitialApplyDone(specID)
+        if forceOverwrite then
+            ClearForceOverwriteFlag(specID)
+            DebugPrint("Forced apply complete; force flag cleared")
+        else
+            DebugPrint("Initial apply complete; one-time overwrite disabled for this spec")
+        end
+    end
+
+    allowOverwriteThisApply = false
 
     if GetBoolSetting("actionBarDebugAcc", false) then
         DebugPrint(string.format("Apply (%s): placed=%d skipped=%d", tostring(reason or "manual"), placed, skipped))

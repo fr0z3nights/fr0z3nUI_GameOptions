@@ -698,6 +698,33 @@ function ns.TaleUI_Build(frame, panel, helpers)
                 break
             end
             if Enum and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent then
+                local name = info.name or ""
+                -- Some APIs/overrides may include commas in continent names; normalize to spaces.
+                if type(name) == "string" and name:find(",", 1, true) then
+                    name = name:gsub("%s*,%s*", " ")
+                    name = name:gsub("%s%s+", " ")
+                    name = name:gsub("^%s+", ""):gsub("%s+$", "")
+                end
+                return name
+            end
+            mapID = info.parentMapID
+            safety = safety + 1
+        end
+        return ""
+    end
+
+    local function GetPlayerZoneNameForHeader()
+        if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetMapInfo) then
+            return ""
+        end
+        local mapID = C_Map.GetBestMapForUnit("player")
+        local safety = 0
+        while mapID and safety < 30 do
+            local info = C_Map.GetMapInfo(mapID)
+            if not info then
+                break
+            end
+            if Enum and Enum.UIMapType and info.mapType == Enum.UIMapType.Zone then
                 return info.name or ""
             end
             mapID = info.parentMapID
@@ -712,7 +739,10 @@ function ns.TaleUI_Build(frame, panel, helpers)
         local npcName = GetCurrentNpcName() or f.selectedNpcName or ""
 
         if f.zoneContinentLabel and f.zoneContinentLabel.SetText then
-            local zone = (GetZoneText and GetZoneText()) or ""
+            local zone = GetPlayerZoneNameForHeader()
+            if zone == "" then
+                zone = (GetRealZoneText and GetRealZoneText()) or ((GetZoneText and GetZoneText()) or "")
+            end
             local continent = GetPlayerContinentNameForHeader()
             if zone ~= "" and continent ~= "" then
                 f.zoneContinentLabel:SetText(zone .. ", " .. continent)

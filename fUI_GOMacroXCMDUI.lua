@@ -1223,6 +1223,8 @@ function ns.MacroXCMDUI_Build(panel)
         -- Delete removed by request.
     end
 
+    local RefreshList
+
     local function DeleteIndex(delIdx)
         local cmds = EnsureCommandsArray()
         if type(delIdx) ~= "number" or delIdx < 1 or delIdx > #cmds then
@@ -1256,7 +1258,7 @@ function ns.MacroXCMDUI_Build(panel)
         status:SetText("Deleted")
     end
 
-    local function RefreshList()
+    RefreshList = function()
         local cmds = EnsureCommandsArray()
 
         local visible = {}

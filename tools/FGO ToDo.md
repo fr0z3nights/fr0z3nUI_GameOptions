@@ -61,7 +61,6 @@
 
 # fr0z3nUI_GameOptions.lua  (Core)
 # fr0z3nUI_GameOptions.toc  (Starter)
--   - Rename files,  ignore (),  once files renamed change their - to #
 # fUI_GOMacros.lua          ()
 # fUI_GOMacroHearth.lua     ()
 # fUI_GOMacroHome.lua       ()

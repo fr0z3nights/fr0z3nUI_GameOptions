@@ -81,7 +81,7 @@ Current flow:
 
 #### #### #### #### #### #### #### #### #### #### 
 
-/fgo clogout
+/fgo logout
 
 /console Sound_MasterVolume 0.5
 /console Sound_EnableMusic 1
@@ -95,7 +95,7 @@ Current flow:
 
 #### #### #### #### #### #### #### #### #### #### 
 
-/fgo cexit
+/fgo exit
 
 /console Sound_MasterVolume 0.5
 /console Sound_EnableMusic 1
