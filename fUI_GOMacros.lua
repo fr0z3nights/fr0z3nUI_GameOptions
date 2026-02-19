@@ -88,12 +88,18 @@ local function GetMacroOptionalDB()
     db.window.optionalMacro = db.window.optionalMacro or {}
     local opt = db.window.optionalMacro
 
+    local DEFAULT_ICON = 134400 -- INV_Misc_QuestionMark
+
     -- Migration from older schema.
     if opt.entries == nil then
         opt.entries = {}
     end
     if opt.selected == nil then
         opt.selected = {}
+    end
+
+    if opt.icon == nil then
+        opt.icon = DEFAULT_ICON
     end
 
     if opt.enabled ~= nil or opt.cancelSafariHat ~= nil or opt.custom ~= nil then
@@ -116,6 +122,36 @@ local function GetMacroOptionalDB()
     EnsureOptionalEntryAt(opt, BUILTIN_SAFARI_NAME, BUILTIN_SAFARI_TEXT, 2)
 
     return opt
+end
+
+local function NormalizeMacroIcon(icon)
+    if type(icon) == "number" and icon > 0 then
+        return icon
+    end
+    if type(icon) == "string" and icon ~= "" then
+        return icon
+    end
+
+    local opt = GetMacroOptionalDB()
+    local fallback = (opt and opt.icon) or 134400
+    if type(fallback) == "number" and fallback > 0 then
+        return fallback
+    end
+    if type(fallback) == "string" and fallback ~= "" then
+        return fallback
+    end
+    return 134400
+end
+
+local function GetDefaultMacroIcon()
+    local opt = GetMacroOptionalDB()
+    return NormalizeMacroIcon(opt and opt.icon)
+end
+
+local function SetDefaultMacroIcon(icon)
+    local opt = GetMacroOptionalDB()
+    opt.icon = NormalizeMacroIcon(icon)
+    return opt.icon
 end
 
 local function SplitLines(s)
@@ -346,7 +382,7 @@ local function MacroWithinLimit(body)
     return true
 end
 
-local function EnsureMacro(name, body, perCharacter)
+local function EnsureMacro(name, body, perCharacter, icon)
     if InCombat() then
         return false, "Can't create macros in combat"
     end
@@ -376,7 +412,7 @@ local function EnsureMacro(name, body, perCharacter)
         return true
     end
 
-    local iconTexture = 134400
+    local iconTexture = NormalizeMacroIcon(icon)
     local created = CreateMacro(name, iconTexture, body, perCharacter and true or false)
     if created then
         ClearOptionalSelections()
@@ -386,7 +422,7 @@ local function EnsureMacro(name, body, perCharacter)
     return false, "CreateMacro failed (macro limit?)"
 end
 
-local function CreateOrUpdateNamedMacro(name, body, perCharacter)
+local function CreateOrUpdateNamedMacro(name, body, perCharacter, icon)
     if InCombat() then
         Print("Can't create macros in combat.")
         return
@@ -417,7 +453,7 @@ local function CreateOrUpdateNamedMacro(name, body, perCharacter)
     local idx = GetMacroIndexByName(name)
     if idx and idx > 0 then
         if type(EditMacro) == "function" then
-            EditMacro(idx, name, "INV_Misc_QuestionMark", body)
+            EditMacro(idx, name, NormalizeMacroIcon(icon), body)
             ClearOptionalSelections()
             Print("Updated macro '" .. tostring(name) .. "'.")
         else
@@ -430,7 +466,7 @@ local function CreateOrUpdateNamedMacro(name, body, perCharacter)
         perCharacter = GetMacroPerCharSetting()
     end
 
-    local ok = CreateMacro(name, "INV_Misc_QuestionMark", body, perCharacter and true or false)
+    local ok = CreateMacro(name, NormalizeMacroIcon(icon), body, perCharacter and true or false)
     if ok then
         ClearOptionalSelections()
         Print("Created macro '" .. tostring(name) .. "'.")
@@ -537,6 +573,8 @@ ns.Macros.InCombat = InCombat
 ns.Macros.GetMacroPerCharSetting = GetMacroPerCharSetting
 ns.Macros.SetMacroPerCharSetting = SetMacroPerCharSetting
 ns.Macros.GetMacroOptionalDB = GetMacroOptionalDB
+ns.Macros.GetDefaultMacroIcon = GetDefaultMacroIcon
+ns.Macros.SetDefaultMacroIcon = SetDefaultMacroIcon
 ns.Macros.GetOptionalEntries = GetOptionalEntries
 ns.Macros.AddOrUpdateOptionalEntry = AddOrUpdateOptionalEntry
 ns.Macros.ToggleOptionalEntry = ToggleOptionalEntry

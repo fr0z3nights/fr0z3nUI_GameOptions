@@ -40,6 +40,10 @@ local function NormalizeMode(mode)
     if mode == "" then
         return "x"
     end
+    -- Back-compat: old faction mode was 'f' (now merged into 'c').
+    if mode == "f" then
+        return "c"
+    end
     if mode == "x" or mode == "m" or mode == "c" or mode == "d" then
         return mode
     end
@@ -754,6 +758,8 @@ function ns.MacroXCMDUI_Build(panel)
             watermark:SetAlpha(0.35)
         end
 
+        box._fgoWatermark = watermark
+
         return box, eb
     end
 
@@ -763,17 +769,399 @@ function ns.MacroXCMDUI_Build(panel)
 
     -- Footer hint: Macro CMD limitations (Retail secure/protected actions)
     local FOOTER_HINT_H = 32
-    local footerHint = leftArea:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    local footerHint = CreateFrame("Frame", nil, leftArea)
     footerHint:SetPoint("BOTTOMLEFT", leftArea, "BOTTOMLEFT", 6, 6)
     footerHint:SetPoint("BOTTOMRIGHT", leftArea, "BOTTOMRIGHT", -6, 6)
-    footerHint:SetJustifyH("LEFT")
-    footerHint:SetJustifyV("BOTTOM")
-    footerHint:SetWordWrap(true)
-    footerHint:SetText(
-        "Limitations: protected commands (/cancelaura, /cast, /use, /equip, /target) won't run from this window.\n" ..
-        "Use a real WoW macro you press (/click ...). /run, /script, /console are OK."
+    footerHint:SetHeight(FOOTER_HINT_H)
+
+    local FOOTER_HINT_PREFIX = "Limitation: "
+    local footerHintLine1 = footerHint:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    footerHintLine1:SetPoint("TOPLEFT", footerHint, "TOPLEFT", 0, 0)
+    footerHintLine1:SetPoint("TOPRIGHT", footerHint, "TOPRIGHT", 0, 0)
+    footerHintLine1:SetJustifyH("LEFT")
+    footerHintLine1:SetJustifyV("TOP")
+    footerHintLine1:SetWordWrap(true)
+    footerHintLine1:SetText(
+        FOOTER_HINT_PREFIX .. "Protected functions /cancelaura, /cast, /use, /equip, /target, don't work in commands,"
     )
+
+    local measureFS = footerHint:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    measureFS:Hide()
+    measureFS:SetText(FOOTER_HINT_PREFIX)
+    local prefixW = measureFS.GetStringWidth and measureFS:GetStringWidth() or 0
+    if type(prefixW) ~= "number" or prefixW < 0 then
+        prefixW = 0
+    end
+
+    local footerHintLine2 = footerHint:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    footerHintLine2:SetPoint("TOPLEFT", footerHintLine1, "BOTTOMLEFT", prefixW, -1)
+    footerHintLine2:SetPoint("TOPRIGHT", footerHintLine1, "BOTTOMRIGHT", 0, -1)
+    footerHintLine2:SetJustifyH("LEFT")
+    footerHintLine2:SetJustifyV("TOP")
+    footerHintLine2:SetWordWrap(true)
+    footerHintLine2:SetText("This is to shorten /run, /script, /console /print commands.")
+
     footerHint:Show()
+
+    -- Per-character overrides (c-mode): name + command (takes priority over faction-specific).
+    local overrideArea = CreateFrame("Frame", nil, leftArea)
+    overrideArea:Hide()
+
+    local overrideTitle = overrideArea:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    overrideTitle:SetPoint("TOPLEFT", overrideArea, "TOPLEFT", 6, -4)
+    overrideTitle:SetJustifyH("LEFT")
+    overrideTitle:SetText("Per-character override (wins over faction)")
+
+    local function MakeInputBox(parent, ghost)
+        local box = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+        box:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            tile = true,
+            tileSize = 16,
+            insets = { left = 3, right = 3, top = 3, bottom = 3 },
+        })
+        box:SetBackdropColor(0, 0, 0, 0.25)
+
+        local eb = CreateFrame("EditBox", nil, box)
+        eb:SetAutoFocus(false)
+        eb:SetMultiLine(false)
+        eb:SetFontObject("GameFontNormal")
+        eb:SetTextInsets(6, 6, 4, 4)
+        eb:SetPoint("TOPLEFT", box, "TOPLEFT", 0, 0)
+        eb:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", 0, 0)
+        eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        if eb.EnableMouse then eb:EnableMouse(true) end
+        if eb.EnableKeyboard then eb:EnableKeyboard(true) end
+        eb:SetScript("OnMouseDown", function(self)
+            if self.SetFocus then
+                self:SetFocus()
+            end
+        end)
+
+        local ghostFS = box:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        ghostFS:SetPoint("LEFT", box, "LEFT", 8, 0)
+        ghostFS:SetText(tostring(ghost or ""))
+
+        local function UpdateGhost()
+            local txt = tostring(eb:GetText() or "")
+            local show = (txt == "") and not (eb.HasFocus and eb:HasFocus())
+            ghostFS:SetShown(show)
+        end
+        eb:HookScript("OnEditFocusGained", UpdateGhost)
+        eb:HookScript("OnEditFocusLost", UpdateGhost)
+        eb:HookScript("OnTextChanged", UpdateGhost)
+        UpdateGhost()
+
+        box._fgoEdit = eb
+        box._fgoGhost = ghostFS
+        return box, eb
+    end
+
+    local charNameArea, charNameBox = MakeInputBox(overrideArea, "character (Name or Name-Realm)")
+    charNameArea:SetHeight(24)
+
+    local charCmdArea = CreateFrame("Frame", nil, overrideArea, "BackdropTemplate")
+    charCmdArea:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        tile = true,
+        tileSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    charCmdArea:SetBackdropColor(0, 0, 0, 0.25)
+
+    local charCmdSF = CreateFrame("ScrollFrame", nil, charCmdArea, "UIPanelScrollFrameTemplate")
+    charCmdSF:SetPoint("TOPLEFT", charCmdArea, "TOPLEFT", 6, -6)
+    charCmdSF:SetPoint("BOTTOMRIGHT", charCmdArea, "BOTTOMRIGHT", -6, 6)
+    HideScrollBarAndEnableWheel(charCmdSF)
+
+    local charCmdChild = CreateFrame("Frame", nil, charCmdSF)
+    charCmdChild:SetPoint("TOPLEFT")
+    charCmdChild:SetPoint("TOPRIGHT")
+    charCmdChild:SetHeight(1)
+    charCmdSF:SetScrollChild(charCmdChild)
+
+    local charCmdBox = CreateFrame("EditBox", nil, charCmdChild)
+    charCmdBox:SetMultiLine(true)
+    charCmdBox:SetAutoFocus(false)
+    charCmdBox:SetFontObject("ChatFontNormal")
+    charCmdBox:SetAllPoints(charCmdChild)
+    charCmdBox:SetTextInsets(6, 6, 6, 6)
+    charCmdBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    if charCmdBox.EnableMouse then charCmdBox:EnableMouse(true) end
+    if charCmdBox.EnableKeyboard then charCmdBox:EnableKeyboard(true) end
+    charCmdBox:SetScript("OnMouseDown", function(self)
+        if self.SetFocus then
+            self:SetFocus()
+        end
+    end)
+
+    local function SizeCharOverrideCmdBox()
+        if not (charCmdSF and charCmdChild and charCmdBox) then
+            return
+        end
+        local w = charCmdSF.GetWidth and charCmdSF:GetWidth() or 0
+        if not w or w <= 0 then w = charCmdArea.GetWidth and charCmdArea:GetWidth() or 0 end
+        if not w or w <= 0 then w = 200 end
+        if charCmdChild.SetWidth then charCmdChild:SetWidth(w) end
+        if charCmdBox.SetWidth then charCmdBox:SetWidth(w) end
+
+        local h = charCmdSF.GetHeight and charCmdSF:GetHeight() or 0
+        if not h or h <= 0 then h = 40 end
+        if charCmdChild.SetHeight then charCmdChild:SetHeight(h) end
+        if charCmdBox.SetHeight then charCmdBox:SetHeight(h) end
+    end
+
+    if charCmdArea.HookScript then
+        charCmdArea:HookScript("OnShow", SizeCharOverrideCmdBox)
+        charCmdArea:HookScript("OnSizeChanged", SizeCharOverrideCmdBox)
+    end
+    if charCmdSF.HookScript then
+        charCmdSF:HookScript("OnShow", SizeCharOverrideCmdBox)
+        charCmdSF:HookScript("OnSizeChanged", SizeCharOverrideCmdBox)
+    end
+
+    local charCmdWatermark = charCmdArea:CreateFontString(nil, "BACKGROUND", "GameFontDisable")
+    charCmdWatermark:SetPoint("CENTER", charCmdArea, "CENTER", 0, 0)
+    charCmdWatermark:SetJustifyH("CENTER")
+    charCmdWatermark:SetText("override command")
+    if charCmdWatermark.SetAlpha then
+        charCmdWatermark:SetAlpha(0.35)
+    end
+
+    local function UpdateCharCmdWatermark()
+        local txt = tostring(charCmdBox:GetText() or "")
+        local show = (txt == "") and not (charCmdBox.HasFocus and charCmdBox:HasFocus())
+        charCmdWatermark:SetShown(show)
+    end
+    charCmdBox:HookScript("OnEditFocusGained", UpdateCharCmdWatermark)
+    charCmdBox:HookScript("OnEditFocusLost", UpdateCharCmdWatermark)
+    charCmdBox:HookScript("OnTextChanged", UpdateCharCmdWatermark)
+    UpdateCharCmdWatermark()
+
+    local btnCharSet = CreateFrame("Button", nil, overrideArea, "UIPanelButtonTemplate")
+    btnCharSet:SetSize(48, 20)
+    btnCharSet:SetText("Set")
+
+    local btnCharList = CreateFrame("Button", nil, overrideArea, "UIPanelButtonTemplate")
+    btnCharList:SetSize(72, 20)
+    btnCharList:SetText("Overrides")
+
+    -- Popout list of overrides (character keys) with E/D.
+    local overridePop = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+    overridePop:SetSize(300, 240)
+    overridePop:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        tile = true,
+        tileSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    overridePop:SetBackdropColor(0, 0, 0, 0.85)
+    overridePop:Hide()
+
+    overridePop:SetPoint("TOPLEFT", leftArea, "TOPLEFT", 12, -92)
+
+    local overridePopTitle = overridePop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    overridePopTitle:SetPoint("TOPLEFT", overridePop, "TOPLEFT", 8, -8)
+    overridePopTitle:SetText("Character Overrides")
+
+    local overridePopHint = overridePop:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    overridePopHint:SetPoint("TOPLEFT", overridePopTitle, "BOTTOMLEFT", 0, -2)
+    overridePopHint:SetPoint("TOPRIGHT", overridePop, "TOPRIGHT", -8, -28)
+    overridePopHint:SetJustifyH("LEFT")
+    overridePopHint:SetWordWrap(true)
+    overridePopHint:SetText("E = load into boxes, D = delete")
+
+    local overrideScroll = CreateFrame("ScrollFrame", nil, overridePop, "FauxScrollFrameTemplate")
+    overrideScroll:SetPoint("TOPLEFT", overridePop, "TOPLEFT", 4, -46)
+    overrideScroll:SetPoint("BOTTOMRIGHT", overridePop, "BOTTOMRIGHT", -4, 6)
+
+    local O_ROW_H = 18
+    local O_ROWS = 10
+    local oRows = {}
+    HideFauxScrollBarAndEnableWheel(overrideScroll, O_ROW_H)
+
+    for i = 1, O_ROWS do
+        local row = CreateFrame("Button", nil, overridePop)
+        row:SetHeight(O_ROW_H)
+        row:SetPoint("TOPLEFT", overridePop, "TOPLEFT", 8, -50 - (i - 1) * O_ROW_H)
+        row:SetPoint("TOPRIGHT", overridePop, "TOPRIGHT", -8, -50 - (i - 1) * O_ROW_H)
+
+        local bg = row:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(row)
+        bg:Hide()
+        row.bg = bg
+
+        local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetPoint("LEFT", row, "LEFT", 0, 0)
+        fs:SetPoint("RIGHT", row, "RIGHT", -44, 0)
+        fs:SetJustifyH("LEFT")
+        fs:SetWordWrap(false)
+        row.text = fs
+
+        local btnD = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        btnD:SetSize(18, O_ROW_H)
+        btnD:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        btnD:SetText("D")
+        row.btnD = btnD
+
+        local btnE = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        btnE:SetSize(18, O_ROW_H)
+        btnE:SetPoint("RIGHT", btnD, "LEFT", -2, 0)
+        btnE:SetText("E")
+        row.btnE = btnE
+
+        row:Hide()
+        oRows[i] = row
+    end
+
+    local function GetSelectedOverrideEntry()
+        local entry = GetSelectedEntry()
+        if not (entry and type(entry) == "table") then
+            return nil
+        end
+        if type(entry.charOverrides) ~= "table" then
+            entry.charOverrides = {}
+        end
+        return entry
+    end
+
+    local function GetSortedOverrideKeys(entry)
+        if not (entry and type(entry.charOverrides) == "table") then
+            return {}
+        end
+        local keys = {}
+        for k, v in pairs(entry.charOverrides) do
+            if type(k) == "string" and type(v) == "string" and Trim(k) ~= "" then
+                keys[#keys + 1] = k
+            end
+        end
+        table.sort(keys, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+        return keys
+    end
+
+    local function RefreshOverridePopout()
+        if not (overridePop and overridePop.IsShown and overridePop:IsShown()) then
+            return
+        end
+        local entry = GetSelectedOverrideEntry()
+        local keys = entry and GetSortedOverrideKeys(entry) or {}
+
+        if FauxScrollFrame_Update then
+            FauxScrollFrame_Update(overrideScroll, #keys, O_ROWS, O_ROW_H)
+        end
+
+        local offset = 0
+        if FauxScrollFrame_GetOffset then
+            offset = FauxScrollFrame_GetOffset(overrideScroll)
+        end
+
+        for i = 1, O_ROWS do
+            local idx = offset + i
+            local row = oRows[i]
+            local key = keys[idx]
+            if not key then
+                row:Hide()
+            else
+                row:Show()
+                local zebra = (idx % 2) == 0
+                row.bg:SetShown(zebra)
+                row.bg:SetColorTexture(1, 1, 1, zebra and 0.05 or 0)
+                row.text:SetText(key)
+
+                row:SetScript("OnClick", function()
+                    if charNameBox and charNameBox.SetText then
+                        charNameBox:SetText(key)
+                    end
+                    if entry and entry.charOverrides and entry.charOverrides[key] and charCmdBox and charCmdBox.SetText then
+                        charCmdBox:SetText(tostring(entry.charOverrides[key] or ""))
+                    end
+                end)
+
+                if row.btnE then
+                    row.btnE:SetScript("OnClick", function()
+                        if charNameBox and charNameBox.SetText then
+                            charNameBox:SetText(key)
+                        end
+                        if entry and entry.charOverrides and entry.charOverrides[key] and charCmdBox and charCmdBox.SetText then
+                            charCmdBox:SetText(tostring(entry.charOverrides[key] or ""))
+                        end
+                        if charCmdBox and charCmdBox.SetFocus then
+                            charCmdBox:SetFocus()
+                        end
+                    end)
+                end
+
+                if row.btnD then
+                    row.btnD:SetScript("OnClick", function()
+                        local e = GetSelectedOverrideEntry()
+                        if not e then
+                            return
+                        end
+                        e.charOverrides[key] = nil
+                        status:SetText("Override deleted")
+
+                        if ns and type(ns.MacroXCMD_ArmClickButton) == "function" and type(e.key) == "string" then
+                            pcall(ns.MacroXCMD_ArmClickButton, mode, e.key)
+                        end
+                        RefreshOverridePopout()
+                    end)
+                end
+            end
+        end
+    end
+
+    overrideScroll:SetScript("OnVerticalScroll", function(self, offset)
+        if FauxScrollFrame_OnVerticalScroll then
+            FauxScrollFrame_OnVerticalScroll(self, offset, O_ROW_H, function()
+                RefreshOverridePopout()
+            end)
+        end
+    end)
+
+    btnCharList:SetScript("OnClick", function()
+        if not (mode == "c") then
+            overridePop:Hide()
+            return
+        end
+        if overridePop:IsShown() then
+            overridePop:Hide()
+        else
+            overridePop:Show()
+            RefreshOverridePopout()
+        end
+    end)
+
+    btnCharSet:SetScript("OnClick", function()
+        if mode ~= "c" then
+            return
+        end
+        local entry = GetSelectedOverrideEntry()
+        if not entry then
+            status:SetText("Select a command")
+            return
+        end
+
+        local k = Trim(charNameBox:GetText() or "")
+        if k == "" then
+            status:SetText("Enter character")
+            return
+        end
+
+        local v = tostring(charCmdBox:GetText() or "")
+        if Trim(v) == "" then
+            entry.charOverrides[k] = nil
+            status:SetText("Override cleared")
+        else
+            entry.charOverrides[k] = v
+            status:SetText("Override set")
+        end
+
+        if ns and type(ns.MacroXCMD_ArmClickButton) == "function" and type(entry.key) == "string" then
+            pcall(ns.MacroXCMD_ArmClickButton, mode, entry.key)
+        end
+
+        RefreshOverridePopout()
+    end)
 
     -- Position Add now that we have cmdArea + charsArea.
     -- Important: btnAdd must be above cmdArea, otherwise cmdArea's OnMouseDown
@@ -949,8 +1337,11 @@ function ns.MacroXCMDUI_Build(panel)
         tex:SetTexture("Interface/Common/Indicator-Green")
         dot._fgoTex = tex
 
+        area._fgoDiagTitle = tostring(title or "Macro")
+
         dot:SetScript("OnEnter", function()
-            ShowMacroBoxTooltip(area, title, dot)
+            local t = area._fgoDiagTitle or title
+            ShowMacroBoxTooltip(area, t, dot)
         end)
         dot:SetScript("OnLeave", function()
             if GameTooltip then
@@ -970,6 +1361,24 @@ function ns.MacroXCMDUI_Build(panel)
         ShowMacroBoxDisplay(otherArea, true)
     end
 
+    local function UpdateBoxLabels()
+        if mode == "c" then
+            if charsArea and charsArea._fgoWatermark then charsArea._fgoWatermark:SetText("SHOW ON ALL") end
+            if mainArea and mainArea._fgoWatermark then mainArea._fgoWatermark:SetText("ALLIANCE") end
+            if otherArea and otherArea._fgoWatermark then otherArea._fgoWatermark:SetText("HORDE") end
+
+            if mainArea then mainArea._fgoDiagTitle = "ALLIANCE" end
+            if otherArea then otherArea._fgoDiagTitle = "HORDE" end
+        else
+            if charsArea and charsArea._fgoWatermark then charsArea._fgoWatermark:SetText("CHARACTERS") end
+            if mainArea and mainArea._fgoWatermark then mainArea._fgoWatermark:SetText("CHARACTERS MACRO") end
+            if otherArea and otherArea._fgoWatermark then otherArea._fgoWatermark:SetText("OTHERS MACRO") end
+
+            if mainArea then mainArea._fgoDiagTitle = "CHARACTERS MACRO" end
+            if otherArea then otherArea._fgoDiagTitle = "OTHERS MACRO" end
+        end
+    end
+
     local function LayoutLeft()
         local h = leftArea.GetHeight and leftArea:GetHeight() or 0
         if not h or h <= 0 then
@@ -981,6 +1390,8 @@ function ns.MacroXCMDUI_Build(panel)
             mainArea:Show()
             otherArea:Show()
             footerHint:Show()
+            if overrideArea then overrideArea:Hide() end
+            if overridePop then overridePop:Hide() end
 
             -- cmdArea -> (gap) -> box1 -> (gap) -> box2 -> (gap) -> box3
             local avail = h - CMD_H - (BOX_GAP * 3) - FOOTER_HINT_H
@@ -1011,33 +1422,86 @@ function ns.MacroXCMDUI_Build(panel)
             otherArea:SetPoint("TOPLEFT", mainArea, "BOTTOMLEFT", 0, -BOX_GAP)
             otherArea:SetPoint("TOPRIGHT", mainArea, "BOTTOMRIGHT", 0, -BOX_GAP)
             otherArea:SetHeight(h3)
+        elseif mode == "c" then
+            -- Faction mode: 3 macro boxes + per-character overrides.
+            charsArea:Show()
+            mainArea:Show()
+            otherArea:Show()
+            footerHint:Show()
+            if overrideArea then overrideArea:Show() end
+
+            local avail = h - CMD_H - FOOTER_HINT_H - (BOX_GAP * 4)
+            if avail < 260 then
+                avail = 260
+            end
+
+            local minOverride = 76
+            local desiredBox = 64
+            local minBox = 48
+
+            local boxH = desiredBox
+            if avail < (desiredBox * 3 + minOverride) then
+                boxH = math.floor((avail - minOverride) / 3)
+            end
+            if boxH < minBox then
+                boxH = minBox
+            end
+
+            local overrideH = avail - (boxH * 3)
+            if overrideH < minOverride then
+                overrideH = minOverride
+            end
+
+            charsArea:ClearAllPoints()
+            charsArea:SetPoint("TOPLEFT", cmdArea, "BOTTOMLEFT", 0, -BOX_GAP)
+            charsArea:SetPoint("TOPRIGHT", cmdArea, "BOTTOMRIGHT", 0, -BOX_GAP)
+            charsArea:SetHeight(boxH)
+
+            mainArea:ClearAllPoints()
+            mainArea:SetPoint("TOPLEFT", charsArea, "BOTTOMLEFT", 0, -BOX_GAP)
+            mainArea:SetPoint("TOPRIGHT", charsArea, "BOTTOMRIGHT", 0, -BOX_GAP)
+            mainArea:SetHeight(boxH)
+
+            otherArea:ClearAllPoints()
+            otherArea:SetPoint("TOPLEFT", mainArea, "BOTTOMLEFT", 0, -BOX_GAP)
+            otherArea:SetPoint("TOPRIGHT", mainArea, "BOTTOMRIGHT", 0, -BOX_GAP)
+            otherArea:SetHeight(boxH)
+
+            if overrideArea then
+                overrideArea:ClearAllPoints()
+                overrideArea:SetPoint("TOPLEFT", otherArea, "BOTTOMLEFT", 0, -BOX_GAP)
+                overrideArea:SetPoint("TOPRIGHT", otherArea, "BOTTOMRIGHT", 0, -BOX_GAP)
+                overrideArea:SetHeight(overrideH)
+
+                charNameArea:ClearAllPoints()
+                charNameArea:SetPoint("TOPLEFT", overrideArea, "TOPLEFT", 0, -18)
+                charNameArea:SetPoint("TOPRIGHT", overrideArea, "TOPRIGHT", 0, -18)
+
+                btnCharSet:ClearAllPoints()
+                btnCharSet:SetPoint("TOPRIGHT", charNameArea, "BOTTOMRIGHT", 0, -4)
+
+                btnCharList:ClearAllPoints()
+                btnCharList:SetPoint("RIGHT", btnCharSet, "LEFT", -4, 0)
+
+                charCmdArea:ClearAllPoints()
+                charCmdArea:SetPoint("TOPLEFT", charNameArea, "BOTTOMLEFT", 0, -4)
+                charCmdArea:SetPoint("TOPRIGHT", btnCharList, "TOPLEFT", -6, 0)
+                charCmdArea:SetPoint("BOTTOMLEFT", overrideArea, "BOTTOMLEFT", 0, 0)
+                charCmdArea:SetPoint("BOTTOMRIGHT", overrideArea, "BOTTOMRIGHT", 0, 0)
+            end
         elseif mode == "m" or mode == "d" then
             -- Single-text modes: disable character boxes and use the bottom macro box.
             charsArea:Hide()
             mainArea:Hide()
             otherArea:Show()
             footerHint:Show()
+            if overrideArea then overrideArea:Hide() end
+            if overridePop then overridePop:Hide() end
 
             local avail = h - CMD_H - BOX_GAP - FOOTER_HINT_H
             if avail < 90 then
                 avail = 90
             end
-            otherArea:ClearAllPoints()
-            otherArea:SetPoint("TOPLEFT", cmdArea, "BOTTOMLEFT", 0, -BOX_GAP)
-            otherArea:SetPoint("TOPRIGHT", cmdArea, "BOTTOMRIGHT", 0, -BOX_GAP)
-            otherArea:SetHeight(avail)
-        elseif mode == "c" then
-            -- Class-tagged macro mode: manual tags typed into the macro body.
-            charsArea:Hide()
-            mainArea:Hide()
-            otherArea:Show()
-            footerHint:Show()
-
-            local avail = h - CMD_H - BOX_GAP - FOOTER_HINT_H
-            if avail < 90 then
-                avail = 90
-            end
-
             otherArea:ClearAllPoints()
             otherArea:SetPoint("TOPLEFT", cmdArea, "BOTTOMLEFT", 0, -BOX_GAP)
             otherArea:SetPoint("TOPRIGHT", cmdArea, "BOTTOMRIGHT", 0, -BOX_GAP)
@@ -1086,11 +1550,22 @@ function ns.MacroXCMDUI_Build(panel)
 
         if not entry then
             editCmd:SetText("")
-            mainsBox:SetText(JoinLines(defaultMains))
-            mainBox:SetText("")
-            otherBox:SetText("")
+            if mode == "c" then
+                mainsBox:SetText("")
+                mainBox:SetText("")
+                otherBox:SetText("")
+                if charNameBox and charNameBox.SetText then charNameBox:SetText("") end
+                if charCmdBox and charCmdBox.SetText then charCmdBox:SetText("") end
+            else
+                mainsBox:SetText(JoinLines(defaultMains))
+                mainBox:SetText("")
+                otherBox:SetText("")
+            end
             status:SetText("")
             UpdateCmdGhost()
+            if overridePop and overridePop:IsShown() then
+                RefreshOverridePopout()
+            end
             isLoadingFields = false
             return
         end
@@ -1104,6 +1579,12 @@ function ns.MacroXCMDUI_Build(panel)
             mainsBox:SetText(JoinLines(mainsToShow))
             mainBox:SetText(entry.mainText and tostring(entry.mainText) or "")
             otherBox:SetText(entry.otherText and tostring(entry.otherText) or "")
+        elseif mode == "c" then
+            mainsBox:SetText(entry.bothText and tostring(entry.bothText) or "")
+            mainBox:SetText(entry.allianceText and tostring(entry.allianceText) or "")
+            otherBox:SetText(entry.hordeText and tostring(entry.hordeText) or "")
+            if charNameBox and charNameBox.SetText then charNameBox:SetText("") end
+            if charCmdBox and charCmdBox.SetText then charCmdBox:SetText("") end
         else
             mainsBox:SetText(JoinLines(defaultMains))
             -- Single-text modes: place contents into the bottom active box.
@@ -1116,10 +1597,21 @@ function ns.MacroXCMDUI_Build(panel)
         end
         status:SetText("")
 
-        if mainArea then ShowMacroBoxDisplay(mainArea, true) end
-        if otherArea then ShowMacroBoxDisplay(otherArea, true) end
+        if mode == "c" then
+            if charsArea then ShowMacroBoxDisplay(charsArea, true) end
+            if mainArea then ShowMacroBoxDisplay(mainArea, true) end
+            if otherArea then ShowMacroBoxDisplay(otherArea, true) end
+        else
+            if charsArea then ShowMacroBoxDisplay(charsArea, false) end
+            if mainArea then ShowMacroBoxDisplay(mainArea, true) end
+            if otherArea then ShowMacroBoxDisplay(otherArea, true) end
+        end
 
         UpdateCmdGhost()
+
+        if overridePop and overridePop:IsShown() then
+            RefreshOverridePopout()
+        end
 
         isLoadingFields = false
     end
@@ -1149,6 +1641,9 @@ function ns.MacroXCMDUI_Build(panel)
             if entry and mode == "x" then
                 -- Per-entry Characters list in x-mode.
                 mains = SplitLines(mainsBox:GetText() or "")
+            elseif mode == "c" then
+                -- Faction mode: mainsBox is a macro field, not a characters list.
+                mains = nil
             else
                 -- Always persist the shared Characters list when not editing an x entry.
                 mains = SaveDefaultMainsFromUI()
@@ -1176,6 +1671,13 @@ function ns.MacroXCMDUI_Build(panel)
                     entry.mains = mains
                     entry.mainText = tostring(mainBox:GetText() or "")
                     entry.otherText = tostring(otherBox:GetText() or "")
+                elseif mode == "c" then
+                    entry.mains = entry.mains
+                    entry.mainText = entry.mainText or ""
+                    entry.otherText = entry.otherText or ""
+                    entry.bothText = tostring(mainsBox:GetText() or "")
+                    entry.allianceText = tostring(mainBox:GetText() or "")
+                    entry.hordeText = tostring(otherBox:GetText() or "")
                 else
                     -- Single-text modes: keep only the bottom box text.
                     entry.mains = mains
@@ -1424,9 +1926,9 @@ function ns.MacroXCMDUI_Build(panel)
         local keepMains = SplitLines(mainsBox:GetText() or "")
         local keepOtherText = tostring(otherBox:GetText() or "")
 
-        -- "Add" uses the Characters box as a draft template.
-        -- Persist it so it stays when no entry is selected.
-        do
+        if mode ~= "c" then
+            -- "Add" uses the Characters box as a draft template.
+            -- Persist it so it stays when no entry is selected.
             local defaultMains = EnsureDefaultMainsArray()
             wipe(defaultMains)
             for i = 1, #keepMains do
@@ -1438,6 +1940,11 @@ function ns.MacroXCMDUI_Build(panel)
         if mode == "x" then
             local keepMainText = tostring(mainBox:GetText() or "")
             cmds[#cmds + 1] = { mode = "x", key = key, mains = keepMains, mainText = keepMainText, otherText = keepOtherText }
+        elseif mode == "c" then
+            local keepBothText = tostring(mainsBox:GetText() or "")
+            local keepAllianceText = tostring(mainBox:GetText() or "")
+            local keepHordeText = tostring(otherBox:GetText() or "")
+            cmds[#cmds + 1] = { mode = "c", key = key, bothText = keepBothText, allianceText = keepAllianceText, hordeText = keepHordeText, charOverrides = {} }
         else
             cmds[#cmds + 1] = { mode = tostring(mode), key = key, mains = keepMains, mainText = "", otherText = keepOtherText }
         end
@@ -1459,14 +1966,46 @@ function ns.MacroXCMDUI_Build(panel)
         cmdPrefixText:SetText("/fgo " .. tostring(mode))
         LayoutCmdPrefixBtn()
 
+        UpdateBoxLabels()
+
+        if overridePop and overridePop.IsShown and overridePop:IsShown() then
+            overridePop:Hide()
+        end
+
         LayoutLeft()
         RefreshList()
         LoadFields()
     end
 
+    panel._MacroCmdUI_SelectKey = function(wantMode, wantKey)
+        wantMode = NormalizeMode(wantMode)
+        wantKey = Trim(wantKey)
+        if wantKey == "" then
+            return
+        end
+
+        if panel and type(panel._MacroXCMDUI_UpdateMode) == "function" then
+            panel._MacroXCMDUI_UpdateMode(wantMode)
+        end
+
+        local idx = FindIndexByModeAndKey(wantMode, wantKey, nil)
+        selectedIndex = idx
+
+        if not idx then
+            -- Stay in add workflow but prefill the key.
+            editCmd:SetText(wantKey)
+        end
+
+        RefreshButtons()
+        RefreshList()
+        LoadFields()
+        status:SetText(idx and "Selected" or "Add mode")
+    end
+
     ns._MacroXCMDUI_Panel = panel
 
     local function UpdateAll()
+        UpdateBoxLabels()
         RefreshButtons()
         RefreshList()
         LoadFields()

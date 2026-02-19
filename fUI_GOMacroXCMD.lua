@@ -48,11 +48,26 @@ local function NormalizeMode(mode)
     if mode == "" then
         return "x"
     end
+    -- Back-compat: old faction mode was 'f' (now merged into 'c').
+    if mode == "f" then
+        return "c"
+    end
     if mode == "x" or mode == "m" or mode == "c" or mode == "d" then
         return mode
     end
     -- Unknown/legacy tags fall under d-mode.
     return "d"
+end
+
+local function GetPlayerFactionToken()
+    if type(UnitFactionGroup) ~= "function" then
+        return nil
+    end
+    local faction = UnitFactionGroup("player")
+    if faction == "Alliance" or faction == "Horde" then
+        return faction
+    end
+    return nil
 end
 
 local function EnsureMode()
@@ -483,6 +498,39 @@ local function PreprocessMacroTextForClick(text)
     return text
 end
 
+local function GetCharacterOverrideText(cmd)
+    if type(cmd) ~= "table" then
+        return ""
+    end
+    local overrides = cmd.charOverrides
+    if type(overrides) ~= "table" then
+        return ""
+    end
+
+    local pName, pRealm = GetPlayerNormalized()
+    if Trim(pName) == "" then
+        return ""
+    end
+
+    local best = nil
+    local bestIsExact = false
+    for k, v in pairs(overrides) do
+        if type(k) == "string" and type(v) == "string" then
+            local nName, nRealm = ParseMainListEntry(k)
+            if nName and nName == pName then
+                if nRealm and nRealm == pRealm then
+                    best = v
+                    bestIsExact = true
+                elseif not nRealm and not bestIsExact then
+                    best = v
+                end
+            end
+        end
+    end
+
+    return tostring(best or "")
+end
+
 local function GetRunnableTextForCmd(mode, cmd)
     mode = NormalizeMode(mode)
     if type(cmd) ~= "table" then
@@ -494,25 +542,40 @@ local function GetRunnableTextForCmd(mode, cmd)
         local isMain = IsPlayerInMainList(cmd)
         text = isMain and cmd.mainText or cmd.otherText
     elseif mode == "c" then
-        text = FilterClassTaggedLines(tostring(cmd.otherText or ""))
-        if Trim(text) == "" then
-            local _, classToken = nil, nil
-            if UnitClass then
-                _, classToken = UnitClass("player")
-            end
-            classToken = type(classToken) == "string" and classToken:upper() or nil
+        local both = tostring(cmd.bothText or "")
+        local a = tostring(cmd.allianceText or "")
+        local h = tostring(cmd.hordeText or "")
 
-            local perClass = nil
-            if type(cmd.classText) == "table" and classToken and classToken ~= "" then
-                perClass = cmd.classText[classToken]
+        -- Back-compat: if the entry was created before f-mode fields existed,
+        -- fall back to the single-text storage.
+        if Trim(both) == "" and Trim(a) == "" and Trim(h) == "" then
+            both = tostring(cmd.otherText or "")
+            if Trim(both) == "" then
+                both = tostring(cmd.mainText or "")
             end
-            text = tostring(perClass or "")
-            if Trim(text) == "" then
-                text = tostring(cmd.otherText or "")
+        end
+
+        local faction = GetPlayerFactionToken()
+        local factionText = ""
+
+        -- Priority: per-character override > faction-specific.
+        local charOverride = GetCharacterOverrideText(cmd)
+        if Trim(charOverride) ~= "" then
+            factionText = charOverride
+        else
+            if faction == "Alliance" then
+                factionText = a
+            elseif faction == "Horde" then
+                factionText = h
             end
-            if Trim(text) == "" then
-                text = tostring(cmd.mainText or "")
-            end
+        end
+
+        if Trim(both) ~= "" and Trim(factionText) ~= "" then
+            text = both .. "\n" .. factionText
+        elseif Trim(both) ~= "" then
+            text = both
+        else
+            text = factionText
         end
     else
         text = tostring(cmd.otherText or "")
@@ -890,6 +953,8 @@ local function MacroXCMD_HandleSlashImpl(mode, rest)
         Print("/fgo " .. mode .. " list           - list available commands")
         if mode == "x" then
             Print("/fgo " .. mode .. " <command>      - run MAIN/OTHER macro text based on your character list")
+        elseif mode == "c" then
+            Print("/fgo " .. mode .. " <command>      - run BOTH + your faction macro text")
         else
             Print("/fgo " .. mode .. " <command>      - run the macro text")
         end
@@ -992,7 +1057,7 @@ function ns.MacroXCMD_Debug(mode, key)
         xPicked = isMain and "mainText" or "otherText"
         text = isMain and cmd.mainText or cmd.otherText
     elseif mode == "c" then
-        text = FilterClassTaggedLines(tostring(cmd.otherText or ""))
+        text = GetRunnableTextForCmd(mode, cmd)
     else
         text = tostring(cmd.otherText or "")
         if Trim(text) == "" then
@@ -1265,6 +1330,73 @@ function ns.MacroXCMD_Debug(mode, key)
             end
         end
     end
+end
+
+local function EnsureEntryImpl(mode, key)
+    mode = NormalizeMode(mode)
+    key = Trim(key)
+    if key == "" then
+        return nil, nil
+    end
+
+    local entry, idx = FindCmd(mode, key)
+    if entry then
+        return entry, idx
+    end
+
+    local cmds = EnsureCommandsArray()
+    entry = { mode = mode, key = key }
+
+    if mode == "x" then
+        entry.mains = {}
+        entry.mainText = ""
+        entry.otherText = ""
+    elseif mode == "c" then
+        entry.bothText = ""
+        entry.allianceText = ""
+        entry.hordeText = ""
+        entry.charOverrides = {}
+    else
+        entry.mains = {}
+        entry.mainText = ""
+        entry.otherText = ""
+    end
+
+    cmds[#cmds + 1] = entry
+    return entry, #cmds
+end
+
+function ns.MacroXCMD_EnsureEntry(mode, key)
+    return EnsureEntryImpl(mode, key)
+end
+
+function ns.MacroXCMD_UpsertText(mode, key, text)
+    mode = NormalizeMode(mode)
+    key = Trim(key)
+    if key == "" then
+        return false, "Missing key"
+    end
+
+    local entry = EnsureEntryImpl(mode, key)
+    if not entry then
+        return false, "Create failed"
+    end
+
+    text = tostring(text or "")
+    if mode == "x" then
+        entry.mainText = text
+        entry.otherText = ""
+    elseif mode == "c" then
+        entry.bothText = text
+    else
+        entry.mainText = ""
+        entry.otherText = text
+    end
+
+    if type(ns.MacroXCMD_ArmClickButton) == "function" then
+        pcall(ns.MacroXCMD_ArmClickButton, mode, key)
+    end
+    return true
 end
 
 -- Public: arm secure /click buttons so user macros can run without a prep step.

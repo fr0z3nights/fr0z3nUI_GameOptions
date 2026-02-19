@@ -314,6 +314,14 @@ local function SetClearText(btn, enabled)
     end
 end
 
+local function SetRemoveText(btn, enabled)
+    if enabled then
+        btn:SetText("|cffffff00Remove|r")
+    else
+        btn:SetText("|cff888888Remove|r")
+    end
+end
+
 local function HideFauxScrollBarAndEnableWheel(sf, rowHeight)
     if not sf then
         return
@@ -574,6 +582,15 @@ function ns.SituateUI_Build(panel)
     -- This setting controls where Add/Override writes entries.
     local targetScope = "spec" -- "spec" | "loadout" | "class" | "account"
 
+    -- Secondary scope under Account.
+    -- Two toggles controlled by small buttons shown only when Target=Account:
+    -- - Expansion: if ON, writes to Account(Expansion)
+    -- - Profession: if ON, writes to Account(Expansion+Profession)
+    --   (Profession implies Expansion; turning Expansion off also turns Profession off.)
+    local accountExpansionOn = false
+    local accountProfessionOn = false
+    local targetProfessionKey = nil -- only meaningful when accountProfessionOn == true
+
     local viewSpecIndex = nil -- nil => active spec
     local specList = nil
     local function BuildSpecList()
@@ -628,9 +645,51 @@ function ns.SituateUI_Build(panel)
         return (GetViewingSpecID() == activeSpecID) and true or false
     end
 
+    local GetCurrentZoneMapID
+    local GetCurrentExpansionKey
+    local GetKnownProfessionKeys
+
+    local function EnsureTargetProfessionKey()
+        local profs = (type(GetKnownProfessionKeys) == "function") and GetKnownProfessionKeys() or nil
+        if type(profs) ~= "table" or #profs == 0 then
+            targetProfessionKey = nil
+            return nil
+        end
+
+        if not targetProfessionKey then
+            targetProfessionKey = profs[1]
+            return targetProfessionKey
+        end
+
+        for i = 1, #profs do
+            if profs[i] == targetProfessionKey then
+                return targetProfessionKey
+            end
+        end
+
+        targetProfessionKey = profs[1]
+        return targetProfessionKey
+    end
+
     local function CanEditTarget()
-        if targetScope == "account" or targetScope == "class" then
+        if targetScope == "class" then
             return true
+        end
+        if targetScope == "account" then
+            if not accountExpansionOn then
+                return true
+            end
+
+            local expKey = GetCurrentExpansionKey and GetCurrentExpansionKey() or nil
+            if not expKey then
+                return false
+            end
+
+            if not accountProfessionOn then
+                return true
+            end
+
+            return (EnsureTargetProfessionKey() ~= nil)
         end
         if targetScope == "loadout" then
             return IsViewingActiveSpec() and (GetActiveLoadoutKey() ~= nil)
@@ -643,11 +702,317 @@ function ns.SituateUI_Build(panel)
         if scope == "account" or scope == "class" then
             return true
         end
+        if scope == "expansion" then
+            return (GetCurrentExpansionKey and GetCurrentExpansionKey() ~= nil)
+        end
+        if scope == "profession" then
+            local expKey = GetCurrentExpansionKey and GetCurrentExpansionKey() or nil
+            if not expKey then
+                return false
+            end
+            return (EnsureTargetProfessionKey() ~= nil)
+        end
+        if scope == "zone" then
+            return (GetCurrentZoneMapID() ~= nil)
+        end
         if scope == "loadout" then
             return IsViewingActiveSpec() and (GetActiveLoadoutKey() ~= nil)
         end
         -- spec scope: allow editing the currently viewed spec
         return true
+    end
+
+    local function GetZoneLabel(mapID)
+        mapID = tonumber(mapID)
+        if mapID and mapID > 0 and C_Map and type(C_Map.GetMapInfo) == "function" then
+            local ok, info = pcall(C_Map.GetMapInfo, mapID)
+            if ok and type(info) == "table" then
+                local name = Trim(info.name or "")
+                if name ~= "" then
+                    return name
+                end
+            end
+        end
+        return mapID and ("Map " .. tostring(mapID)) or "Unknown"
+    end
+
+    GetCurrentZoneMapID = function()
+        if not (C_Map and type(C_Map.GetBestMapForUnit) == "function") then
+            return nil
+        end
+
+        local ok, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+        if not ok or type(mapID) ~= "number" or mapID <= 0 then
+            return nil
+        end
+
+        -- Group open-world zones by their Continent/expansion landmass where possible
+        -- (e.g., Dragon Isles / Khaz Algar). Keep dungeons/instances specific.
+        if C_Map.GetMapInfo and Enum and Enum.UIMapType then
+            local cur = mapID
+            for _ = 1, 12 do
+                local okInfo, info = pcall(C_Map.GetMapInfo, cur)
+                if not okInfo or type(info) ~= "table" then
+                    break
+                end
+
+                local mapType = info.mapType
+                local parent = tonumber(info.parentMapID) or 0
+
+                if mapType == Enum.UIMapType.Dungeon then
+                    return cur
+                end
+                if mapType == Enum.UIMapType.Continent then
+                    return cur
+                end
+                if not parent or parent <= 0 then
+                    break
+                end
+                cur = parent
+            end
+        end
+
+        return mapID
+    end
+
+    local function GetExpansionLabel(expansionKey)
+        expansionKey = tostring(expansionKey or "")
+        if expansionKey == "dragonisles" then
+            return "Dragon Isles"
+        end
+        if expansionKey == "khazalgar" then
+            return "Khaz Algar"
+        end
+        if expansionKey == "midnight" then
+            return "Midnight"
+        end
+        return expansionKey ~= "" and expansionKey or "Unknown"
+    end
+
+    GetCurrentExpansionKey = function()
+        if not (C_Map and type(C_Map.GetBestMapForUnit) == "function") then
+            return nil
+        end
+
+        local ok, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+        if not ok or type(mapID) ~= "number" or mapID <= 0 then
+            return nil
+        end
+
+        if C_Map.GetMapInfo and Enum and Enum.UIMapType then
+            local cur = mapID
+            for _ = 1, 12 do
+                local okInfo, info = pcall(C_Map.GetMapInfo, cur)
+                if not okInfo or type(info) ~= "table" then
+                    break
+                end
+
+                local mapType = info.mapType
+                local parent = tonumber(info.parentMapID) or 0
+
+                if mapType == Enum.UIMapType.Continent then
+                    local name = tostring(info.name or "")
+                    local low = name:lower()
+                    if low:find("dragon isles", 1, true) then
+                        return "dragonisles"
+                    end
+                    if low:find("khaz algar", 1, true) then
+                        return "khazalgar"
+                    end
+                    if low:find("midnight", 1, true) then
+                        return "midnight"
+                    end
+                    return nil
+                end
+
+                if not parent or parent <= 0 then
+                    break
+                end
+                cur = parent
+            end
+        end
+
+        return nil
+    end
+
+    local function SpellKnownAny(list)
+        if type(list) ~= "table" then
+            return false
+        end
+        for i = 1, #list do
+            local sid = tonumber(list[i])
+            if sid and sid > 0 then
+                if IsSpellKnown then
+                    local ok, known = pcall(IsSpellKnown, sid)
+                    if ok and known then
+                        return true
+                    end
+                end
+                if IsPlayerSpell then
+                    local ok, known = pcall(IsPlayerSpell, sid)
+                    if ok and known then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    local PROF_SPELLS = {
+        Mining = { 2575, 265757, 265840, 265841, 265843, 265844, 265845, 265846, 265847, 265848, 265849, 309325, 374627, 433321, 471013 },
+        Herbalism = { 2366, 265825, 265756, 265819, 265820, 265821, 265822, 265823, 265824, 265826, 309312, 374626, 433320, 471012 },
+        Skinning = { 8613, 265861, 265761, 265869, 265870, 265871, 265872, 265873, 265874, 265875, 265876, 309318, 374633, 433327, 471019 },
+    }
+
+    GetKnownProfessionKeys = function()
+        local out = {}
+        if SpellKnownAny(PROF_SPELLS.Mining) then out[#out + 1] = "Mining" end
+        if SpellKnownAny(PROF_SPELLS.Herbalism) then out[#out + 1] = "Herbalism" end
+        if SpellKnownAny(PROF_SPELLS.Skinning) then out[#out + 1] = "Skinning" end
+        return out
+    end
+
+    local function EnsureExpansionLayoutArray(expansionKey)
+        expansionKey = tostring(expansionKey or "")
+        if expansionKey == "" then
+            return {}
+        end
+        InitSV()
+        local s = GetSettings()
+        if not s then
+            return {}
+        end
+        if type(s.actionBarLayoutByExpansionAcc) ~= "table" then
+            s.actionBarLayoutByExpansionAcc = {}
+        end
+        if type(s.actionBarLayoutByExpansionAcc[expansionKey]) ~= "table" then
+            s.actionBarLayoutByExpansionAcc[expansionKey] = {}
+        end
+        local t = s.actionBarLayoutByExpansionAcc[expansionKey]
+        if t[1] == nil and next(t) ~= nil then
+            s.actionBarLayoutByExpansionAcc[expansionKey] = {}
+        end
+        return s.actionBarLayoutByExpansionAcc[expansionKey]
+    end
+
+    local function GetExpansionLayoutArrayReadOnly(expansionKey)
+        expansionKey = tostring(expansionKey or "")
+        if expansionKey == "" then
+            return nil
+        end
+        InitSV()
+        local s = GetSettings()
+        if not s then
+            return nil
+        end
+        local byExp = rawget(s, "actionBarLayoutByExpansionAcc")
+        if type(byExp) ~= "table" then
+            return nil
+        end
+        local t = byExp[expansionKey]
+        if type(t) ~= "table" then
+            return nil
+        end
+        return t
+    end
+
+    local function EnsureExpansionProfessionLayoutArray(expansionKey, professionKey)
+        expansionKey = tostring(expansionKey or "")
+        professionKey = tostring(professionKey or "")
+        if expansionKey == "" or professionKey == "" then
+            return {}
+        end
+        InitSV()
+        local s = GetSettings()
+        if not s then
+            return {}
+        end
+        if type(s.actionBarLayoutByExpansionProfessionAcc) ~= "table" then
+            s.actionBarLayoutByExpansionProfessionAcc = {}
+        end
+        if type(s.actionBarLayoutByExpansionProfessionAcc[expansionKey]) ~= "table" then
+            s.actionBarLayoutByExpansionProfessionAcc[expansionKey] = {}
+        end
+        local byProf = s.actionBarLayoutByExpansionProfessionAcc[expansionKey]
+        if type(byProf[professionKey]) ~= "table" then
+            byProf[professionKey] = {}
+        end
+        local t = byProf[professionKey]
+        if t[1] == nil and next(t) ~= nil then
+            byProf[professionKey] = {}
+        end
+        return byProf[professionKey]
+    end
+
+    local function GetExpansionProfessionLayoutArrayReadOnly(expansionKey, professionKey)
+        expansionKey = tostring(expansionKey or "")
+        professionKey = tostring(professionKey or "")
+        if expansionKey == "" or professionKey == "" then
+            return nil
+        end
+        InitSV()
+        local s = GetSettings()
+        if not s then
+            return nil
+        end
+        local byExp = rawget(s, "actionBarLayoutByExpansionProfessionAcc")
+        if type(byExp) ~= "table" then
+            return nil
+        end
+        local byProf = byExp[expansionKey]
+        if type(byProf) ~= "table" then
+            return nil
+        end
+        local t = byProf[professionKey]
+        if type(t) ~= "table" then
+            return nil
+        end
+        return t
+    end
+
+    local function EnsureZoneLayoutArray(mapID)
+        mapID = tonumber(mapID)
+        if not mapID or mapID <= 0 then
+            return {}
+        end
+        InitSV()
+        local s = GetSettings()
+        if not s then
+            return {}
+        end
+        if type(s.actionBarLayoutByZoneAcc) ~= "table" then
+            s.actionBarLayoutByZoneAcc = {}
+        end
+        if type(s.actionBarLayoutByZoneAcc[mapID]) ~= "table" then
+            s.actionBarLayoutByZoneAcc[mapID] = {}
+        end
+        local t = s.actionBarLayoutByZoneAcc[mapID]
+        if t[1] == nil and next(t) ~= nil then
+            s.actionBarLayoutByZoneAcc[mapID] = {}
+        end
+        return s.actionBarLayoutByZoneAcc[mapID]
+    end
+
+    local function GetZoneLayoutArrayReadOnly(mapID)
+        mapID = tonumber(mapID)
+        if not mapID or mapID <= 0 then
+            return nil
+        end
+        InitSV()
+        local s = GetSettings()
+        if not s then
+            return nil
+        end
+        local byZone = rawget(s, "actionBarLayoutByZoneAcc")
+        if type(byZone) ~= "table" then
+            return nil
+        end
+        local t = byZone[mapID]
+        if type(t) ~= "table" then
+            return nil
+        end
+        return t
     end
 
     local function GetSharedAccountLayoutArrayReadOnly()
@@ -713,7 +1078,26 @@ function ns.SituateUI_Build(panel)
 
     local function GetTargetLayoutArray()
         if targetScope == "account" then
-            return EnsureSharedAccountLayoutArray()
+            if not accountExpansionOn then
+                return EnsureSharedAccountLayoutArray()
+            end
+
+            local expKey = GetCurrentExpansionKey and GetCurrentExpansionKey() or nil
+            if not expKey then
+                return nil
+            end
+
+            if not accountProfessionOn then
+                return EnsureExpansionLayoutArray(expKey)
+            end
+
+            local pk = EnsureTargetProfessionKey()
+            if not pk then
+                return nil
+            end
+            return EnsureExpansionProfessionLayoutArray(expKey, pk)
+        elseif targetScope == "zone" then
+            return EnsureZoneLayoutArray(GetCurrentZoneMapID())
         elseif targetScope == "class" then
             return EnsureSharedClassLayoutArray()
         elseif targetScope == "loadout" then
@@ -740,6 +1124,28 @@ function ns.SituateUI_Build(panel)
         local activeSpecID = GetActiveSpecID()
 
         local account = GetSharedAccountLayoutArrayReadOnly()
+        local expKey = GetCurrentExpansionKey and GetCurrentExpansionKey() or nil
+        local expansionT = expKey and GetExpansionLayoutArrayReadOnly(expKey) or nil
+        local profBySlot = {}
+        local profUnslotted = {}
+        if expKey then
+            local profs = GetKnownProfessionKeys and GetKnownProfessionKeys() or nil
+            if type(profs) == "table" and #profs > 0 then
+                for _, pk in ipairs(profs) do
+                    local t = GetExpansionProfessionLayoutArrayReadOnly(expKey, pk)
+                    if type(t) == "table" then
+                        for _, e in ipairs(t) do
+                            local slot = NormalizeSlot(e and e.slot)
+                            if slot then
+                                profBySlot[slot] = { entry = e, professionKey = pk }
+                            else
+                                profUnslotted[#profUnslotted + 1] = { entry = e, professionKey = pk }
+                            end
+                        end
+                    end
+                end
+            end
+        end
         local classT = GetSharedClassLayoutArrayReadOnly()
         local specT = GetLayoutArrayReadOnlyBySpec(viewingSpecID)
 
@@ -753,7 +1159,7 @@ function ns.SituateUI_Build(panel)
         end
 
         local chosenBySlot = {}
-        local function consider(scopeName, entry)
+        local function consider(scopeName, entry, expansionKey, professionKey)
             if type(entry) ~= "table" then
                 return
             end
@@ -761,12 +1167,27 @@ function ns.SituateUI_Build(panel)
             if not slot then
                 return
             end
-            chosenBySlot[slot] = { slot = slot, entry = entry, sourceScope = scopeName }
+            chosenBySlot[slot] = {
+                slot = slot,
+                entry = entry,
+                sourceScope = scopeName,
+                sourceExpansionKey = expansionKey,
+                sourceProfessionKey = professionKey,
+            }
         end
 
         -- lowest -> highest precedence
         if type(account) == "table" then
             for _, e in ipairs(account) do consider("account", e) end
+        end
+        if type(expansionT) == "table" then
+            for _, e in ipairs(expansionT) do consider("expansion", e, expKey) end
+        end
+        for slot = 1, 180 do
+            local pe = profBySlot[slot]
+            if pe and pe.entry then
+                consider("profession", pe.entry, expKey, pe.professionKey)
+            end
         end
         if type(classT) == "table" then
             for _, e in ipairs(classT) do consider("class", e) end
@@ -798,6 +1219,19 @@ function ns.SituateUI_Build(panel)
         end
 
         appendUnslotted("account", account)
+        appendUnslotted("expansion", expansionT)
+        for i = 1, #profUnslotted do
+            local pe = profUnslotted[i]
+            if pe and type(pe.entry) == "table" then
+                out[#out + 1] = {
+                    slot = nil,
+                    entry = pe.entry,
+                    sourceScope = "profession",
+                    sourceExpansionKey = expKey,
+                    sourceProfessionKey = pe.professionKey,
+                }
+            end
+        end
         appendUnslotted("class", classT)
         appendUnslotted("spec", specT)
         appendUnslotted("loadout", loadout)
@@ -886,6 +1320,16 @@ function ns.SituateUI_Build(panel)
         local tgt = targetScope
         if tgt == "account" then
             parts[#parts + 1] = "Target: Account"
+
+            if accountExpansionOn then
+                local expKey = GetCurrentExpansionKey and GetCurrentExpansionKey() or nil
+                parts[#parts + 1] = "Expansion: " .. (expKey and tostring(GetExpansionLabel(expKey)) or "(unknown)")
+            end
+
+            if accountProfessionOn then
+                local pk = EnsureTargetProfessionKey()
+                parts[#parts + 1] = "Profession: " .. (pk and tostring(pk) or "(none)")
+            end
         elseif tgt == "class" then
             parts[#parts + 1] = "Target: Class"
         elseif tgt == "loadout" then
@@ -970,6 +1414,17 @@ function ns.SituateUI_Build(panel)
     btnScope:SetSize(BTN_W, BTN_H)
     btnScope:SetPoint("TOPLEFT", btnEnabled, "BOTTOMLEFT", 0, -BTN_GAP)
 
+    -- Account sub-scope buttons (only shown when Target=Account)
+    local btnAccExpansion = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnAccExpansion:SetSize(95, BTN_H)
+    btnAccExpansion:SetPoint("LEFT", btnScope, "RIGHT", 6, 0)
+    btnAccExpansion:Hide()
+
+    local btnAccProfession = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnAccProfession:SetSize(120, BTN_H)
+    btnAccProfession:SetPoint("LEFT", btnAccExpansion, "RIGHT", 6, 0)
+    btnAccProfession:Hide()
+
     local btnApply = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnApply:SetSize(BTN_W, BTN_H)
     btnApply:SetText("Apply All")
@@ -1006,6 +1461,7 @@ function ns.SituateUI_Build(panel)
     hoverText:SetPoint("BOTTOMLEFT", btnUseHover, "TOPLEFT", 0, 6)
     hoverText:SetJustifyH("LEFT")
     hoverText:SetText("Hover: -")
+
 
     local detectorOn = false
     local hoverSlot, hoverType, hoverId = nil, nil, nil
@@ -1178,6 +1634,7 @@ function ns.SituateUI_Build(panel)
     local selectedMacroRemember = false
     local pendingAlwaysOverwrite = false
     local pendingClearElsewhere = false
+    local pendingRemoveOutsideExpansion = false
 
     local RefreshButtons
 
@@ -1244,6 +1701,27 @@ function ns.SituateUI_Build(panel)
     btnClear:SetPoint("LEFT", btnAlways, "RIGHT", 8, 0)
     SetClearText(btnClear, false)
     btnClear:Show()
+
+    local btnRemove = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
+    btnRemove:SetSize(70, BTN_H)
+    btnRemove:SetPoint("LEFT", btnClear, "RIGHT", 8, 0)
+    SetRemoveText(btnRemove, false)
+    btnRemove:Hide()
+
+    btnRemove:SetScript("OnEnter", function()
+        if not GameTooltip then
+            return
+        end
+        GameTooltip:SetOwner(btnRemove, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Remove (outside expansion)", 1, 1, 1, true)
+        GameTooltip:AddLine("When ON, this slot is cleared whenever you are not in this expansion's zones.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnRemove:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
 
     -- Apply belongs in the panel bottom-left corner.
     btnApply:ClearAllPoints()
@@ -1421,6 +1899,7 @@ function ns.SituateUI_Build(panel)
         selectedMacroScope = nil
         selectedMacroIndex = nil
         selectedMacroRemember = false
+        pendingRemoveOutsideExpansion = false
         SetSelectedSlot(nil)
         UpdatePickedText()
         SetStatusForSelection()
@@ -1505,18 +1984,18 @@ function ns.SituateUI_Build(panel)
     local function WriteSelectionToTarget()
         if not CanEditTarget() then
             status:SetText("Target not editable")
-            return
+            return false
         end
         local slot = NormalizeSlot(selectedSlot)
         if not slot then
             status:SetText("Pick a slot")
-            return
+            return false
         end
 
         local entry = GetOrCreateTargetEntryForSlot(slot)
         if not entry then
             status:SetText("Cannot write to target")
-            return
+            return false
         end
 
         entry.slot = slot
@@ -1527,9 +2006,17 @@ function ns.SituateUI_Build(panel)
         entry.alwaysOverwrite = pendingAlwaysOverwrite and true or nil
         entry.clearElsewhere = pendingClearElsewhere and true or nil
 
+        if targetScope == "account" and accountExpansionOn then
+            entry.removeOutsideExpansion = pendingRemoveOutsideExpansion and true or nil
+        else
+            entry.removeOutsideExpansion = nil
+        end
+
         if panel._ActionBarUI_RefreshList then
             panel:_ActionBarUI_RefreshList()
         end
+
+        return true
     end
 
     -- Slot selector: click button, then click an action button.
@@ -1891,6 +2378,34 @@ function ns.SituateUI_Build(panel)
         local seen = {}
         assistantSpellID = nil
 
+        local function IsPassiveSpellID(sid)
+            sid = tonumber(sid)
+            if not sid or sid <= 0 then
+                return false
+            end
+
+            if C_Spell and type(C_Spell.IsSpellPassive) == "function" then
+                local ok, isPassive = pcall(C_Spell.IsSpellPassive, sid)
+                if ok then
+                    return isPassive and true or false
+                end
+            end
+            if type(IsPassiveSpell) == "function" then
+                local ok, isPassive = pcall(IsPassiveSpell, sid)
+                if ok then
+                    return isPassive and true or false
+                end
+            end
+            if type(IsSpellPassive) == "function" then
+                local ok, isPassive = pcall(IsSpellPassive, sid)
+                if ok then
+                    return isPassive and true or false
+                end
+            end
+
+            return false
+        end
+
         local function IsGeneralCategory(cat)
             cat = tostring(cat or "")
             cat = cat:lower()
@@ -1903,6 +2418,10 @@ function ns.SituateUI_Build(panel)
                 return
             end
             seen[sid] = true
+
+            if IsPassiveSpellID(sid) then
+                return
+            end
 
             local name = nil
             if C_Spell and C_Spell.GetSpellInfo then
@@ -2114,6 +2633,9 @@ function ns.SituateUI_Build(panel)
             local it = pickerItems[idx]
             if not it then
                 r:Hide()
+                r:SetScript("OnClick", nil)
+                r:SetScript("OnEnter", nil)
+                r:SetScript("OnLeave", nil)
             else
                 r:Show()
                 if r._zebraBg then
@@ -2134,6 +2656,26 @@ function ns.SituateUI_Build(panel)
                     pickerFrame:Hide()
                     if RefreshButtons then
                         RefreshButtons()
+                    end
+                end)
+
+                r:SetScript("OnEnter", function()
+                    if not (it and it.spellID and GameTooltip) then
+                        return
+                    end
+                    GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
+                    if GameTooltip.SetSpellByID then
+                        GameTooltip:SetSpellByID(it.spellID)
+                    else
+                        GameTooltip:SetText(tostring(it.label or it.spellID))
+                    end
+                    GameTooltip:AddLine("SpellID: " .. tostring(it.spellID), 1, 1, 1, true)
+                    GameTooltip:Show()
+                end)
+
+                r:SetScript("OnLeave", function()
+                    if GameTooltip then
+                        GameTooltip:Hide()
                     end
                 end)
             end
@@ -2238,6 +2780,7 @@ function ns.SituateUI_Build(panel)
 
             pendingAlwaysOverwrite = (row.entry.alwaysOverwrite and true or false)
             pendingClearElsewhere = (row.entry.clearElsewhere and true or false)
+            pendingRemoveOutsideExpansion = (row.entry.removeOutsideExpansion and true or false)
         elseif row and row.slot then
             SetSelectedSlot(row.slot)
             selectedValue = ""
@@ -2247,6 +2790,7 @@ function ns.SituateUI_Build(panel)
 
             pendingAlwaysOverwrite = false
             pendingClearElsewhere = false
+            pendingRemoveOutsideExpansion = false
         else
             SetSelectedSlot(nil)
             selectedValue = ""
@@ -2256,6 +2800,7 @@ function ns.SituateUI_Build(panel)
 
             pendingAlwaysOverwrite = false
             pendingClearElsewhere = false
+            pendingRemoveOutsideExpansion = false
         end
         isLoadingFields = false
     end
@@ -2281,18 +2826,27 @@ function ns.SituateUI_Build(panel)
         local canAlways = false
         local clearOn = false
         local canClear = false
+        local removeOn = false
+        local canRemove = false
+        local showRemove = (targetScope == "account" and accountExpansionOn) and true or false
         if row and row.entry then
             alwaysOn = (row.entry.alwaysOverwrite and true or false)
             canAlways = (row.sourceScope ~= nil) and CanEditScope(row.sourceScope)
 
             clearOn = (row.entry.clearElsewhere and true or false)
             canClear = (row.sourceScope ~= nil) and CanEditScope(row.sourceScope)
+
+            removeOn = (row.entry.removeOutsideExpansion and true or false)
+            canRemove = (row.sourceScope == "expansion" or row.sourceScope == "profession") and CanEditScope(row.sourceScope)
         elseif hasSlot and canEdit then
             alwaysOn = pendingAlwaysOverwrite
             canAlways = true
 
             clearOn = pendingClearElsewhere
             canClear = true
+
+            removeOn = pendingRemoveOutsideExpansion
+            canRemove = showRemove and true or false
         end
 
         btnAdd:SetEnabled(canEdit)
@@ -2301,6 +2855,22 @@ function ns.SituateUI_Build(panel)
         SetAlwaysText(btnAlways, alwaysOn)
         btnClear:SetEnabled(canClear)
         SetClearText(btnClear, clearOn)
+
+        btnRemove:SetShown(showRemove)
+        if showRemove then
+            btnRemove:SetEnabled(canRemove)
+            SetRemoveText(btnRemove, removeOn)
+        end
+
+        -- Prevent overlap with Remember when Remove is shown.
+        if btnRemember and btnRemember.ClearAllPoints and btnRemember.SetPoint then
+            btnRemember:ClearAllPoints()
+            if showRemove then
+                btnRemember:SetPoint("LEFT", btnRemove, "RIGHT", 8, 0)
+            else
+                btnRemember:SetPoint("LEFT", btnClear, "RIGHT", 8, 0)
+            end
+        end
         btnApply:SetEnabled(true)
         btnUseHover:SetEnabled(canEdit)
         btnUseCursor:SetEnabled(canEdit)
@@ -2575,6 +3145,30 @@ function ns.SituateUI_Build(panel)
         local activeSpecID = GetActiveSpecID()
 
         local account = GetSharedAccountLayoutArrayReadOnly()
+        local expKey = GetCurrentExpansionKey and GetCurrentExpansionKey() or nil
+        local expansionT = expKey and GetExpansionLayoutArrayReadOnly(expKey) or nil
+        local profBySlot = {}
+        local profUnslotted = {}
+        if expKey then
+            local profs = GetKnownProfessionKeys and GetKnownProfessionKeys() or nil
+            if type(profs) == "table" and #profs > 0 then
+                for _, pk in ipairs(profs) do
+                    local t = GetExpansionProfessionLayoutArrayReadOnly(expKey, pk)
+                    if type(t) == "table" then
+                        for _, e in ipairs(t) do
+                            if type(e) == "table" then
+                                local slot = NormalizeSlot(e.slot)
+                                if slot then
+                                    profBySlot[slot] = { entry = e, scope = "profession", expansionKey = expKey, professionKey = pk }
+                                else
+                                    profUnslotted[#profUnslotted + 1] = { entry = e, scope = "profession", expansionKey = expKey, professionKey = pk }
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
         local classT = GetSharedClassLayoutArrayReadOnly()
         local specT = GetLayoutArrayReadOnlyBySpec(viewingSpecID)
 
@@ -2588,7 +3182,7 @@ function ns.SituateUI_Build(panel)
 
         local bySlot = {}
         local unslotted = {}
-        local function addList(scopeName, t)
+        local function addList(scopeName, t, expansionKey, professionKey)
             if type(t) ~= "table" then
                 return
             end
@@ -2597,9 +3191,9 @@ function ns.SituateUI_Build(panel)
                     local slot = NormalizeSlot(e.slot)
                     if slot then
                         bySlot[slot] = bySlot[slot] or {}
-                        bySlot[slot][#bySlot[slot] + 1] = { entry = e, scope = scopeName }
+                        bySlot[slot][#bySlot[slot] + 1] = { entry = e, scope = scopeName, expansionKey = expansionKey, professionKey = professionKey }
                     else
-                        unslotted[#unslotted + 1] = { entry = e, scope = scopeName }
+                        unslotted[#unslotted + 1] = { entry = e, scope = scopeName, expansionKey = expansionKey, professionKey = professionKey }
                     end
                 end
             end
@@ -2609,6 +3203,17 @@ function ns.SituateUI_Build(panel)
         addList("loadout", loadout)
         addList("spec", specT)
         addList("class", classT)
+        for slot = 1, 180 do
+            local pe = profBySlot[slot]
+            if pe and pe.entry then
+                bySlot[slot] = bySlot[slot] or {}
+                bySlot[slot][#bySlot[slot] + 1] = pe
+            end
+        end
+        for i = 1, #profUnslotted do
+            unslotted[#unslotted + 1] = profUnslotted[i]
+        end
+        addList("expansion", expansionT, expKey)
         addList("account", account)
 
         -- Always hide the old empty placeholder (list is pre-populated).
@@ -2617,7 +3222,7 @@ function ns.SituateUI_Build(panel)
         wipe(displayRows)
 
         local function ScopeTag(scope)
-            return (scope == "loadout" and "L") or (scope == "spec" and "S") or (scope == "class" and "C") or (scope == "account" and "A") or "?"
+            return (scope == "loadout" and "L") or (scope == "spec" and "S") or (scope == "class" and "C") or (scope == "profession" and "P") or (scope == "expansion" and "E") or (scope == "account" and "A") or "?"
         end
 
         for bar = 1, 15 do
@@ -2629,6 +3234,8 @@ function ns.SituateUI_Build(panel)
                     local best = list[1]
                     local bestEntry = best and best.entry or nil
                     local bestScope = best and best.scope or nil
+                    local bestExpKey = best and best.expansionKey or nil
+                    local bestProfKey = best and best.professionKey or nil
                     displayRows[#displayRows + 1] = {
                         rowType = "slot",
                         bar = bar,
@@ -2638,6 +3245,8 @@ function ns.SituateUI_Build(panel)
                         bestEntry = bestEntry,
                         entry = bestEntry,
                         sourceScope = bestScope,
+                        sourceExpansionKey = bestExpKey,
+                        sourceProfessionKey = bestProfKey,
                     }
                     if slotExpanded[slot] and #list > 1 then
                         for j = 2, #list do
@@ -2646,6 +3255,8 @@ function ns.SituateUI_Build(panel)
                                 slot = slot,
                                 entry = list[j].entry,
                                 sourceScope = list[j].scope,
+                                sourceExpansionKey = list[j].expansionKey,
+                                sourceProfessionKey = list[j].professionKey,
                             }
                         end
                     end
@@ -2665,6 +3276,8 @@ function ns.SituateUI_Build(panel)
                         slot = nil,
                         entry = unslotted[i].entry,
                         sourceScope = unslotted[i].scope,
+                        sourceExpansionKey = unslotted[i].expansionKey,
+                        sourceProfessionKey = unslotted[i].professionKey,
                         unslotted = true,
                     }
                 end
@@ -2862,9 +3475,18 @@ function ns.SituateUI_Build(panel)
             status:SetText("Target not editable")
             return
         end
-        WriteSelectionToTarget()
+        local ok = WriteSelectionToTarget()
+        if not ok then
+            RefreshButtons()
+            RefreshList()
+            return
+        end
+
         status:SetText("Added")
         ClearSelectionFields()
+        pendingAlwaysOverwrite = false
+        pendingClearElsewhere = false
+        pendingRemoveOutsideExpansion = false
         RefreshButtons()
         RefreshList()
     end)
@@ -2928,6 +3550,40 @@ function ns.SituateUI_Build(panel)
         status:SetText(pendingClearElsewhere and "Clear elsewhere (pending): ON" or "Clear elsewhere (pending): OFF")
     end)
 
+    btnRemove:SetScript("OnClick", function()
+        local row = GetSelectedRow()
+        if row and row.entry and row.sourceScope then
+            if row.sourceScope ~= "expansion" and row.sourceScope ~= "profession" then
+                status:SetText("Remove only applies to expansion entries")
+                return
+            end
+            if not CanEditScope(row.sourceScope) then
+                status:SetText("Scope not editable")
+                return
+            end
+
+            row.entry.removeOutsideExpansion = not (row.entry.removeOutsideExpansion and true or false)
+            pendingRemoveOutsideExpansion = (row.entry.removeOutsideExpansion and true or false)
+            RefreshButtons()
+            RefreshList()
+            status:SetText(row.entry.removeOutsideExpansion and "Remove outside expansion: ON" or "Remove outside expansion: OFF")
+            return
+        end
+
+        if not CanEditTarget() then
+            status:SetText("Target not editable")
+            return
+        end
+        if not NormalizeSlot(selectedSlot) then
+            status:SetText("Pick a slot")
+            return
+        end
+
+        pendingRemoveOutsideExpansion = not pendingRemoveOutsideExpansion
+        RefreshButtons()
+        status:SetText(pendingRemoveOutsideExpansion and "Remove outside expansion (pending): ON" or "Remove outside expansion (pending): OFF")
+    end)
+
     btnDel:SetScript("OnClick", function()
         local row = GetSelectedRow()
         if not (row and row.entry and row.sourceScope) then
@@ -2938,6 +3594,16 @@ function ns.SituateUI_Build(panel)
         local sourceList = nil
         if row.sourceScope == "account" then
             sourceList = EnsureSharedAccountLayoutArray()
+        elseif row.sourceScope == "expansion" then
+            sourceList = EnsureExpansionLayoutArray(row.sourceExpansionKey or (GetCurrentExpansionKey and GetCurrentExpansionKey() or nil))
+        elseif row.sourceScope == "profession" then
+            local expKey = row.sourceExpansionKey or (GetCurrentExpansionKey and GetCurrentExpansionKey() or nil)
+            local pk = row.sourceProfessionKey
+            if expKey and pk then
+                sourceList = EnsureExpansionProfessionLayoutArray(expKey, pk)
+            end
+        elseif row.sourceScope == "zone" then
+            sourceList = EnsureZoneLayoutArray(GetCurrentZoneMapID())
         elseif row.sourceScope == "class" then
             sourceList = EnsureSharedClassLayoutArray()
         elseif row.sourceScope == "loadout" then
@@ -2965,8 +3631,33 @@ function ns.SituateUI_Build(panel)
 
     local UpdateScopeButton
 
+    local function UpdateAccountSubButtons()
+        local show = (targetScope == "account") and true or false
+        btnAccExpansion:SetShown(show)
+        btnAccProfession:SetShown(show)
+
+        if not show then
+            return
+        end
+
+        local expKey = GetCurrentExpansionKey and GetCurrentExpansionKey() or nil
+        local expLabel = expKey and tostring(GetExpansionLabel(expKey)) or "Unknown"
+
+        btnAccExpansion:SetText(accountExpansionOn and "Expansion: ON" or "Expansion: OFF")
+
+        if accountProfessionOn then
+            local pk = EnsureTargetProfessionKey()
+            btnAccProfession:SetText("Profession: " .. tostring(pk or "(none)"))
+        else
+            btnAccProfession:SetText("Profession: OFF")
+        end
+
+        btnAccExpansion._expLabel = expLabel
+    end
+
     local function UpdateAll()
         UpdateScopeButton()
+        UpdateAccountSubButtons()
         UpdateSpecHint()
         SetDetectorButtonText()
         RefreshButtons()
@@ -2982,9 +3673,100 @@ function ns.SituateUI_Build(panel)
         elseif targetScope == "class" then
             btnScope:SetText("Class")
         else
-            btnScope:SetText("Spec")
+            btnScope:SetText("Spec") -- Default target scope
         end
     end
+
+    btnAccExpansion:SetScript("OnClick", function()
+        if targetScope ~= "account" then
+            return
+        end
+
+        accountExpansionOn = not accountExpansionOn
+        if not accountExpansionOn then
+            accountProfessionOn = false
+            targetProfessionKey = nil
+        end
+
+        selectedIndex = nil
+        UpdateAll()
+    end)
+
+    btnAccExpansion:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnAccExpansion, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Account: Expansion")
+        GameTooltip:AddLine("When ON, Account writes to the current expansion (landmass).", 1, 1, 1, true)
+        GameTooltip:AddLine("Current: " .. tostring(btnAccExpansion._expLabel or "Unknown"), 1, 1, 1, true)
+        GameTooltip:AddLine("Turning this OFF also turns Profession OFF.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnAccExpansion:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnAccProfession:SetScript("OnClick", function()
+        if targetScope ~= "account" then
+            return
+        end
+
+        -- Profession is nested under Expansion
+        if not accountExpansionOn then
+            accountExpansionOn = true
+        end
+
+        local expKey = GetCurrentExpansionKey and GetCurrentExpansionKey() or nil
+        if not expKey then
+            accountProfessionOn = false
+            targetProfessionKey = nil
+            selectedIndex = nil
+            UpdateAll()
+            return
+        end
+
+        local profs = (type(GetKnownProfessionKeys) == "function") and GetKnownProfessionKeys() or nil
+        if type(profs) ~= "table" or #profs == 0 then
+            accountProfessionOn = false
+            targetProfessionKey = nil
+            selectedIndex = nil
+            UpdateAll()
+            return
+        end
+
+        -- Cycle: OFF -> first -> next -> ... -> OFF
+        if not accountProfessionOn then
+            accountProfessionOn = true
+            targetProfessionKey = profs[1]
+        else
+            local idx = 0
+            for i = 1, #profs do
+                if profs[i] == targetProfessionKey then
+                    idx = i
+                    break
+                end
+            end
+            idx = idx + 1
+            if idx < 1 or idx > #profs then
+                accountProfessionOn = false
+                targetProfessionKey = nil
+            else
+                accountProfessionOn = true
+                targetProfessionKey = profs[idx]
+            end
+        end
+
+        selectedIndex = nil
+        UpdateAll()
+    end)
+
+    btnAccProfession:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnAccProfession, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Account: Profession")
+        GameTooltip:AddLine("When ON, Account writes to current expansion + selected profession.", 1, 1, 1, true)
+        GameTooltip:AddLine("Click to cycle professions (and OFF).", 1, 1, 1, true)
+        GameTooltip:AddLine("Profession implies Expansion.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnAccProfession:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
     btnScope:SetScript("OnClick", function()
         if targetScope == "spec" then
@@ -3008,10 +3790,11 @@ function ns.SituateUI_Build(panel)
         GameTooltip:AddLine("Select where new entries/overrides are stored.", 1, 1, 1, true)
         GameTooltip:AddLine("The list always shows the effective merged layout.", 1, 1, 1, true)
         GameTooltip:AddLine("Account: shared across all characters.", 1, 1, 1, true)
+        GameTooltip:AddLine("Use the Expansion/Profession buttons next to Target when Target=Account.", 1, 1, 1, true)
         GameTooltip:AddLine("Class: shared across all specs of this class.", 1, 1, 1, true)
         GameTooltip:AddLine("Spec: applies to the viewed spec.", 1, 1, 1, true)
         GameTooltip:AddLine("Loadout: applies to active loadout (active spec only).", 1, 1, 1, true)
-        GameTooltip:AddLine("Precedence on same slot: Loadout > Spec > Class > Account.", 1, 1, 1, true)
+        GameTooltip:AddLine("Precedence on same slot: Loadout > Spec > Class > Profession > Expansion > Account.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
     btnScope:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

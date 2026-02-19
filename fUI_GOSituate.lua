@@ -11,6 +11,20 @@ local applyTimer = nil
 local pendingReason = nil
 local pendingAfterCombat = false
 local didEnsureRememberedMacros = false
+local lastApplySeq = 0
+
+local function SafeGetNumMacros()
+    if not GetNumMacros then
+        return nil, nil
+    end
+    local ok, acc, char = pcall(GetNumMacros)
+    if not ok then
+        return nil, nil
+    end
+    acc = tonumber(acc)
+    char = tonumber(char)
+    return acc, char
+end
 
 local function InitSV()
     if ns and type(ns._InitSV) == "function" then
@@ -104,6 +118,57 @@ local function GetActiveLoadoutKey(classTag, specID)
     return tostring(classTag) .. ":" .. tostring(specID) .. ":" .. tostring(name)
 end
 
+local function GetCurrentExpansionKeyForPlayer()
+    if not (C_Map and type(C_Map.GetBestMapForUnit) == "function") then
+        return nil
+    end
+
+    local ok, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+    if not ok or type(mapID) ~= "number" or mapID <= 0 then
+        return nil
+    end
+
+    -- Walk up to the Continent (expansion landmass) and use its name as the expansion key.
+    -- (This matches your use-case: Dragon Isles vs Khaz Algar; Midnight can be added later.)
+    if C_Map.GetMapInfo and Enum and Enum.UIMapType then
+        local cur = mapID
+        for _ = 1, 12 do
+            local okInfo, info = pcall(C_Map.GetMapInfo, cur)
+            if not okInfo or type(info) ~= "table" then
+                break
+            end
+
+            local mapType = info.mapType
+            local parent = tonumber(info.parentMapID) or 0
+
+            if mapType == Enum.UIMapType.Continent then
+                local name = tostring(info.name or "")
+                local low = name:lower()
+                if low:find("dragon isles", 1, true) then
+                    return "dragonisles"
+                end
+                if low:find("khaz algar", 1, true) then
+                    return "khazalgar"
+                end
+                if low:find("midnight", 1, true) then
+                    return "midnight"
+                end
+                return nil
+            end
+
+            if not parent or parent <= 0 then
+                break
+            end
+
+            cur = parent
+        end
+
+        return nil
+    end
+
+    return nil
+end
+
 local function GetActiveLayout()
     local s = GetSettings()
     if type(s) ~= "table" then
@@ -146,6 +211,78 @@ local function GetActiveLayout()
         return t
     end
 
+    local function GetSharedLayoutForExpansion(expansionKey)
+        if not expansionKey then
+            return nil
+        end
+        local byExp = rawget(s, "actionBarLayoutByExpansionAcc")
+        if type(byExp) ~= "table" then
+            return nil
+        end
+        local t = byExp[expansionKey]
+        if type(t) ~= "table" then
+            return nil
+        end
+        return t
+    end
+
+    local function SpellKnownAny(list)
+        if type(list) ~= "table" then
+            return false
+        end
+        for i = 1, #list do
+            local sid = tonumber(list[i])
+            if sid and sid > 0 then
+                if IsSpellKnown then
+                    local ok, known = pcall(IsSpellKnown, sid)
+                    if ok and known then
+                        return true
+                    end
+                end
+                if IsPlayerSpell then
+                    local ok, known = pcall(IsPlayerSpell, sid)
+                    if ok and known then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    local PROF_SPELLS = {
+        Mining = { 2575, 265757, 265840, 265841, 265843, 265844, 265845, 265846, 265847, 265848, 265849, 309325, 374627, 433321, 471013 },
+        Herbalism = { 2366, 265825, 265756, 265819, 265820, 265821, 265822, 265823, 265824, 265826, 309312, 374626, 433320, 471012 },
+        Skinning = { 8613, 265861, 265761, 265869, 265870, 265871, 265872, 265873, 265874, 265875, 265876, 309318, 374633, 433327, 471019 },
+    }
+
+    local function GetKnownProfessionKeys()
+        local out = {}
+        if SpellKnownAny(PROF_SPELLS.Mining) then out[#out + 1] = "Mining" end
+        if SpellKnownAny(PROF_SPELLS.Herbalism) then out[#out + 1] = "Herbalism" end
+        if SpellKnownAny(PROF_SPELLS.Skinning) then out[#out + 1] = "Skinning" end
+        return out
+    end
+
+    local function GetSharedLayoutForExpansionProfession(expansionKey, professionKey)
+        if not (expansionKey and professionKey) then
+            return nil
+        end
+        local byExp = rawget(s, "actionBarLayoutByExpansionProfessionAcc")
+        if type(byExp) ~= "table" then
+            return nil
+        end
+        local byProf = byExp[expansionKey]
+        if type(byProf) ~= "table" then
+            return nil
+        end
+        local t = byProf[professionKey]
+        if type(t) ~= "table" then
+            return nil
+        end
+        return t
+    end
+
     local function GetSharedLayoutForClass(classTag)
         if not classTag then
             return nil
@@ -176,12 +313,31 @@ local function GetActiveLayout()
         return t
     end
 
-    local function Combine4(sharedAccount, sharedClass, spec, loadout)
+    local function Combine4(sharedAccount, sharedAccountOriginBySlot, sharedClass, classTag, spec, specID, loadout, loadoutKey)
         if type(sharedAccount) ~= "table" and type(sharedClass) ~= "table" and type(spec) ~= "table" and type(loadout) ~= "table" then
             return nil
         end
         local out = {}
         local loadoutSlots, specSlots, classSlots = {}, {}, {}
+
+        local function DetailFor(scope, slot)
+            if scope == "account" then
+                if slot and type(sharedAccountOriginBySlot) == "table" then
+                    return sharedAccountOriginBySlot[slot] or "account:shared"
+                end
+                return "account:unslotted"
+            end
+            if scope == "class" then
+                return "class:" .. tostring(classTag or "?")
+            end
+            if scope == "spec" then
+                return "spec:" .. tostring(specID or "?")
+            end
+            if scope == "loadout" then
+                return "loadout:" .. tostring(loadoutKey or "?")
+            end
+            return tostring(scope or "?")
+        end
 
         if type(loadout) == "table" then
             for _, e in ipairs(loadout) do
@@ -214,7 +370,7 @@ local function GetActiveLayout()
             for _, e in ipairs(sharedAccount) do
                 local slot = NormalizeSlot180(e and e.slot)
                 if not slot or (not classSlots[slot] and not specSlots[slot] and not loadoutSlots[slot]) then
-                    out[#out + 1] = { entry = e, scope = "account" }
+                    out[#out + 1] = { entry = e, scope = "account", scopeDetail = DetailFor("account", slot) }
                 end
             end
         end
@@ -223,7 +379,7 @@ local function GetActiveLayout()
             for _, e in ipairs(sharedClass) do
                 local slot = NormalizeSlot180(e and e.slot)
                 if not slot or (not specSlots[slot] and not loadoutSlots[slot]) then
-                    out[#out + 1] = { entry = e, scope = "class" }
+                    out[#out + 1] = { entry = e, scope = "class", scopeDetail = DetailFor("class", slot) }
                 end
             end
         end
@@ -232,24 +388,106 @@ local function GetActiveLayout()
             for _, e in ipairs(spec) do
                 local slot = NormalizeSlot180(e and e.slot)
                 if not slot or not loadoutSlots[slot] then
-                    out[#out + 1] = { entry = e, scope = "spec" }
+                    out[#out + 1] = { entry = e, scope = "spec", scopeDetail = DetailFor("spec", slot) }
                 end
             end
         end
 
         if type(loadout) == "table" then
             for _, e in ipairs(loadout) do
-                out[#out + 1] = { entry = e, scope = "loadout" }
+                local slot = NormalizeSlot180(e and e.slot)
+                out[#out + 1] = { entry = e, scope = "loadout", scopeDetail = DetailFor("loadout", slot) }
             end
         end
 
         return out
     end
 
+    local function BuildAccountMerged(sharedAccountAll, sharedAccountExpansion, sharedAccountProfession)
+        if type(sharedAccountAll) ~= "table" and type(sharedAccountExpansion) ~= "table" and type(sharedAccountProfession) ~= "table" then
+            return nil
+        end
+
+        local bySlot = {}
+        local bySlotOrigin = {}
+        local unslotted = {}
+
+        local function consider(t, origin)
+            if type(t) ~= "table" then
+                return
+            end
+            for _, e in ipairs(t) do
+                local slot = NormalizeSlot180(e and e.slot)
+                if slot then
+                    bySlot[slot] = e
+                    bySlotOrigin[slot] = origin
+                else
+                    unslotted[#unslotted + 1] = e
+                end
+            end
+        end
+
+        -- lowest -> highest precedence within Account
+        consider(sharedAccountAll, "account:shared")
+        consider(sharedAccountExpansion, "account:expansion")
+        consider(sharedAccountProfession, "account:profession")
+
+        local out = {}
+        for slot = 1, 180 do
+            local e = bySlot[slot]
+            if e then
+                out[#out + 1] = e
+            end
+        end
+        for i = 1, #unslotted do
+            out[#out + 1] = unslotted[i]
+        end
+        return ((#out > 0) and out or nil), bySlotOrigin
+    end
+
     local specID = GetActiveSpecID()
     local bySpec = rawget(s, "actionBarLayoutBySpecAcc")
     local classTag = GetPlayerClassTag()
-    local sharedAccount = GetSharedLayoutForAccount()
+    local sharedAccountAll = GetSharedLayoutForAccount()
+    local expKey = GetCurrentExpansionKeyForPlayer()
+    local sharedAccountExpansion = GetSharedLayoutForExpansion(expKey)
+
+    local sharedAccountProfession = nil
+    if expKey then
+        local profs = GetKnownProfessionKeys()
+        if #profs > 0 then
+            local bySlot = {}
+            local unslotted = {}
+            for _, pk in ipairs(profs) do
+                local t = GetSharedLayoutForExpansionProfession(expKey, pk)
+                if type(t) == "table" then
+                    for _, e in ipairs(t) do
+                        local slot = NormalizeSlot180(e and e.slot)
+                        if slot then
+                            bySlot[slot] = e
+                        else
+                            unslotted[#unslotted + 1] = e
+                        end
+                    end
+                end
+            end
+            local merged = {}
+            for slot = 1, 180 do
+                local e = bySlot[slot]
+                if e then
+                    merged[#merged + 1] = e
+                end
+            end
+            for i = 1, #unslotted do
+                merged[#merged + 1] = unslotted[i]
+            end
+            if #merged > 0 then
+                sharedAccountProfession = merged
+            end
+        end
+    end
+
+    local sharedAccount, sharedAccountOriginBySlot = BuildAccountMerged(sharedAccountAll, sharedAccountExpansion, sharedAccountProfession)
     local sharedClass = GetSharedLayoutForClass(classTag)
     local loadoutKey = (specID and classTag) and GetActiveLoadoutKey(classTag, specID) or nil
     local sharedLoadout = GetSharedLayoutForLoadout(loadoutKey)
@@ -280,13 +518,13 @@ local function GetActiveLayout()
     ConsiderHighest(sharedLoadout, "loadout")
 
     if type(bySpec) == "table" and specID and type(bySpec[specID]) == "table" then
-        return Combine4(sharedAccount, sharedClass, bySpec[specID], sharedLoadout), specID, highestScopeRankBySlot
+        return Combine4(sharedAccount, sharedAccountOriginBySlot, sharedClass, classTag, bySpec[specID], specID, sharedLoadout, loadoutKey), specID, highestScopeRankBySlot
     end
 
     local legacy = rawget(s, "actionBarLayoutAcc")
     if type(legacy) == "table" then
         ConsiderHighest(legacy, "spec")
-        return Combine4(sharedAccount, sharedClass, legacy, sharedLoadout), nil, highestScopeRankBySlot
+        return Combine4(sharedAccount, sharedAccountOriginBySlot, sharedClass, classTag, legacy, nil, sharedLoadout, loadoutKey), nil, highestScopeRankBySlot
     end
 
     return nil
@@ -316,7 +554,124 @@ local function GetTableSetting(key)
     return v
 end
 
-local function DebugPrint(msg)
+local debugStatusSink = nil
+local lastDebugStatus = ""
+local DebugPrint
+
+local didInstallWriteTrace = false
+local internalWriteDepth = 0
+local lastWriteBySlot = {}
+local startupSyncUntil = 0
+
+local function BeginInternalWrite()
+    internalWriteDepth = (internalWriteDepth or 0) + 1
+end
+
+local function EndInternalWrite()
+    internalWriteDepth = (internalWriteDepth or 0) - 1
+    if internalWriteDepth < 0 then
+        internalWriteDepth = 0
+    end
+end
+
+local function NormalizeOneLine(s)
+    s = tostring(s or "")
+    s = s:gsub("\r", " "):gsub("\n", " | ")
+    s = s:gsub("%s+", " ")
+    return s
+end
+
+local function GetShortStack()
+    if type(debugstack) ~= "function" then
+        return nil
+    end
+    -- Try to skip a couple frames; fall back if signature differs.
+    local ok, st = pcall(debugstack, 3)
+    if not ok then
+        ok, st = pcall(debugstack)
+    end
+    if not ok then
+        return nil
+    end
+    st = NormalizeOneLine(st)
+    if #st > 240 then
+        st = st:sub(1, 240) .. "…"
+    end
+    return st
+end
+
+local function RecordSlotWrite(slot, op)
+    slot = tonumber(slot)
+    if not slot then
+        return
+    end
+    if (internalWriteDepth or 0) > 0 then
+        return
+    end
+    if not GetBoolSetting("actionBarDebugAcc", false) then
+        return
+    end
+    local now = nil
+    if type(GetTime) == "function" then
+        local ok, t = pcall(GetTime)
+        if ok and type(t) == "number" then
+            now = t
+        end
+    end
+    local st = GetShortStack()
+    local culprit = st and (st:match("Interface/AddOns/([^/]+)/") or st:match("Interface/AddOns/([^/]+)/")) or nil
+    lastWriteBySlot[slot] = {
+        at = now,
+        op = tostring(op or "?") ,
+        culprit = culprit,
+        stack = st,
+    }
+end
+
+local function EnsureWriteTraceHooks()
+    if didInstallWriteTrace then
+        return
+    end
+    didInstallWriteTrace = true
+
+    if type(hooksecurefunc) ~= "function" then
+        return
+    end
+    if type(PlaceAction) == "function" then
+        pcall(hooksecurefunc, "PlaceAction", function(slot)
+            RecordSlotWrite(slot, "PlaceAction")
+        end)
+    end
+    if type(PickupAction) == "function" then
+        pcall(hooksecurefunc, "PickupAction", function(slot)
+            RecordSlotWrite(slot, "PickupAction")
+        end)
+    end
+end
+
+function ns.ActionBar_SetDebugStatusSink(fn)
+    if type(fn) == "function" then
+        debugStatusSink = fn
+    else
+        debugStatusSink = nil
+    end
+end
+
+function ns.ActionBar_GetLastDebugStatus()
+    return lastDebugStatus
+end
+
+local function DebugStatus(msg)
+    lastDebugStatus = tostring(msg or "")
+    if type(debugStatusSink) == "function" then
+        pcall(debugStatusSink, lastDebugStatus)
+    end
+    if type(DebugPrint) == "function" then
+        DebugPrint(lastDebugStatus)
+    end
+end
+
+DebugPrint = function(msg)
     if not GetBoolSetting("actionBarDebugAcc", false) then
         return
     end
@@ -358,6 +713,74 @@ local function SafeGetMacroIndexByName(name)
         return 0
     end
     return idx
+end
+
+local function NormalizeMacroNameForLookup(name)
+    if type(name) ~= "string" then
+        return ""
+    end
+
+    -- Remove control chars (including NUL) that can make visible names fail exact matching.
+    name = name:gsub("[%z\1-\31\127]", "")
+
+    -- Replace non-breaking space (UTF-8 C2 A0) with a normal space.
+    name = name:gsub("\194\160", " ")
+
+    -- Normalize whitespace.
+    name = Trim(name)
+    name = name:gsub("%s+", " ")
+    return name
+end
+
+local function FindMacroByNormalizedName(name)
+    if type(name) ~= "string" or name == "" then
+        return 0
+    end
+    if not (GetMacroInfo) then
+        return 0
+    end
+
+    local want = NormalizeMacroNameForLookup(name)
+    if want == "" then
+        return 0
+    end
+
+    local maxAcc = tonumber(rawget(_G, "MAX_ACCOUNT_MACROS")) or 120
+    local maxChar = tonumber(rawget(_G, "MAX_CHARACTER_MACROS")) or 18
+    local bestAcc = 0
+    local bestChar = 0
+    for i = 1, (maxAcc + maxChar) do
+        local ok, n = pcall(GetMacroInfo, i)
+        if ok and type(n) == "string" and n ~= "" then
+            if NormalizeMacroNameForLookup(n) == want then
+                if i > maxAcc then
+                    bestChar = i
+                else
+                    bestAcc = i
+                end
+            end
+        end
+    end
+    -- Prefer character macro if present.
+    if bestChar > 0 then
+        return bestChar
+    end
+    return bestAcc
+end
+
+local function SafeGetMacroIndexByNameLoose(name)
+    name = NormalizeMacroNameForLookup(name)
+    if name == "" then
+        return 0
+    end
+
+    local idx = SafeGetMacroIndexByName(name)
+    if idx and idx > 0 then
+        return idx
+    end
+
+    -- Fallback: scan all macros by normalized name. This handles invisible chars / NBSP.
+    return FindMacroByNormalizedName(name)
 end
 
 local function NormalizeMacroBody(body)
@@ -781,19 +1204,335 @@ local function NormalizeSlot(slot)
     return slot
 end
 
-local function CanPlaceIntoSlot(slot, desiredKind, desiredId, entryAlwaysOverwrite, entryScopeRank, highestScopeRankForSlot)
+local function GetActionBarStateDebug()
+    local parts = {}
+
+    -- Addon presence (helps interpret button mappings)
+    do
+        local bt4 = nil
+        if C_AddOns and type(C_AddOns.IsAddOnLoaded) == "function" then
+            local ok, loaded = pcall(C_AddOns.IsAddOnLoaded, "Bartender4")
+            if ok then
+                bt4 = loaded and true or false
+            end
+        elseif type(IsAddOnLoaded) == "function" then
+            local ok, loaded = pcall(IsAddOnLoaded, "Bartender4")
+            if ok then
+                bt4 = loaded and true or false
+            end
+        end
+        if bt4 ~= nil then
+            parts[#parts + 1] = "bt4Loaded=" .. tostring(bt4)
+        end
+    end
+
+    if type(GetActionBarPage) == "function" then
+        local ok, page = pcall(GetActionBarPage)
+        if ok and page then
+            parts[#parts + 1] = "page=" .. tostring(page)
+        end
+    end
+    if type(GetBonusBarOffset) == "function" then
+        local ok, off = pcall(GetBonusBarOffset)
+        if ok and off then
+            parts[#parts + 1] = "bonusOff=" .. tostring(off)
+        end
+    end
+    if type(HasOverrideActionBar) == "function" then
+        local ok, has = pcall(HasOverrideActionBar)
+        if ok then
+            parts[#parts + 1] = "override=" .. tostring(has and true or false)
+        end
+    end
+    if type(HasVehicleActionBar) == "function" then
+        local ok, has = pcall(HasVehicleActionBar)
+        if ok then
+            parts[#parts + 1] = "vehicle=" .. tostring(has and true or false)
+        end
+    end
+
+    if type(GetCVarBool) == "function" then
+        local ok, locked = pcall(GetCVarBool, "lockActionBars")
+        if ok then
+            parts[#parts + 1] = "locked=" .. tostring(locked and true or false)
+        end
+    end
+
+    if #parts == 0 then
+        return nil
+    end
+    return table.concat(parts, " ")
+end
+
+local function GetLockActionBars()
+    if type(GetCVarBool) ~= "function" then
+        return nil
+    end
+    local ok, locked = pcall(GetCVarBool, "lockActionBars")
+    if not ok then
+        return nil
+    end
+    return locked and true or false
+end
+
+local function SetLockActionBars(on)
+    if type(SetCVar) ~= "function" then
+        return false
+    end
+    local v = (on and "1") or "0"
+    local ok = pcall(SetCVar, "lockActionBars", v)
+    return ok and true or false
+end
+
+local function GetDefaultButtonsForActionSlot(slot)
+    slot = tonumber(slot)
+    if not slot then
+        return "none"
+    end
+
+    local out = {}
+
+    local function GetCalculatedActionID(btn)
+        if not btn then
+            return nil
+        end
+        -- Retail/Classic variants
+        local calc = rawget(_G, "ActionButton_CalculateAction")
+        if type(calc) == "function" then
+            local ok, id = pcall(calc, btn)
+            if ok and tonumber(id) then
+                return tonumber(id)
+            end
+        end
+        local paged = rawget(_G, "ActionButton_GetPagedID")
+        if type(paged) == "function" then
+            local ok, id = pcall(paged, btn)
+            if ok and tonumber(id) then
+                return tonumber(id)
+            end
+        end
+        return nil
+    end
+
+    local function ButtonHasAction(btn)
+        if not btn then
+            return false
+        end
+
+        -- First: try calculated/paged ID (main bar paging support)
+        local calcId = GetCalculatedActionID(btn)
+        if tonumber(calcId) == slot then
+            return true
+        end
+
+        local a = nil
+        local okA, valA = pcall(function() return btn.action end)
+        if okA then
+            a = valA
+        end
+        if tonumber(a) == slot then
+            return true
+        end
+        if type(btn.GetAttribute) == "function" then
+            local ok, attr = pcall(btn.GetAttribute, btn, "action")
+            if ok and tonumber(attr) == slot then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function Consider(prefix, count)
+        for i = 1, count do
+            local name = prefix .. tostring(i)
+            local btn = rawget(_G, name)
+            if btn and ButtonHasAction(btn) then
+                out[#out + 1] = name
+            end
+        end
+    end
+
+    -- Default Blizzard action buttons (won't include Bartender/Dominos custom frames)
+    Consider("ActionButton", 12)
+    Consider("MultiBarBottomLeftButton", 12)
+    Consider("MultiBarBottomRightButton", 12)
+    Consider("MultiBarRightButton", 12)
+    Consider("MultiBarLeftButton", 12)
+
+    -- Bartender4 commonly uses BT4Button1..BT4Button120 (or higher). Scan a safe range.
+    -- This is debug-only and runs only when we log a placement line.
+    Consider("BT4Button", 240)
+
+    if #out == 0 then
+        return "none"
+    end
+
+    local show = 3
+    if #out <= show then
+        return table.concat(out, ",")
+    end
+    local head = {}
+    for i = 1, show do
+        head[#head + 1] = out[i]
+    end
+    return table.concat(head, ",") .. string.format("(+%d)", (#out - show))
+end
+
+local GetMacroNameSafe
+
+-- Some action slot types (notably macros with a non-nil `subType`) can report a value via
+-- GetActionInfo that isn't a stable macro index. MySlot works around this by temporarily
+-- picking up the action and reading `GetCursorInfo()`.
+local function GetActionInfoStable(slot)
+    if not (GetActionInfo and type(slot) == "number") then
+        return nil, nil, nil
+    end
+
+    local t, id, subType = GetActionInfo(slot)
+    if not t then
+        return nil, nil, nil
+    end
+
+    -- Macro actions with `subType` can produce confusing IDs; re-read macro id via cursor.
+    if t == "macro" and subType then
+        if GetCursorInfo and PickupAction and PlaceAction then
+            -- Avoid disturbing the user's cursor if they are already dragging something.
+            local curType = GetCursorInfo()
+            if not curType then
+                BeginInternalWrite()
+                local okPick = pcall(PickupAction, slot)
+                if okPick then
+                    local ctype, cid = GetCursorInfo()
+                    pcall(PlaceAction, slot)
+                    if ctype == "macro" and tonumber(cid) then
+                        id = tonumber(cid)
+                    end
+                end
+                if ClearCursor then
+                    pcall(ClearCursor)
+                end
+                EndInternalWrite()
+            end
+        end
+    elseif t == "spell" and subType == "assistedcombat" then
+        if C_AssistedCombat and type(C_AssistedCombat.GetActionSpell) == "function" then
+            local ok, sid = pcall(C_AssistedCombat.GetActionSpell)
+            if ok and tonumber(sid) then
+                id = tonumber(sid)
+            end
+        end
+    end
+
+    return t, id, subType
+end
+
+local function DebugSlot12Snapshot(tag)
+    if not GetBoolSetting("actionBarDebugAcc", false) then
+        return
+    end
+    if not GetActionInfo then
+        return
+    end
+
+    local slot = 12
+    local t, id = GetActionInfoStable(slot)
+    local extra = ""
+    if t == "macro" then
+        extra = " name='" .. tostring(GetMacroNameSafe(id) or "?") .. "'"
+    elseif t == "spell" then
+        extra = " spell='" .. tostring(GetSpellNameSafe(id) or "?") .. "'"
+    end
+
+    local function GetCalculatedActionID(btn)
+        if not btn then
+            return nil
+        end
+        local calc = rawget(_G, "ActionButton_CalculateAction")
+        if type(calc) == "function" then
+            local ok, id = pcall(calc, btn)
+            if ok and tonumber(id) then
+                return tonumber(id)
+            end
+        end
+        local paged = rawget(_G, "ActionButton_GetPagedID")
+        if type(paged) == "function" then
+            local ok, id = pcall(paged, btn)
+            if ok and tonumber(id) then
+                return tonumber(id)
+            end
+        end
+        return nil
+    end
+
+    local btn = rawget(_G, "ActionButton12")
+    local btnAction = nil
+    local btnAttrAction = nil
+    local btnCalc = nil
+    local calcInfo = ""
+    if btn then
+        local okA, a = pcall(function() return btn.action end)
+        if okA then
+            btnAction = a
+        end
+        if type(btn.GetAttribute) == "function" then
+            local okAttr, av = pcall(btn.GetAttribute, btn, "action")
+            if okAttr then
+                btnAttrAction = av
+            end
+        end
+
+        btnCalc = GetCalculatedActionID(btn)
+        if btnCalc and GetActionInfo then
+            local ct, cid = GetActionInfoStable(btnCalc)
+            local cextra = ""
+            if ct == "macro" then
+                cextra = " name='" .. tostring(GetMacroNameSafe(cid) or "?") .. "'"
+            elseif ct == "spell" then
+                cextra = " spell='" .. tostring(GetSpellNameSafe(cid) or "?") .. "'"
+            end
+            calcInfo = string.format(" ; calcAction=%s calcInfo=%s:%s%s", tostring(btnCalc), tostring(ct or "nil"), tostring(cid or "nil"), tostring(cextra or ""))
+        end
+    end
+
+    DebugPrint(string.format(
+        "Slot12 snapshot (%s): GetActionInfo(12)=%s:%s%s ; ActionButton12.action=%s attr(action)=%s%s",
+        tostring(tag or "?"),
+        tostring(t or "nil"),
+        tostring(id or "nil"),
+        tostring(extra or ""),
+        tostring(btnAction or "nil"),
+        tostring(btnAttrAction or "nil"),
+        tostring(calcInfo or "")
+    ))
+end
+
+local function CanPlaceIntoSlot(slot, desiredKind, desiredId, entryAlwaysOverwrite, entryScopeRank, highestScopeRankForSlot, desiredMacroName)
     if not (GetActionInfo and type(slot) == "number") then
         return false, "no-api"
     end
 
-    local actionType, id = GetActionInfo(slot)
+    local actionType, id = GetActionInfoStable(slot)
 
     if not actionType then
         return true, "empty"
     end
 
-    if desiredKind == "macro" and actionType == "macro" and tonumber(id) == tonumber(desiredId) then
-        return true, "already"
+    if desiredKind == "macro" and actionType == "macro" then
+        if tonumber(id) == tonumber(desiredId) then
+            return true, "already"
+        end
+
+        -- Macro indices can shift after UPDATE_MACROS; treat “same macro by name” as already.
+        if type(desiredMacroName) == "string" and desiredMacroName ~= "" then
+            local haveName = GetMacroNameSafe(id)
+            if type(haveName) == "string" and haveName ~= "" then
+                local a = NormalizeMacroNameForLookup(haveName)
+                local b = NormalizeMacroNameForLookup(desiredMacroName)
+                if a ~= "" and a == b then
+                    return true, "already"
+                end
+            end
+        end
     end
     if desiredKind == "spell" and actionType == "spell" and tonumber(id) == tonumber(desiredId) then
         return true, "already"
@@ -813,6 +1552,55 @@ local function CanPlaceIntoSlot(slot, desiredKind, desiredId, entryAlwaysOverwri
     end
 
     return false, "occupied"
+end
+
+local function GetSlotActionDebug(slot)
+    if not (GetActionInfo and type(slot) == "number") then
+        return "?"
+    end
+    local t, id = GetActionInfoStable(slot)
+    if not t then
+        return "empty"
+    end
+    return tostring(t) .. ":" .. tostring(id)
+end
+
+GetMacroNameSafe = function(index)
+    index = tonumber(index)
+    if not index or index <= 0 then
+        return nil
+    end
+    if type(GetMacroInfo) ~= "function" then
+        return nil
+    end
+    local ok, name = pcall(GetMacroInfo, index)
+    if ok and type(name) == "string" and name ~= "" then
+        return name
+    end
+    return nil
+end
+
+local function GetSpellNameSafe(spellID)
+    spellID = tonumber(spellID)
+    if not spellID or spellID <= 0 then
+        return nil
+    end
+
+    if C_Spell and type(C_Spell.GetSpellName) == "function" then
+        local ok, name = pcall(C_Spell.GetSpellName, spellID)
+        if ok and type(name) == "string" and name ~= "" then
+            return name
+        end
+    end
+
+    if type(GetSpellInfo) == "function" then
+        local ok, name = pcall(GetSpellInfo, spellID)
+        if ok and type(name) == "string" and name ~= "" then
+            return name
+        end
+    end
+
+    return nil
 end
 
 local function GetSpecKeyForSV(specID)
@@ -932,19 +1720,40 @@ local function PlaceIntoSlot(kind, id, slot)
         return false, "no-api"
     end
 
+    BeginInternalWrite()
     local okPick, pickWhy = PickupExisting(kind, id)
     if not okPick then
         if ClearCursor then
             ClearCursor()
         end
+        EndInternalWrite()
         return false, pickWhy
     end
 
     local okPlace = pcall(PlaceAction, slot)
     ClearCursor()
 
+    EndInternalWrite()
+
     if not okPlace then
         return false, "place-failed"
+    end
+
+    -- Verify the slot actually changed to what we intended.
+    if GetActionInfo then
+        local t, curId = GetActionInfoStable(slot)
+        if kind == "macro" then
+            if t == "macro" and tonumber(curId) == tonumber(id) then
+                return true, "placed"
+            end
+            return false, "place-verify-failed(now " .. tostring(t) .. ":" .. tostring(curId) .. ")"
+        end
+        if kind == "spell" then
+            if t == "spell" and tonumber(curId) == tonumber(id) then
+                return true, "placed"
+            end
+            return false, "place-verify-failed(now " .. tostring(t) .. ":" .. tostring(curId) .. ")"
+        end
     end
 
     return true, "placed"
@@ -954,8 +1763,10 @@ local function ClearSlot(slot)
     if not (PickupAction and ClearCursor) then
         return false
     end
+    BeginInternalWrite()
     local ok = pcall(PickupAction, slot)
     ClearCursor()
+    EndInternalWrite()
     return ok and true or false
 end
 
@@ -989,33 +1800,249 @@ end
 local function ApplyLayout(reason)
     InitSV()
 
+    -- Install write-trace hooks lazily (debug only). These help identify who overwrites action slots.
+    if GetBoolSetting("actionBarDebugAcc", false) then
+        EnsureWriteTraceHooks()
+    end
+
+    lastApplySeq = (lastApplySeq or 0) + 1
+    local applySeq = lastApplySeq
+
+    DebugStatus("Apply start: " .. tostring(reason or "manual"))
+    if GetBoolSetting("actionBarDebugAcc", false) then
+        local st = GetActionBarStateDebug()
+        if st then
+            DebugPrint("BarState: " .. st)
+        end
+    end
+
     if not GetBoolSetting("actionBarEnabledAcc", false) then
+        DebugStatus("Apply skipped (disabled): " .. tostring(reason or "manual"))
         return
     end
 
     if InCombat() then
         pendingAfterCombat = true
         DebugPrint("Blocked by combat; will retry")
+        DebugStatus("Blocked by combat; pending apply (" .. tostring(reason or "manual") .. ")")
         return
     end
 
     pendingAfterCombat = false
+
+    -- Temporarily unlock action bars for the duration of the apply.
+    -- If bars are locked, PlaceAction can silently fail (no slot changes), which matches your logs.
+    local prevLocked = GetLockActionBars()
+    local didTempUnlock = false
+    if prevLocked == true then
+        if SetLockActionBars(false) then
+            didTempUnlock = true
+            if GetBoolSetting("actionBarDebugAcc", false) then
+                DebugPrint("Temporarily unlocked action bars for apply")
+            end
+        end
+    end
 
     local specID = GetActiveSpecID()
     local forceOverwrite = GetForceOverwriteFlag(specID)
     local oneTimeOverwrite = forceOverwrite or ShouldUseOneTimeOverwrite(specID)
     allowOverwriteThisApply = oneTimeOverwrite or GetBoolSetting("actionBarOverwriteAcc", false)
 
+    local stats = {
+        placed = 0,
+        skipped = 0,
+        already = 0,
+        missing = 0,
+        occupied = 0,
+        protected = 0,
+        overwrite = 0,
+        always = 0,
+        empty = 0,
+        no_api = 0,
+        other = 0,
+    }
+
+    local missingMacros = {}
+    local missingSpells = {}
+
+    local function Inc(key)
+        if not key then
+            stats.other = (stats.other or 0) + 1
+            return
+        end
+        stats[key] = (stats[key] or 0) + 1
+    end
+
+    local function NoteMissingMacro(name)
+        name = Trim(name)
+        if name ~= "" then
+            missingMacros[name] = true
+        end
+    end
+
+    local function NoteMissingSpell(label)
+        label = Trim(tostring(label or ""))
+        if label ~= "" then
+            missingSpells[label] = true
+        end
+    end
+
     -- Remembered character macros: ensure character macros exist on initial login/reload only.
     EnsureRememberedAccountMacrosOnce(reason)
 
     local layout, _, highestScopeRankBySlot = GetActiveLayout()
-    if not layout then
-        return
+    local hadLayout = layout ~= nil
+    if type(layout) ~= "table" then
+        layout = {}
+    end
+
+    local currentExpansionKey = GetCurrentExpansionKeyForPlayer()
+    local desiredBySlot = {}
+    for _, row in ipairs(layout) do
+        local entry = row and row.entry or nil
+        local slot = NormalizeSlot(entry and entry.slot)
+        if slot then
+            local kind = GetEntryKind(entry)
+            if kind == "spell" then
+                local sid = ResolveSpellID(entry)
+                if sid then
+                    desiredBySlot[slot] = { kind = "spell", id = tonumber(sid) }
+                end
+            else
+                local name = entry and (entry.name or entry.value)
+                name = Trim(tostring(name or ""))
+                if name ~= "" then
+                    desiredBySlot[slot] = { kind = "macro", name = NormalizeMacroNameForLookup(name) }
+                end
+            end
+        end
+    end
+
+    if GetBoolSetting("actionBarDebugAcc", false) then
+        DebugPrint(string.format(
+            "Overwrite: allowThisApply=%s (force=%s oneTime=%s setting=%s)",
+            tostring(allowOverwriteThisApply and true or false),
+            tostring(forceOverwrite and true or false),
+            tostring(oneTimeOverwrite and true or false),
+            tostring(GetBoolSetting("actionBarOverwriteAcc", false) and true or false)
+        ))
     end
 
     local placed = 0
     local skipped = 0
+    local touched = nil
+    local removed = 0
+
+    local function SlotMatchesDesired(slot, desired)
+        if not (slot and desired) then
+            return false
+        end
+        local t, id = GetActionInfoStable(slot)
+        if desired.kind == "spell" then
+            return (t == "spell") and (tonumber(id) == tonumber(desired.id))
+        end
+        if desired.kind == "macro" then
+            if t ~= "macro" then
+                return false
+            end
+            local curName = GetMacroNameSafe(id)
+            if not curName then
+                return false
+            end
+            return NormalizeMacroNameForLookup(curName) == tostring(desired.name or "")
+        end
+        return false
+    end
+
+    local function SlotMatchesEntryForRemoval(slot, entry)
+        local kind = GetEntryKind(entry)
+        local t, id = GetActionInfoStable(slot)
+        if kind == "spell" then
+            local sid = ResolveSpellID(entry)
+            return sid and (t == "spell") and (tonumber(id) == tonumber(sid))
+        end
+        if kind == "macro" then
+            if t ~= "macro" then
+                return false
+            end
+            local wantName = entry and (entry.name or entry.value)
+            wantName = Trim(tostring(wantName or ""))
+            if wantName == "" then
+                return false
+            end
+            local curName = GetMacroNameSafe(id)
+            if not curName then
+                return false
+            end
+            return NormalizeMacroNameForLookup(curName) == NormalizeMacroNameForLookup(wantName)
+        end
+        return false
+    end
+
+    local function ApplyRemoveOutsideExpansionPass()
+        local s = GetSettings()
+        if type(s) ~= "table" then
+            return
+        end
+
+        local function considerList(expansionKey, list)
+            if not (expansionKey and expansionKey ~= "" and expansionKey ~= currentExpansionKey) then
+                return
+            end
+            if type(list) ~= "table" then
+                return
+            end
+            for _, entry in ipairs(list) do
+                if type(entry) == "table" and entry.removeOutsideExpansion then
+                    local slot = NormalizeSlot(entry.slot)
+                    if slot then
+                        local desired = desiredBySlot[slot]
+                        if desired and SlotMatchesDesired(slot, desired) then
+                            -- Slot already matches the current desired action; don't clear.
+                        else
+                            if SlotMatchesEntryForRemoval(slot, entry) then
+                                if ClearSlot(slot) then
+                                    removed = removed + 1
+                                    if GetBoolSetting("actionBarDebugAcc", false) then
+                                        DebugPrint(string.format(
+                                            "Slot %d [remove:%s]: cleared (outside expansion)",
+                                            slot,
+                                            tostring(expansionKey)
+                                        ))
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        local byExp = rawget(s, "actionBarLayoutByExpansionAcc")
+        if type(byExp) == "table" then
+            for expansionKey, list in pairs(byExp) do
+                considerList(tostring(expansionKey or ""), list)
+            end
+        end
+
+        local byExpProf = rawget(s, "actionBarLayoutByExpansionProfessionAcc")
+        if type(byExpProf) == "table" then
+            for expansionKey, byProf in pairs(byExpProf) do
+                if type(byProf) == "table" then
+                    for _, list in pairs(byProf) do
+                        considerList(tostring(expansionKey or ""), list)
+                    end
+                end
+            end
+        end
+    end
+
+    ApplyRemoveOutsideExpansionPass()
+
+    if (not hadLayout) and removed == 0 then
+        DebugStatus("Apply skipped (no layout): " .. tostring(reason or "manual"))
+        return
+    end
 
     local function ScopeRankForRow(row)
         if not row then
@@ -1041,6 +2068,7 @@ local function ApplyLayout(reason)
         local entry = row and row.entry or nil
         local slot = NormalizeSlot(entry and entry.slot)
         if slot then
+            local src = (type(row) == "table" and (row.scopeDetail or row.scope)) or "?"
             local kind = GetEntryKind(entry)
             local entryAlways = (entry and entry.alwaysOverwrite and true or false)
             local entryRank = ScopeRankForRow(row)
@@ -1053,74 +2081,215 @@ local function ApplyLayout(reason)
                 desiredLabel = tostring(entry and (entry.spell or entry.spellID or entry.name) or "?")
                 if not desiredId then
                     skipped = skipped + 1
-                    DebugPrint(string.format("Slot %d: spell '%s' (missing)", slot, desiredLabel))
+                    Inc("missing")
+                    NoteMissingSpell(desiredLabel)
+                    DebugPrint(string.format("Slot %d [%s]: spell '%s' (missing)", slot, tostring(src), desiredLabel))
                 else
                     local okSlot, why = CanPlaceIntoSlot(slot, "spell", desiredId, entryAlways, entryRank, highestRankForSlot)
                     if okSlot then
                         local placedOrAlready = false
                         if why == "already" then
                             skipped = skipped + 1
+                            Inc("already")
                             placedOrAlready = true
                         else
+                            local before = GetSlotActionDebug(slot)
                             local okPlace, placeWhy = PlaceIntoSlot("spell", desiredId, slot)
                             if okPlace then
                                 placed = placed + 1
+                                Inc("placed")
                                 placedOrAlready = true
+                                if GetBoolSetting("actionBarDebugAcc", false) then
+                                    if not touched then
+                                        touched = {}
+                                    end
+                                    touched[slot] = { kind = "spell", id = tonumber(desiredId), label = GetSpellNameSafe(desiredId) or tostring(desiredId) }
+                                end
+                                local spellName = GetSpellNameSafe(desiredId)
+                                local btns = GetDefaultButtonsForActionSlot(slot)
+                                if spellName then
+                                    DebugPrint(string.format("Slot %d [%s] (btn=%s): place spell %s (%s) (was %s; allow=%s)", slot, tostring(src), tostring(btns), tostring(desiredId), tostring(spellName), tostring(before), tostring(why)))
+                                else
+                                    DebugPrint(string.format("Slot %d [%s] (btn=%s): place spell %s (was %s; allow=%s)", slot, tostring(src), tostring(btns), tostring(desiredId), tostring(before), tostring(why)))
+                                end
                             else
                                 skipped = skipped + 1
-                                DebugPrint(string.format("Slot %d: spell %s (%s)", slot, tostring(desiredId), placeWhy))
+                                Inc("other")
+                                local spellName = GetSpellNameSafe(desiredId)
+                                if spellName then
+                                    DebugPrint(string.format("Slot %d [%s]: spell %s (%s) (%s)", slot, tostring(src), tostring(desiredId), tostring(spellName), placeWhy))
+                                else
+                                    DebugPrint(string.format("Slot %d [%s]: spell %s (%s)", slot, tostring(src), tostring(desiredId), placeWhy))
+                                end
                             end
                         end
 
                         if placedOrAlready and (entry and entry.clearElsewhere and true or false) then
-                            local t, id = GetActionInfo(slot)
+                            local t, id = GetActionInfoStable(slot)
                             if t == "spell" and tonumber(id) == tonumber(desiredId) then
                                 ClearOtherSlotsForAction("spell", desiredId, slot)
                             end
                         end
                     else
                         skipped = skipped + 1
-                        DebugPrint(string.format("Slot %d: skip (%s)", slot, why))
+                        if why == "occupied" then
+                            Inc("occupied")
+                        elseif why == "protected" then
+                            Inc("protected")
+                        elseif why == "no-api" then
+                            Inc("no_api")
+                        else
+                            Inc(why)
+                        end
+                        DebugPrint(string.format("Slot %d [%s]: skip (%s)", slot, tostring(src), why))
                     end
                 end
             else
                 local name = entry and entry.name
+                local trimmedName = nil
                 if type(name) == "string" then
-                    name = name:gsub("^%s+", ""):gsub("%s+$", "")
+                    trimmedName = name:gsub("^%s+", ""):gsub("%s+$", "")
                 end
-                desiredLabel = tostring(name)
+                desiredLabel = tostring(trimmedName)
 
-                local macroIndex = (type(name) == "string" and name ~= "") and SafeGetMacroIndexByName(name) or 0
+                local macroIndex = (type(trimmedName) == "string" and trimmedName ~= "") and SafeGetMacroIndexByName(trimmedName) or 0
+                if not (macroIndex and macroIndex > 0) and type(trimmedName) == "string" and trimmedName ~= "" then
+                    macroIndex = SafeGetMacroIndexByNameLoose(trimmedName)
+                end
+
+                -- Occasionally the macro list is not ready (or the API lies briefly).
+                -- If Debug is enabled, double-check by scanning to help diagnose “missing” reports.
+                local foundAcc, foundChar = nil, nil
+                if not (macroIndex and macroIndex > 0) and type(trimmedName) == "string" and trimmedName ~= "" then
+                    foundAcc, foundChar = FindMacroVersionsByName(trimmedName)
+                    local alt = (foundChar and foundChar.index) or (foundAcc and foundAcc.index) or 0
+                    if alt and alt > 0 then
+                        macroIndex = alt
+                    end
+                end
+
                 if not (macroIndex and macroIndex > 0) then
                     skipped = skipped + 1
-                    DebugPrint(string.format("Slot %d: macro '%s' (missing)", slot, desiredLabel))
+                    Inc("missing")
+                    NoteMissingMacro(trimmedName)
+                    if type(trimmedName) == "string" and trimmedName ~= "" then
+                        if foundAcc == nil and foundChar == nil then
+                            foundAcc, foundChar = FindMacroVersionsByName(trimmedName)
+                        end
+                        local accIdx = foundAcc and foundAcc.index or 0
+                        local charIdx = foundChar and foundChar.index or 0
+                        local accCount, charCount = SafeGetNumMacros()
+
+                        local curT, curId = GetActionInfoStable(slot)
+                        local curName = nil
+                        if curT == "macro" then
+                            curName = GetMacroNameSafe(curId)
+                        end
+                        DebugPrint(string.format(
+                            "Slot %d [%s]: macro '%s' (missing right now; reason=%s; scan acc=%s char=%s; numMacros acc=%s char=%s; slotNow=%s%s)",
+                            slot,
+                            tostring(src),
+                            trimmedName,
+                            tostring(reason or "?"),
+                            (accIdx > 0) and tostring(accIdx) or "none",
+                            (charIdx > 0) and tostring(charIdx) or "none",
+                            (type(accCount) == "number") and tostring(accCount) or "?",
+                            (type(charCount) == "number") and tostring(charCount) or "?",
+                            tostring(curT or "nil") .. ":" .. tostring(curId or "nil"),
+                            curName and (" name='" .. tostring(curName) .. "'") or ""
+                        ))
+                    else
+                        DebugPrint(string.format("Slot %d [%s]: macro '%s' (missing right now; reason=%s)", slot, tostring(src), desiredLabel, tostring(reason or "?")))
+                    end
                 else
-                    local okSlot, why = CanPlaceIntoSlot(slot, "macro", macroIndex, entryAlways, entryRank, highestRankForSlot)
+                    local okSlot, why = CanPlaceIntoSlot(slot, "macro", macroIndex, entryAlways, entryRank, highestRankForSlot, trimmedName)
                     if okSlot then
                         local placedOrAlready = false
                         if why == "already" then
                             skipped = skipped + 1
+                            Inc("already")
                             placedOrAlready = true
                         else
+                            if slot == 12 then
+                                DebugSlot12Snapshot("before-place")
+                            end
+                            local before = GetSlotActionDebug(slot)
+                            local beforeName = nil
+                            if GetActionInfo then
+                                local bt, bid = GetActionInfoStable(slot)
+                                if bt == "macro" then
+                                    beforeName = GetMacroNameSafe(bid)
+                                end
+                            end
                             local okPlace, placeWhy = PlaceIntoSlot("macro", macroIndex, slot)
                             if okPlace then
                                 placed = placed + 1
+                                Inc("placed")
                                 placedOrAlready = true
+                                if GetBoolSetting("actionBarDebugAcc", false) then
+                                    if not touched then
+                                        touched = {}
+                                    end
+                                    touched[slot] = { kind = "macro", name = trimmedName or (GetMacroNameSafe(macroIndex) or tostring(desiredLabel or "")), id = tonumber(macroIndex) }
+                                end
+                                local desiredName = GetMacroNameSafe(macroIndex) or trimmedName or desiredLabel
+                                local btns = GetDefaultButtonsForActionSlot(slot)
+                                if beforeName then
+                                    DebugPrint(string.format(
+                                        "Slot %d [%s] (btn=%s): place macro %s ('%s') (was %s '%s'; allow=%s)",
+                                        slot,
+                                        tostring(src),
+                                        tostring(btns),
+                                        tostring(macroIndex),
+                                        tostring(desiredName),
+                                        tostring(before),
+                                        tostring(beforeName),
+                                        tostring(why)
+                                    ))
+                                else
+                                    DebugPrint(string.format(
+                                        "Slot %d [%s] (btn=%s): place macro %s ('%s') (was %s; allow=%s)",
+                                        slot,
+                                        tostring(src),
+                                        tostring(btns),
+                                        tostring(macroIndex),
+                                        tostring(desiredName),
+                                        tostring(before),
+                                        tostring(why)
+                                    ))
+                                end
+
+                                if slot == 12 then
+                                    DebugSlot12Snapshot("after-place")
+                                end
                             else
                                 skipped = skipped + 1
-                                DebugPrint(string.format("Slot %d: %s (%s)", slot, desiredLabel or "?", placeWhy))
+                                Inc("other")
+                                DebugPrint(string.format("Slot %d [%s]: %s (%s)", slot, tostring(src), desiredLabel or "?", placeWhy))
+                                if slot == 12 then
+                                    DebugSlot12Snapshot("place-failed")
+                                end
                             end
                         end
 
                         if placedOrAlready and (entry and entry.clearElsewhere and true or false) then
-                            local t, id = GetActionInfo(slot)
+                            local t, id = GetActionInfoStable(slot)
                             if t == "macro" and tonumber(id) == tonumber(macroIndex) then
                                 ClearOtherSlotsForAction("macro", macroIndex, slot)
                             end
                         end
                     else
                         skipped = skipped + 1
-                        DebugPrint(string.format("Slot %d: skip (%s)", slot, why))
+                        if why == "occupied" then
+                            Inc("occupied")
+                        elseif why == "protected" then
+                            Inc("protected")
+                        elseif why == "no-api" then
+                            Inc("no_api")
+                        else
+                            Inc(why)
+                        end
+                        DebugPrint(string.format("Slot %d [%s]: skip (%s)", slot, tostring(src), why))
                     end
                 end
             end
@@ -1139,21 +2308,195 @@ local function ApplyLayout(reason)
 
     allowOverwriteThisApply = false
 
+    if didTempUnlock and prevLocked == true then
+        SetLockActionBars(true)
+        if GetBoolSetting("actionBarDebugAcc", false) then
+            DebugPrint("Restored action bar lock after apply")
+        end
+    end
+
     if GetBoolSetting("actionBarDebugAcc", false) then
-        DebugPrint(string.format("Apply (%s): placed=%d skipped=%d", tostring(reason or "manual"), placed, skipped))
+        DebugPrint(string.format(
+            "Apply (%s): placed=%d skipped=%d (already=%d missing=%d occupied=%d protected=%d)",
+            tostring(reason or "manual"),
+            placed,
+            skipped,
+            tonumber(stats.already) or 0,
+            tonumber(stats.missing) or 0,
+            tonumber(stats.occupied) or 0,
+            tonumber(stats.protected) or 0
+        ))
+
+        local function SummarizeSet(set)
+            local list = {}
+            local n = 0
+            for k in pairs(set or {}) do
+                n = n + 1
+                if #list < 10 then
+                    list[#list + 1] = tostring(k)
+                end
+            end
+            table.sort(list)
+            if n == 0 then
+                return nil
+            end
+            if n <= #list then
+                return table.concat(list, ", ")
+            end
+            return table.concat(list, ", ") .. string.format(" (+%d)", (n - #list))
+        end
+
+        local mm = SummarizeSet(missingMacros)
+        if mm then
+            DebugPrint("Missing macros: " .. mm)
+        end
+        local ms = SummarizeSet(missingSpells)
+        if ms then
+            DebugPrint("Missing spells: " .. ms)
+        end
+    end
+
+    DebugStatus(string.format("Apply done (%s): placed=%d skipped=%d", tostring(reason or "manual"), placed, skipped))
+
+    -- Debug-only: verify that slots we touched didn't immediately get changed by something else.
+    if touched and GetBoolSetting("actionBarDebugAcc", false) and C_Timer and C_Timer.After then
+        C_Timer.After(0.60, function()
+            -- If a newer Apply happened, skip this verification.
+            if (lastApplySeq or 0) ~= applySeq then
+                return
+            end
+
+            local driftCount = 0
+            local sawLuaWriter = false
+            for slot, want in pairs(touched) do
+                local t, id = nil, nil
+                if GetActionInfo then
+                    t, id = GetActionInfoStable(slot)
+                end
+
+                if want.kind == "spell" then
+                    if t ~= "spell" or tonumber(id) ~= tonumber(want.id) then
+                        driftCount = driftCount + 1
+                        local btns = GetDefaultButtonsForActionSlot(slot)
+                        DebugPrint(string.format(
+                            "Post-check: Slot %d (btn=%s) drifted (expected spell %s; now %s)",
+                            tonumber(slot) or 0,
+                            tostring(btns),
+                            tostring(want.label or want.id or "?"),
+                            tostring(GetSlotActionDebug(slot))
+                        ))
+
+                        local wr = lastWriteBySlot[slot]
+                        if wr and wr.stack then
+                            sawLuaWriter = true
+                            DebugPrint(string.format(
+                                "Post-check: Slot %d last write: op=%s by=%s stack=%s",
+                                tonumber(slot) or 0,
+                                tostring(wr.op or "?"),
+                                tostring(wr.culprit or "?"),
+                                tostring(wr.stack)
+                            ))
+                        end
+                    end
+                elseif want.kind == "macro" then
+                    local nowName = nil
+                    if t == "macro" then
+                        nowName = GetMacroNameSafe(id)
+                    end
+                    -- Compare by name if we can, because macro indices can shift.
+                    local expectedName = Trim(want.name or "")
+                    local okName = (expectedName ~= "") and (type(nowName) == "string") and (Trim(nowName) == expectedName)
+
+                    if not okName then
+                        driftCount = driftCount + 1
+                        local btns = GetDefaultButtonsForActionSlot(slot)
+                        DebugPrint(string.format(
+                            "Post-check: Slot %d (btn=%s) drifted (expected macro '%s'; now %s)",
+                            tonumber(slot) or 0,
+                            tostring(btns),
+                            tostring(expectedName ~= "" and expectedName or (want.name or "?")),
+                            tostring(GetSlotActionDebug(slot))
+                        ))
+
+                        if tonumber(slot) == 12 then
+                            DebugSlot12Snapshot("post-check")
+                        end
+
+                        local wr = lastWriteBySlot[slot]
+                        if wr and wr.stack then
+                            sawLuaWriter = true
+                            DebugPrint(string.format(
+                                "Post-check: Slot %d last write: op=%s by=%s stack=%s",
+                                tonumber(slot) or 0,
+                                tostring(wr.op or "?"),
+                                tostring(wr.culprit or "?"),
+                                tostring(wr.stack)
+                            ))
+                        end
+                    end
+                end
+            end
+
+            if driftCount > 0 then
+                DebugPrint(string.format(
+                    "Post-check: detected drift in %d slot(s) after apply (%s). Another addon or profile system is likely overwriting action bars.",
+                    driftCount,
+                    tostring(reason or "manual")
+                ))
+
+                if not sawLuaWriter then
+                    DebugPrint("Post-check: no Lua PlaceAction/PickupAction writer observed for drifted slots (likely internal WoW action bar/macro sync timing).")
+                end
+            end
+        end)
     end
 end
 
 local function QueueApply(reason)
     pendingReason = reason or "queued"
 
+    DebugStatus("Queue: " .. tostring(pendingReason))
+
     if applyTimer and applyTimer.Cancel then
         applyTimer:Cancel()
         applyTimer = nil
     end
 
+    local function GetApplyDelaySeconds(r)
+        -- WoW can still be syncing action bars/macros right after enable/login.
+        -- Applying too early gets overwritten and looks like “drift” even with no other addons.
+        local now = nil
+        if type(GetTime) == "function" then
+            local ok, t = pcall(GetTime)
+            if ok and type(t) == "number" then
+                now = t
+            end
+        end
+
+        if r == "enable" or r == "PLAYER_ENTERING_WORLD" or r == "PLAYER_LOGIN" or r == "VARIABLES_LOADED" then
+            if now then
+                startupSyncUntil = now + 4.0
+            end
+            return 2.50
+        end
+
+        if r == "UPDATE_MACROS" then
+            if now and (startupSyncUntil or 0) > now then
+                -- Coalesce macro updates during startup; apply once near the end.
+                local wait = (startupSyncUntil - now) + 0.25
+                if wait < 0.75 then
+                    wait = 0.75
+                end
+                return wait
+            end
+            return 1.00
+        end
+
+        return 0.35
+    end
+
     if C_Timer and C_Timer.NewTimer then
-        applyTimer = C_Timer.NewTimer(0.35, function()
+        applyTimer = C_Timer.NewTimer(GetApplyDelaySeconds(pendingReason), function()
             applyTimer = nil
             local r = pendingReason
             pendingReason = nil
@@ -1166,6 +2509,31 @@ local function QueueApply(reason)
 end
 
 local eventFrame = CreateFrame("Frame")
+
+-- Zone change events can be very chatty (especially while flying). We only want to react
+-- when it’s likely to matter, so we ignore the sub-zone events and throttle NEW_AREA.
+local lastZoneApplyAt = 0
+local ZONE_APPLY_THROTTLE_SECONDS = 5.0
+local lastZoneExpansionKey = nil
+
+local function HasExpansionLayoutsConfigured()
+    local s = GetSettings()
+    if type(s) ~= "table" then
+        return false
+    end
+
+    local byExp = rawget(s, "actionBarLayoutByExpansionAcc")
+    if type(byExp) == "table" and next(byExp) ~= nil then
+        return true
+    end
+
+    local byExpProf = rawget(s, "actionBarLayoutByExpansionProfessionAcc")
+    if type(byExpProf) == "table" and next(byExpProf) ~= nil then
+        return true
+    end
+
+    return false
+end
 
 local function OnEvent(self, event, ...)
     if event == "PLAYER_REGEN_ENABLED" then
@@ -1181,6 +2549,37 @@ local function OnEvent(self, event, ...)
             end)
         end
         return
+    end
+
+    if event == "ZONE_CHANGED" or event == "ZONE_CHANGED_INDOORS" then
+        return
+    end
+
+    if event == "ZONE_CHANGED_NEW_AREA" then
+        if not HasExpansionLayoutsConfigured() then
+            DebugStatus("Queue skipped (no expansion layouts): " .. tostring(event))
+            return
+        end
+
+        local expKey = GetCurrentExpansionKeyForPlayer()
+        if expKey == lastZoneExpansionKey then
+            DebugStatus("Queue skipped (same expansion): " .. tostring(expKey))
+            return
+        end
+        lastZoneExpansionKey = expKey
+
+        if not GetTime then
+            return
+        end
+
+        local now = GetTime()
+        if type(now) == "number" and now > 0 then
+            if (now - (lastZoneApplyAt or 0)) < ZONE_APPLY_THROTTLE_SECONDS then
+                DebugStatus("Queue skipped (zone throttle): " .. tostring(event))
+                return
+            end
+            lastZoneApplyAt = now
+        end
     end
 
     QueueApply(event)
@@ -1208,8 +2607,10 @@ function ns.ApplyActionBarSetting(force)
         didRegister = true
         eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
         eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+        eventFrame:RegisterEvent("UPDATE_MACROS")
         eventFrame:RegisterEvent("UPDATE_BINDINGS")
         eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
         -- Talent/loadout changes (Retail). Safe to register even if never fires.
         eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")
         eventFrame:RegisterEvent("TRAIT_CONFIG_LIST_UPDATED")

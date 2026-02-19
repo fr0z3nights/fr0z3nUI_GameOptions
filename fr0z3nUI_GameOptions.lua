@@ -3636,6 +3636,74 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     end
 
     do
+        local function BuildFGOScopeText()
+            -- Keep this as valid macro-ish lines so it can be copied into real macros.
+            local lines = {
+                "/fgo                       - open/toggle window",
+                "/fgo <id>                  - open window + set option id",
+                "/fgo list                  - print current gossip options",
+                "/fgo petbattle             - force-enable pet battle auto-accept",
+                "",
+                "/fgo x <key>               - exclusion macros (MAIN/OTHER based on Characters list)",
+                "/fgo m <key>               - macros (single text)",
+                "/fgo c <key>               - faction macros (Both + Alliance/Horde)",
+                "/fgo d <key>               - other macros (everything not in x/m/c)",
+                "",
+                "/fgo debug                 - print Macro CMD debug info",
+                "/fgo debug <mode> <key>    - debug a specific Macro CMD entry",
+                "/fgo arm <key>             - arm secure /click for current mode",
+                "/fgo arm <mode> <key>      - arm secure /click for a specific mode",
+                "/fgo armtest <mode> <key>  - arm with marker (debug)",
+                "/fgo mk <key> [macroName]  - create a real WoW macro for /click",
+                "/fgo mk <mode> <key> [macroName]",
+                "",
+                "/fgo hm ...                - housing macros (see 'Home' tab)",
+                "/fgo hs hearth             - hearth status (prints destination/cooldown)",
+                "/fgo hs loc                - print your current bind location",
+                "/fgo hs garrison           - garrison hearth status",
+                "/fgo hs dalaran            - dalaran hearth status",
+                "/fgo hs dornogal           - dornogal portal status",
+                "/fgo hs whistle            - delve whistle status",
+                "",
+                "/fgo script                - toggle ScriptErrors",
+                "/fgo loot                  - toggle Auto Loot",
+                "/fgo mouse                 - toggle Loot Under Mouse",
+                "/fgo trade                 - toggle Block Trades",
+                "/fgo friend                - toggle Friendly Names",
+                "/fgo bars                  - toggle ActionBar Lock",
+                "/fgo bagrev                - toggle Bag Sort Reverse",
+                "/fgo token                 - print WoW Token price",
+                "/fgo setup                 - apply common setup CVars",
+                "/fgo fish                  - apply fishing prep CVars",
+                "/fgo chromie               - print Chromie Time status",
+                "/fgo ctoff                 - attempt to disable Chromie Time (rested only)",
+                "",
+                "/fgo scope                 - open this list in Macro CMD (copy/edit)",
+            }
+            return table.concat(lines, "\n")
+        end
+
+        local function OpenMacroCmdEditor(wantMode, wantKey)
+            CreateOptionsWindow()
+            if not AutoGossipOptions then
+                return
+            end
+
+            AutoGossipOptions:Show()
+            if AutoGossipOptions.SelectTab then
+                AutoGossipOptions:SelectTab(2) -- Macro CMD
+            end
+
+            if ns and type(ns.MacroXCMD_SetMode) == "function" then
+                ns.MacroXCMD_SetMode(wantMode)
+            end
+
+            local panel = ns and ns._MacroXCMDUI_Panel or nil
+            if panel and type(panel._MacroCmdUI_SelectKey) == "function" then
+                panel._MacroCmdUI_SelectKey(wantMode, wantKey)
+            end
+        end
+
         local function ToggleCVar(key, label)
             if not (C_CVar and C_CVar.GetCVar and C_CVar.SetCVar) then
                 Print("CVar API unavailable")
@@ -3668,6 +3736,19 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
 
         local cmd, rest = msg:match("^(%S+)%s*(.-)$")
         cmd = cmd and cmd:lower() or nil
+
+        -- Back-compat: old faction mode was /fgo f (now /fgo c).
+        if cmd == "f" then
+            cmd = "c"
+        end
+
+        if cmd == "scope" then
+            if ns and type(ns.MacroXCMD_UpsertText) == "function" then
+                ns.MacroXCMD_UpsertText("d", "scope", BuildFGOScopeText())
+            end
+            OpenMacroCmdEditor("d", "scope")
+            return
+        end
 
         -- Allow optional space after single-letter mode commands.
         -- Examples:
@@ -3711,7 +3792,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         -- Macro CMD modes:
         --  /fgo x ...  (Exclusion macros; old behavior)
         --  /fgo m ...  (Macros; disables character boxes)
-        --  /fgo c ...  (CVar macros; disables character boxes)
+        --  /fgo c ...  (Faction macros; Both + Alliance/Horde)
         --  /fgo d ...  (Other macros; everything not in x/m/c)
         if cmd == "x" or cmd == "m" or cmd == "c" or cmd == "d" then
             if ns and ns.MacroXCMD_SetMode then
@@ -3723,6 +3804,15 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             if restTrim == "" then
                 ToggleUI()
                 Print("Macro mode: /fgo " .. cmd)
+                return
+            end
+
+            -- Convenience editor: open the Macro CMD tab on a key.
+            if restTrim:lower() == "scope" then
+                if ns and type(ns.MacroXCMD_EnsureEntry) == "function" then
+                    ns.MacroXCMD_EnsureEntry(cmd, "scope")
+                end
+                OpenMacroCmdEditor(cmd, "scope")
                 return
             end
 
@@ -3772,6 +3862,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             local showHelperUsage = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
 
             local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
+            if a == "f" then a = "c" end
             if a == "" then
                 if showHelperUsage then
                     Print("Usage: /fgo arm <key>")
@@ -3820,6 +3911,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             local showHelperUsage = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
 
             local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
+            if a == "f" then a = "c" end
             if a == "" then
                 if showHelperUsage then
                     Print("Usage: /fgo armtest <key>")
@@ -3861,6 +3953,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
 
         if cmd == "mk" or cmd == "mkmacro" then
             local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
+            if a == "f" then a = "c" end
             if not (ns and type(ns.MacroXCMD_MakeClickMacro) == "function") then
                 Print("Macro command module not loaded.")
                 return
@@ -4130,11 +4223,12 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     Print("/fgo petbattle - force-enable pet battle auto-accept")
     Print("/fgo x ...     - exclusion macros (old /fgo m behavior)")
     Print("/fgo m ...     - macros (no character boxes)")
-    Print("/fgo c ...     - class macros (per-line tags like [DR]/[PD]; untagged lines run)")
+    Print("/fgo c ...     - faction macros (Both + Alliance/Horde)")
     Print("/fgo d ...     - other macros (everything not in x/m/c)")
     Print("/fgo hm ...    - housing macros (see 'Home' tab)")
     Print("/fgo hs ...    - hearth status helper (used by 'Macros' tab macros)")
     Print("/fgo script    - toggle ScriptErrors (used by 'Macros' tab macros)")
+    Print("/fgo scope     - show all /fgo commands (copy/edit)")
     Print("/fgo loot      - toggle Auto Loot")
     Print("/fgo mouse     - toggle Loot Under Mouse")
     Print("/fgo trade     - toggle Block Trades")

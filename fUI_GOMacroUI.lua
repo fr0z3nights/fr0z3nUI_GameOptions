@@ -202,11 +202,11 @@ local function BuildMacrosPanel(parent)
     btnOptional:SetText("+ Macro")
     btnOptional:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 12, 12)
 
-    -- Popout anchored to the right edge of the macro column so it slides over the Home column.
+    -- Popout anchored OUTSIDE the tab (to the right) so it doesn't overlap the Home column.
     local optPopout = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     optPopout:SetWidth(260)
-    optPopout:SetPoint("TOPLEFT", macroCol, "TOPRIGHT", 0, 0)
-    optPopout:SetPoint("BOTTOMLEFT", macroCol, "BOTTOMRIGHT", 0, 0)
+    optPopout:SetPoint("TOPLEFT", parent, "TOPRIGHT", COL_GAP, 0)
+    optPopout:SetPoint("BOTTOMLEFT", parent, "BOTTOMRIGHT", COL_GAP, 0)
     optPopout:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         tile = true, tileSize = 16,
@@ -217,6 +217,210 @@ local function BuildMacrosPanel(parent)
     local optTitle = optPopout:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     optTitle:SetPoint("TOP", optPopout, "TOP", 0, -10)
     optTitle:SetText("Add to Macro")
+
+    local function GetCurrentMacroIcon()
+        if type(M.GetDefaultMacroIcon) == "function" then
+            local icon = M.GetDefaultMacroIcon()
+            if icon ~= nil then
+                return icon
+            end
+        end
+        return 134400
+    end
+
+    local function SetCurrentMacroIcon(icon)
+        if type(M.SetDefaultMacroIcon) == "function" then
+            return M.SetDefaultMacroIcon(icon)
+        end
+        return nil
+    end
+
+    local function GetMacroPopupButtons(frame)
+        if type(frame) ~= "table" then return nil, nil end
+        local ok = frame.OkayButton or frame.OKButton or frame.AcceptButton or frame.SaveButton
+        local cancel = frame.CancelButton or frame.CloseButton
+
+        ok = ok or rawget(_G, "MacroPopupOkayButton") or rawget(_G, "MacroPopupFrameOkayButton")
+        cancel = cancel or rawget(_G, "MacroPopupCancelButton") or rawget(_G, "MacroPopupFrameCancelButton")
+        return ok, cancel
+    end
+
+    local function GetMacroPopupSelectedIcon()
+        local f = rawget(_G, "MacroPopupFrame")
+        if not f then return nil end
+
+        local icon = f.selectedIcon or f.icon or f.selectedIconTexture or f.selectedTexture
+        if icon ~= nil and icon ~= "" then
+            return icon
+        end
+
+        local selector = f.IconSelector or f.iconSelector
+        if selector then
+            if type(selector.GetSelectedIconID) == "function" then
+                local ok, id = pcall(selector.GetSelectedIconID, selector)
+                if ok and id then return id end
+            end
+            if type(selector.GetSelectedIcon) == "function" then
+                local ok, sel = pcall(selector.GetSelectedIcon, selector)
+                if ok and sel then return sel end
+            end
+        end
+
+        local iconButton = f.SelectedIconButton or f.IconButton or f.SelectedIcon or f.SelectedTexture
+        if iconButton then
+            if iconButton.Icon and type(iconButton.Icon.GetTexture) == "function" then
+                local tex = iconButton.Icon:GetTexture()
+                if tex then return tex end
+            end
+            if type(iconButton.GetNormalTexture) == "function" then
+                local nt = iconButton:GetNormalTexture()
+                if nt and type(nt.GetTexture) == "function" then
+                    local tex = nt:GetTexture()
+                    if tex then return tex end
+                end
+            end
+            if type(iconButton.GetTexture) == "function" then
+                local tex = iconButton:GetTexture()
+                if tex then return tex end
+            end
+        end
+
+        return nil
+    end
+
+    local function TryLoadBlizzardMacroUI()
+        if rawget(_G, "MacroPopupFrame") then
+            return true
+        end
+
+        local okLoad = false
+        if C_AddOns and type(C_AddOns.LoadAddOn) == "function" then
+            okLoad = pcall(C_AddOns.LoadAddOn, "Blizzard_MacroUI")
+        else
+            local loadAddOn = rawget(_G, "LoadAddOn")
+            if type(loadAddOn) == "function" then
+                okLoad = pcall(loadAddOn, "Blizzard_MacroUI")
+            end
+        end
+
+        if type(MacroFrame_LoadUI) == "function" then
+            pcall(MacroFrame_LoadUI)
+        end
+
+        return rawget(_G, "MacroPopupFrame") ~= nil or okLoad
+    end
+
+    local function OpenBlizzardMacroIconPicker(onAccept)
+        if not TryLoadBlizzardMacroUI() then
+            if type(M.Print) == "function" then
+                M.Print("Blizzard Macro UI not available.")
+            end
+            return
+        end
+
+        local f = rawget(_G, "MacroPopupFrame")
+        if not f or type(f.Show) ~= "function" then
+            if type(M.Print) == "function" then
+                M.Print("Blizzard Macro icon picker not available.")
+            end
+            return
+        end
+
+        if not f._fgoIconPickerHooked and type(f.HookScript) == "function" then
+            f._fgoIconPickerHooked = true
+            f:HookScript("OnHide", function(self)
+                local state = rawget(self, "_fgoIconPickerState")
+                if type(state) ~= "table" then
+                    return
+                end
+
+                if state.okBtn and state.okBtn.SetScript then
+                    state.okBtn:SetScript("OnClick", state.okScript)
+                end
+                if state.cancelBtn and state.cancelBtn.SetScript then
+                    state.cancelBtn:SetScript("OnClick", state.cancelScript)
+                end
+
+                rawset(self, "_fgoIconPickerState", nil)
+
+                if state.didAccept and type(state.onAccept) == "function" then
+                    local icon = state.selectedIcon or GetMacroPopupSelectedIcon() or GetCurrentMacroIcon()
+                    pcall(state.onAccept, icon)
+                end
+            end)
+        end
+
+        local okBtn, cancelBtn = GetMacroPopupButtons(f)
+        if not okBtn or not cancelBtn or type(okBtn.SetScript) ~= "function" or type(cancelBtn.SetScript) ~= "function" then
+            if type(M.Print) == "function" then
+                M.Print("Could not hook Blizzard Macro icon picker buttons.")
+            end
+            return
+        end
+
+        local state = {
+            okBtn = okBtn,
+            cancelBtn = cancelBtn,
+            okScript = (type(okBtn.GetScript) == "function") and okBtn:GetScript("OnClick") or nil,
+            cancelScript = (type(cancelBtn.GetScript) == "function") and cancelBtn:GetScript("OnClick") or nil,
+            onAccept = onAccept,
+            didAccept = false,
+            selectedIcon = nil,
+        }
+        rawset(f, "_fgoIconPickerState", state)
+
+        okBtn:SetScript("OnClick", function()
+            state.didAccept = true
+            state.selectedIcon = GetMacroPopupSelectedIcon()
+            f:Hide()
+        end)
+        cancelBtn:SetScript("OnClick", function()
+            state.didAccept = false
+            f:Hide()
+        end)
+
+        if IconSelectorPopupFrameModes and IconSelectorPopupFrameModes.New then
+            f.mode = IconSelectorPopupFrameModes.New
+        else
+            f.mode = f.mode or "new"
+        end
+
+        f:Show()
+    end
+
+    local btnPickIcon = CreateFrame("Button", nil, optPopout, "UIPanelButtonTemplate")
+    btnPickIcon:SetSize(72, 18)
+    btnPickIcon:SetPoint("TOPRIGHT", optPopout, "TOPRIGHT", -12, -10)
+    btnPickIcon:SetText("Icon")
+
+    local iconPreview = optPopout:CreateTexture(nil, "OVERLAY")
+    iconPreview:SetSize(18, 18)
+    iconPreview:SetPoint("RIGHT", btnPickIcon, "LEFT", -6, 0)
+
+    local function UpdateIconPreview()
+        local icon = GetCurrentMacroIcon()
+        if type(iconPreview.SetTexture) == "function" then
+            if type(icon) == "string" and icon ~= "" and not icon:find("[/\\]") and not icon:find("Interface") then
+                iconPreview:SetTexture("Interface\\Icons\\" .. icon)
+            else
+                iconPreview:SetTexture(icon)
+            end
+        end
+    end
+    UpdateIconPreview()
+
+    SetButtonTooltip(btnPickIcon, function()
+        return "Icon\n\nPick the icon used when creating/updating macros from this panel."
+    end)
+
+    btnPickIcon:SetScript("OnClick", function()
+        OpenBlizzardMacroIconPicker(function(icon)
+            local saved = SetCurrentMacroIcon(icon)
+            if saved ~= nil then
+                UpdateIconPreview()
+            end
+        end)
+    end)
 
     local nameBox = CreateFrame("EditBox", nil, optPopout, "InputBoxTemplate")
     nameBox:SetSize(220, 18)
@@ -494,6 +698,7 @@ local function BuildMacrosPanel(parent)
     end)
 
     optPopout:SetScript("OnShow", function()
+        UpdateIconPreview()
         RebuildOptionalList()
         UpdateMacroCreateButtonsEnabled()
     end)
@@ -550,7 +755,8 @@ local function BuildMacrosPanel(parent)
         btn:SetScript("OnClick", function()
             local macroName = tostring(macroNameOverride or text)
             local body = bodyFn and bodyFn() or ""
-            M.CreateOrUpdateNamedMacro(macroName, body, perCharacter)
+            local icon = GetCurrentMacroIcon()
+            M.CreateOrUpdateNamedMacro(macroName, body, perCharacter, icon)
             if type(M.ClearOptionalSelections) == "function" then
                 M.ClearOptionalSelections()
             end
@@ -629,8 +835,8 @@ local function BuildMacrosPanel(parent)
 
     hearthPopout = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     hearthPopout:SetWidth(360)
-    hearthPopout:SetPoint("TOPLEFT", macroCol, "TOPRIGHT", 0, 0)
-    hearthPopout:SetPoint("BOTTOMLEFT", macroCol, "BOTTOMRIGHT", 0, 0)
+    hearthPopout:SetPoint("TOPLEFT", parent, "TOPRIGHT", COL_GAP, 0)
+    hearthPopout:SetPoint("BOTTOMLEFT", parent, "BOTTOMRIGHT", COL_GAP, 0)
     hearthPopout:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         tile = true, tileSize = 16,
@@ -2868,7 +3074,17 @@ do
         end)
 
         local credit = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        credit:SetPoint("BOTTOM", parent, "BOTTOM", 0, 10)
+        credit:ClearAllPoints()
+
+        local anchor = parent._fgoCreditAnchor
+        local yOff = tonumber(parent._fgoCreditYOffset)
+        if yOff == nil then yOff = 10 end
+
+        if anchor == "SAVED_BOX" and savedBox then
+            credit:SetPoint("TOP", savedBox, "BOTTOM", 0, yOff)
+        else
+            credit:SetPoint("BOTTOM", parent, "BOTTOM", 0, yOff)
+        end
         credit:SetJustifyH("CENTER")
         credit:SetWordWrap(false)
         credit:SetNonSpaceWrap(false)

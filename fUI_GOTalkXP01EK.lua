@@ -52,6 +52,11 @@ end
 
 -- EASTERN KINGDOMS
 
+SetZone("Blasted Lands, Eastern Kingdoms")
+
+   local t = NPC(88206, "Zidormi")
+   t[42958] = { text = "Show me the Blasted Lands before the invasion", type = "" }
+
 SetZone("Stormwind City, Eastern Kingdoms")
 
     -- 12.0.0 Prepatch
@@ -59,14 +64,21 @@ SetZone("Stormwind City, Eastern Kingdoms")
    t[134631] = { text = "Are you talking about the Twilight's Blade?", type = "" }
    t[134634] = { text = "Are you talking about the Twilight's Blade?", type = "" }
 
+SetZone("Tirisfal Glades, Eastern Kingdoms")
+
+   local t = NPC(141488, "Zidormi")
+   t[49018] = { text = "Can you show me what Tirisfal Glades was like before the Battle for Lordaeron.", type = "" }
+
+SetZone("Westfall, Eastern Kingdoms")
+
+   local t = NPC(523, "Thor")
+   t[32677] = { text = "I need a ride.", type = "" }
 
 SetZone("Twilight Highlands, Eastern Kingdoms")
 
     -- 12.0.0 Prepatch
    local t = NPCs({ 248230, 248229, 248228 }, "Restlass Neophyte")
    t[135794] = { text = "<Challenge the cultist to a \"sparring match.\"", type = "" }
---   local t = NPC(248228, "Studious Voidcaster")
---   t[135794] = { text = "<Challenge the cultist to a \"sparring match.\"", type = "" }
 
 
 
