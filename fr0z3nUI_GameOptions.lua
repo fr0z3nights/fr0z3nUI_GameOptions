@@ -1978,6 +1978,17 @@ InitSV = function()
         AutoGossip_Settings.autoAcceptPetPrepareAcc = true
     end
 
+    if type(AutoGossip_Settings.autoAcceptTalkXpopConfirmAcc) ~= "boolean" then
+        -- Default ON: used for talk rules that explicitly opt into confirmation popups (e.g. "Are you sure? This Action cannot be undone.").
+        AutoGossip_Settings.autoAcceptTalkXpopConfirmAcc = true
+    end
+
+    -- Legacy compat: older builds used this name for the Whitemane skip confirm.
+    -- If it's present and false, honor it by disabling the generic feature too.
+    if AutoGossip_Settings.autoAcceptWhitemaneSkipAcc == false then
+        AutoGossip_Settings.autoAcceptTalkXpopConfirmAcc = false
+    end
+
     -- Queue accept overlay: 3-state UX via two SVs.
     -- - Acc On: queueAcceptAcc=true,  queueAcceptMode="acc"
     -- - On:     queueAcceptAcc=false, queueAcceptMode="on"
@@ -2857,6 +2868,22 @@ local function TryAutoSelect()
         return
     end
 
+    local function NoteLastGossipSelection(selectedNpcID, selectedOptionID, entry)
+        -- This is used by the TalkXPOP module to scope StaticPopup auto-confirms
+        -- to the specific gossip option we just selected.
+        if ns and ns.TalkXPOP and type(ns.TalkXPOP.SetLastGossipSelection) == "function" then
+            pcall(ns.TalkXPOP.SetLastGossipSelection, selectedNpcID, selectedOptionID, entry)
+            return
+        end
+        ns = (type(ns) == "table") and ns or {}
+        ns._lastGossipSelection = {
+            npcID = selectedNpcID,
+            optionID = selectedOptionID,
+            at = now,
+            entry = entry,
+        }
+    end
+
     local options = C_GossipInfo.GetOptions() or {}
     if #options == 0 then
         Debug("No gossip options")
@@ -2878,6 +2905,7 @@ local function TryAutoSelect()
                     else
                         lastSelectAt = now
                         Debug("Selecting (" .. scope .. "): " .. tostring(npcID) .. ":" .. tostring(optionID))
+                        NoteLastGossipSelection(npcID, optionID, entry)
                         C_GossipInfo.SelectOption(optionID)
                         return
                     end
@@ -2899,6 +2927,7 @@ local function TryAutoSelect()
                 else
                     lastSelectAt = now
                     Debug("Selecting (DB): " .. tostring(npcID) .. ":" .. tostring(optionID))
+                    NoteLastGossipSelection(npcID, optionID, entry)
                     C_GossipInfo.SelectOption(optionID)
                     return
                 end
@@ -2972,6 +3001,11 @@ local function CreateOptionsWindow()
     local browserPanel = CreateFrame("Frame", nil, f)
     browserPanel:SetAllPoints()
     f.browserPanel = browserPanel
+
+    local texturesPanel = CreateFrame("Frame", nil, f)
+    texturesPanel:SetAllPoints()
+    texturesPanel:Hide()
+    f.texturesPanel = texturesPanel
 
     local editPanel = CreateFrame("Frame", nil, f)
     editPanel:SetAllPoints()
@@ -3073,7 +3107,7 @@ local function CreateOptionsWindow()
 
     f.UpdateChromieLabel()
 
-    local TAB_COUNT = 6
+    local TAB_COUNT = 7
     local TAB_OVERLAP_X = -6
 
     local function SizeTabToText(btn, pad, minW)
@@ -3120,13 +3154,14 @@ local function CreateOptionsWindow()
 
     local function SelectTab(self, tabID)
         f.activeTab = tabID
-        -- Tab order: 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tale, 6 Talk
+        -- Tab order: 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tale, 6 Talk, 7 Textures
         if f.macrosPanel then f.macrosPanel:SetShown(tabID == 1) end
         if f.macroPanel then f.macroPanel:SetShown(tabID == 2) end
         if f.actionBarPanel then f.actionBarPanel:SetShown(tabID == 3) end
         if f.togglesPanel then f.togglesPanel:SetShown(tabID == 4) end
         if f.editPanel then f.editPanel:SetShown(tabID == 5) end
         if f.browserPanel then f.browserPanel:SetShown(tabID == 6) end
+        if f.texturesPanel then f.texturesPanel:SetShown(tabID == 7) end
 
         if tabID == 2 and f.UpdateMacroButtons then
             f.UpdateMacroButtons()
@@ -3137,6 +3172,9 @@ local function CreateOptionsWindow()
         if tabID == 4 and f.UpdateToggleButtons then
             f.UpdateToggleButtons()
         end
+        if tabID == 7 and f.UpdateTexturesUI then
+            f.UpdateTexturesUI()
+        end
 
         StyleTab(f.tab1, tabID == 1)
         StyleTab(f.tab2, tabID == 2)
@@ -3144,6 +3182,7 @@ local function CreateOptionsWindow()
         StyleTab(f.tab4, tabID == 4)
         StyleTab(f.tab5, tabID == 5)
         StyleTab(f.tab6, tabID == 6)
+        StyleTab(f.tab7, tabID == 7)
 
         UpdateTabZOrder(tabID)
     end
@@ -3203,6 +3242,15 @@ local function CreateOptionsWindow()
     SizeTabToText(tab6, 18, 70)
     f.tab6 = tab6
 
+    local tab7 = CreateFrame("Button", "$parentTab7", f, "UIPanelButtonTemplate")
+    tab7:SetID(7)
+    tab7:SetText("Textures")
+    tab7:SetPoint("LEFT", tab6, "RIGHT", TAB_OVERLAP_X, 0)
+    tab7:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    tab7:SetHeight(22)
+    SizeTabToText(tab7, 18, 70)
+    f.tab7 = tab7
+
     -- Initialize first tab styling + z-order.
     StyleTab(tab1, true)
     StyleTab(tab2, false)
@@ -3210,6 +3258,7 @@ local function CreateOptionsWindow()
     StyleTab(tab4, false)
     StyleTab(tab5, false)
     StyleTab(tab6, false)
+    StyleTab(tab7, false)
     UpdateTabZOrder(1)
 
     -- Clear selection when the window closes so reopening starts fresh.
@@ -3402,6 +3451,21 @@ local function CreateOptionsWindow()
                 SetDisabledAccOnChar = SetDisabledAccOnChar,
                 DeleteRule = DeleteRule,
             })
+        end
+    end
+
+    -- Textures tab content
+    do
+        local panel = f.texturesPanel
+        if panel and ns and ns.TexturesUI_Build then
+            local UpdateUI = function() end
+            UpdateUI = ns.TexturesUI_Build(f, panel, {
+                InitSV = InitSV,
+                Print = Print,
+            }) or UpdateUI
+            f.UpdateTexturesUI = function()
+                UpdateUI()
+            end
         end
     end
 
@@ -3747,6 +3811,17 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 ns.MacroXCMD_UpsertText("d", "scope", BuildFGOScopeText())
             end
             OpenMacroCmdEditor("d", "scope")
+            return
+        end
+
+        -- Textures module maintenance commands.
+        -- Keeps UI opening on plain /fgo, but allows /fgo textures migrate reset, etc.
+        if cmd == "textures" or cmd == "texture" then
+            if ns and ns.Textures and type(ns.Textures.HandleSlash) == "function" then
+                ns.Textures.HandleSlash(rest)
+            else
+                Print("Textures module not loaded.")
+            end
             return
         end
 

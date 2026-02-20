@@ -15,33 +15,19 @@
 
 # GUI
 
-+   - Move Tale and Talk tabs to the last position
-+   - Change "XCMD" to Macro CMD
++   -
 
 # Macros
 
-+   - Why does this tab feel like its been reverted...
-+       - Alliance and Horde buttons at the top that were hidden are back (along with Click At Home text)
-+       - + Friend button is back at the bottom (active outside the zones)
-+       - Location box is moved down 
-+       - Location box entries have Create Macro instead of M
--   - 
++   -
 
 # Macro CMD
 
-+   - move /fgo m and the input box up
-+       - shorten the input box by half 
-+   - move the commands box up to align with the above move (extending it to above the Reload UI button)
-+   - move the Add Del buttons up in line with the /fgo m and input box
-+   - divide the space from the input box to the reload ui button between the 3 boxes with a slight gap between each
-+   - change the 3 input box Ghost names to being ghost titles BEHIND the MIDDLE of the box not in the box at all
++   -
 
 # Situate
 
-+   - sitiate select slot button is not picking up Bartender bars to click on...
-+   - make the placements window more like the Talk table
-+       - use 01-09 not just 1-9
-+       - indenting and more flare, its just boring
++   -
 
 # Switches (Toggles)
 
@@ -49,10 +35,37 @@
 
 # Tale (Edit/Add / Gossip)
 
--   - 
++   -
 
 # Talk (Rules / Gossiping)
 
++   -
+
+# Textures
+
++   - Remove "Widget:" text
++   - Move widget dropdown to where the widge text was, shorted by 1/4, no border
++   - Move New / Delete / Refresh buttons over next to widget dropdown
++   - move Type: text to under widget dropdown
++   - Move level input box next to type, remove lable, add ghost text "Level", no border
++   - move texture input / pick button to the top in line with widget dropdown
++       - remove label, add ghost text "Texture", no border
++   - remove text
++       - Strata:, move dropdown into its place, shorten by 1/3
++       - Layer/Sub:, move dropdown next to strata's, shorten by 1/3, input box next to it, shorten by 1/2, no border
++       - Blend:, move dropdown under strata's, shorten by 1/3, no border, move "Tip: blend..." next to it
++       - Faction:, change "Both" to "Faction" in dropdown, no border, 
++       - Characters...:, add as ghost text in input box, move to where blend used to be
++   - Change to buttons, Yellow/Grey = On/Off (no on/off text)
++       - Enabled tickbox "Widget", default on
++       - Clickthrough "Click", tooltip, move next to Widget, default on
++       - Unlock, "Unlock", remove text, tooltip, move next to Click, default off
++       - Combat, 3stage toggle "Off"(grey)/"In Combat"(red)/"No Combat"(yellow), move below Widget, default off
++       - Remove "Has Mail"  as its not needed since i have a mail notifier elsewhere
++       - Hide when quest complete "Quest", move next to Combat
++           - with its input box, shorten (7 characters), no border, ghost text "QuestID"
++   - Characters box is not interactable
++   - Explain what Seen/ignore realm tickboxes do and the entry box between them
 -   - 
 
 ```

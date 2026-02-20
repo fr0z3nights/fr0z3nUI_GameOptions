@@ -336,6 +336,49 @@ do
     ns.Hearth.BuildMacroText = BuildMacroText
     ns.Hearth.GetCurrentDisplayText = GetCurrentDisplayText
 
+    -- Legacy compatibility: some old macros used `/run HearthZone:GetZone()`.
+    -- Provide a tiny shim so those macros don't error out if HearthZone isn't installed.
+    do
+        if _G.HearthZone == nil then
+            _G.HearthZone = {}
+        end
+        if type(_G.HearthZone) == "table" then
+            if type(_G.HearthZone.GetZone) ~= "function" then
+                function _G.HearthZone:GetZone()
+                    local bind, zone = GetCurrentDisplayText()
+                    bind = tostring(bind or "")
+                    zone = tostring(zone or "")
+
+                    if zone == "" or zone:find("zone not captured", 1, true) ~= nil then
+                        Print(bind)
+                        return
+                    end
+                    if bind == "" then
+                        Print("|cFFFFD707Home Set To |r" .. zone)
+                        return
+                    end
+                    Print("|cFFFFD707Home Set To |r" .. bind .. ", " .. zone)
+                end
+            end
+
+            if type(_G.HearthZone.GetHomeText) ~= "function" then
+                function _G.HearthZone:GetHomeText()
+                    local bind, zone = GetCurrentDisplayText()
+                    bind = tostring(bind or "")
+                    zone = tostring(zone or "")
+
+                    if zone == "" or zone:find("zone not captured", 1, true) ~= nil then
+                        return bind
+                    end
+                    if bind == "" then
+                        return zone
+                    end
+                    return bind .. ", " .. zone
+                end
+            end
+        end
+    end
+
     -- Event wiring: zone capture + auto-rotate behavior for the hearth macro.
     do
         local f = CreateFrame("Frame")

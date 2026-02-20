@@ -7,7 +7,7 @@ ns.db.rules = ns.db.rules or {}
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]], type = "", xpop = { which = "GOSSIP_CONFIRM", containsAll = {"are you sure", "cannot be undone"}, within = 3 } }
 -- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
@@ -59,10 +59,18 @@ SetZone("Blasted Lands, Eastern Kingdoms")
 
 SetZone("Stormwind City, Eastern Kingdoms")
 
-    -- 12.0.0 Prepatch
    local t = NPCs({ 246155, 246154 }, "Suspicious Citizen")
    t[134631] = { text = "Are you talking about the Twilight's Blade?", type = "" }
    t[134634] = { text = "Are you talking about the Twilight's Blade?", type = "" }
+
+   local t = NPC( 171789, "High Inquisitor Whitemane")
+   t[52725] = { text = "I have heard this tale before. <Skip the Maw introduction. Oribos awaits.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, type = "", }
+
+   local t = NPC( 150122, "Honor Hold Mage")
+   t[50005] = { text = "I must report to the Dark Portal.", type = "" }
+
+   local t = NPC( 149626, "Vanguard Battlemage")
+   t[51033] = { text = "I must help Khadgar. Send me to the Blasted Lands!", type = "" }
 
 SetZone("Tirisfal Glades, Eastern Kingdoms")
 

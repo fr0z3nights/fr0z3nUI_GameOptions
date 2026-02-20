@@ -32,6 +32,10 @@ fUI_GOTalk.lua
 fUI_GOTalkUI.lua
 fUI_GOSwitchesUI.lua
 
+textures\textures.lua
+fUI_GOTextures.lua
+fUI_GOTexturesUI.lua
+
 fUI_GOSituate.lua
 fUI_GOSituateUI.lua
 

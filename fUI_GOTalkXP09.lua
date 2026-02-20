@@ -25,10 +25,12 @@ end
 
 -- SHADOWLANDS
 
---SetZone("Dornogal, Khaz Algar")
+SetZone("Oribos, Shadowlands")
 
-   -- Delver's Guide
-        --local t = NPC(227675, "Delver's Guide")
-        --t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
+    local t = NPC(168252, "Protector Captain")
+    t[53754] = { text = "Where am I? Have I escaped the Maw?", type = "" }
+
+   local t = NPC( 167425, "Overseer Kah-Delen")
+   t[131497] = { text = "I've been here before. <Skip the level up campaign and unlock world content.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, type = "", }
 
 

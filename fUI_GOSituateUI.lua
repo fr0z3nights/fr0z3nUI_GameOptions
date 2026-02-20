@@ -1683,18 +1683,27 @@ function ns.SituateUI_Build(panel)
     pickedText:SetJustifyH("LEFT")
     pickedText:SetText("Selected: -")
 
-    -- Add belongs with the selection controls.
-    btnAdd:ClearAllPoints()
-    btnAdd:SetParent(editArea)
-    btnAdd:SetSize(BTN_W, BTN_H)
-    btnAdd:SetPoint("TOPLEFT", pickedText, "BOTTOMLEFT", 0, -10)
-
     -- Always belongs with the selection controls (not the placements header).
     btnAlways:ClearAllPoints()
     btnAlways:SetParent(editArea)
     btnAlways:SetSize(70, BTN_H)
-    btnAlways:SetPoint("LEFT", btnAdd, "RIGHT", 8, 0)
+    btnAlways:SetPoint("TOPLEFT", pickedText, "BOTTOMLEFT", 0, -10)
     btnAlways:Show()
+
+    btnAlways:SetScript("OnEnter", function()
+        if not GameTooltip then
+            return
+        end
+        GameTooltip:SetOwner(btnAlways, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Always overwrite", 1, 1, 1, true)
+        GameTooltip:AddLine("When ON, this entry can overwrite an occupied slot (unless protected by a higher-scope entry).", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnAlways:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
 
     local btnClear = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
     btnClear:SetSize(60, BTN_H)
@@ -1702,9 +1711,30 @@ function ns.SituateUI_Build(panel)
     SetClearText(btnClear, false)
     btnClear:Show()
 
+    btnClear:SetScript("OnEnter", function()
+        if not GameTooltip then
+            return
+        end
+        GameTooltip:SetOwner(btnClear, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Clear elsewhere", 1, 1, 1, true)
+        GameTooltip:AddLine("When ON, the same macro/spell will be removed from other slots after it is placed here.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnClear:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
+
+    -- Add belongs with the selection controls.
+    btnAdd:ClearAllPoints()
+    btnAdd:SetParent(editArea)
+    btnAdd:SetSize(BTN_W, BTN_H)
+    btnAdd:SetPoint("LEFT", btnClear, "RIGHT", 8, 0)
+
     local btnRemove = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
     btnRemove:SetSize(70, BTN_H)
-    btnRemove:SetPoint("LEFT", btnClear, "RIGHT", 8, 0)
+    btnRemove:SetPoint("LEFT", btnAdd, "RIGHT", 8, 0)
     SetRemoveText(btnRemove, false)
     btnRemove:Hide()
 
@@ -1739,7 +1769,7 @@ function ns.SituateUI_Build(panel)
         end
         btnRemember:SetSize(w, h)
     end
-    btnRemember:SetPoint("LEFT", btnClear, "RIGHT", 8, 0)
+    btnRemember:SetPoint("LEFT", btnAdd, "RIGHT", 8, 0)
     btnRemember:Hide()
 
     local function SetRememberButtonText(on)
@@ -2868,7 +2898,7 @@ function ns.SituateUI_Build(panel)
             if showRemove then
                 btnRemember:SetPoint("LEFT", btnRemove, "RIGHT", 8, 0)
             else
-                btnRemember:SetPoint("LEFT", btnClear, "RIGHT", 8, 0)
+                btnRemember:SetPoint("LEFT", btnAdd, "RIGHT", 8, 0)
             end
         end
         btnApply:SetEnabled(true)
