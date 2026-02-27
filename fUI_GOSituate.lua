@@ -13,6 +13,9 @@ local pendingAfterCombat = false
 local didEnsureRememberedMacros = false
 local lastApplySeq = 0
 
+-- Forward-declare helpers that are defined later but referenced by earlier functions.
+local GetSpellNameSafe
+
 local function SafeGetNumMacros()
     if not GetNumMacros then
         return nil, nil
@@ -128,8 +131,7 @@ local function GetCurrentExpansionKeyForPlayer()
         return nil
     end
 
-    -- Walk up to the Continent (expansion landmass) and use its name as the expansion key.
-    -- (This matches your use-case: Dragon Isles vs Khaz Algar; Midnight can be added later.)
+    -- Walk up to the Continent (landmass) and use its name as the expansion key.
     if C_Map.GetMapInfo and Enum and Enum.UIMapType then
         local cur = mapID
         for _ = 1, 12 do
@@ -144,6 +146,36 @@ local function GetCurrentExpansionKeyForPlayer()
             if mapType == Enum.UIMapType.Continent then
                 local name = tostring(info.name or "")
                 local low = name:lower()
+                if low:find("eastern kingdoms", 1, true) then
+                    return "easternkingdoms"
+                end
+                if low:find("kalimdor", 1, true) then
+                    return "kalimdor"
+                end
+                if low:find("outland", 1, true) then
+                    return "outland"
+                end
+                if low:find("northrend", 1, true) then
+                    return "northrend"
+                end
+                if low:find("pandaria", 1, true) then
+                    return "pandaria"
+                end
+                if low:find("draenor", 1, true) then
+                    return "draenor"
+                end
+                if low:find("broken isles", 1, true) then
+                    return "brokenisles"
+                end
+                if low:find("kul tiras", 1, true) then
+                    return "kultiras"
+                end
+                if low:find("zandalar", 1, true) then
+                    return "zandalar"
+                end
+                if low:find("shadowlands", 1, true) then
+                    return "shadowlands"
+                end
                 if low:find("dragon isles", 1, true) then
                     return "dragonisles"
                 end
@@ -256,11 +288,61 @@ local function GetActiveLayout()
         Skinning = { 8613, 265861, 265761, 265869, 265870, 265871, 265872, 265873, 265874, 265875, 265876, 309318, 374633, 433327, 471019 },
     }
 
+    local SKILLLINE_TO_PROFKEY = {
+        [171] = "Alchemy",
+        [164] = "Blacksmithing",
+        [333] = "Enchanting",
+        [202] = "Engineering",
+        [182] = "Herbalism",
+        [773] = "Inscription",
+        [755] = "Jewelcrafting",
+        [165] = "Leatherworking",
+        [186] = "Mining",
+        [393] = "Skinning",
+        [197] = "Tailoring",
+    }
+
+    local function AddUniqueKey(out, key)
+        key = Trim(tostring(key or ""))
+        if key == "" then
+            return
+        end
+        for i = 1, #out do
+            if out[i] == key then
+                return
+            end
+        end
+        out[#out + 1] = key
+    end
+
     local function GetKnownProfessionKeys()
         local out = {}
-        if SpellKnownAny(PROF_SPELLS.Mining) then out[#out + 1] = "Mining" end
-        if SpellKnownAny(PROF_SPELLS.Herbalism) then out[#out + 1] = "Herbalism" end
-        if SpellKnownAny(PROF_SPELLS.Skinning) then out[#out + 1] = "Skinning" end
+
+        if type(GetProfessions) == "function" and type(GetProfessionInfo) == "function" then
+            local p1, p2 = GetProfessions()
+            local indices = { p1, p2 }
+            for i = 1, #indices do
+                local idx = indices[i]
+                if idx then
+                    local ok, name, _, _, _, _, skillLine = pcall(GetProfessionInfo, idx)
+                    if ok then
+                        local key = SKILLLINE_TO_PROFKEY[tonumber(skillLine or 0)] or Trim(tostring(name or ""))
+                        AddUniqueKey(out, key)
+                    end
+                end
+            end
+
+            if #out > 1 then
+                table.sort(out, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+            end
+            if #out > 0 then
+                return out
+            end
+        end
+
+        if SpellKnownAny(PROF_SPELLS.Mining) then AddUniqueKey(out, "Mining") end
+        if SpellKnownAny(PROF_SPELLS.Herbalism) then AddUniqueKey(out, "Herbalism") end
+        if SpellKnownAny(PROF_SPELLS.Skinning) then AddUniqueKey(out, "Skinning") end
         return out
     end
 
@@ -1580,7 +1662,7 @@ GetMacroNameSafe = function(index)
     return nil
 end
 
-local function GetSpellNameSafe(spellID)
+GetSpellNameSafe = function(spellID)
     spellID = tonumber(spellID)
     if not spellID or spellID <= 0 then
         return nil

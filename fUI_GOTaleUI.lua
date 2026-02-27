@@ -83,9 +83,92 @@ function ns.TaleUI_Build(frame, panel, helpers)
     btnPrint:SetScript("OnShow", UpdatePrintButton)
     UpdatePrintButton()
 
+    -- Minimum option count before Print-on-show fires.
+    local editPrintMin = CreateFrame("EditBox", nil, editPanel, "InputBoxTemplate")
+    editPrintMin:SetSize(36, 22)
+    editPrintMin:SetPoint("LEFT", btnPrint, "RIGHT", 8, 0)
+    editPrintMin:SetAutoFocus(false)
+    editPrintMin:SetMaxLetters(3)
+    editPrintMin:SetTextInsets(6, 6, 0, 0)
+    editPrintMin:SetJustifyH("CENTER")
+    if editPrintMin.SetJustifyV then
+        editPrintMin:SetJustifyV("MIDDLE")
+    end
+    if editPrintMin.SetNumeric then
+        editPrintMin:SetNumeric(true)
+    end
+    editPrintMin:SetFrameLevel((editPanel.GetFrameLevel and editPanel:GetFrameLevel() or 0) + 10)
+    f._editPrintMin = editPrintMin
+
+    local function SanitizePrintMinOptions(value)
+        local n = tonumber(value)
+        if type(n) ~= "number" then
+            n = 2
+        end
+        n = math.floor(n)
+        if n < 1 then
+            n = 1
+        end
+        if n > 999 then
+            n = 999
+        end
+        return n
+    end
+
+    local function UpdatePrintMinBox()
+        InitSV()
+        local n = SanitizePrintMinOptions(AutoGossip_UI and AutoGossip_UI.printOnShowMinOptions)
+        editPrintMin._updating = true
+        editPrintMin:SetText(tostring(n))
+        editPrintMin._updating = false
+        if editPrintMin.SetCursorPosition then
+            editPrintMin:SetCursorPosition(0)
+        end
+    end
+
+    local function CommitPrintMinBox()
+        if editPrintMin._updating then
+            return
+        end
+        InitSV()
+        local n = SanitizePrintMinOptions(editPrintMin:GetText())
+        AutoGossip_UI.printOnShowMinOptions = n
+        UpdatePrintMinBox()
+    end
+
+    editPrintMin:SetScript("OnEnterPressed", function()
+        CommitPrintMinBox()
+        if editPrintMin.ClearFocus then
+            editPrintMin:ClearFocus()
+        end
+    end)
+    editPrintMin:SetScript("OnEscapePressed", function()
+        UpdatePrintMinBox()
+        if editPrintMin.ClearFocus then
+            editPrintMin:ClearFocus()
+        end
+    end)
+    editPrintMin:SetScript("OnEditFocusLost", function()
+        CommitPrintMinBox()
+    end)
+    editPrintMin:SetScript("OnShow", UpdatePrintMinBox)
+    editPrintMin:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(editPrintMin, "ANCHOR_TOPLEFT")
+            GameTooltip:SetText("Print threshold")
+            GameTooltip:AddLine("Minimum number of gossip options required before Print-on-show prints.", 1, 1, 1, true)
+            GameTooltip:AddLine("Default: 2 (skips single-option NPCs)", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    editPrintMin:SetScript("OnLeave", function()
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    UpdatePrintMinBox()
+
     local btnDebug = CreateFrame("Button", nil, editPanel, "UIPanelButtonTemplate")
     btnDebug:SetSize(90, 22)
-    btnDebug:SetPoint("LEFT", btnPrint, "RIGHT", 8, 0)
+    btnDebug:SetPoint("LEFT", editPrintMin, "RIGHT", 8, 0)
     btnDebug:SetFrameLevel((editPanel.GetFrameLevel and editPanel:GetFrameLevel() or 0) + 10)
     f._btnDebug = btnDebug
 

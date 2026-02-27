@@ -73,6 +73,172 @@ function ns.TalkUI_Build(frame, panel, helpers)
     browserScroll:SetPoint("BOTTOMRIGHT", browserArea, "BOTTOMRIGHT", -4, 4)
     f.browserScroll = browserScroll
 
+    -- Selected-rule prio editor (minimal).
+    local prioBar = CreateFrame("Frame", nil, browserPanel)
+    prioBar:SetPoint("BOTTOMLEFT", browserPanel, "BOTTOMLEFT", 12, 14)
+    prioBar:SetPoint("BOTTOMRIGHT", browserPanel, "BOTTOMRIGHT", -12, 14)
+    prioBar:SetHeight(22)
+    f._talkPrioBar = prioBar
+
+    local prioHint = prioBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    prioHint:SetPoint("LEFT", prioBar, "LEFT", 0, 0)
+    prioHint:SetJustifyH("LEFT")
+    prioHint:SetText("Click a rule to edit prio")
+    f._talkPrioHint = prioHint
+
+    local prioEdit = CreateFrame("EditBox", nil, prioBar, "InputBoxTemplate")
+    prioEdit:SetSize(54, 18)
+    prioEdit:SetPoint("LEFT", prioHint, "RIGHT", 8, 0)
+    prioEdit:SetAutoFocus(false)
+    prioEdit:SetTextInsets(6, 6, 0, 0)
+    prioEdit:Disable()
+    prioEdit:Hide()
+    f._talkPrioEdit = prioEdit
+
+    local prioMeta = prioBar:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    prioMeta:SetPoint("LEFT", prioEdit, "RIGHT", 8, 0)
+    prioMeta:SetJustifyH("LEFT")
+    prioMeta:SetText("(blank = default 0)")
+    prioMeta:Hide()
+    f._talkPrioMeta = prioMeta
+
+    f._talkSelectedKey = nil
+
+    local function Trim(s)
+        if type(s) ~= "string" then
+            return ""
+        end
+        return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+    end
+
+    local function NpcIDsKey(ids)
+        local out = {}
+        for _, id in ipairs(ids or {}) do
+            out[#out + 1] = tostring(id)
+        end
+        return table.concat(out, "/")
+    end
+
+    local function GetEditableScopeAndNpcIDs(entry)
+        if entry and entry.hasChar and type(entry.charNpcIDs) == "table" and #entry.charNpcIDs > 0 then
+            return "char", entry.charNpcIDs
+        end
+        if entry and entry.hasAcc and type(entry.accNpcIDs) == "table" and #entry.accNpcIDs > 0 then
+            return "acc", entry.accNpcIDs
+        end
+        return nil, nil
+    end
+
+    local function GetRuleDataTable(db, npcID, optionID)
+        if type(db) ~= "table" then
+            return nil
+        end
+        local npc = db[npcID]
+        if type(npc) ~= "table" then
+            return nil
+        end
+        local numericKey = optionID
+        local stringKey = tostring(optionID)
+        local d = npc[numericKey]
+        if type(d) == "table" then
+            return d
+        end
+        d = npc[stringKey]
+        if type(d) == "table" then
+            return d
+        end
+        return nil
+    end
+
+    local function SelectEntryForPrio(entry)
+        if not prioBar then
+            return
+        end
+
+        if not entry then
+            f._talkSelectedKey = nil
+            prioHint:SetText("Click a rule to edit prio")
+            prioEdit:Hide()
+            prioEdit:Disable()
+            prioMeta:Hide()
+            return
+        end
+
+        local key = {
+            npcIDsKey = NpcIDsKey(entry.allNpcIDs or {}),
+            optionID = entry.optionID,
+        }
+        f._talkSelectedKey = key
+
+        local scope, npcIDs = GetEditableScopeAndNpcIDs(entry)
+        if not scope then
+            local p = entry.prioDb or 0
+            prioHint:SetText(string.format("Selected %s (DB prio=%s, read-only)", tostring(entry.optionID), tostring(p)))
+            prioEdit:Hide()
+            prioEdit:Disable()
+            prioMeta:Hide()
+            return
+        end
+
+        local p = 0
+        if scope == "char" then
+            p = entry.prioChar or 0
+        else
+            p = entry.prioAcc or 0
+        end
+
+        prioHint:SetText(string.format("Selected %s (%s prio):", tostring(entry.optionID), scope == "char" and "C" or "A"))
+        prioEdit:SetText((p == 0 and "") or tostring(p))
+        prioEdit:Show()
+        prioEdit:Enable()
+        prioMeta:Show()
+
+        prioEdit:SetScript("OnEscapePressed", function(self)
+            self:ClearFocus()
+            SelectEntryForPrio(entry)
+        end)
+        prioEdit:SetScript("OnEnterPressed", function(self)
+            local raw = Trim(self:GetText() or "")
+            local newPrio
+            if raw == "" then
+                newPrio = nil
+            else
+                newPrio = tonumber(raw)
+            end
+            if raw ~= "" and newPrio == nil then
+                -- Invalid input; restore display.
+                SelectEntryForPrio(entry)
+                self:ClearFocus()
+                return
+            end
+
+            InitSV()
+            local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
+            for _, id in ipairs(npcIDs or {}) do
+                local d = GetRuleDataTable(db, id, entry.optionID)
+                if type(d) == "table" then
+                    if newPrio == nil then
+                        d.prio = nil
+                        d.order = nil
+                        d.priority = nil
+                    else
+                        d.prio = newPrio
+                        d.order = nil
+                        d.priority = nil
+                    end
+                end
+            end
+
+            self:ClearFocus()
+            if f.RefreshBrowserList then
+                f:RefreshBrowserList()
+            end
+            if f.RefreshRulesList then
+                f:RefreshRulesList(f.currentNpcID)
+            end
+        end)
+    end
+
     local BROW_ROW_H = 18
     local BROW_ROWS = 18
     local browRows = {}
@@ -104,11 +270,15 @@ function ns.TalkUI_Build(frame, panel, helpers)
                             local ruleType = ""
                             local zoneName = "Unknown"
                             local npcName = ""
+                            local prio
                             if type(data) == "table" then
                                 text = data.text or ""
                                 ruleType = data.type or ""
                                 zoneName = data.zoneName or data.zone or defaultZoneName or zoneName
                                 npcName = data.npcName or data.npc or defaultNpcName or npcName
+                                prio = data.prio
+                                if prio == nil then prio = data.order end
+                                if prio == nil then prio = data.priority end
                             end
                             table.insert(out, {
                                 scope = scope,
@@ -118,6 +288,7 @@ function ns.TalkUI_Build(frame, panel, helpers)
                                 ruleType = ruleType,
                                 zone = zoneName,
                                 npcName = npcName,
+                                prio = (prio ~= nil) and tonumber(prio) or nil,
                                 isDisabled = IsDisabled(scope, npcID, numericID),
                             })
                         end
@@ -146,11 +317,15 @@ function ns.TalkUI_Build(frame, panel, helpers)
                             local ruleType = ""
                             local zoneName = "Unknown"
                             local npcName = ""
+                            local prio
                             if type(data) == "table" then
                                 text = data.text or ""
                                 ruleType = data.type or ""
                                 zoneName = data.zoneName or data.zone or defaultZoneName or zoneName
                                 npcName = data.npcName or data.npc or defaultNpcName or npcName
+                                prio = data.prio
+                                if prio == nil then prio = data.order end
+                                if prio == nil then prio = data.priority end
                             end
                             table.insert(out, {
                                 scope = "db",
@@ -160,6 +335,7 @@ function ns.TalkUI_Build(frame, panel, helpers)
                                 ruleType = ruleType,
                                 zone = zoneName,
                                 npcName = npcName,
+                                prio = (prio ~= nil) and tonumber(prio) or nil,
                                 isDisabled = (IsDisabledDB(npcID, numericID) or IsDisabledDBOnChar(npcID, numericID)) and true or false,
                             })
                         end
@@ -172,13 +348,6 @@ function ns.TalkUI_Build(frame, panel, helpers)
     end
 
     local function BuildVisibleTreeNodes(allRules)
-        local function Trim(s)
-            if type(s) ~= "string" then
-                return ""
-            end
-            return (s:gsub("^%s+", ""):gsub("%s+$", ""))
-        end
-
         local function SplitZoneContinent(zoneString)
             zoneString = Trim(zoneString)
             if zoneString == "" then
@@ -290,6 +459,9 @@ function ns.TalkUI_Build(frame, panel, helpers)
                                             optionID = tonumber(optionID) or optionID,
                                             text = "",
                                             ruleType = "",
+                                            prioChar = nil,
+                                            prioAcc = nil,
+                                            prioDb = nil,
                                             hasChar = false,
                                             hasAcc = false,
                                             hasDb = false,
@@ -309,6 +481,7 @@ function ns.TalkUI_Build(frame, panel, helpers)
 
                                 for _, rule in ipairs(npcBucket.rules) do
                                     local e = Ensure(rule.optionID)
+                                    local p = (rule.prio ~= nil) and tonumber(rule.prio) or nil
                                     if (e.text == "" or e.text == nil) and type(rule.text) == "string" and rule.text ~= "" then
                                         e.text = rule.text
                                     end
@@ -318,18 +491,33 @@ function ns.TalkUI_Build(frame, panel, helpers)
                                     if rule.scope == "char" then
                                         e.hasChar = true
                                         e._charNpcIDs[rule.npcID] = true
+                                        if p ~= nil then
+                                            if e.prioChar == nil or p > e.prioChar then
+                                                e.prioChar = p
+                                            end
+                                        end
                                         if rule.isDisabled then
                                             e.disabledChar = true
                                         end
                                     elseif rule.scope == "acc" then
                                         e.hasAcc = true
                                         e._accNpcIDs[rule.npcID] = true
+                                        if p ~= nil then
+                                            if e.prioAcc == nil or p > e.prioAcc then
+                                                e.prioAcc = p
+                                            end
+                                        end
                                         if rule.isDisabled then
                                             e.disabledAcc = true
                                         end
                                     elseif rule.scope == "db" then
                                         e.hasDb = true
                                         e._dbNpcIDs[rule.npcID] = true
+                                        if p ~= nil then
+                                            if e.prioDb == nil or p > e.prioDb then
+                                                e.prioDb = p
+                                            end
+                                        end
                                         if rule.isDisabled then
                                             e.disabledDb = true
                                         end
@@ -390,7 +578,21 @@ function ns.TalkUI_Build(frame, panel, helpers)
                                     if type(text) ~= "string" or text == "" then
                                         text = "(no text)"
                                     end
-                                    local line = string.format("%s: %s", tostring(entry.optionID), text)
+                                    local effScope
+                                    local effPrio
+                                    if entry.hasChar then
+                                        effScope = "C"
+                                        effPrio = entry.prioChar
+                                    elseif entry.hasAcc then
+                                        effScope = "A"
+                                        effPrio = entry.prioAcc
+                                    else
+                                        effScope = "DB"
+                                        effPrio = entry.prioDb
+                                    end
+                                    effPrio = tonumber(effPrio) or 0
+
+                                    local line = string.format("%s: %s |cff999999[P:%s %s]|r", tostring(entry.optionID), text, tostring(effPrio), tostring(effScope))
                                     table.insert(visible, {
                                         kind = "rule",
                                         level = 3,
@@ -466,6 +668,10 @@ function ns.TalkUI_Build(frame, panel, helpers)
         local nodes = BuildVisibleTreeNodes(allRules)
         self._browserNodes = nodes
 
+        local selectedKey = self._talkSelectedKey
+        local selectedNpcKey = selectedKey and selectedKey.npcIDsKey
+        local selectedOptionID = selectedKey and selectedKey.optionID
+
         browserEmpty:SetShown(#nodes == 0)
 
         if FauxScrollFrame_Update then
@@ -527,6 +733,16 @@ function ns.TalkUI_Build(frame, panel, helpers)
 
                     local entry = node.entry
                     local optionID = entry and entry.optionID
+
+                    -- Highlight selected rule row (for prio editing).
+                    local isSelected = false
+                    if selectedNpcKey and selectedOptionID and entry and optionID ~= nil then
+                        isSelected = (tostring(selectedOptionID) == tostring(optionID)) and (selectedNpcKey == NpcIDsKey(entry.allNpcIDs or {}))
+                    end
+                    if isSelected then
+                        row.bg:SetShown(true)
+                        row.bg:SetColorTexture(1, 1, 1, 0.12)
+                    end
 
                     local function SetScopeText(btn, label, state)
                         if state == "inactive" then
@@ -610,11 +826,12 @@ function ns.TalkUI_Build(frame, panel, helpers)
 
                     local function CopyRuleData(data)
                         if type(data) ~= "table" then
-                            return { text = "", type = "" }
+                            return { text = "", type = "", prio = nil }
                         end
                         return {
                             text = data.text or "",
                             type = data.type or "",
+                            prio = data.prio or data.order or data.priority,
                             addedAt = data.addedAt,
                         }
                     end
@@ -912,8 +1129,13 @@ function ns.TalkUI_Build(frame, panel, helpers)
                         row.btnDel:SetScript("OnClick", nil)
                     end
 
-                    -- Rules tab is toggle-only; clicking a rule row does not jump to the edit tab.
-                    row.btnClick:SetScript("OnClick", nil)
+                    -- Clicking a rule row selects it for prio editing.
+                    row.btnClick:SetScript("OnClick", function()
+                        SelectEntryForPrio(entry)
+                        if f.RefreshBrowserList then
+                            f:RefreshBrowserList()
+                        end
+                    end)
                 end
             end
         end

@@ -26,6 +26,9 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     local ForceHideChromieIndicator = helpers.ForceHideChromieIndicator
     local OpenChromieConfigPopup = helpers.OpenChromieConfigPopup
 
+    local EnsureReloadFloatButton = helpers.EnsureReloadFloatButton
+    local UpdateReloadFloatButton = helpers.UpdateReloadFloatButton
+
     local BTN_W, BTN_H = 260, 22
     local START_Y = -64
     local GAP_Y = 10
@@ -344,6 +347,42 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         end
     end)
     segConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    -- Floating Reload UI button
+    local btnReloadFloat = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnReloadFloat:SetSize(BTN_W, BTN_H)
+    btnReloadFloat:SetPoint("TOP", segContainer, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.btnReloadFloat = btnReloadFloat
+    end
+
+    local function UpdateReloadFloatToggle()
+        InitSV()
+        local on = (AutoGossip_UI and AutoGossip_UI.reloadFloatEnabled) and true or false
+        SetAcc2StateText(btnReloadFloat, "Reload Button", on)
+    end
+
+    btnReloadFloat:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_UI.reloadFloatEnabled = not (AutoGossip_UI.reloadFloatEnabled and true or false)
+        UpdateReloadFloatToggle()
+        if UpdateReloadFloatButton then
+            UpdateReloadFloatButton()
+        elseif EnsureReloadFloatButton then
+            EnsureReloadFloatButton()
+        end
+    end)
+    btnReloadFloat:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(btnReloadFloat, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Reload Button")
+            GameTooltip:AddLine("Shows a small on-screen Reload UI button.", 1, 1, 1, true)
+            GameTooltip:AddLine("Left-click reload; right-drag to move.", 1, 1, 1, true)
+            GameTooltip:AddLine("No background.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    btnReloadFloat:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
     -- TooltipX
     local btnTooltipXEnabled = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
@@ -800,6 +839,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     UpdatePetPopupDebugButton()
     UpdatePetPrepareAcceptButton()
     UpdateChromieSegments()
+    UpdateReloadFloatToggle()
     UpdateTooltipXEnabledButton()
     UpdateTooltipXCombatButton()
     UpdateTooltipXModButton()
@@ -819,6 +859,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         UpdatePetPopupDebugButton()
         UpdatePetPrepareAcceptButton()
         UpdateChromieSegments()
+        UpdateReloadFloatToggle()
         UpdateTooltipXEnabledButton()
         UpdateTooltipXCombatButton()
         UpdateTooltipXModButton()
@@ -836,6 +877,10 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
             UpdateChromieIndicator()
         elseif ForceHideChromieIndicator then
             ForceHideChromieIndicator()
+        end
+
+        if UpdateReloadFloatButton then
+            UpdateReloadFloatButton()
         end
     end
 end

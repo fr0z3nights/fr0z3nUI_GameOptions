@@ -5,6 +5,153 @@ if type(ns) ~= "table" then
     ns = {}
 end
 
+-- ============================================================================
+-- Floating Reload UI button (text-only, draggable)
+-- ============================================================================
+
+do
+    local btn
+
+    local function InitSV()
+        if ns and type(ns._InitSV) == "function" then
+            ns._InitSV()
+        end
+    end
+
+    local function GetUI()
+        InitSV()
+        return rawget(_G, "AutoGame_UI") or rawget(_G, "AutoGossip_UI")
+    end
+
+    local function IsEnabled()
+        local ui = GetUI()
+        if not ui then
+            return false
+        end
+        return (ui.reloadFloatEnabled and true or false)
+    end
+
+    local function ApplySavedPosition(frame)
+        local ui = GetUI()
+        if not (ui and type(ui.reloadFloatPos) == "table" and frame and frame.SetPoint) then
+            return
+        end
+
+        local p = ui.reloadFloatPos
+        local point = type(p.point) == "string" and p.point or "TOP"
+        local relPoint = type(p.relativePoint) == "string" and p.relativePoint or point
+        local x = tonumber(p.x) or 0
+        local y = tonumber(p.y) or -120
+
+        frame:ClearAllPoints()
+        frame:SetPoint(point, UIParent, relPoint, x, y)
+    end
+
+    function ns.EnsureReloadFloatButton()
+        if btn and btn.SetText then
+            return btn
+        end
+
+        if not (CreateFrame and UIParent) then
+            return nil
+        end
+
+        btn = CreateFrame("Button", "FGO_FloatingReloadUIButton", UIParent)
+        btn:SetSize(90, 18)
+        btn:SetClampedToScreen(true)
+        btn:SetFrameStrata("DIALOG")
+        btn:EnableMouse(true)
+        btn:SetMovable(true)
+        btn:RegisterForDrag("RightButton")
+
+        local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        fs:SetAllPoints(btn)
+        fs:SetJustifyH("CENTER")
+        fs:SetJustifyV("MIDDLE")
+        fs:SetText("|cff00ccffReload UI|r")
+        btn._label = fs
+
+        ApplySavedPosition(btn)
+
+        btn:SetScript("OnClick", function()
+            local r = _G and _G["ReloadUI"]
+            if type(r) == "function" then
+                r()
+            end
+        end)
+        btn:SetScript("OnDragStart", function(self)
+            if self and self.StartMoving then
+                self:StartMoving()
+            end
+        end)
+        btn:SetScript("OnDragStop", function(self)
+            if self and self.StopMovingOrSizing then
+                self:StopMovingOrSizing()
+            end
+
+            local ui = GetUI()
+            if not ui then
+                return
+            end
+            ui.reloadFloatPos = ui.reloadFloatPos or {}
+            local point, _, relPoint, x, y = self:GetPoint(1)
+            ui.reloadFloatPos.point = point
+            ui.reloadFloatPos.relativePoint = relPoint
+            ui.reloadFloatPos.x = x
+            ui.reloadFloatPos.y = y
+        end)
+
+        btn:SetScript("OnEnter", function(self)
+            if self and self._label and self._label.SetText then
+                self._label:SetText("|cffffff00Reload UI|r")
+            end
+            if GameTooltip then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText("Reload UI")
+                GameTooltip:AddLine("Left-click: reload", 1, 1, 1, true)
+                GameTooltip:AddLine("Right-drag: move", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btn:SetScript("OnLeave", function(self)
+            if self and self._label and self._label.SetText then
+                self._label:SetText("|cff00ccffReload UI|r")
+            end
+            if GameTooltip then
+                GameTooltip:Hide()
+            end
+        end)
+
+        return btn
+    end
+
+    function ns.UpdateReloadFloatButton()
+        InitSV()
+        if IsEnabled() then
+            local b = ns.EnsureReloadFloatButton()
+            if b and b.Show then
+                ApplySavedPosition(b)
+                b:Show()
+            end
+        else
+            if btn and btn.Hide then
+                btn:Hide()
+            end
+        end
+    end
+
+    local function OnEvent(_, event)
+        if event == "PLAYER_LOGIN" or event == "VARIABLES_LOADED" then
+            ns.UpdateReloadFloatButton()
+        end
+    end
+
+    local f = _G.CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:RegisterEvent("VARIABLES_LOADED")
+    f:SetScript("OnEvent", OnEvent)
+end
+
 -- Switches module
 -- Consolidates:
 -- - fr0z3nUI_GameOptionsTutorial.lua

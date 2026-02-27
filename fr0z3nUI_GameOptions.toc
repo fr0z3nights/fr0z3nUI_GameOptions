@@ -7,21 +7,21 @@
 ## SavedVariables: AutoGame_Acc, AutoGame_Settings, AutoGame_UI
 ## SavedVariablesPerCharacter: AutoGame_Char, AutoGame_CharSettings
 
-fUI_GOTalkXP12.lua
-fUI_GOTalkXP11.lua
-fUI_GOTalkXP10.lua
-fUI_GOTalkXP09.lua
-fUI_GOTalkXP08ZL.lua
-fUI_GOTalkXP08KT.lua
-fUI_GOTalkXP07.lua
-fUI_GOTalkXP06.lua
-fUI_GOTalkXP05.lua
-fUI_GOTalkXP04.lua
-fUI_GOTalkXP03.lua
-fUI_GOTalkXP02.lua
-fUI_GOTalkXP01EK.lua
-fUI_GOTalkXP01KD.lua
-fUI_GOTalkXPEV.lua
+fUI_GOTalk12.lua
+fUI_GOTalk11.lua
+fUI_GOTalk10.lua
+fUI_GOTalk09.lua
+fUI_GOTalk08ZL.lua
+fUI_GOTalk08KT.lua
+fUI_GOTalk07.lua
+fUI_GOTalk06.lua
+fUI_GOTalk05.lua
+fUI_GOTalk04.lua
+fUI_GOTalk03.lua
+fUI_GOTalk02.lua
+fUI_GOTalk01EK.lua
+fUI_GOTalk01KD.lua
+fUI_GOTalkEV.lua
 
 fUI_GOSwitches.lua
 
@@ -50,6 +50,6 @@ fUI_GOMacroUI.lua
 
 fUI_GOMacroHome.lua
 
-fUI_GOTalkXPOP.lua
+fUI_GOTalkUP.lua
 
 fr0z3nUI_GameOptions.lua

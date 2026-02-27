@@ -5,13 +5,11 @@
 ```diff
 
 # REMINDERS
-
+- DO NOT DO ANYTHING IN THIS LIST UNTIL MARCH 2nd, 2026 QUOTA EXCEEDED
 - Heads down and do the - tasks
 - tasks marked + are ones you have already completed and you makred +
 - i'll check when ALL are completed!
 - Always remember backup before extra large jobs
-
-*holds your hand* since its seems like thats what you need
 
 # GUI
 
@@ -19,7 +17,10 @@
 
 # Macros
 
-+   -
+-   -   /fgo hs loc is not keeping the set Hearthstone locatin, the first part is right but the part after the,
+-           - /run HearthZone:GetZone() at least reports it better (old macros still have it)
+-           - Remove the /fgo hs loc cmd stuff, just make it an alt cmd for /run HearthZone:GetZone()
+-               - if possible make it "Zone, Continant" instead of the current "Inn Name, Continant"
 
 # Macro CMD
 
@@ -39,7 +40,10 @@
 
 # Talk (Rules / Gossiping)
 
-+   -
+-   - Link C:\WoW\_retail_\Interface\AddOns\LightskyUniversal in z Library/Helpers (see Adding to Library.md)
+-   - Scan z Library/Helpers/ addons for Garrison Mission Table setting that auto completed the initial quest
+-       - Add it to my addon with the ability to disable it as an entry in the Talk tab list
+-           - make it appear like a normal gossip entry under Draenor then Garrison
 
 # Textures
 
@@ -87,22 +91,22 @@
 # fUI_GOTaleUI.lua          ()
 # fUI_GOTalk.lua            ()
 # fUI_GOTalkUI.lua          ()
-# fUI_GOTalkXP01EK.lua      (Eastern Kingdoms)
-# fUI_GOTalkXP01KD.lua      (Kalimdor)
-# fUI_GOTalkXP02.lua        (Outland)
-# fUI_GOTalkXP03.lua        (Northrend)
-# fUI_GOTalkXP04.lua        (Maelstrom)
-# fUI_GOTalkXP05.lua        (Pandaria)
-# fUI_GOTalkXP06.lua        (Draenor)
-# fUI_GOTalkXP07.lua        (Broken Isles)
-# fUI_GOTalkXP08KT.lua      (Kul Tiras)
-# fUI_GOTalkXP08ZL.lua      (Zandalar)
-# fUI_GOTalkXP09.lua        (Shadowlands)
-# fUI_GOTalkXP10.lua        (Dragon Isles)
-# fUI_GOTalkXP11.lua        (Khaz Algar)
-# fUI_GOTalkXP12.lua        (??)
-# fUI_GOTalkXPEV.lua        (Event Zones)
-# fUI_GOTalkXPOP.lua        (Popup Picker)
+# fUI_GOTalk01EK.lua      (Eastern Kingdoms)
+# fUI_GOTalk01KD.lua      (Kalimdor)
+# fUI_GOTalk02.lua        (Outland)
+# fUI_GOTalk03.lua        (Northrend)
+# fUI_GOTalk04.lua        (Maelstrom)
+# fUI_GOTalk05.lua        (Pandaria)
+# fUI_GOTalk06.lua        (Draenor)
+# fUI_GOTalk07.lua        (Broken Isles)
+# fUI_GOTalk08KT.lua      (Kul Tiras)
+# fUI_GOTalk08ZL.lua      (Zandalar)
+# fUI_GOTalk09.lua        (Shadowlands)
+# fUI_GOTalk10.lua        (Dragon Isles)
+# fUI_GOTalk11.lua        (Khaz Algar)
+# fUI_GOTalk12.lua        (??)
+# fUI_GOTalkEV.lua        (Event Zones)
+# fUI_GOTalkUP.lua        (Popup Picker)
 
 
 ```
