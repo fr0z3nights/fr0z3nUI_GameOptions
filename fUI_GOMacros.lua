@@ -531,6 +531,13 @@ local function MacroBody_HS_Dornogal()
     }, "\n")
 end
 
+local function MacroBody_HS_Arcantina()
+    return table.concat({
+        "/fgo hs arcantina",
+        "/use item:253629",
+    }, "\n")
+end
+
 local function MacroBody_InstanceIO()
     return table.concat({
         "/run LFGTeleport(IsInLFGDungeon())",
@@ -592,6 +599,7 @@ ns.Macros.SetMacroBinding = SetMacroBinding
 ns.Macros.MacroBody_HS_Garrison = MacroBody_HS_Garrison
 ns.Macros.MacroBody_HS_Dalaran = MacroBody_HS_Dalaran
 ns.Macros.MacroBody_HS_Dornogal = MacroBody_HS_Dornogal
+ns.Macros.MacroBody_HS_Arcantina = MacroBody_HS_Arcantina
 ns.Macros.MacroBody_HS_Whistle = MacroBody_HS_Whistle
 ns.Macros.MacroBody_InstanceIO = MacroBody_InstanceIO
 ns.Macros.MacroBody_InstanceReset = MacroBody_InstanceReset

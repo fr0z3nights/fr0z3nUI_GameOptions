@@ -360,7 +360,15 @@ local function HideFauxScrollBarAndEnableWheel(sf, rowHeight)
             return
         end
         local step = rowHeight or 16
-        bar:SetValue((bar:GetValue() or 0) - (delta * step))
+        local v = (bar:GetValue() or 0) - (delta * step)
+        if bar.GetMinMaxValues then
+            local mn, mx = bar:GetMinMaxValues()
+            if type(mn) == "number" and type(mx) == "number" then
+                if v < mn then v = mn end
+                if v > mx then v = mx end
+            end
+        end
+        bar:SetValue(v)
     end)
 end
 
@@ -2203,26 +2211,26 @@ function ns.SituateUI_Build(panel)
         end
 
         -- Most action buttons (including bar addons) ultimately execute UseAction(slot).
-        hooksecurefunc("UseAction", function(slot, ...)
+        pcall(hooksecurefunc, "UseAction", function(slot, ...)
             if slotPickMode then
                 CompleteSlotPick(slot)
             end
         end)
 
         -- Extra coverage for drag/drop flows.
-        hooksecurefunc("PickupAction", function(slot, ...)
+        pcall(hooksecurefunc, "PickupAction", function(slot, ...)
             if slotPickMode then
                 CompleteSlotPick(slot)
             end
         end)
-        hooksecurefunc("PlaceAction", function(slot, ...)
+        pcall(hooksecurefunc, "PlaceAction", function(slot, ...)
             if slotPickMode then
                 CompleteSlotPick(slot)
             end
         end)
 
         -- Fallback: some buttons may not call UseAction directly; try reading attributes from the clicked secure button.
-        hooksecurefunc("SecureActionButton_OnClick", function(self, ...)
+        pcall(hooksecurefunc, "SecureActionButton_OnClick", function(self, ...)
             if not slotPickMode then
                 return
             end

@@ -5,7 +5,7 @@ The old Home1/Home2 macro buttons are deprecated/removed.
 The old `/fgo home1`/`/fgo home2` slash commands are also removed.
 
 Current flow:
-- Open the FAO window -> Home tab -> Saved Locations -> Create Macro (per entry)
+- Open the FGO window -> Home tab -> Saved Locations -> Create Macro (per entry)
 - Or use chat: `/fgo hm macro <id>` to print the `/click ...` macro body
 
 # CVar Enable/Disable Print Macros
@@ -114,7 +114,7 @@ Button Name
 HS Hearth -> Create Macro
 
 Created Macro
-FAO HS Hearth
+FGO HS Hearth
 
 Macro Body
 /fgo hs hearth
@@ -125,13 +125,13 @@ Behind /fgo Command
 
 Notes: `/use item:212337` line would still need to use the selected toyΓÇÖs itemID (or 6948 if you want the base Hearthstone).
 
-## FAO HS 06 Garrison
+## FGO HS 06 Garrison
 
 Button Name
 HS Garrison
 
 Created Macro
-FAO HS Garrison
+FGO HS Garrison
 
 Macro Body
 /fgo hs garrison
@@ -140,13 +140,13 @@ Macro Body
 Behind /fgo Command
 /run local s,d=GetItemCooldown(110560); s=s+d-GetTime(); print(format(s>1 and "Hearthing to Garrison in %d mins" or "Hearthing to Garrison", s/60))
 
-## FAO HS 07 Dalaran
+## FGO HS 07 Dalaran
 
 Button Name
 HS 07 Dalaran
 
 Created Macro
-FAO HS 07 Dalaran
+FGO HS 07 Dalaran
 
 Macro Body
 /fgo hs dalaran
@@ -155,13 +155,13 @@ Macro Body
 Behind /fgo Command
 /run local s,d=GetItemCooldown(140192); s=s+d-GetTime(); print(format(s>1 and "Hearthing to Dalaran in %d mins" or "Hearthing to Dalaran", s/60))
 
-## FAO HS 11 Dornogal
+## FGO HS 11 Dornogal
 
 Button Name
 HS 11 Dornogal
 
 Created Macro
-FAO HS 11 Dornogal
+FGO HS 11 Dornogal
 
 Macro Body
 /fgo hs dornogal
@@ -170,13 +170,28 @@ Macro Body
 Behind /fgo Command
 /run local s,d=GetItemCooldown(243056); s=s+d-GetTime(); print(format(s>1 and "Portal to Dornogal in %d mins" or "Portal to Dornogal Opening", s/60))
 
-## FAO HS 78 Whistle
+## FGO HS Arcantina
+
+Button Name
+HS Arcantina
+
+Created Macro
+FGO HS 12 Arcantina
+
+Macro Body
+/fgo hs arcantina
+/use item:253629
+
+Behind /fgo Command
+/run local s,d=GetItemCooldown(253629); s=s+d-GetTime(); print(format(s>1 and "Arcantina Time in %d mins" or "Arcantina Time!", s/60))
+
+## FGO HS 78 Whistle
 
 Button Name
 HS 78 Whistle
 
 Created Macro
-FAO HS 78 Whistle
+FGO HS 78 Whistle
 
 New Macro Body
 /fgo hs whistle
@@ -187,13 +202,13 @@ New Macro Body
 Behind /fgo Command
 /run local s,d=GetItemCooldown"230850"s=s+d-GetTime()print(format((s>1 and"Ride to a Delve in %d mins"or"Yay! Off To A Delve"),s/60,s%60))
 
-## FAO HS Instance IO
+## FGO HS Instance IO
 
 Button Name
 Instance IO
 
 Created Macro
-FAO InstanceIO
+FGO InstanceIO
 
 Current Macro Body
 /run LFGTeleport(IsInLFGDungeon())
@@ -202,26 +217,26 @@ Current Macro Body
 
 Notes: typically treated as a protected action. A slash command implemented in addon code may be blocked
 
-## FAO HS Instance Reset
+## FGO HS Instance Reset
 
 Button Name
 Instance Reset
 
 Created Macro
-FAO InstanceReset
+FGO InstanceReset
 
 Current Macro Body
 /script ResetInstances();
 
 Notes:`ResetInstances()` may be protected/restricted depending on state; safest to keep as a macro.
 
-## FAO HS Rez
+## FGO HS Rez
 
 Button Name
 Rez
 
 Created Macro
-FAO Rez
+FGO Rez
 
 Current Macro Body
 /use Ancestral Spirit
@@ -234,13 +249,13 @@ Current Macro Body
 
 Notes: Casting spells is a protected action; addons canΓÇÖt securely choose/cast these spells on-demand.
 
-## FAO HS Rez Combat
+## FGO HS Rez Combat
 
 Button Name
 Rez Combat
 
 Created Macro
-FAO Rez Combat
+FGO Rez Combat
 
 Current Macro Body
 /cast Rebirth
@@ -249,13 +264,13 @@ Current Macro Body
 
 Notes: Same protected-action restriction as Rez.
 
-## FAO HS Script Errors
+## FGO HS Script Errors
 
 Button Name
 Script Errors
 
 Created Macro
-FAO ScriptErrors
+FGO ScriptErrors
 
 New Macro Body
 /fgo scripterrors

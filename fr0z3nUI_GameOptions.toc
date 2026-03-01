@@ -3,7 +3,7 @@
 ## Title: |cff00ccfffr0z3nUI|r GameOptions
 ## Notes: Game options & helpers. UI: /fgo
 ## Author: fr0z3nights
-## Version: 2026.01.25
+## Version: 2026.03.01
 ## SavedVariables: AutoGame_Acc, AutoGame_Settings, AutoGame_UI
 ## SavedVariablesPerCharacter: AutoGame_Char, AutoGame_CharSettings
 
@@ -51,5 +51,8 @@ fUI_GOMacroUI.lua
 fUI_GOMacroHome.lua
 
 fUI_GOTalkUP.lua
+
+fUI_GOTabardDB.lua
+fUI_GOTabard.lua
 
 fr0z3nUI_GameOptions.lua

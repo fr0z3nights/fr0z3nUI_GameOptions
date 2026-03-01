@@ -1,6 +1,8 @@
 local addonName, ns = ...
 ns = ns or {}
 
+local SANITY_VERSION = "260301-005"
+
 local lastSelectAt = 0
 local frame = CreateFrame("Frame")
 
@@ -2603,6 +2605,105 @@ local function SetDisabledDBOnChar(npcID, optionID, disabled)
     end
 end
 
+-- Helpers (Talk tab -> Draenor -> Garrison)
+local GARRISON_MISSION_TABLE_HELPER_NPC_ID = -32000
+local GARRISON_MISSION_TABLE_HELPER_OPTION_ID = 1
+
+local function PlayerIsOnQuestID(questID)
+    questID = tonumber(questID)
+    if not questID then return false end
+    if C_QuestLog and type(C_QuestLog.IsOnQuest) == "function" then
+        local ok, on = pcall(C_QuestLog.IsOnQuest, questID)
+        return ok and on and true or false
+    end
+    return false
+end
+
+local function MaybeAutoStartFirstGarrisonMissionTableQuest()
+    -- Gate behind Talk-tab toggle (DB rule disable) so it appears in the list like normal gossip entries.
+    if IsDisabledDB(GARRISON_MISSION_TABLE_HELPER_NPC_ID, GARRISON_MISSION_TABLE_HELPER_OPTION_ID) then
+        return
+    end
+    if IsDisabledDBOnChar(GARRISON_MISSION_TABLE_HELPER_NPC_ID, GARRISON_MISSION_TABLE_HELPER_OPTION_ID) then
+        return
+    end
+
+    if not (C_Garrison and type(C_Garrison.GetGarrisonInfo) == "function") then
+        return
+    end
+
+    InitSV()
+    AutoGossip_CharSettings = AutoGossip_CharSettings or {}
+    if AutoGossip_CharSettings.isFirstGarrisonMissionSent then
+        return
+    end
+
+    local garrisonLevel = C_Garrison.GetGarrisonInfo(2)
+    if garrisonLevel ~= 1 then
+        return
+    end
+
+    local faction = UnitFactionGroup and UnitFactionGroup("player") or nil
+    local questID
+    if faction == "Alliance" then
+        questID = 34775
+    elseif faction == "Horde" then
+        questID = 34692
+    end
+    if not questID or not PlayerIsOnQuestID(questID) then
+        return
+    end
+
+    local function DoIt()
+        if GarrisonMissionTutorialFrame and GarrisonMissionTutorialFrame.Hide then
+            pcall(GarrisonMissionTutorialFrame.Hide, GarrisonMissionTutorialFrame)
+        end
+
+        if not (C_Garrison and type(C_Garrison.GetAvailableMissions) == "function" and type(C_Garrison.GetFollowers) == "function") then
+            return
+        end
+        local missions = C_Garrison.GetAvailableMissions(1) or {}
+        local followers = C_Garrison.GetFollowers(1) or {}
+        if type(missions) ~= "table" or type(followers) ~= "table" then
+            return
+        end
+        if #followers == 0 then
+            return
+        end
+
+        local followerID = followers[1] and followers[1].followerID or nil
+        if not followerID then
+            return
+        end
+
+        for _, mission in pairs(missions) do
+            if type(mission) == "table" and not mission.inProgress and mission.missionID then
+                if type(C_Garrison.AddFollowerToMission) == "function" then
+                    pcall(C_Garrison.AddFollowerToMission, mission.missionID, followerID)
+                end
+                if type(C_Garrison.StartMission) == "function" then
+                    pcall(C_Garrison.StartMission, mission.missionID)
+                end
+                if type(C_Garrison.CloseMissionNPC) == "function" then
+                    pcall(C_Garrison.CloseMissionNPC)
+                end
+                if type(HideUIPanel) == "function" and _G.GarrisonMissionFrame then
+                    pcall(HideUIPanel, _G.GarrisonMissionFrame)
+                end
+
+                AutoGossip_CharSettings.isFirstGarrisonMissionSent = true
+                break
+            end
+        end
+    end
+
+    if C_Timer and type(C_Timer.After) == "function" then
+        C_Timer.After(0.5, DoIt)
+    else
+        DoIt()
+    end
+end
+
 local function GetDbNpcTable(npcID)
     local rules = ns and ns.db and ns.db.rules
     if type(rules) ~= "table" then
@@ -3257,6 +3358,11 @@ local function CreateOptionsWindow()
     togglesPanel:Hide()
     f.togglesPanel = togglesPanel
 
+    local tabardPanel = CreateFrame("Frame", nil, f)
+    tabardPanel:SetAllPoints()
+    tabardPanel:Hide()
+    f.tabardPanel = tabardPanel
+
     local actionBarPanel = CreateFrame("Frame", nil, f)
     actionBarPanel:SetAllPoints()
     actionBarPanel:Hide()
@@ -3347,7 +3453,7 @@ local function CreateOptionsWindow()
 
     f.UpdateChromieLabel()
 
-    local TAB_COUNT = 7
+    local TAB_COUNT = 8
     local TAB_OVERLAP_X = -6
 
     local function SizeTabToText(btn, pad, minW)
@@ -3394,14 +3500,15 @@ local function CreateOptionsWindow()
 
     local function SelectTab(self, tabID)
         f.activeTab = tabID
-        -- Tab order: 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tale, 6 Talk, 7 Textures
+        -- Tab order: 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tabard, 6 Tale, 7 Talk, 8 Textures
         if f.macrosPanel then f.macrosPanel:SetShown(tabID == 1) end
         if f.macroPanel then f.macroPanel:SetShown(tabID == 2) end
         if f.actionBarPanel then f.actionBarPanel:SetShown(tabID == 3) end
         if f.togglesPanel then f.togglesPanel:SetShown(tabID == 4) end
-        if f.editPanel then f.editPanel:SetShown(tabID == 5) end
-        if f.browserPanel then f.browserPanel:SetShown(tabID == 6) end
-        if f.texturesPanel then f.texturesPanel:SetShown(tabID == 7) end
+        if f.tabardPanel then f.tabardPanel:SetShown(tabID == 5) end
+        if f.editPanel then f.editPanel:SetShown(tabID == 6) end
+        if f.browserPanel then f.browserPanel:SetShown(tabID == 7) end
+        if f.texturesPanel then f.texturesPanel:SetShown(tabID == 8) end
 
         if tabID == 2 and f.UpdateMacroButtons then
             f.UpdateMacroButtons()
@@ -3412,7 +3519,7 @@ local function CreateOptionsWindow()
         if tabID == 4 and f.UpdateToggleButtons then
             f.UpdateToggleButtons()
         end
-        if tabID == 7 and f.UpdateTexturesUI then
+        if tabID == 8 and f.UpdateTexturesUI then
             f.UpdateTexturesUI()
         end
 
@@ -3423,6 +3530,7 @@ local function CreateOptionsWindow()
         StyleTab(f.tab5, tabID == 5)
         StyleTab(f.tab6, tabID == 6)
         StyleTab(f.tab7, tabID == 7)
+        StyleTab(f.tab8, tabID == 8)
 
         UpdateTabZOrder(tabID)
     end
@@ -3466,7 +3574,7 @@ local function CreateOptionsWindow()
 
     local tab5 = CreateFrame("Button", "$parentTab5", f, "UIPanelButtonTemplate")
     tab5:SetID(5)
-    tab5:SetText("Tale")
+    tab5:SetText("Tabard")
     tab5:SetPoint("LEFT", tab4, "RIGHT", TAB_OVERLAP_X, 0)
     tab5:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab5:SetHeight(22)
@@ -3475,7 +3583,7 @@ local function CreateOptionsWindow()
 
     local tab6 = CreateFrame("Button", "$parentTab6", f, "UIPanelButtonTemplate")
     tab6:SetID(6)
-    tab6:SetText("Talk")
+    tab6:SetText("Tale")
     tab6:SetPoint("LEFT", tab5, "RIGHT", TAB_OVERLAP_X, 0)
     tab6:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab6:SetHeight(22)
@@ -3484,12 +3592,21 @@ local function CreateOptionsWindow()
 
     local tab7 = CreateFrame("Button", "$parentTab7", f, "UIPanelButtonTemplate")
     tab7:SetID(7)
-    tab7:SetText("Textures")
+    tab7:SetText("Talk")
     tab7:SetPoint("LEFT", tab6, "RIGHT", TAB_OVERLAP_X, 0)
     tab7:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab7:SetHeight(22)
     SizeTabToText(tab7, 18, 70)
     f.tab7 = tab7
+
+    local tab8 = CreateFrame("Button", "$parentTab8", f, "UIPanelButtonTemplate")
+    tab8:SetID(8)
+    tab8:SetText("Textures")
+    tab8:SetPoint("LEFT", tab7, "RIGHT", TAB_OVERLAP_X, 0)
+    tab8:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    tab8:SetHeight(22)
+    SizeTabToText(tab8, 18, 70)
+    f.tab8 = tab8
 
     -- Initialize first tab styling + z-order.
     StyleTab(tab1, true)
@@ -3499,6 +3616,7 @@ local function CreateOptionsWindow()
     StyleTab(tab5, false)
     StyleTab(tab6, false)
     StyleTab(tab7, false)
+    StyleTab(tab8, false)
     UpdateTabZOrder(1)
 
     -- Clear selection when the window closes so reopening starts fresh.
@@ -3647,6 +3765,32 @@ local function CreateOptionsWindow()
             local step = rowHeight or 16
             bar:SetValue((bar:GetValue() or 0) - (delta * step))
         end)
+    end
+
+    -- Tabard tab content
+    do
+        local panel = tabardPanel
+        local tabard = _G and rawget(_G, "fr0z3nUI_GameOptionsTabard")
+        if panel and tabard and type(tabard.BuildTab) == "function" then
+            tabard.BuildTab(panel, {
+                EnsureDB = function() InitSV() end,
+                GetDB = function() return AutoGossip_Settings end,
+                GetCharDB = function() return AutoGossip_CharSettings end,
+                Clamp = function(v, minV, maxV)
+                    v = tonumber(v) or 0
+                    minV = tonumber(minV)
+                    maxV = tonumber(maxV)
+                    if minV and v < minV then v = minV end
+                    if maxV and v > maxV then v = maxV end
+                    return v
+                end,
+                SetCheckBoxText = function(cb, text)
+                    if cb and cb.Text and cb.Text.SetText then
+                        cb.Text:SetText(text)
+                    end
+                end,
+            })
+        end
     end
 
     -- Tale tab content
@@ -3821,6 +3965,7 @@ end
 
 local lastPrintOnShowAt = 0
 local lastPrintOnShowKey = nil
+local PRINT_ON_SHOW_DEBOUNCE_WINDOW = 0.75
 
 local function PrintCurrentOptions(debounce)
     if not (C_GossipInfo and C_GossipInfo.GetOptions) then
@@ -3905,6 +4050,12 @@ local function PrintCurrentOptions(debounce)
         end
         npcName = npcName or ""
 
+        -- Print-on-show is primarily used for building rules; if we don't have the NPC ID yet,
+        -- skip so we don't double-print when the ID becomes available a fraction later.
+        if debounce and not npcID then
+            return
+        end
+
         -- Debounce only for Print-on-show. Both GOSSIP_SHOW and
         -- PLAYER_INTERACTION_MANAGER_FRAME_SHOW can fire for the same interaction.
         if debounce then
@@ -3916,10 +4067,10 @@ local function PrintCurrentOptions(debounce)
                 end
             end
             table.sort(ids)
-            local key = tostring(npcID or "?") .. ":" .. tostring(optionCount) .. ":" .. table.concat(ids, ",")
+            local key = tostring(optionCount) .. ":" .. table.concat(ids, ",")
 
             local now = (GetTime and GetTime()) or 0
-            if lastPrintOnShowKey == key and (now - (lastPrintOnShowAt or 0)) < 0.20 then
+            if lastPrintOnShowKey == key and (now - (lastPrintOnShowAt or 0)) < PRINT_ON_SHOW_DEBOUNCE_WINDOW then
                 return
             end
             lastPrintOnShowKey = key
@@ -3927,7 +4078,7 @@ local function PrintCurrentOptions(debounce)
         end
 
         if npcID then
-            Print(string.format("NPC: %s (%d)", npcName, npcID))
+            Print(string.format("NPC:  %s (%d)", npcName, npcID))
         end
 
         do
@@ -3959,9 +4110,9 @@ local function PrintCurrentOptions(debounce)
                 end
 
                 if isSet then
-                    Print(string.format("|cff00ff00OptionID %d|r: %s", optionID, optName or ""))
+                    Print(string.format("OID:  |cff00ff00%d|r  %s", optionID, optName or ""))
                 else
-                    Print(string.format("OptionID %d: %s", optionID, optName or ""))
+                    Print(string.format("OID:  %d  %s", optionID, optName or ""))
                 end
             end
         end
@@ -4059,7 +4210,7 @@ local function PrintDebugOptionsOnShow()
             if type(text) ~= "string" or text == "" then
                 text = "(no text)"
             end
-            Print(string.format("OptionID %d: %s", optionID, text))
+            Print(string.format("OID:  %d  %s", optionID, text))
         end
     end
 end
@@ -4100,10 +4251,11 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "",
                 "/fgo hm ...                - housing macros (see 'Home' tab)",
                 "/fgo hs hearth             - hearth status (prints destination/cooldown)",
-                "/fgo hs loc                - print your current bind location",
+                "/fgo hs loc                - print your home zone + continent",
                 "/fgo hs garrison           - garrison hearth status",
                 "/fgo hs dalaran            - dalaran hearth status",
                 "/fgo hs dornogal           - dornogal portal status",
+                "/fgo hs arcantina          - arcantina hearth status",
                 "/fgo hs whistle            - delve whistle status",
                 "",
                 "/fgo script                - toggle ScriptErrors",
@@ -4292,6 +4444,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         if cmd == "debug" then
             local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
             if ns and type(ns.MacroXCMD_Debug) == "function" then
+                Print("Sanity: " .. tostring(SANITY_VERSION))
                 if a == "" then
                     ns.MacroXCMD_Debug()
                 else
@@ -4565,30 +4718,23 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 return
             end
 
+            if dest == "arcantina" then
+                PrintHSMessage(253629, "Arcantina Time!", "Arcantina Time in %d mins")
+                return
+            end
+
             if dest == "loc" or dest == "location" then
+                if _G.HearthZone and type(_G.HearthZone.GetZone) == "function" then
+                    -- Mirror legacy macro behavior: /run HearthZone:GetZone()
+                    _G.HearthZone:GetZone()
+                    return
+                end
+
                 local bind = (GetBindLocation and GetBindLocation()) or ""
-                local zone = ""
-                if GetRealZoneText then
-                    zone = GetRealZoneText() or ""
-                end
-                if zone == "" and GetZoneText then
-                    zone = GetZoneText() or ""
-                end
-
                 bind = tostring(bind or "")
-                zone = tostring(zone or "")
-
-                if bind == "" and ns and ns.Hearth and type(ns.Hearth.GetCurrentDisplayText) == "function" then
-                    local b2, z2 = ns.Hearth.GetCurrentDisplayText()
-                    bind = tostring(b2 or bind)
-                    zone = tostring(z2 or zone)
+                if bind ~= "" then
+                    Print("|cFFFFD707Home Set To " .. bind)
                 end
-
-                local msg = "|cFFFFD707Home Set To " .. bind
-                if zone ~= "" then
-                    msg = msg .. ", " .. zone
-                end
-                Print(msg)
                 return
             end
             if dest == "hearth" or dest == "" then
@@ -4635,7 +4781,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 return
             end
 
-            Print("Usage: /fgo hs hearth|loc|garrison|dalaran|dornogal|whistle")
+            Print("Usage: /fgo hs hearth|loc|garrison|dalaran|dornogal|arcantina|whistle")
             return
         end
     end
@@ -4713,6 +4859,13 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         InitSV()
         SetupChromieSelectionTracking()
         DeduplicateUserRulesAgainstDb()
+
+        do
+            local tabard = _G and rawget(_G, "fr0z3nUI_GameOptionsTabard")
+            if tabard and type(tabard.Init) == "function" then
+                pcall(tabard.Init, AutoGossip_Settings, AutoGossip_CharSettings)
+            end
+        end
 
         -- Macro CMD: pre-arm secure /click buttons so user macros work without a prep step.
         if ns and type(ns.MacroXCMD_ArmAllClickButtons) == "function" then
@@ -4832,7 +4985,19 @@ frame:SetScript("OnEvent", function(_, event, arg1)
                 local t = Enum.PlayerInteractionType
                 local isGossip = (t.Gossip ~= nil and it == t.Gossip)
                 local isQuest = (t.QuestGiver ~= nil and it == t.QuestGiver)
+                local isGarrisonMission = false
+                if t.GarrisonMissionNPC ~= nil or t.GarrisonMission ~= nil then
+                    isGarrisonMission = (t.GarrisonMissionNPC ~= nil and it == t.GarrisonMissionNPC)
+                        or (t.GarrisonMission ~= nil and it == t.GarrisonMission)
+                else
+                    -- Numeric fallback only when enum is missing.
+                    isGarrisonMission = (it == 32)
+                end
+
                 if not (isGossip or isQuest) then
+                    if isGarrisonMission then
+                        pcall(MaybeAutoStartFirstGarrisonMissionTableQuest)
+                    end
                     return
                 end
             end

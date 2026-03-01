@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.1",
+  "workspace.checkThirdParty": false,
+  "type.weakUnionCheck": true,
+  "workspace.library": [
+    "../_LuaStubs",
+    "../_LuaStubs/WoWApiStubs.lua"
+  ]
+}

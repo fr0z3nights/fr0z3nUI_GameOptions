@@ -51,6 +51,8 @@ do
 
         db.window = db.window or { tab = "hearth", macroPerChar = false }
         db.zoneByChar = db.zoneByChar or {}
+        db.homeZoneByChar = db.homeZoneByChar or {}
+        db.homeContinentByChar = db.homeContinentByChar or {}
         db.customUseItems = db.customUseItems or {}
 
         if db.selectedUseItemID ~= nil then
@@ -298,20 +300,39 @@ do
         return nil
     end
 
-    local function GetHearthZoneCaptureText()
-        local continent = GetPlayerContinentName()
-        if continent and continent ~= "" then
-            return continent
+    local function GetPlayerZoneName()
+        if GetRealZoneText then
+            local z = GetRealZoneText()
+            if z and z ~= "" then return z end
         end
         if GetZoneText then
             local z = GetZoneText()
             if z and z ~= "" then return z end
         end
-        if GetRealZoneText then
-            local z = GetRealZoneText()
-            if z and z ~= "" then return z end
+        return nil
+    end
+
+    local function GetHearthZoneCaptureText()
+        local continent = GetPlayerContinentName()
+        if continent and continent ~= "" then
+            return continent
         end
+        local z = GetPlayerZoneName()
+        if z and z ~= "" then return z end
         return ""
+    end
+
+    local function GetHomeZoneContinentText()
+        local db, charKey = EnsureInit()
+        local zone = (db.homeZoneByChar and db.homeZoneByChar[charKey]) or ""
+        local continent = (db.homeContinentByChar and db.homeContinentByChar[charKey]) or ""
+        zone = tostring(zone or "")
+        continent = tostring(continent or "")
+
+        if zone ~= "" and continent ~= "" then
+            return zone .. ", " .. continent
+        end
+        return (zone ~= "") and zone or continent
     end
 
     local function GetCurrentDisplayText()
@@ -335,6 +356,7 @@ do
     ns.Hearth.RollRandomUseItem = RollRandomUseItem
     ns.Hearth.BuildMacroText = BuildMacroText
     ns.Hearth.GetCurrentDisplayText = GetCurrentDisplayText
+    ns.Hearth.GetHomeZoneContinentText = GetHomeZoneContinentText
 
     -- Legacy compatibility: some old macros used `/run HearthZone:GetZone()`.
     -- Provide a tiny shim so those macros don't error out if HearthZone isn't installed.
@@ -345,35 +367,29 @@ do
         if type(_G.HearthZone) == "table" then
             if type(_G.HearthZone.GetZone) ~= "function" then
                 function _G.HearthZone:GetZone()
-                    local bind, zone = GetCurrentDisplayText()
-                    bind = tostring(bind or "")
-                    zone = tostring(zone or "")
-
-                    if zone == "" or zone:find("zone not captured", 1, true) ~= nil then
-                        Print(bind)
+                    local txt = GetHomeZoneContinentText()
+                    txt = tostring(txt or "")
+                    if txt == "" then
+                        local bind = (GetBindLocation and GetBindLocation()) or ""
+                        bind = tostring(bind or "")
+                        if bind ~= "" then
+                            Print(bind)
+                        end
                         return
                     end
-                    if bind == "" then
-                        Print("|cFFFFD707Home Set To |r" .. zone)
-                        return
-                    end
-                    Print("|cFFFFD707Home Set To |r" .. bind .. ", " .. zone)
+                    Print("|cFFFFD707Home Set To |r" .. txt)
                 end
             end
 
             if type(_G.HearthZone.GetHomeText) ~= "function" then
                 function _G.HearthZone:GetHomeText()
-                    local bind, zone = GetCurrentDisplayText()
-                    bind = tostring(bind or "")
-                    zone = tostring(zone or "")
-
-                    if zone == "" or zone:find("zone not captured", 1, true) ~= nil then
-                        return bind
+                    local txt = GetHomeZoneContinentText()
+                    txt = tostring(txt or "")
+                    if txt ~= "" then
+                        return txt
                     end
-                    if bind == "" then
-                        return zone
-                    end
-                    return bind .. ", " .. zone
+                    local bind = (GetBindLocation and GetBindLocation()) or ""
+                    return tostring(bind or "")
                 end
             end
         end
@@ -471,6 +487,14 @@ do
             local db, charKey = EnsureInit()
             if event == "HEARTHSTONE_BOUND" then
                 db.zoneByChar = db.zoneByChar or {}
+                db.homeZoneByChar = db.homeZoneByChar or {}
+                db.homeContinentByChar = db.homeContinentByChar or {}
+
+                local z = GetPlayerZoneName() or ""
+                local c = GetPlayerContinentName() or ""
+                db.homeZoneByChar[charKey] = tostring(z or "")
+                db.homeContinentByChar[charKey] = tostring(c or "")
+
                 db.zoneByChar[charKey] = GetHearthZoneCaptureText()
                 return
             end

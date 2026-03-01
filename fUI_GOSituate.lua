@@ -1476,8 +1476,13 @@ local function GetActionInfoStable(slot)
     end
 
     -- Macro actions with `subType` can produce confusing IDs; re-read macro id via cursor.
+    -- IMPORTANT: Avoid PickupAction/PlaceAction in combat lockdown (can cause blocked-action spam/taint).
     if t == "macro" and subType then
         if GetCursorInfo and PickupAction and PlaceAction then
+            if InCombatLockdown and InCombatLockdown() then
+                return t, id, subType
+            end
+
             -- Avoid disturbing the user's cursor if they are already dragging something.
             local curType = GetCursorInfo()
             if not curType then
