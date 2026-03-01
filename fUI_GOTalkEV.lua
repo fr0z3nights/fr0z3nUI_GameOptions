@@ -52,11 +52,11 @@ end
 
 -- DARKMOON ISLAND
 
---SetZone("Dornogal, Khaz Algar")
+SetZone("Darkmoon Island")
 
-   -- Delver's Guide
-        --local t = NPC(227675, "Delver's Guide")
-        --t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
+    local t = NPCs({ 67370, 85519}, "Pet Battles")
+    t[41758] = { text = "I challenge you to a pet battle!", type = "" }	-- Darkmoon Pet Battle! (32175) Jeremy Feasel (67370)
+    t[42667] = { text = "I challenge you to a pet battle!", type = "" }	-- A New Darkmoon Challenger! (36471) Christoph VonFeasel (85519)
 
 
 

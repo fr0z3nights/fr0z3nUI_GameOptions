@@ -136,21 +136,44 @@ SetZone("Hammerfall, Eastern Kingdoms")
 
 SetZone("Harandar, Eastern Kingdoms")
 
-   local t = NPCs({ 237343, 237345 }, "Halduron Brightwing")
+   local t = NPCs({ 237343, 237345, 237787 }, "Halduron Brightwing")
    t[133774] = { text = "Let's head down.", type = "" } -- To Har'athir (86900) Halduron Brightwing (237343)
    t[133792] = { text = "Let's go.", type = "" } -- The Council Assembles (86929) Halduron Brightwing (237345)
+   t[138702] = { text = "<Hand Halduron the glimmering bag of seeds.>", type = "" } -- Seeds of the Rift (86944) Halduron Brightwing (237787)
 
    local t = NPCs({ 237210, 253343 }, "Orweyna")
    t[131842] = { text = "<Take in the view.>", type = "" } -- To Har'athir (86900) Orweyna (237210)
    t[136444] = { text = "<Hand Orweyna the Fragment of Revelation.>", type = "" } -- Down the Rootways (86912) Orweyna (253343)
 
+   local t = NPC(240407, "Naynar")
+   t[132852] = { text = "What can you tell me about the Rift of Aln", type = "", prio = 10 }   -- Watch the Den (86864) Naynar (240407)
+   t[132730] = { text = "Can I see the Renown items you have for sale?", type = "", prio = -5 }
+
+   local t = NPC(240404, "Innkeeper Yinaa")
+   t[132851] = { text = "What can you tell me about the Rift of Aln", type = "", prio = 10 }   -- Watch the Den (86864) Innkeeper Yinaa (240404)
+   t[132728] = { text = "I'd like to browse your goods.", type = "", prio = -5 }
+   t[132729] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, type = "", prio = -10, noAuto = true }
+
    local t = NPCs({ 237209, }, "Ku'paal")
    t[132537] = { text = "We are froemds of Orweyna and we are here to help.", type = "" } -- To Har'athir (86900) Ku'paal (237209)
 
-   local t = NPCs({ 237866, 237865, 237837, }, "Zone Quest NPCs")
-   t[133721] = { text = "It's safe to return to the village.", type = "" }     -- To Har'athir (86900)   Oorla (237866)
-   t[133726] = { text = "It's safe to return to the village.", type = "" }     -- To Har'athir (86900)   Danul (237865)
-   t[131932] = { text = "I am ready to begin the trials.", type = "" }     -- Echoes and Memories (86911) Zur'ashar Kassameh (237837)
+   local t = NPCs({ 255056, }, "Doecha")
+   t[133777] = { text = "What can you tell me about the Rift of Aln?", type = "" } -- Watch the Den (86864) Doecha (255056)
+
+   local t = NPCs({ 240225, 244126, }, "Eonka")
+   t[132714] = { text = "<Ask if they have Lightbloom in their village.>", type = ""}     -- The Traveling Flowers (86956) Eonka (240225)
+   t[133712] = { text = "Are you still feeling well?", type = ""}                         -- Seeds of the Rift (86944) Eonka (244126)
+
+   local t = NPCs({ 237866, 237865, 240239, 240238, 237837, 243930, 241045, 241690, 241655, }, "Zone Quest NPCs")
+   t[133721] = { text = "It's safe to return to the village.", type = "" }                                        -- To Har'athir (86900)          Oorla (237866)
+   t[133726] = { text = "It's safe to return to the village.", type = "" }                                        -- To Har'athir (86900)          Danul (237865)
+   t[131932] = { text = "I am ready to begin the trials.", type = "" }                                            -- Echoes and Memories (86911)   Zur'ashar Kassameh (237837)
+   t[133684] = { text = "<Ask if they have Lightbloom in their village.>", type = "" }                            -- The Traveling Flowers (86956) Keem (243930) DEAD
+   t[132713] = { text = "<Ask if they have Lightbloom in their village.>", type = "" }                            -- The Traveling Flowers (86956) Teetem (240238) DEAD
+   t[132927] = { text = "<Ask if they have Lightbloom in their village.>", type = "" }                            -- The Traveling Flowers (86956) Rizam (240239) DEAD
+   t[132858] = { text = "What can you tell me about the Rift of Aln", type = "", }                                -- Watch the Den (86864) Ku'paal (241045)
+   t[132939] = { text = "This Alndust will protect you from the Lightbloom so we can fight them.", type = "", }   -- Alndust in Right Hands (86882) Eager Volunteer (241690)
+   t[132933] = { text = "What happened here?", type = "", }                                                       -- Alndust in Right Hands (86882) Hannan (241655)
 
 SetZone("Stormwind City, Eastern Kingdoms")
 
@@ -160,6 +183,10 @@ SetZone("Stormwind City, Eastern Kingdoms")
 
    local t = NPC( 171789, "High Inquisitor Whitemane")
    t[52725] = { text = "I have heard this tale before. <Skip the Maw introduction. Oribos awaits.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, type = "", }
+
+   local t = NPC( 54334, "Darkmoon Faire Mystic Mage")
+   t.__meta.stopIfQuestAvailable = 7905  -- questID to block gossip options until accepted
+   t[40457] = { text = "Take me to the faire staging area.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Travel to the faire staging area" }, within = 3, }, type = "", }
 
    local t = NPC( 150122, "Honor Hold Mage")
    t[50005] = { text = "I must report to the Dark Portal.", type = "" }

@@ -2616,7 +2616,158 @@ local function PlayerIsOnQuestID(questID)
         local ok, on = pcall(C_QuestLog.IsOnQuest, questID)
         return ok and on and true or false
     end
+    -- Fallbacks for edge timing / API inconsistencies.
+    if C_QuestLog and type(C_QuestLog.GetLogIndexForQuestID) == "function" then
+        local ok, idx = pcall(C_QuestLog.GetLogIndexForQuestID, questID)
+        if ok and type(idx) == "number" and idx > 0 then
+            return true
+        end
+    end
+    if type(GetQuestLogIndexByID) == "function" then
+        local ok, idx = pcall(GetQuestLogIndexByID, questID)
+        if ok and type(idx) == "number" and idx > 0 then
+            return true
+        end
+    end
     return false
+end
+
+local function QuestIsCompleted(questID)
+    questID = tonumber(questID)
+    if not questID then
+        return false
+    end
+
+    if C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted) == "function" then
+        local ok, done = pcall(C_QuestLog.IsQuestFlaggedCompleted, questID)
+        return ok and done and true or false
+    end
+
+    if type(IsQuestFlaggedCompleted) == "function" then
+        local ok, done = pcall(IsQuestFlaggedCompleted, questID)
+        return ok and done and true or false
+    end
+
+    return false
+end
+
+local function GetStopIfQuestAvailableSet(npcTable)
+    if type(npcTable) ~= "table" then
+        return nil
+    end
+    local meta = rawget(npcTable, "__meta")
+    if type(meta) ~= "table" then
+        return nil
+    end
+    local v = rawget(meta, "stopIfQuestAvailable")
+    if v == nil then
+        return nil
+    end
+
+    local set = {}
+    if type(v) == "number" or type(v) == "string" then
+        local q = tonumber(v)
+        if q and q > 0 then
+            set[q] = true
+        end
+        return next(set) and set or nil
+    end
+
+    if type(v) == "table" then
+        for k, vv in pairs(v) do
+            if type(k) == "number" then
+                local q = tonumber(vv)
+                if q and q > 0 then
+                    set[q] = true
+                end
+            else
+                local q = tonumber(k)
+                if q and q > 0 then
+                    set[q] = true
+                elseif vv == true then
+                    local q2 = tonumber(k)
+                    if q2 and q2 > 0 then
+                        set[q2] = true
+                    end
+                end
+            end
+        end
+        return next(set) and set or nil
+    end
+
+    return nil
+end
+
+local function MergeQuestSet(dst, src)
+    if type(dst) ~= "table" or type(src) ~= "table" then
+        return
+    end
+    for q in pairs(src) do
+        dst[q] = true
+    end
+end
+
+-- Forward declarations (used by quest-gating helpers before their definitions).
+local GetDbNpcTable
+local LookupNpcBucket
+
+local function IsQuestCurrentlyAvailable(entries, questID)
+    questID = tonumber(questID)
+    if not questID then
+        return false
+    end
+    for _, g in ipairs(entries or {}) do
+        if g and g.kind == "availableQuest" and tonumber(g.id) == questID then
+            return true
+        end
+    end
+    return false
+end
+
+local function IsQuestCurrentlyActive(entries, questID)
+    questID = tonumber(questID)
+    if not questID then
+        return false
+    end
+    for _, g in ipairs(entries or {}) do
+        if g and g.kind == "activeQuest" and tonumber(g.id) == questID then
+            return true
+        end
+    end
+    return false
+end
+
+local function ShouldBlockOptionAutoSelectForNpc(npcID, entries)
+    -- If an NPC has __meta.stopIfQuestAvailable set, we suppress selecting "option" entries
+    -- while that quest is present as an available quest (i.e. not accepted yet).
+    -- This lets you accept the quest first; once accepted, the quest disappears and options can auto-select.
+    local merged = {}
+
+    local charNpc = LookupNpcBucket(AutoGossip_Char, npcID)
+    MergeQuestSet(merged, GetStopIfQuestAvailableSet(charNpc) or {})
+
+    local accNpc = LookupNpcBucket(AutoGossip_Acc, npcID)
+    MergeQuestSet(merged, GetStopIfQuestAvailableSet(accNpc) or {})
+
+    local dbNpc = GetDbNpcTable(npcID)
+    MergeQuestSet(merged, GetStopIfQuestAvailableSet(dbNpc) or {})
+
+    if next(merged) == nil then
+        return false, nil
+    end
+
+    for questID in pairs(merged) do
+        -- Only block when the quest is offered (available) and not yet accepted.
+        -- If gossip already lists it as active, treat it as accepted even if quest log APIs are briefly stale.
+        if IsQuestCurrentlyAvailable(entries, questID)
+            and (not IsQuestCurrentlyActive(entries, questID))
+            and (not PlayerIsOnQuestID(questID))
+            and (not QuestIsCompleted(questID)) then
+            return true, questID
+        end
+    end
+
+    return false, nil
 end
 
 local function MaybeAutoStartFirstGarrisonMissionTableQuest()
@@ -2704,7 +2855,7 @@ local function MaybeAutoStartFirstGarrisonMissionTableQuest()
     end
 end
 
-local function GetDbNpcTable(npcID)
+GetDbNpcTable = function(npcID)
     local rules = ns and ns.db and ns.db.rules
     if type(rules) ~= "table" then
         return nil
@@ -2945,7 +3096,7 @@ local function LookupRuleEntry(npcTable, optionID)
     return nil
 end
 
-local function LookupNpcBucket(db, npcID)
+LookupNpcBucket = function(db, npcID)
     if type(db) ~= "table" or npcID == nil then
         return nil
     end
@@ -3083,6 +3234,11 @@ local function TryAutoSelect()
         return false, "no-options"
     end
 
+    local blockOptions, blockQuestID = ShouldBlockOptionAutoSelectForNpc(npcID, entries)
+    if blockOptions and blockQuestID then
+        Debug("Option auto-select suppressed until quest accepted: questID=" .. tostring(blockQuestID))
+    end
+
     -- Debug helper: dump the entry list so DB authors can see the real IDs.
     if debug then
         local parts = { tostring(npcID) }
@@ -3148,6 +3304,7 @@ local function TryAutoSelect()
         if npcTable then
             local bestG, bestID, bestEntry, bestPrio
             for _, g in ipairs(entries) do
+                if not (blockOptions and g and g.kind == "option") then
                 local id = g and g.id
                 local ruleEntry = id and LookupRuleEntry(npcTable, id)
                 if ruleEntry ~= nil then
@@ -3182,6 +3339,7 @@ local function TryAutoSelect()
                         end
                     end
                 end
+                end
             end
 
             if bestG and bestID then
@@ -3203,6 +3361,7 @@ local function TryAutoSelect()
     if dbNpc then
         local bestG, bestID, bestEntry, bestPrio
         for _, g in ipairs(entries) do
+            if not (blockOptions and g and g.kind == "option") then
             local id = g and g.id
             local ruleEntry = id and LookupRuleEntry(dbNpc, id)
             if ruleEntry ~= nil then
@@ -3237,6 +3396,7 @@ local function TryAutoSelect()
                     end
                 end
             end
+            end
         end
 
         if bestG and bestID then
@@ -3251,6 +3411,11 @@ local function TryAutoSelect()
             Debug("Select failed (DB, " .. tostring(bestG.kind) .. "): " .. tostring(npcID) .. ":" .. tostring(bestID))
             return false, "blocked"
         end
+    end
+
+    if blockOptions and blockQuestID then
+        Debug("No auto-select (waiting for quest accept): questID=" .. tostring(blockQuestID))
+        return false, "quest-block"
     end
 
     Debug("No matching enabled rules")
@@ -3950,7 +4115,7 @@ local function ToggleUI(optionID)
             AutoGossipOptions:RefreshBrowserList()
         end
         if AutoGossipOptions.SelectTab then
-            AutoGossipOptions:SelectTab(5)
+            AutoGossipOptions:SelectTab(6)
         end
         AutoGossipOptions.edit:SetText(optionID and tostring(optionID) or "")
         AutoGossipOptions.edit:HighlightText()
@@ -4122,30 +4287,14 @@ end
 local lastDebugPrintAt = 0
 local lastDebugPrintKey = nil
 
-local function PrintDebugOptionsOnShow()
+local function PrintDebugOptionsOnShow(skipOptionLines)
     InitSV()
-
-    -- Don't print debug on characters that already have at least one character-scoped rule.
-    -- (Keeps chat clean on established characters; still prints for fresh characters.)
-    do
-        local db = AutoGossip_Char
-        if type(db) == "table" then
-            for _, npcTable in pairs(db) do
-                if type(npcTable) == "table" and next(npcTable) ~= nil then
-                    return
-                end
-            end
-        end
-    end
 
     if not (C_GossipInfo and C_GossipInfo.GetOptions) then
         return
     end
 
     local options = C_GossipInfo.GetOptions() or {}
-    if #options <= 1 then
-        return
-    end
 
     local npcID = GetCurrentNpcID()
     local npcName = GetCurrentNpcName()
@@ -4175,29 +4324,16 @@ local function PrintDebugOptionsOnShow()
         lastDebugPrintAt = now
     end
 
-    -- Don't print debug if we'd auto-select for this NPC/options.
-    -- Treat the UI window being open like Shift held (suppresses auto-select).
-    if npcID and (not IsShiftKeyDown()) and (not InCombatLockdown()) and (not (AutoGossipOptions and AutoGossipOptions.IsShown and AutoGossipOptions:IsShown())) then
-        for _, opt in ipairs(options) do
-            local optionID = opt and opt.gossipOptionID
-            if optionID then
-                if HasRule("char", npcID, optionID) and (not IsDisabled("char", npcID, optionID)) then
-                    return
-                end
-                if HasRule("acc", npcID, optionID) and (not IsDisabled("acc", npcID, optionID)) then
-                    return
-                end
-                if HasDbRule(npcID, optionID) and (not IsDisabledDB(npcID, optionID)) then
-                    return
-                end
-            end
-        end
-    end
-
     if npcID then
         Print(string.format("%d: %s", npcID, npcName))
     else
         Print(string.format("?: %s", npcName))
+    end
+
+    -- When Print-on-show is enabled, avoid printing a second OID list.
+    -- The Print-on-show block already prints OIDs (with green highlighting), so here we only emit the header.
+    if skipOptionLines then
+        return
     end
 
     for _, opt in ipairs(options) do
@@ -5004,12 +5140,17 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         end
         InitSV()
 
-        -- Debug: print NPC header + options list.
-        if AutoGossip_Settings and AutoGossip_Settings.debugAcc then
-            PrintDebugOptionsOnShow()
+        local debugOn = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
+        local printOnShow = (AutoGossip_UI and AutoGossip_UI.printOnShow) and true or false
+
+        -- Printing behavior:
+        -- - Debug mode already provides detailed "Gossip:" traces via TryAutoSelect.
+        -- - Print-on-show is for rule-building (green highlighting + location).
+        -- To avoid duplicate OID lines, only print one list when both toggles are enabled.
+        if debugOn then
+            PrintDebugOptionsOnShow(printOnShow)
         end
-        if AutoGossip_UI and AutoGossip_UI.printOnShow then
-            -- Helpful when building rules.
+        if printOnShow then
             PrintCurrentOptions(true)
         end
 
@@ -5019,7 +5160,21 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         if AutoGossipOptions and AutoGossipOptions:IsShown() and AutoGossipOptions.RefreshOptionsList then
             AutoGossipOptions:RefreshOptionsList()
         end
-        local ok, why = TryAutoSelect()
+        local ok, why
+        do
+            local callOk, a, b = pcall(TryAutoSelect)
+            if callOk then
+                ok, why = a, b
+            else
+                ok, why = false, "error"
+                if debugOn then
+                    Print("Gossip: TryAutoSelect ERROR: " .. SafeToString(a))
+                end
+            end
+        end
+        if debugOn then
+            Print("Gossip: TryAutoSelect => ok=" .. tostring(ok and true or false) .. " why=" .. tostring(why))
+        end
         -- Sometimes gossip data isn't ready on the first frame (empty options / missing NPC ID).
         -- Retry very shortly so auto-select works without requiring the user to toggle the UI.
         if not ok and (why == "no-npc" or why == "no-options") then

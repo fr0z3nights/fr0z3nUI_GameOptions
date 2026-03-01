@@ -645,6 +645,23 @@ local internalWriteDepth = 0
 local lastWriteBySlot = {}
 local startupSyncUntil = 0
 
+-- During login / reload, Blizzard and bar addons can still be syncing action bars.
+-- If we apply too early, slots can "drift" back shortly after. We do a bounded
+-- delayed repair pass during the startup sync window.
+local POSTCHECK_REPAIR_MAX = 2
+local postCheckRepairAttempts = 0
+
+local function InStartupSyncWindow()
+    if type(GetTime) ~= "function" then
+        return false
+    end
+    local ok, now = pcall(GetTime)
+    if not ok or type(now) ~= "number" then
+        return false
+    end
+    return now <= ((startupSyncUntil or 0) + 8.0)
+end
+
 local function BeginInternalWrite()
     internalWriteDepth = (internalWriteDepth or 0) + 1
 end
@@ -1799,6 +1816,23 @@ local function PickupExisting(kind, id)
     return false, "unknown-kind"
 end
 
+local function SpellIdsEquivalent(desiredId, actualId)
+    desiredId = tonumber(desiredId)
+    actualId = tonumber(actualId)
+    if not desiredId or not actualId then
+        return false
+    end
+    if desiredId == actualId then
+        return true
+    end
+    local wantName = GetSpellNameSafe(desiredId)
+    local gotName = GetSpellNameSafe(actualId)
+    if not (type(wantName) == "string" and wantName ~= "" and type(gotName) == "string" and gotName ~= "") then
+        return false
+    end
+    return Trim(wantName):lower() == Trim(gotName):lower()
+end
+
 local function PlaceIntoSlot(kind, id, slot)
     if not (id and tonumber(id) and slot) then
         return false, "invalid"
@@ -1836,7 +1870,7 @@ local function PlaceIntoSlot(kind, id, slot)
             return false, "place-verify-failed(now " .. tostring(t) .. ":" .. tostring(curId) .. ")"
         end
         if kind == "spell" then
-            if t == "spell" and tonumber(curId) == tonumber(id) then
+            if t == "spell" and SpellIdsEquivalent(id, curId) then
                 return true, "placed"
             end
             return false, "place-verify-failed(now " .. tostring(t) .. ":" .. tostring(curId) .. ")"
@@ -2026,7 +2060,7 @@ local function ApplyLayout(reason)
         end
         local t, id = GetActionInfoStable(slot)
         if desired.kind == "spell" then
-            return (t == "spell") and (tonumber(id) == tonumber(desired.id))
+            return (t == "spell") and SpellIdsEquivalent(desired.id, id)
         end
         if desired.kind == "macro" then
             if t ~= "macro" then
@@ -2186,12 +2220,10 @@ local function ApplyLayout(reason)
                                 placed = placed + 1
                                 Inc("placed")
                                 placedOrAlready = true
-                                if GetBoolSetting("actionBarDebugAcc", false) then
-                                    if not touched then
-                                        touched = {}
-                                    end
-                                    touched[slot] = { kind = "spell", id = tonumber(desiredId), label = GetSpellNameSafe(desiredId) or tostring(desiredId) }
+                                if not touched then
+                                    touched = {}
                                 end
+                                touched[slot] = { kind = "spell", id = tonumber(desiredId), label = GetSpellNameSafe(desiredId) or tostring(desiredId) }
                                 local spellName = GetSpellNameSafe(desiredId)
                                 local btns = GetDefaultButtonsForActionSlot(slot)
                                 if spellName then
@@ -2313,12 +2345,10 @@ local function ApplyLayout(reason)
                                 placed = placed + 1
                                 Inc("placed")
                                 placedOrAlready = true
-                                if GetBoolSetting("actionBarDebugAcc", false) then
-                                    if not touched then
-                                        touched = {}
-                                    end
-                                    touched[slot] = { kind = "macro", name = trimmedName or (GetMacroNameSafe(macroIndex) or tostring(desiredLabel or "")), id = tonumber(macroIndex) }
+                                if not touched then
+                                    touched = {}
                                 end
+                                touched[slot] = { kind = "macro", name = trimmedName or (GetMacroNameSafe(macroIndex) or tostring(desiredLabel or "")), id = tonumber(macroIndex) }
                                 local desiredName = GetMacroNameSafe(macroIndex) or trimmedName or desiredLabel
                                 local btns = GetDefaultButtonsForActionSlot(slot)
                                 if beforeName then
@@ -2445,8 +2475,10 @@ local function ApplyLayout(reason)
 
     DebugStatus(string.format("Apply done (%s): placed=%d skipped=%d", tostring(reason or "manual"), placed, skipped))
 
-    -- Debug-only: verify that slots we touched didn't immediately get changed by something else.
-    if touched and GetBoolSetting("actionBarDebugAcc", false) and C_Timer and C_Timer.After then
+    -- Post-check: verify that slots we touched didn't immediately get changed by something else.
+    -- In addition to debugging, we also use this during the startup sync window to do a bounded
+    -- repair apply when drift looks like internal timing (no Lua writer observed).
+    if touched and C_Timer and C_Timer.After and (GetBoolSetting("actionBarDebugAcc", false) or InStartupSyncWindow()) then
         C_Timer.After(0.60, function()
             -- If a newer Apply happened, skip this verification.
             if (lastApplySeq or 0) ~= applySeq then
@@ -2462,27 +2494,31 @@ local function ApplyLayout(reason)
                 end
 
                 if want.kind == "spell" then
-                    if t ~= "spell" or tonumber(id) ~= tonumber(want.id) then
+                    if t ~= "spell" or not SpellIdsEquivalent(want.id, id) then
                         driftCount = driftCount + 1
                         local btns = GetDefaultButtonsForActionSlot(slot)
-                        DebugPrint(string.format(
-                            "Post-check: Slot %d (btn=%s) drifted (expected spell %s; now %s)",
-                            tonumber(slot) or 0,
-                            tostring(btns),
-                            tostring(want.label or want.id or "?"),
-                            tostring(GetSlotActionDebug(slot))
-                        ))
+                        if GetBoolSetting("actionBarDebugAcc", false) then
+                            DebugPrint(string.format(
+                                "Post-check: Slot %d (btn=%s) drifted (expected spell %s; now %s)",
+                                tonumber(slot) or 0,
+                                tostring(btns),
+                                tostring(want.label or want.id or "?"),
+                                tostring(GetSlotActionDebug(slot))
+                            ))
+                        end
 
                         local wr = lastWriteBySlot[slot]
                         if wr and wr.stack then
                             sawLuaWriter = true
-                            DebugPrint(string.format(
-                                "Post-check: Slot %d last write: op=%s by=%s stack=%s",
-                                tonumber(slot) or 0,
-                                tostring(wr.op or "?"),
-                                tostring(wr.culprit or "?"),
-                                tostring(wr.stack)
-                            ))
+                            if GetBoolSetting("actionBarDebugAcc", false) then
+                                DebugPrint(string.format(
+                                    "Post-check: Slot %d last write: op=%s by=%s stack=%s",
+                                    tonumber(slot) or 0,
+                                    tostring(wr.op or "?"),
+                                    tostring(wr.culprit or "?"),
+                                    tostring(wr.stack)
+                                ))
+                            end
                         end
                     end
                 elseif want.kind == "macro" then
@@ -2497,13 +2533,15 @@ local function ApplyLayout(reason)
                     if not okName then
                         driftCount = driftCount + 1
                         local btns = GetDefaultButtonsForActionSlot(slot)
-                        DebugPrint(string.format(
-                            "Post-check: Slot %d (btn=%s) drifted (expected macro '%s'; now %s)",
-                            tonumber(slot) or 0,
-                            tostring(btns),
-                            tostring(expectedName ~= "" and expectedName or (want.name or "?")),
-                            tostring(GetSlotActionDebug(slot))
-                        ))
+                        if GetBoolSetting("actionBarDebugAcc", false) then
+                            DebugPrint(string.format(
+                                "Post-check: Slot %d (btn=%s) drifted (expected macro '%s'; now %s)",
+                                tonumber(slot) or 0,
+                                tostring(btns),
+                                tostring(expectedName ~= "" and expectedName or (want.name or "?")),
+                                tostring(GetSlotActionDebug(slot))
+                            ))
+                        end
 
                         if tonumber(slot) == 12 then
                             DebugSlot12Snapshot("post-check")
@@ -2512,27 +2550,52 @@ local function ApplyLayout(reason)
                         local wr = lastWriteBySlot[slot]
                         if wr and wr.stack then
                             sawLuaWriter = true
-                            DebugPrint(string.format(
-                                "Post-check: Slot %d last write: op=%s by=%s stack=%s",
-                                tonumber(slot) or 0,
-                                tostring(wr.op or "?"),
-                                tostring(wr.culprit or "?"),
-                                tostring(wr.stack)
-                            ))
+                            if GetBoolSetting("actionBarDebugAcc", false) then
+                                DebugPrint(string.format(
+                                    "Post-check: Slot %d last write: op=%s by=%s stack=%s",
+                                    tonumber(slot) or 0,
+                                    tostring(wr.op or "?"),
+                                    tostring(wr.culprit or "?"),
+                                    tostring(wr.stack)
+                                ))
+                            end
                         end
                     end
                 end
             end
 
             if driftCount > 0 then
-                DebugPrint(string.format(
-                    "Post-check: detected drift in %d slot(s) after apply (%s). Another addon or profile system is likely overwriting action bars.",
-                    driftCount,
-                    tostring(reason or "manual")
-                ))
+                if GetBoolSetting("actionBarDebugAcc", false) then
+                    DebugPrint(string.format(
+                        "Post-check: detected drift in %d slot(s) after apply (%s). Another addon or profile system is likely overwriting action bars.",
+                        driftCount,
+                        tostring(reason or "manual")
+                    ))
 
-                if not sawLuaWriter then
-                    DebugPrint("Post-check: no Lua PlaceAction/PickupAction writer observed for drifted slots (likely internal WoW action bar/macro sync timing).")
+                    if not sawLuaWriter then
+                        DebugPrint("Post-check: no Lua PlaceAction/PickupAction writer observed for drifted slots (likely internal WoW action bar/macro sync timing).")
+                    end
+                end
+
+                -- Startup self-heal: if drift happens with no observed Lua writer, do a bounded delayed
+                -- re-apply to catch the state after Blizzard/Bartender finishes syncing.
+                if InStartupSyncWindow() and (not sawLuaWriter) and postCheckRepairAttempts < POSTCHECK_REPAIR_MAX then
+                    postCheckRepairAttempts = postCheckRepairAttempts + 1
+                    local thisAttempt = postCheckRepairAttempts
+                    if GetBoolSetting("actionBarDebugAcc", false) then
+                        DebugPrint(string.format(
+                            "Post-check: scheduling startup repair apply (attempt %d/%d)",
+                            tonumber(thisAttempt) or 0,
+                            tonumber(POSTCHECK_REPAIR_MAX) or 0
+                        ))
+                    end
+                    C_Timer.After(1.25 + (thisAttempt - 1) * 0.75, function()
+                        -- Only repair if nothing else applied since.
+                        if (lastApplySeq or 0) ~= applySeq then
+                            return
+                        end
+                        ApplyLayout("post-check-repair")
+                    end)
                 end
             end
         end)
@@ -2564,6 +2627,7 @@ local function QueueApply(reason)
             if now then
                 startupSyncUntil = now + 4.0
             end
+            postCheckRepairAttempts = 0
             return 2.50
         end
 
