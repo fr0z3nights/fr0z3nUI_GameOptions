@@ -3,6 +3,11 @@
 Format: `YYMMDD-###` (sanity stamp) — short summary.
 
 
+## 260306-001
+- Talk (Melandria / Midnight Fishing): improved Midnight Fishing detection fallback to read specialization info from `GetProfessionInfo()` when the Professions UI category probe (`C_TradeSkillUI.GetCategoryInfo(2159)`) is not ready.
+- Gossip: memoize profession checks per gossip-open session (refreshes immediately after manual close/re-open).
+
+
 ## 260303-001
 - Textures picker: fixed addon-media textures with numeric filenames (e.g. `32441.tga`) being misinterpreted as texture fileIDs after spell icon support.
 

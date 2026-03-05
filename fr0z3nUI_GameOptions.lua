@@ -1,7 +1,7 @@
 local addonName, ns = ...
 ns = ns or {}
 
-local SANITY_VERSION = "260303-005"
+local SANITY_VERSION = "260306-001"
 
 local function IsSecretString(v)
     return type(v) == "string" and type(issecretvalue) == "function" and issecretvalue(v)

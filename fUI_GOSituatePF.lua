@@ -92,7 +92,10 @@ function Profs.KnowsFishingMidnight()
         local profs = { GetProfessions() }
         for _, p in ipairs(profs) do
             if p ~= nil then
-                local name, _, rank, _, _, _, skillLine = GetProfessionInfo(p)
+                local info = { GetProfessionInfo(p) }
+                local name = info[1]
+                local rank = info[3]
+                local skillLine = info[7]
                 if skillLine == 2911 then
                     cache[2159] = true
                     if type(time) == "function" then
@@ -100,23 +103,36 @@ function Profs.KnowsFishingMidnight()
                     end
                     return true
                 end
-                if type(name) == "string" then
-                    local lname = name:lower()
-                    if lname:find("midnight", 1, true) and lname:find("fishing", 1, true) then
-                        -- Rank can be 0 immediately after training; still treat as known.
-                        if type(rank) == "number" and rank >= 0 then
-                            cache[2159] = true
-                            if type(time) == "function" then
-                                AutoGossip_CharSettings.knownSkillTiersAt = time()
-                            end
-                            return true
+
+                -- Modern Fishing tiers can show up as a specialization name (e.g. the last return value
+                -- from GetProfessionInfo is "Midnight Fishing" even when the profession name is just "Fishing").
+                local sawMidnightFishing = false
+                for i = 1, 15 do
+                    local v = info[i]
+                    if type(v) == "string" then
+                        local s = v:lower()
+                        if s:find("midnight", 1, true) and s:find("fishing", 1, true) then
+                            sawMidnightFishing = true
+                            break
                         end
+                    end
+                end
+
+                if sawMidnightFishing then
+                    -- Rank can be 0 immediately after training; still treat as known.
+                    if type(rank) == "number" and rank >= 0 then
                         cache[2159] = true
                         if type(time) == "function" then
                             AutoGossip_CharSettings.knownSkillTiersAt = time()
                         end
                         return true
                     end
+
+                    cache[2159] = true
+                    if type(time) == "function" then
+                        AutoGossip_CharSettings.knownSkillTiersAt = time()
+                    end
+                    return true
                 end
             end
         end
