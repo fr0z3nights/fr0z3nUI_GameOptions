@@ -105,6 +105,44 @@ local function KnowsFishingClassicOrMidnight()
    return nil
 end
 
+-- Returns: true (known), false (not known), nil (unknown/not ready)
+local function KnowsFishingMidnight()
+   if ns and ns.Profs and ns.Profs.KnowsFishingMidnight then
+      return ns.Profs.KnowsFishingMidnight()
+   end
+
+   if not (C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function") then
+      return nil
+   end
+   local cat = C_TradeSkillUI.GetCategoryInfo(2159)
+   local lvl = cat and cat.skillLineCurrentLevel
+   if type(lvl) ~= "number" then
+      return nil
+   end
+   if lvl > 0 then
+      return true
+   end
+   if lvl == 0 then
+      return false
+   end
+   return nil
+end
+
+-- Memoized wrapper: `when` conditions for multiple options can be evaluated back-to-back.
+-- If the professions APIs become ready between calls, results can "flip" mid-evaluation.
+-- Memoizing per gossip-open session keeps answers stable within one show, but refreshes
+-- immediately across manual close/re-open.
+local _midnightMemoSession, _midnightMemoVal
+local function KnowsFishingMidnightMemo()
+   local sess = (ns and tonumber(ns.GossipSession)) or 0
+   if sess == _midnightMemoSession then
+      return _midnightMemoVal
+   end
+   local v = KnowsFishingMidnight()
+   _midnightMemoSession, _midnightMemoVal = sess, v
+   return v
+end
+
 -- EASTERN KINGDOMS
 
 SetZone("Blasted Lands, Eastern Kingdoms")
@@ -173,8 +211,8 @@ SetZone("Eversong Woods, Eastern Kingdoms")
       t[133913] = { text = "What problems ail the people of Tranquillien?", type = "" }                      -- Rational Explanation (86624)       Matron Narsilla (242568)      KILLED
 
       local t = NPCs({247800, }, "Melandria")
-      t[38266] = { text = "Train Me.", type = "", when = function() return KnowsFishingClassicOrMidnight() == false end }  -- Fishing Trainer  Melandria (247800)
-      t[38267] = { text = "Show Me Your Goods", type = "", when = function() return KnowsFishingClassicOrMidnight() == true end } -- Fishing Trainer  Melandria (247800)
+      t[38266] = { text = "Train Me.", type = "", when = function() return KnowsFishingMidnightMemo() ~= true end }  -- Fishing Trainer  Melandria (247800)
+      t[38267] = { text = "Show Me Your Goods", type = "", when = function() return KnowsFishingMidnightMemo() == true end } -- Fishing Trainer  Melandria (247800)
 
       local t = NPCs({236743, 236903, 236704, }, "Orweyna")
       t[133725] = { text = "Let's follow the trail you found.", type = "" }
@@ -351,7 +389,7 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 SetZone("Silvermoon City, Eastern Kingdoms")
 
    local t = NPC(248629, "General Amias Bellamy")
-   t[135224] = { text = "<Offer Greeting.>", type = "" }
+   t[135224] = { text = "<Offer Greeting.>", type = "" }                                                          -- Paved in Ash (86735) General Amias Bellamy (248629)
 
    local t = NPCs({ 244644, 237510, }, "Arator")
    t[133853] = { text = "Alonsus Faol asks that we meet him at the Sunwell.", type = "" }                         -- Meet at the Sunwell (86837)   Arator (244644)
@@ -385,22 +423,28 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 
    local t = NPC(239630, "Innkeeper Jovia")
    t[134012] = { text = "The Alliance will be staying here temporarily. Lodgings will be needed.", type = "", prio = 10 }
+   t[132666] = { text = "Lor'themar has allowed us to stay for now...", type = "", prio = 9 } -- Paved in Ash (86735) Innkeeper Jovia (239630)
    t[132667] = { text = "Let me browse your goods.", type = "", prio = -5 }
    t[132668] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, type = "", prio = -10, noAuto = true }
 
    local t = NPC(242381, "Valeera Sanguinar")
    t[133099] = { text = "Lor'themar will need the services of the Reliquary", type = "" }
 
+   local t = NPC(239664, "Banker Ceera")
+   t[132676] = { text = "Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Ceera (239664)
+   t[132677] = { text = "I would like to check my deposit box.", type = "", prio = -10 }
+
+   local t = NPC(239639, "Skymaster Skyles")
+   t[132674] = { text = "Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Skymaster Skyles (239639)
+   t[132675] = { text = "Show me where I can fly.", type = "", prio = -10 }
+
+   local t = NPC(239673, "Magistrix Narinth")
+   t[132678] = { text = "Lor'themar has has allowed us to stay in the city...", type = "", prio = 10 }  -- Paved in Ash (86735) Magistrix Narinth (239673)
+   
    local t = NPC(253468, "Drathen")
    t.__meta.stopIfQuestAvailable = 92869  -- questID to block gossip options until accepted
    t.__meta.stopIfQuestTurnIn = 92869     -- questID to block gossip options while ready to turn in
    t[136540] = { text = "Train me.", type = "" }
-
-   local t = NPCs({ 239664, 239639, 239673, 240940, }, "Unknown NPCs")
-   t[134010] = { text = "The Alliance will be stay here temporarily.", type = "" }
-   t[134011] = { text = "The Alliance will be staying longer than expected. We'll need your Stormwind portal to remain.", type = "" }
-   t[134013] = { text = "The Alliance will be stay here temporarily.", type = "" }
-   t[134014] = { text = "The Alliance will be staying longer than expected.", type = "" }
 
    local t = NPCs({ 249174, 248630, 248826, }, "Deepening Shadows NPCs")
    t[135112] = { text = "<Explain the events of the Sunwell.>", type = "" }                                    -- Deepening Shadows (91854) Sin'dorei Vendor (249174)

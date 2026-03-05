@@ -119,7 +119,7 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         if type(guid) ~= "string" then
             return nil
         end
-        if IsSecretString and IsSecretString(guid) then
+        if (ns and type(ns.IsSecretString) == "function" and ns.IsSecretString(guid)) or (type(issecretvalue) == "function" and issecretvalue(guid)) then
             return nil
         end
         local _, _, _, _, _, npcID = strsplit("-", guid)
@@ -536,7 +536,7 @@ function M.Setup()
             if type(guid) ~= "string" then
                 return nil
             end
-            if IsSecretString and IsSecretString(guid) then
+            if (ns and type(ns.IsSecretString) == "function" and ns.IsSecretString(guid)) or (type(issecretvalue) == "function" and issecretvalue(guid)) then
                 return nil
             end
             local _, _, _, _, _, npcID = strsplit("-", guid)

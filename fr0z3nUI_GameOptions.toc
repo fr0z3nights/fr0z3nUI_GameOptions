@@ -24,6 +24,8 @@ fUI_GOTalk01KD.lua
 fUI_GOTalkEV.lua
 
 fUI_GOSwitches.lua
+fUI_GOSwitchesQA.lua
+fUI_GOSwitchesCT.lua
 
 fUI_GOTale.lua
 fUI_GOTaleUI.lua
@@ -37,6 +39,7 @@ fUI_GOTextures.lua
 fUI_GOTexturesUI.lua
 
 fUI_GOSituate.lua
+fUI_GOSituatePF.lua
 fUI_GOSituateUI.lua
 
 fUI_GOMacroXCMD.lua
