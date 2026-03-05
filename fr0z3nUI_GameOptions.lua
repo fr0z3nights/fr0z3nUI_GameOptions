@@ -1,7 +1,7 @@
 local addonName, ns = ...
 ns = ns or {}
 
-local SANITY_VERSION = "260301-005"
+local SANITY_VERSION = "260303-005"
 
 local lastSelectAt = 0
 local frame = CreateFrame("Frame")
@@ -319,7 +319,8 @@ local function SetupChromieSelectionTracking()
 
     if type(C_ChromieTime.SetChromieTimeEnabled) == "function" then
         hooksecurefunc(C_ChromieTime, "SetChromieTimeEnabled", function(isEnabled)
-            if isEnabled == false then
+            -- `isEnabled` may be a "secret boolean" on some builds; avoid direct comparisons.
+            if not isEnabled then
                 ClearChromieSelection(10)
             end
         end)
@@ -2101,6 +2102,130 @@ end
 ns._InitSV = InitSV
 ns._Print = Print
 
+-- Professions/skill-tier cache (per character)
+-- Used by Talk DB packs to make decisions even when C_TradeSkillUI APIs are not ready during a gossip frame.
+ns.Profs = ns.Profs or {}
+do
+    local Profs = ns.Profs
+
+    Profs.TRACKED_TIERS = Profs.TRACKED_TIERS or { 1100, 2159 } -- Fishing (Classic), Fishing (Midnight)
+    Profs._lastRefreshAt = Profs._lastRefreshAt or 0
+
+    local function EnsureCache()
+        InitSV()
+        AutoGossip_CharSettings = AutoGossip_CharSettings or {}
+        if type(AutoGossip_CharSettings.knownSkillTiers) ~= "table" then
+            AutoGossip_CharSettings.knownSkillTiers = {}
+        end
+        if type(AutoGossip_CharSettings.knownSkillTiersAt) ~= "number" then
+            AutoGossip_CharSettings.knownSkillTiersAt = 0
+        end
+        return AutoGossip_CharSettings.knownSkillTiers
+    end
+
+    local function QueryTierKnown(categoryID)
+        if not (C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function") then
+            return nil
+        end
+        local cat = C_TradeSkillUI.GetCategoryInfo(categoryID)
+        local lvl = cat and cat.skillLineCurrentLevel
+        if type(lvl) ~= "number" then
+            return nil
+        end
+        if lvl > 0 then
+            return true
+        end
+        if lvl == 0 then
+            return false
+        end
+        return nil
+    end
+
+    function Profs.RefreshKnownSkillTiers(categoryIDs)
+        local cache = EnsureCache()
+        if type(categoryIDs) ~= "table" then
+            categoryIDs = { categoryIDs }
+        end
+
+        local sawAny = false
+        for _, id in ipairs(categoryIDs) do
+            local v = QueryTierKnown(id)
+            if v ~= nil then
+                cache[id] = v
+                sawAny = true
+            end
+        end
+
+        if sawAny and type(time) == "function" then
+            AutoGossip_CharSettings.knownSkillTiersAt = time()
+        end
+    end
+
+    function Profs.RefreshTrackedSkillTiers(force)
+        EnsureCache()
+        local now = (type(GetTime) == "function") and GetTime() or nil
+        if not force and type(now) == "number" then
+            if (now - (Profs._lastRefreshAt or 0)) < 1 then
+                return
+            end
+        end
+        Profs._lastRefreshAt = (type(now) == "number") and now or (Profs._lastRefreshAt or 0)
+        Profs.RefreshKnownSkillTiers(Profs.TRACKED_TIERS or {})
+    end
+
+    -- Returns: true (known), false (not known), nil (unknown/not ready)
+    function Profs.KnowsFishingClassicOrMidnight()
+        local cache = EnsureCache()
+        local classic = cache[1100]
+        local midnight = cache[2159]
+
+        if classic == true or midnight == true then
+            return true
+        end
+        if classic == false and midnight == false then
+            return false
+        end
+
+        -- Try a targeted refresh (may still be nil if APIs not ready).
+        Profs.RefreshKnownSkillTiers({ 1100, 2159 })
+        classic = cache[1100]
+        midnight = cache[2159]
+        if classic == true or midnight == true then
+            return true
+        end
+        if classic == false and midnight == false then
+            return false
+        end
+
+        -- Fallback: if Fishing shows up as a secondary profession with rank info, use that.
+        if type(GetProfessions) == "function" and type(GetProfessionInfo) == "function" then
+            local _, _, _, fish = GetProfessions()
+            if fish == nil then
+                return nil
+            end
+            local _, _, rank = GetProfessionInfo(fish)
+            if type(rank) == "number" then
+                if rank > 0 then
+                    cache[1100] = true
+                    if type(time) == "function" then
+                        AutoGossip_CharSettings.knownSkillTiersAt = time()
+                    end
+                    return true
+                end
+                if rank == 0 then
+                    cache[1100] = false
+                    if type(time) == "function" then
+                        AutoGossip_CharSettings.knownSkillTiersAt = time()
+                    end
+                    return false
+                end
+            end
+        end
+
+        return nil
+    end
+end
+
 -- Popup handling moved to fUI_GOTalkUP.lua
 
 local function GetQueueAcceptState()
@@ -2651,6 +2776,20 @@ local function QuestIsCompleted(questID)
     return false
 end
 
+local function QuestReadyForTurnIn(questID)
+    questID = tonumber(questID)
+    if not questID then
+        return false
+    end
+
+    if C_QuestLog and type(C_QuestLog.ReadyForTurnIn) == "function" then
+        local ok, ready = pcall(C_QuestLog.ReadyForTurnIn, questID)
+        return ok and ready and true or false
+    end
+
+    return false
+end
+
 local function GetStopIfQuestAvailableSet(npcTable)
     if type(npcTable) ~= "table" then
         return nil
@@ -2660,6 +2799,58 @@ local function GetStopIfQuestAvailableSet(npcTable)
         return nil
     end
     local v = rawget(meta, "stopIfQuestAvailable")
+    if v == nil then
+        return nil
+    end
+
+    local set = {}
+    if type(v) == "number" or type(v) == "string" then
+        local q = tonumber(v)
+        if q and q > 0 then
+            set[q] = true
+        end
+        return next(set) and set or nil
+    end
+
+    if type(v) == "table" then
+        for k, vv in pairs(v) do
+            if type(k) == "number" then
+                local q = tonumber(vv)
+                if q and q > 0 then
+                    set[q] = true
+                end
+            else
+                local q = tonumber(k)
+                if q and q > 0 then
+                    set[q] = true
+                elseif vv == true then
+                    local q2 = tonumber(k)
+                    if q2 and q2 > 0 then
+                        set[q2] = true
+                    end
+                end
+            end
+        end
+        return next(set) and set or nil
+    end
+
+    return nil
+end
+
+local function GetStopIfQuestTurnInSet(npcTable)
+    if type(npcTable) ~= "table" then
+        return nil
+    end
+    local meta = rawget(npcTable, "__meta")
+    if type(meta) ~= "table" then
+        return nil
+    end
+
+    -- Accept either key for backwards/DB-pack flexibility.
+    local v = rawget(meta, "stopIfQuestTurnIn")
+    if v == nil then
+        v = rawget(meta, "stopIfQuestReadyForTurnIn")
+    end
     if v == nil then
         return nil
     end
@@ -2737,32 +2928,65 @@ local function IsQuestCurrentlyActive(entries, questID)
     return false
 end
 
+local function IsQuestCurrentlyTurnInReady(entries, questID)
+    questID = tonumber(questID)
+    if not questID then
+        return false
+    end
+    for _, g in ipairs(entries or {}) do
+        if g and g.kind == "activeQuest" and tonumber(g.id) == questID then
+            local d = g.data
+            local isComplete = d and d.isComplete
+            if isComplete == true or isComplete == 1 then
+                return true
+            end
+
+            -- Fallback: if the gossip API doesn't populate isComplete, ask quest log.
+            if isComplete == nil and QuestReadyForTurnIn(questID) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function ShouldBlockOptionAutoSelectForNpc(npcID, entries)
     -- If an NPC has __meta.stopIfQuestAvailable set, we suppress selecting "option" entries
     -- while that quest is present as an available quest (i.e. not accepted yet).
     -- This lets you accept the quest first; once accepted, the quest disappears and options can auto-select.
-    local merged = {}
+    local mergedAvailable = {}
+    local mergedTurnIn = {}
 
     local charNpc = LookupNpcBucket(AutoGossip_Char, npcID)
-    MergeQuestSet(merged, GetStopIfQuestAvailableSet(charNpc) or {})
+    MergeQuestSet(mergedAvailable, GetStopIfQuestAvailableSet(charNpc) or {})
+    MergeQuestSet(mergedTurnIn, GetStopIfQuestTurnInSet(charNpc) or {})
 
     local accNpc = LookupNpcBucket(AutoGossip_Acc, npcID)
-    MergeQuestSet(merged, GetStopIfQuestAvailableSet(accNpc) or {})
+    MergeQuestSet(mergedAvailable, GetStopIfQuestAvailableSet(accNpc) or {})
+    MergeQuestSet(mergedTurnIn, GetStopIfQuestTurnInSet(accNpc) or {})
 
     local dbNpc = GetDbNpcTable(npcID)
-    MergeQuestSet(merged, GetStopIfQuestAvailableSet(dbNpc) or {})
+    MergeQuestSet(mergedAvailable, GetStopIfQuestAvailableSet(dbNpc) or {})
+    MergeQuestSet(mergedTurnIn, GetStopIfQuestTurnInSet(dbNpc) or {})
 
-    if next(merged) == nil then
+    if next(mergedAvailable) == nil and next(mergedTurnIn) == nil then
         return false, nil
     end
 
-    for questID in pairs(merged) do
+    for questID in pairs(mergedAvailable) do
         -- Only block when the quest is offered (available) and not yet accepted.
         -- If gossip already lists it as active, treat it as accepted even if quest log APIs are briefly stale.
         if IsQuestCurrentlyAvailable(entries, questID)
             and (not IsQuestCurrentlyActive(entries, questID))
             and (not PlayerIsOnQuestID(questID))
             and (not QuestIsCompleted(questID)) then
+            return true, questID
+        end
+    end
+
+    for questID in pairs(mergedTurnIn) do
+        -- Block when the quest is present as an active quest and is ready to turn in.
+        if IsQuestCurrentlyTurnInReady(entries, questID) then
             return true, questID
         end
     end
@@ -3168,6 +3392,34 @@ local function TryAutoSelect()
         end
     end
 
+    local function RuleAllowsAutoSelect(ruleEntry, npcID, optionID, gossipEntry)
+        if type(ruleEntry) ~= "table" then
+            return true
+        end
+
+        local pred = ruleEntry.when or ruleEntry.cond or ruleEntry.condition
+        if pred == nil then
+            return true
+        end
+
+        if type(pred) == "function" then
+            local ok, ret = pcall(pred, npcID, optionID, gossipEntry, ruleEntry)
+            if not ok then
+                if debug then
+                    Debug("Match ignored (condition error): " .. tostring(npcID) .. ":" .. tostring(optionID) .. " :: " .. SafeToString(ret))
+                end
+                return false
+            end
+            return ret and true or false
+        end
+
+        -- Unknown condition type -> be safe and do not auto-select.
+        if debug then
+            Debug("Match ignored (condition invalid): " .. tostring(npcID) .. ":" .. tostring(optionID))
+        end
+        return false
+    end
+
     if IsShiftKeyDown() then
         Debug("Blocked (Shift held)")
         return false, "blocked"
@@ -3328,13 +3580,23 @@ local function TryAutoSelect()
                         if ruleEntry ~= nil then
                         local pr = 0
                         if type(ruleEntry) == "table" then
-                            pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
+                            if not RuleAllowsAutoSelect(ruleEntry, npcID, id, g) then
+                                if debug then
+                                    Debug("Match ignored (condition false): " .. tostring(npcID) .. ":" .. tostring(id))
+                                end
+                                ruleEntry = nil
+                            else
+                                pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
+                            end
                         end
-                        if bestG == nil or pr > (bestPrio or 0) then
-                            bestG, bestID, bestEntry, bestPrio = g, id, ruleEntry, pr
-                        end
-                        if debug then
-                            Debug("Match (" .. scope .. ", " .. tostring(g.kind) .. ") prio=" .. tostring(pr) .. ": " .. tostring(npcID) .. ":" .. tostring(id))
+
+                        if ruleEntry ~= nil then
+                            if bestG == nil or pr > (bestPrio or 0) then
+                                bestG, bestID, bestEntry, bestPrio = g, id, ruleEntry, pr
+                            end
+                            if debug then
+                                Debug("Match (" .. scope .. ", " .. tostring(g.kind) .. ") prio=" .. tostring(pr) .. ": " .. tostring(npcID) .. ":" .. tostring(id))
+                            end
                         end
                         end
                     end
@@ -3385,13 +3647,23 @@ local function TryAutoSelect()
                     if ruleEntry ~= nil then
                     local pr = 0
                     if type(ruleEntry) == "table" then
-                        pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
+                        if not RuleAllowsAutoSelect(ruleEntry, npcID, id, g) then
+                            if debug then
+                                Debug("DB match ignored (condition false): " .. tostring(npcID) .. ":" .. tostring(id))
+                            end
+                            ruleEntry = nil
+                        else
+                            pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
+                        end
                     end
-                    if bestG == nil or pr > (bestPrio or 0) then
-                        bestG, bestID, bestEntry, bestPrio = g, id, ruleEntry, pr
-                    end
-                    if debug then
-                        Debug("DB match (" .. tostring(g.kind) .. ") prio=" .. tostring(pr) .. ": " .. tostring(npcID) .. ":" .. tostring(id))
+
+                    if ruleEntry ~= nil then
+                        if bestG == nil or pr > (bestPrio or 0) then
+                            bestG, bestID, bestEntry, bestPrio = g, id, ruleEntry, pr
+                        end
+                        if debug then
+                            Debug("DB match (" .. tostring(g.kind) .. ") prio=" .. tostring(pr) .. ": " .. tostring(npcID) .. ":" .. tostring(id))
+                        end
                     end
                     end
                 end
@@ -4400,6 +4672,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo trade                 - toggle Block Trades",
                 "/fgo friend                - toggle Friendly Names",
                 "/fgo bars                  - toggle ActionBar Lock",
+                "/fgo situate b50            - force-apply Situate for slot 50",
                 "/fgo bagrev                - toggle Bag Sort Reverse",
                 "/fgo token                 - print WoW Token price",
                 "/fgo setup                 - apply common setup CVars",
@@ -4748,6 +5021,41 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             return
         end
 
+        if cmd == "situate" then
+            local a = (rest or ""):match("^(%S+)") or ""
+            a = (a or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if a == "" then
+                Print("Usage: /fgo situate b50")
+                return
+            end
+
+            local slot = nil
+            local low = a:lower()
+            if low:sub(1, 1) == "b" then
+                slot = tonumber(low:sub(2))
+            else
+                slot = tonumber(low)
+            end
+
+            if not slot then
+                Print("Usage: /fgo situate b50")
+                return
+            end
+
+            if not (ns and type(ns.ActionBar_ApplySlotNow) == "function") then
+                Print("Situate module not loaded.")
+                return
+            end
+
+            local ok = ns.ActionBar_ApplySlotNow(slot, true)
+            if ok then
+                Print("Situate: applied slot " .. tostring(slot))
+            else
+                Print("Situate: invalid slot (1-180)")
+            end
+            return
+        end
+
         if cmd == "scripterrors" or cmd == "script" then
             -- Keep /fgo script working, but route through Macro CMD so it stays editable.
             if ns and ns.MacroXCMD_HandleSlashMode then
@@ -4860,16 +5168,16 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             end
 
             if dest == "loc" or dest == "location" then
+                -- Mirror legacy macro behavior: /run HearthZone:GetZone()
                 if _G.HearthZone and type(_G.HearthZone.GetZone) == "function" then
-                    -- Mirror legacy macro behavior: /run HearthZone:GetZone()
                     _G.HearthZone:GetZone()
                     return
                 end
-
-                local bind = (GetBindLocation and GetBindLocation()) or ""
-                bind = tostring(bind or "")
-                if bind ~= "" then
-                    Print("|cFFFFD707Home Set To " .. bind)
+                if ns and ns.Hearth and type(ns.Hearth.GetHomeZoneContinentText) == "function" then
+                    local txt = tostring(ns.Hearth.GetHomeZoneContinentText() or "")
+                    if txt ~= "" then
+                        Print("|cFFFFD707Home Set To |r" .. txt)
+                    end
                 end
                 return
             end
@@ -4987,6 +5295,10 @@ frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:RegisterEvent("PET_BATTLE_OPENING_START")
 frame:RegisterEvent("PET_BATTLE_CLOSE")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+frame:RegisterEvent("SKILL_LINES_CHANGED")
+frame:RegisterEvent("TRADE_SKILL_SHOW")
+frame:RegisterEvent("TRADE_SKILL_DATA_SOURCE_CHANGED")
+frame:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
 frame:RegisterEvent("PLAYER_LEVEL_UP")
 frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 frame:RegisterEvent("QUEST_LOG_UPDATE")
@@ -4995,6 +5307,10 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         InitSV()
         SetupChromieSelectionTracking()
         DeduplicateUserRulesAgainstDb()
+
+        if ns.Profs and ns.Profs.RefreshTrackedSkillTiers then
+            ns.Profs.RefreshTrackedSkillTiers(true)
+        end
 
         do
             local tabard = _G and rawget(_G, "fr0z3nUI_GameOptionsTabard")
@@ -5021,9 +5337,22 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         return
     end
 
+    if event == "SKILL_LINES_CHANGED" or event == "TRADE_SKILL_SHOW" or event == "TRADE_SKILL_DATA_SOURCE_CHANGED" or event == "TRADE_SKILL_LIST_UPDATE" then
+        if ns.Profs and ns.Profs.RefreshTrackedSkillTiers then
+            ns.Profs.RefreshTrackedSkillTiers(false)
+        end
+        return
+    end
+
     if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LEVEL_UP" or event == "ZONE_CHANGED_NEW_AREA" then
         InitSV()
         SetupChromieSelectionTracking()
+
+        if event == "PLAYER_ENTERING_WORLD" then
+            if ns.Profs and ns.Profs.RefreshTrackedSkillTiers then
+                ns.Profs.RefreshTrackedSkillTiers(true)
+            end
+        end
 
         -- Macro CMD: arm per-character secure /click buttons once we have full player context.
         if ns and type(ns.MacroXCMD_ArmAllClickButtons) == "function" then

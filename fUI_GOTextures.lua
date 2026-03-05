@@ -194,6 +194,13 @@ local function SafeCall(obj, method, ...)
     return ok
 end
 
+local function Trim(s)
+    s = tostring(s or "")
+    s = s:gsub("^%s+", "")
+    s = s:gsub("%s+$", "")
+    return s
+end
+
 -- -----------------------------------------------------------------------------
 -- Overrides / inspector (ported from ArtLayer)
 -- -----------------------------------------------------------------------------
@@ -324,7 +331,50 @@ local function Clamp(v, minV, maxV)
 end
 
 local function NormalizeTexturePath(tex)
+    if type(tex) == "number" then
+        return tex
+    end
+
     tex = tostring(tex or "")
+
+    local fileID = tex:match("^[Ff][Ii][Ll][Ee][Ii][Dd]:(%d+)$")
+    if fileID then
+        return tonumber(fileID)
+    end
+
+    local function IsKnownAddonMediaName(name)
+        -- textures\textures.lua provides ns.TexturesMediaTextures = { {label, value}, ... }
+        -- where value is usually the filename without extension.
+        if type(name) ~= "string" then
+            return false
+        end
+        ns._TexturesMediaLookup = ns._TexturesMediaLookup or false
+        if ns._TexturesMediaLookup == false then
+            local lookup = {}
+            local media = ns.TexturesMediaTextures
+            if type(media) == "table" then
+                for _, it in ipairs(media) do
+                    if type(it) == "table" then
+                        local v = tostring(it[2] or "")
+                        if v ~= "" then
+                            lookup[v] = true
+                        end
+                    end
+                end
+            end
+            ns._TexturesMediaLookup = lookup
+        end
+        local l = ns._TexturesMediaLookup
+        return type(l) == "table" and l[name] == true
+    end
+
+    -- Back-compat: older versions treated digits-only as texture fileID.
+    -- New default meaning is TEXTURE (addon media). Only treat digits-only as fileID
+    -- if it is NOT a known addon media name.
+    if tex:match("^%d+$") and not IsKnownAddonMediaName(tex) then
+        return tonumber(tex)
+    end
+
     tex = tex:gsub("/", "\\")
     tex = tex:gsub("\\+", "\\")
     tex = tex:gsub("%.tga$", ""):gsub("%.blp$", "")
@@ -534,8 +584,43 @@ local function IsQuestCompleted(questID)
     return false
 end
 
+local function PlayerClassTokens()
+    if not UnitClass then return nil, nil end
+    local localized, file = UnitClass("player")
+    localized = tostring(localized or "")
+    file = tostring(file or "")
+    return localized, file
+end
+
+local function PlayerSpecInfo()
+    if not (GetSpecialization and GetSpecializationInfo) then
+        return nil, nil
+    end
+    local specIndex = GetSpecialization()
+    if not specIndex then
+        return nil, nil
+    end
+    local specID, specName = GetSpecializationInfo(specIndex)
+    return tonumber(specID), tostring(specName or "")
+end
+
+local function SanitizeWidgetConds(widget)
+    if type(widget) ~= "table" then return end
+    local conds = widget.conds
+    if type(conds) ~= "table" then return end
+
+    -- Spell cooldown conditions removed (WoW 12.0 secret cooldown values make it unreliable).
+    for i = #conds, 1, -1 do
+        local c = conds[i]
+        if type(c) == "table" and c.type == "spellOffCooldown" then
+            table.remove(conds, i)
+        end
+    end
+end
+
 local function EvaluateWidget(db, widget)
     if widget.enabled == false then return false, "disabled" end
+    SanitizeWidgetConds(widget)
     local conds = widget.conds
     if type(conds) ~= "table" then return true, nil end
 
@@ -557,6 +642,26 @@ local function EvaluateWidget(db, widget)
             if not ConditionPlayer(c) then return false, "player" end
         elseif c.type == "questCompleteHide" then
             if IsQuestCompleted(c.id) then return false, "questComplete" end
+        elseif c.type == "class" then
+            local want = Trim(c.value or c.class or "")
+            if want ~= "" then
+                local wantLower = want:lower()
+                local localized, file = PlayerClassTokens()
+                local localizedLower = tostring(localized or ""):lower()
+                local fileLower = tostring(file or ""):lower()
+                if wantLower ~= localizedLower and wantLower ~= fileLower then
+                    return false, "class"
+                end
+            end
+        elseif c.type == "spec" then
+            local wantID = tonumber(c.id or c.specID)
+            local wantName = Trim(c.name or c.value or c.specName or "")
+            local haveID, haveName = PlayerSpecInfo()
+            if wantID then
+                if not haveID or wantID ~= haveID then return false, "spec" end
+            elseif wantName ~= "" then
+                if tostring(haveName or ""):lower() ~= wantName:lower() then return false, "spec" end
+            end
         end
     end
 
@@ -565,6 +670,11 @@ end
 
 local function ApplyWidgetFrameProps(frame, widget)
     if not (frame and widget) then return end
+
+    -- If a previous build created a cooldown overlay, ensure it stays hidden.
+    if frame._fgoCooldown and frame._fgoCooldown.Hide then
+        frame._fgoCooldown:Hide()
+    end
 
     local scale = Clamp(tonumber(widget.scale) or 1, 0.05, 10)
     if frame.SetScale then
@@ -584,11 +694,15 @@ local function ApplyWidgetFrameProps(frame, widget)
     local h = Clamp(tonumber(widget.h) or 128, 1, 4096)
     frame:SetSize(w, h)
 
-    frame:ClearAllPoints()
-    local p = widget.point or "CENTER"
-    local x = tonumber(widget.x) or 0
-    local y = tonumber(widget.y) or 0
-    frame:SetPoint(p, UIParent, p, x, y)
+    -- While the user is actively dragging (Unlock mode), don't fight the cursor by
+    -- re-applying the saved anchor point. The position will be persisted on drag stop.
+    if not (frame._fgoDragging == true) then
+        frame:ClearAllPoints()
+        local p = widget.point or "CENTER"
+        local x = tonumber(widget.x) or 0
+        local y = tonumber(widget.y) or 0
+        frame:SetPoint(p, UIParent, p, x, y)
+    end
 
     if frame.SetFrameStrata and widget.strata then
         SafeCall(frame, "SetFrameStrata", widget.strata)
@@ -605,6 +719,18 @@ local function ApplyWidgetFrameProps(frame, widget)
     else
         if frame.tex then
             if frame.tex.SetAlpha then frame.tex:SetAlpha(a) end
+
+            -- Texture zoom: crop-in by shrinking UVs (useful for icons with borders).
+            if frame.tex.SetTexCoord then
+                local zoom = Clamp(tonumber(widget.zoom) or 1, 1, 4)
+                if zoom <= 1.001 then
+                    frame.tex:SetTexCoord(0, 1, 0, 1)
+                else
+                    local inset = (1 - (1 / zoom)) * 0.5
+                    frame.tex:SetTexCoord(inset, 1 - inset, inset, 1 - inset)
+                end
+            end
+
             if frame.tex.SetBlendMode then
                 SafeCall(frame.tex, "SetBlendMode", widget.blend or "BLEND")
             end
@@ -614,8 +740,14 @@ local function ApplyWidgetFrameProps(frame, widget)
         end
     end
 
-    DebugPrint(string.format("Props %s: size=%dx%d alpha=%.2f scale=%.2f point=%s x=%.1f y=%.1f",
-        tostring(widget.key or "?"), tonumber(w) or 0, tonumber(h) or 0, tonumber(a) or 0, tonumber(scale) or 0, tostring(p), tonumber(x) or 0, tonumber(y) or 0))
+    do
+        local p = widget.point or "CENTER"
+        local x = tonumber(widget.x) or 0
+        local y = tonumber(widget.y) or 0
+        DebugPrint(string.format("Props %s: size=%dx%d alpha=%.2f scale=%.2f point=%s x=%.1f y=%.1f",
+            tostring(widget.key or "?"), tonumber(w) or 0, tonumber(h) or 0, tonumber(a) or 0, tonumber(scale) or 0, tostring(p), tonumber(x) or 0, tonumber(y) or 0))
+    end
+
 end
 
 local function ModelSetRotation(modelFrame, rotation)
@@ -748,6 +880,7 @@ local function ApplyWidget(key)
     w.type = w.type or "texture"
     if w.enabled == nil then w.enabled = true end
     if w.scale == nil then w.scale = 1 end
+    if w.type ~= "model" and w.zoom == nil then w.zoom = 1 end
     if w.clickthrough == nil then w.clickthrough = true end
     if w.type ~= "model" and w.blend == nil then w.blend = "BLEND" end
 
@@ -822,6 +955,34 @@ local function ApplyAllWidgets()
     end
 end
 
+local function RenameWidgetKey(oldKey, newKey)
+    local db = EnsureDB()
+    oldKey = tostring(oldKey or "")
+    newKey = tostring(newKey or "")
+    if oldKey == "" or newKey == "" then return nil end
+    if oldKey == newKey then return newKey end
+    if not (db and db.widgets and db.widgets[oldKey]) then return nil end
+    if db.widgets[newKey] then
+        -- Don't clobber existing widgets.
+        return nil
+    end
+
+    db.widgets[newKey] = db.widgets[oldKey]
+    db.widgets[oldKey] = nil
+
+    if widgetFrames and widgetFrames[oldKey] then
+        widgetFrames[newKey] = widgetFrames[oldKey]
+        widgetFrames[oldKey] = nil
+    end
+
+    -- Keep the stored key field aligned (used for debug prints).
+    if type(db.widgets[newKey]) == "table" then
+        db.widgets[newKey].key = newKey
+    end
+
+    return newKey
+end
+
 -- Public API for UI
 ns.Textures.Print = Print
 ns.Textures.InitSV = InitSV
@@ -829,6 +990,7 @@ ns.Textures.EnsureDB = EnsureDB
 ns.Textures.NormalizeTexturePath = NormalizeTexturePath
 ns.Textures.ApplyWidget = ApplyWidget
 ns.Textures.ApplyAllWidgets = ApplyAllWidgets
+ns.Textures.RenameWidgetKey = RenameWidgetKey
 ns.Textures.GetWidgetFrame = function(key)
     return widgetFrames and widgetFrames[key] or nil
 end
@@ -846,6 +1008,8 @@ ev:RegisterEvent("PLAYER_LOGIN")
 ev:RegisterEvent("PLAYER_ENTERING_WORLD")
 ev:RegisterEvent("PLAYER_REGEN_DISABLED")
 ev:RegisterEvent("PLAYER_REGEN_ENABLED")
+ev:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+ev:RegisterEvent("PLAYER_TALENT_UPDATE")
 ev:RegisterEvent("UPDATE_PENDING_MAIL")
 ev:RegisterEvent("QUEST_TURNED_IN")
 ev:RegisterEvent("QUEST_LOG_UPDATE")

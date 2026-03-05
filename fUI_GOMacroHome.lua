@@ -922,10 +922,7 @@ do
         if not ok or type(cooldownInfo) ~= "table" then
             return false
         end
-        if not cooldownInfo.isEnabled then
-            return false
-        end
-        local remaining = ((cooldownInfo.startTime or 0) + (cooldownInfo.duration or 0)) - ((GetTime and GetTime()) or 0)
+        local remaining = ((tonumber(cooldownInfo.startTime) or 0) + (tonumber(cooldownInfo.duration) or 0)) - ((GetTime and GetTime()) or 0)
         if remaining > 1 then
             local timeString = SecondsToTime(remaining, false, true)
             if UIErrorsFrame and UIErrorsFrame.TryDisplayMessage and ITEM_COOLDOWN_TIME then

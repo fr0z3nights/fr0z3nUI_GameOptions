@@ -167,8 +167,8 @@ local function CreateSlider(parent, label, minV, maxV, step)
     s.High:SetText(tostring(maxV))
     if not s.Value then
         local fs = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        fs:SetPoint("TOPRIGHT", s, "TOPRIGHT", 0, 16)
-        fs:SetJustifyH("RIGHT")
+        fs:SetPoint("TOP", s, "BOTTOM", 0, -2)
+        fs:SetJustifyH("CENTER")
         fs:SetText("")
         s.Value = fs
     end
@@ -330,6 +330,9 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     InitSV()
     local db = ns.Textures.EnsureDB()
 
+    -- Forward declare: used by the Spell Icon button, defined later.
+    local SetTexturePath
+
     local function GetFactionFromWidget(w)
         if type(w) ~= "table" then return nil end
         do
@@ -357,7 +360,12 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         local t = w.texture
         if t == nil then t = w.tex end
         if t == nil then t = w.path end
-        return tostring(t or "")
+        t = tostring(t or "")
+        local fid = t:match("^[Ff][Ii][Ll][Ee][Ii][Dd]:(%d+)$")
+        if fid then
+            return fid
+        end
+        return t
     end
 
     local header = CreateFrame("Frame", nil, panel)
@@ -384,19 +392,95 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     StripInputBoxArt(texEB)
     local texGhost = AddGhostText(header, texEB, "Texture")
 
+    -- Texture entry mode toggle:
+    --   Tex (default): entry is treated as a texture path / addon media name.
+    --   ID: entry is treated as a WoW texture fileID (numeric).
+    local texMode = "texture" -- "texture" | "fileid"
+    local texModeBtn = CreateButton(header, "T", 26, 22)
+    Tip(texModeBtn, "Texture Entry Mode", "T: treat as texture path/addon media (numeric becomes textures\\123).\nI: treat numeric as a WoW texture fileID.")
+
     local texPickBtn = CreateButton(header, "Pick", 56, 22)
     texPickBtn:SetPoint("RIGHT", header, "RIGHT", 0, 0)
     texEB:ClearAllPoints()
     texEB:SetPoint("LEFT", refreshBtn, "RIGHT", 6, 0)
-    texEB:SetPoint("RIGHT", texPickBtn, "LEFT", -6, 0)
+    texModeBtn:SetPoint("RIGHT", texPickBtn, "LEFT", -6, 0)
+    texEB:SetPoint("RIGHT", texModeBtn, "LEFT", -6, 0)
+
+    local function IsKnownAddonMediaName(name)
+        if type(name) ~= "string" then
+            return false
+        end
+        ns._TexturesMediaLookup = ns._TexturesMediaLookup or false
+        if ns._TexturesMediaLookup == false then
+            local lookup = {}
+            local media = ns.TexturesMediaTextures
+            if type(media) == "table" then
+                for _, it in ipairs(media) do
+                    if type(it) == "table" then
+                        local v = tostring(it[2] or "")
+                        if v ~= "" then
+                            lookup[v] = true
+                        end
+                    end
+                end
+            end
+            ns._TexturesMediaLookup = lookup
+        end
+        local l = ns._TexturesMediaLookup
+        return type(l) == "table" and l[name] == true
+    end
+
+    local function SetTexMode(mode, adjustText)
+        if mode == "fileid" then
+            texMode = "fileid"
+            texModeBtn:SetText("I")
+        else
+            texMode = "texture"
+            texModeBtn:SetText("T")
+        end
+
+        if adjustText then
+            local t = Trim(texEB:GetText())
+            local fid = t:match("^[Ff][Ii][Ll][Ee][Ii][Dd]:(%d+)$")
+            if fid then t = fid end
+            if texMode == "fileid" then
+                -- Show as digits; saving will prefix as fileid:...
+                local n = t:match("^(%d+)$")
+                if n then
+                    texEB:SetText(n)
+                end
+            else
+                -- Texture mode: keep as-is (digits-only are valid addon media names).
+                texEB:SetText(t)
+            end
+            UpdateGhost(texEB, texGhost)
+        end
+    end
+
+    texModeBtn:SetScript("OnClick", function()
+        SetTexMode((texMode == "texture") and "fileid" or "texture", true)
+        if selectedKey then ReadUIIntoWidget(selectedKey) end
+    end)
 
     local controls = CreateFrame("Frame", nil, panel)
     controls:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -8)
     controls:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -10, 10)
     if controls.SetClipsChildren then controls:SetClipsChildren(false) end
 
+    -- Widget name/key (rename)
+    local nameEB = CreateEditBox(controls, 170)
+    nameEB:SetPoint("TOPLEFT", controls, "TOPLEFT", 0, 0)
+    StripInputBoxArt(nameEB)
+    local nameGhost = AddGhostText(controls, nameEB, "Name")
+
+    -- Level moved up beside Name
+    local levelEB = CreateEditBox(controls, 60)
+    levelEB:SetPoint("LEFT", nameEB, "RIGHT", 8, 0)
+    StripInputBoxArt(levelEB)
+    local levelGhost = AddGhostText(controls, levelEB, "Level")
+
     local noWidget = controls:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    noWidget:SetPoint("TOPLEFT", controls, "TOPLEFT", 0, 0)
+    noWidget:SetPoint("TOPLEFT", nameEB, "BOTTOMLEFT", 0, -10)
     noWidget:SetText("No widget selected")
 
     local body = CreateFrame("Frame", nil, controls)
@@ -423,11 +507,11 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     Tip(unlockBtn, "Unlock / Drag", "ON: drag the widget on screen to reposition.")
 
     local combatBtn = CreateButton(left, "Off", 90, 22)
-    combatBtn:SetPoint("TOPLEFT", enabledBtn, "BOTTOMLEFT", 0, -4)
+    combatBtn:SetPoint("LEFT", unlockBtn, "RIGHT", 6, 0)
     Tip(combatBtn, "Combat Condition", "Cycles: Off → In Combat → No Combat")
 
     local questBtn = CreateButton(left, "Quest", 72, 22)
-    questBtn:SetPoint("LEFT", combatBtn, "RIGHT", 6, 0)
+    questBtn:SetPoint("TOPLEFT", enabledBtn, "BOTTOMLEFT", 0, -4)
     Tip(questBtn, "Hide When Quest Completed", "When ON, the widget hides if QuestID is completed.")
 
     local condQuestEB = CreateEditBox(left, 72)
@@ -435,41 +519,31 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     StripInputBoxArt(condQuestEB)
     local questGhost = AddGhostText(left, condQuestEB, "QuestID")
 
-    -- Type + level under widget dropdown row
-    local typeLabel = CreateLabel(left, "Type:")
-    typeLabel:SetPoint("TOPLEFT", combatBtn, "BOTTOMLEFT", 0, -12)
-    local typeValue = left:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    typeValue:SetPoint("LEFT", typeLabel, "RIGHT", 6, 0)
-    typeValue:SetText("-")
+    -- Spell / class / spec moved under Quest row (left column)
+    local condSpellEB = CreateEditBox(left, 180)
+    condSpellEB:SetPoint("TOPLEFT", questBtn, "BOTTOMLEFT", 0, -10)
+    StripInputBoxArt(condSpellEB)
+    local spellGhost = AddGhostText(left, condSpellEB, "SpellID (ready)")
 
-    local levelEB = CreateEditBox(left, 60)
-    levelEB:SetPoint("LEFT", typeValue, "RIGHT", 10, 0)
-    StripInputBoxArt(levelEB)
-    local levelGhost = AddGhostText(left, levelEB, "Level")
+    local spellIconBtn = CreateButton(left, "Icon", 56, 22)
+    spellIconBtn:SetPoint("LEFT", condSpellEB, "RIGHT", 6, 0)
+    Tip(spellIconBtn, "Use Spell Icon", "Sets Texture to this spell's icon.")
 
-    local alpha = CreateSlider(left, "Alpha", 0, 1, 0.01)
-    alpha:SetPoint("TOPLEFT", typeLabel, "BOTTOMLEFT", 0, -22)
-    alpha:SetPoint("RIGHT", left, "RIGHT", 0, 0)
+    local condClassDD = CreateDropDown(left, 110)
+    condClassDD:SetPoint("TOPLEFT", questBtn, "BOTTOMLEFT", -14, -14)
+    StripDropDownArt(condClassDD)
+    SetDropDownSelected(condClassDD, nil, "Class")
 
-    local scale = CreateSlider(left, "Scale", 0.05, 10, 0.05)
-    scale:SetPoint("TOPLEFT", alpha, "BOTTOMLEFT", 0, -28)
-    scale:SetPoint("RIGHT", left, "RIGHT", 0, 0)
+    local condSpecDD = CreateDropDown(left, 110)
+    condSpecDD:SetPoint("LEFT", condClassDD, "RIGHT", 22, 0)
+    StripDropDownArt(condSpecDD)
+    SetDropDownSelected(condSpecDD, nil, "Spec")
 
-    local sizeLabel = CreateLabel(left, "Size (w/h):", 110)
-    sizeLabel:SetPoint("TOPLEFT", scale, "BOTTOMLEFT", 0, -12)
-    local wEB = CreateEditBox(left, 60)
-    wEB:SetPoint("LEFT", sizeLabel, "RIGHT", 8, 0)
-    local hEB = CreateEditBox(left, 60)
-    hEB:SetPoint("LEFT", wEB, "RIGHT", 8, 0)
-
-    local posLabel = CreateLabel(left, "Pos (point/x/y):", 110)
-    posLabel:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -12)
-    local pointEB = CreateEditBox(left, 90)
-    pointEB:SetPoint("LEFT", posLabel, "RIGHT", 8, 0)
-    local xEB = CreateEditBox(left, 60)
-    xEB:SetPoint("LEFT", pointEB, "RIGHT", 8, 0)
-    local yEB = CreateEditBox(left, 60)
-    yEB:SetPoint("LEFT", xEB, "RIGHT", 8, 0)
+    -- Spell cooldown conditions were removed from Textures.
+    -- Keep these controls hidden to avoid confusing/non-functional UI.
+    if condSpellEB and condSpellEB.Hide then condSpellEB:Hide() end
+    if spellGhost and spellGhost.Hide then spellGhost:Hide() end
+    if spellIconBtn and spellIconBtn.Hide then spellIconBtn:Hide() end
 
     -- Right column: strata/layer/blend/texture (matches ArtLayer)
     local right = CreateFrame("Frame", nil, body)
@@ -502,21 +576,45 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     hint:SetJustifyH("LEFT")
     hint:SetText("Tip: blend + layer fixes some alpha issues")
 
+    -- Size/Pos moved to right column above sliders
+    local sizeLabel = CreateLabel(right, "Size (w/h):", 110)
+    sizeLabel:SetPoint("TOPLEFT", blendDD, "BOTTOMLEFT", 0, -18)
+    local wEB = CreateEditBox(right, 60)
+    wEB:SetPoint("LEFT", sizeLabel, "RIGHT", 8, 0)
+    local hEB = CreateEditBox(right, 60)
+    hEB:SetPoint("LEFT", wEB, "RIGHT", 8, 0)
+
+    local posLabel = CreateLabel(right, "Pos (point/x/y):", 110)
+    posLabel:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -12)
+    local pointEB = CreateEditBox(right, 90)
+    pointEB:SetPoint("LEFT", posLabel, "RIGHT", 8, 0)
+    local xEB = CreateEditBox(right, 60)
+    xEB:SetPoint("LEFT", pointEB, "RIGHT", 8, 0)
+    local yEB = CreateEditBox(right, 60)
+    yEB:SetPoint("LEFT", xEB, "RIGHT", 8, 0)
+
+    -- Alpha/Scale next to each other under the texture input (right half)
+    local alpha = CreateSlider(right, "Alpha", 0, 1, 0.01)
+    alpha:SetPoint("TOPLEFT", posLabel, "BOTTOMLEFT", 0, -22)
+    alpha:SetPoint("RIGHT", right, "CENTER", -6, 0)
+
+    local scale = CreateSlider(right, "Scale", 0.05, 10, 0.05)
+    scale:SetPoint("TOPLEFT", alpha, "TOPRIGHT", 12, 0)
+    scale:SetPoint("RIGHT", right, "RIGHT", 0, 0)
+
+    local zoom = CreateSlider(right, "Zoom", 1, 4, 0.01)
+    zoom:SetPoint("TOPLEFT", alpha, "BOTTOMLEFT", 0, -28)
+    zoom:SetPoint("RIGHT", right, "RIGHT", 0, 0)
+
     local afterTop = CreateFrame("Frame", nil, body)
     afterTop:SetSize(1, 1)
-    afterTop:SetPoint("TOP", hint, "BOTTOM", 0, -18)
+    afterTop:SetPoint("TOP", zoom, "BOTTOM", 0, -18)
     afterTop:SetPoint("LEFT", body, "LEFT", 0, 0)
     afterTop:SetPoint("RIGHT", body, "RIGHT", 0, 0)
 
-    -- Conditions (ArtLayer-like, plus keep FGO extras)
-    local condLabel = CreateLabel(body, "Conditions:")
-    condLabel:SetPoint("TOPLEFT", afterTop, "TOPLEFT", 0, 0)
-    condLabel:SetText("")
-    if condLabel.Hide then condLabel:Hide() end
-
     -- Faction dropdown (label-less, "Faction" means off/both)
     local factionDD = CreateDropDown(right, 110)
-    factionDD:SetPoint("TOPLEFT", blendDD, "BOTTOMLEFT", 0, -18)
+    factionDD:SetPoint("TOPLEFT", afterTop, "TOPLEFT", 0, -2)
     StripDropDownArt(factionDD)
     SetDropDownSelected(factionDD, "Faction", "Faction")
 
@@ -529,6 +627,8 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     if condPlayerBox and condPlayerBox.EditBox then
         charsGhost = AddGhostText(right, condPlayerBox.EditBox, "Characters...")
     end
+
+    -- Optional gating: spell cooldown + class/spec moved to left column.
 
     -- (Seen UI removed; Characters list already provides name gating.)
 
@@ -545,6 +645,10 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         selectedKey = key
         if UIDropDownMenu_SetText then
             UIDropDownMenu_SetText(widgetDD, key or "(select widget)")
+        end
+        if nameEB and nameEB.SetText then
+            nameEB:SetText(tostring(key or ""))
+            UpdateGhost(nameEB, nameGhost)
         end
         WriteWidgetIntoUI(key)
     end
@@ -571,7 +675,11 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         if not dragKey then return end
         local wf = ns.Textures.GetWidgetFrame and ns.Textures.GetWidgetFrame(dragKey) or nil
         if wf then
+            if wf.StopMovingOrSizing then
+                pcall(wf.StopMovingOrSizing, wf)
+            end
             wf._fgoForceShow = nil
+            wf._fgoDragging = nil
             if wf._fgoDragOverlay and wf._fgoDragOverlay.Hide then
                 wf._fgoDragOverlay:Hide()
             end
@@ -622,17 +730,20 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         end
 
         wf:SetScript("OnDragStart", function(self)
+            self._fgoDragging = true
             if self.StartMoving then self:StartMoving() end
         end)
 
         wf:SetScript("OnDragStop", function(self)
             if self.StopMovingOrSizing then self:StopMovingOrSizing() end
+            self._fgoDragging = nil
 
-            local w = GetWidget()
+            db = ns.Textures.EnsureDB()
+            local w = (db and db.widgets and dragKey) and db.widgets[dragKey] or nil
             if type(w) ~= "table" then return end
 
             local p, _, _, x, y = self:GetPoint(1)
-            w.point = p or w.point
+            w.point = p or w.point or "CENTER"
             w.x = math.floor((tonumber(x) or 0) + 0.5)
             w.y = math.floor((tonumber(y) or 0) + 0.5)
 
@@ -640,7 +751,7 @@ function ns.TexturesUI_Build(frame, panel, helpers)
             xEB:SetText(tostring(w.x or 0))
             yEB:SetText(tostring(w.y or 0))
 
-            if ns.Textures.ApplyWidget then ns.Textures.ApplyWidget(selectedKey) end
+            if ns.Textures.ApplyWidget then ns.Textures.ApplyWidget(dragKey) end
         end)
     end
 
@@ -660,6 +771,24 @@ function ns.TexturesUI_Build(frame, panel, helpers)
             local list = ParseListText(raw)
             if list[1] then
                 table.insert(conds, { type = "player", list = list })
+            end
+        end
+
+        -- spellOffCooldown removed
+
+        do
+            local sel = GetDropDownSelected(condClassDD)
+            local txt = Trim(tostring(sel or GetDropDownText(condClassDD) or ""))
+            if txt ~= "" and txt ~= "Class" then
+                table.insert(conds, { type = "class", value = txt })
+            end
+        end
+
+        do
+            local sel = GetDropDownSelected(condSpecDD)
+            local sid = tonumber(sel)
+            if sid then
+                table.insert(conds, { type = "spec", id = sid })
             end
         end
 
@@ -691,6 +820,7 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         w.clickthrough = (w._uiClickthrough == true)
         w.alpha = Clamp(alpha:GetValue(), 0, 1)
         w.scale = Clamp(scale:GetValue(), 0.05, 10)
+        w.zoom = Clamp(zoom:GetValue(), 1, 4)
         w.w = tonumber(Trim(wEB:GetText())) or w.w or 128
         w.h = tonumber(Trim(hEB:GetText())) or w.h or 128
         w.point = Trim(pointEB:GetText()) ~= "" and Trim(pointEB:GetText()) or (w.point or "CENTER")
@@ -698,7 +828,24 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         w.y = tonumber(Trim(yEB:GetText())) or w.y or 0
 
         if w.type ~= "model" then
-            w.texture = Trim(texEB:GetText())
+            local t = Trim(texEB:GetText())
+            local fid = t:match("^[Ff][Ii][Ll][Ee][Ii][Dd]:(%d+)$")
+            if fid then
+                t = fid
+            end
+
+            if texMode == "fileid" then
+                if t:match("^%d+$") then
+                    t = "fileid:" .. t
+                end
+            else
+                -- Texture mode: never store the fileid: prefix.
+                if t:match("^[Ff][Ii][Ll][Ee][Ii][Dd]:(%d+)$") then
+                    t = t:match("^[Ff][Ii][Ll][Ee][Ii][Dd]:(%d+)$")
+                end
+            end
+
+            w.texture = t
             w.layer = tostring(GetDropDownText(layerDD) or (w.layer or "ARTWORK"))
             w.sub = tonumber(Trim(subEB:GetText())) or w.sub or 0
         end
@@ -733,6 +880,17 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         SetShown(noWidget, not has)
         SetShown(body, has)
 
+        if nameEB and nameEB.SetEnabled then
+            nameEB:SetEnabled(has)
+        end
+        if levelEB and levelEB.SetEnabled then
+            levelEB:SetEnabled(has)
+        end
+        if nameEB and nameEB.SetText then
+            nameEB:SetText(tostring(key or ""))
+            UpdateGhost(nameEB, nameGhost)
+        end
+
         if not has then
             DisableDragMode()
             uiSuppress = false
@@ -747,7 +905,17 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         SetBtnState(clickBtn, w._uiClickthrough, nil, nil, nil, nil, nil, nil, "Click ON", "Click OFF")
         SetBtnState(unlockBtn, dragKey == key, nil, nil, nil, nil, nil, nil, "Unlock ON", "Unlock OFF")
 
-        typeValue:SetText(tostring(w.type or "texture"))
+        do
+            local raw = tostring((w and w.texture) or "")
+            if raw:match("^[Ff][Ii][Ll][Ee][Ii][Dd]:(%d+)$") then
+                SetTexMode("fileid", false)
+            elseif raw:match("^%d+$") and not IsKnownAddonMediaName(raw) then
+                -- Legacy numeric-only fileID (before fileid: prefix existed)
+                SetTexMode("fileid", false)
+            else
+                SetTexMode("texture", false)
+            end
+        end
 
         levelEB:SetText(tostring(w.level or ""))
         UpdateGhost(levelEB, levelGhost)
@@ -757,6 +925,9 @@ function ns.TexturesUI_Build(frame, panel, helpers)
 
         scale:SetValue(Clamp(w.scale or 1, 0.05, 10))
         SetSliderValueLabel(scale, scale:GetValue(), "%.2f")
+
+        zoom:SetValue(Clamp(w.zoom or 1, 1, 4))
+        SetSliderValueLabel(zoom, zoom:GetValue(), "%.2f")
 
         wEB:SetText(tostring(w.w or 128))
         hEB:SetText(tostring(w.h or 128))
@@ -775,7 +946,13 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         SetShown(hint, isTexture)
 
         if isTexture then
-            texEB:SetText(GetTextureFromWidget(w))
+            local raw = tostring((w and w.texture) or "")
+            local fid = raw:match("^[Ff][Ii][Ll][Ee][Ii][Dd]:(%d+)$")
+            if fid then
+                texEB:SetText(fid)
+            else
+                texEB:SetText(GetTextureFromWidget(w))
+            end
             SetDropDownText(layerDD, tostring(w.layer or "ARTWORK"))
             subEB:SetText(tostring(w.sub or 0))
             SetDropDownText(blendDD, tostring(w.blend or "BLEND"))
@@ -803,6 +980,18 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         if charsGhost and condPlayerBox and condPlayerBox.EditBox then
             UpdateGhost(condPlayerBox.EditBox, charsGhost)
         end
+
+        condSpellEB:SetText("")
+        if body and body._fgoSetClassToken then
+            body._fgoSetClassToken(nil)
+        else
+            SetDropDownSelected(condClassDD, nil, "Class")
+            SetDropDownSelected(condSpecDD, nil, "Spec")
+        end
+        UpdateGhost(condSpellEB, spellGhost)
+
+        local wantSpecID = nil
+        local wantSpecName = nil
 
         local conds = w.conds
         if type(conds) == "table" then
@@ -840,6 +1029,51 @@ function ns.TexturesUI_Build(frame, panel, helpers)
                         if charsGhost then
                             UpdateGhost(condPlayerBox.EditBox, charsGhost)
                         end
+                    end
+                elseif c.type == "spellOffCooldown" then
+                    -- removed
+                elseif c.type == "class" then
+                    local v = Trim(c.value or c.class or "")
+                    if v ~= "" then
+                        if body and body._fgoSetClassToken then
+                            body._fgoSetClassToken(v)
+                        else
+                            SetDropDownSelected(condClassDD, v, v)
+                        end
+                    end
+                elseif c.type == "spec" then
+                    wantSpecID = tonumber(c.id or c.specID)
+                    wantSpecName = Trim(c.name or c.value or c.specName or "")
+                end
+            end
+        end
+
+        if wantSpecID then
+            -- If spec is set but class isn't, try to infer the class.
+            local curClass = GetDropDownSelected(condClassDD)
+            if (curClass == nil or curClass == "") and body and body._fgoFindClassTokenForSpecID then
+                local inferred = body._fgoFindClassTokenForSpecID(wantSpecID)
+                if inferred and body._fgoSetClassToken then
+                    body._fgoSetClassToken(inferred)
+                end
+            end
+            if body and body._fgoSetSpecSelection then
+                body._fgoSetSpecSelection(wantSpecID)
+            else
+                SetDropDownSelected(condSpecDD, wantSpecID, tostring(wantSpecID))
+            end
+        elseif wantSpecName ~= "" then
+            -- Legacy: spec condition saved by name; best-effort resolve to an ID.
+            local items = condSpecDD and condSpecDD._fgoSpecItems
+            if type(items) == "table" then
+                for _, it in ipairs(items) do
+                    if tostring(it.name or ""):lower() == wantSpecName:lower() then
+                        if body and body._fgoSetSpecSelection then
+                            body._fgoSetSpecSelection(it.id)
+                        else
+                            SetDropDownSelected(condSpecDD, it.id, tostring(it.name or it.id))
+                        end
+                        break
                     end
                 end
             end
@@ -927,6 +1161,7 @@ function ns.TexturesUI_Build(frame, panel, helpers)
                 w.y = w.y or 0
                 w.alpha = w.alpha or 1
                 w.scale = w.scale or 1
+                w.zoom = w.zoom or 1
                 w.layer = w.layer or "ARTWORK"
                 w.sub = w.sub or 0
                 w.blend = w.blend or "BLEND"
@@ -1019,12 +1254,274 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         SetDropDownSelected(factionDD, "Faction", "Faction")
     end
 
+    -- Class/Spec dropdowns (moved under Quest; Spec list depends on Class)
+    local classIDByToken = nil
+    local function EnsureClassIDByToken()
+        if classIDByToken ~= nil then return end
+        classIDByToken = {}
+        if type(GetClassInfo) == "function" then
+            for classID = 1, 30 do
+                local ok, className, classFile = pcall(GetClassInfo, classID)
+                if ok and classFile then
+                    classIDByToken[tostring(classFile)] = tonumber(classID)
+                end
+            end
+        end
+    end
+
+    local localizedClassToToken = nil
+    local function EnsureLocalizedClassLookup()
+        if localizedClassToToken ~= nil then return end
+        localizedClassToToken = {}
+        local function AddLookup(tbl)
+            if type(tbl) ~= "table" then return end
+            for token, name in pairs(tbl) do
+                token = tostring(token or "")
+                name = tostring(name or "")
+                if token ~= "" and name ~= "" then
+                    localizedClassToToken[name:lower()] = token
+                end
+            end
+        end
+        AddLookup(_G.LOCALIZED_CLASS_NAMES_MALE)
+        AddLookup(_G.LOCALIZED_CLASS_NAMES_FEMALE)
+    end
+
+    local function ClassDisplayName(token)
+        token = tostring(token or "")
+        if token == "" then return "Class" end
+        if type(_G.LOCALIZED_CLASS_NAMES_MALE) == "table" and _G.LOCALIZED_CLASS_NAMES_MALE[token] then
+            return tostring(_G.LOCALIZED_CLASS_NAMES_MALE[token])
+        end
+        if type(_G.LOCALIZED_CLASS_NAMES_FEMALE) == "table" and _G.LOCALIZED_CLASS_NAMES_FEMALE[token] then
+            return tostring(_G.LOCALIZED_CLASS_NAMES_FEMALE[token])
+        end
+        return token
+    end
+
+    local function NormalizeClassToken(text)
+        text = Trim(tostring(text or ""))
+        if text == "" or text == "Class" then return nil end
+        EnsureClassIDByToken()
+        EnsureLocalizedClassLookup()
+
+        local upper = text:upper()
+        if classIDByToken and classIDByToken[upper] then
+            return upper
+        end
+        if localizedClassToToken then
+            return localizedClassToToken[text:lower()]
+        end
+        return nil
+    end
+
+    local function BuildSpecItemsForClassToken(token)
+        token = tostring(token or "")
+        if token == "" then return {} end
+
+        EnsureClassIDByToken()
+        local classID = classIDByToken and classIDByToken[token]
+        if not classID then return {} end
+        if type(GetNumSpecializationsForClassID) ~= "function" or type(GetSpecializationInfoForClassID) ~= "function" then
+            return {}
+        end
+
+        local out = {}
+        local n = GetNumSpecializationsForClassID(classID)
+        n = tonumber(n) or 0
+        for i = 1, n do
+            local specID, specName = GetSpecializationInfoForClassID(classID, i)
+            if specID and specName then
+                out[#out + 1] = { id = tonumber(specID), name = tostring(specName) }
+            end
+        end
+        return out
+    end
+
+    local function FindClassTokenForSpecID(specID)
+        specID = tonumber(specID)
+        if not specID then return nil end
+        EnsureClassIDByToken()
+        if not classIDByToken then return nil end
+        if type(GetNumSpecializationsForClassID) ~= "function" or type(GetSpecializationInfoForClassID) ~= "function" then
+            return nil
+        end
+        for token, classID in pairs(classIDByToken) do
+            local n = tonumber(GetNumSpecializationsForClassID(classID) or 0) or 0
+            for i = 1, n do
+                local sid = GetSpecializationInfoForClassID(classID, i)
+                if tonumber(sid) == specID then
+                    return token
+                end
+            end
+        end
+        return nil
+    end
+
+    local function SetClassToken(token)
+        token = NormalizeClassToken(token) or nil
+        if token then
+            SetDropDownSelected(condClassDD, token, ClassDisplayName(token))
+        else
+            SetDropDownSelected(condClassDD, nil, "Class")
+        end
+        condSpecDD._fgoSpecItems = BuildSpecItemsForClassToken(token)
+        SetDropDownSelected(condSpecDD, nil, "Spec")
+    end
+
+    local function SetSpecSelection(specID)
+        specID = tonumber(specID)
+        if not specID then
+            SetDropDownSelected(condSpecDD, nil, "Spec")
+            return
+        end
+        local items = condSpecDD._fgoSpecItems
+        if type(items) == "table" then
+            for _, it in ipairs(items) do
+                if tonumber(it.id) == specID then
+                    SetDropDownSelected(condSpecDD, specID, tostring(it.name or specID))
+                    return
+                end
+            end
+        end
+        SetDropDownSelected(condSpecDD, specID, tostring(specID))
+    end
+
+    if UIDropDownMenu_Initialize then
+        UIDropDownMenu_Initialize(condClassDD, function(_, level)
+            local info = UIDropDownMenu_CreateInfo()
+            info.notCheckable = true
+
+            info.text = "(any)"
+            info.func = function()
+                SetClassToken(nil)
+                if selectedKey then ReadUIIntoWidget(selectedKey) end
+            end
+            UIDropDownMenu_AddButton(info, level)
+
+            local tokens = _G.CLASS_SORT_ORDER
+            if type(tokens) ~= "table" then
+                tokens = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "DEATHKNIGHT", "SHAMAN", "MAGE", "WARLOCK", "MONK", "DRUID", "DEMONHUNTER", "EVOKER" }
+            end
+            for _, token in ipairs(tokens) do
+                token = tostring(token or "")
+                if token ~= "" then
+                    local txt = ClassDisplayName(token)
+                    info.text = txt
+                    info.func = function()
+                        SetClassToken(token)
+                        if selectedKey then ReadUIIntoWidget(selectedKey) end
+                    end
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            end
+        end)
+
+        UIDropDownMenu_Initialize(condSpecDD, function(_, level)
+            local info = UIDropDownMenu_CreateInfo()
+            info.notCheckable = true
+
+            info.text = "(any)"
+            info.func = function()
+                SetSpecSelection(nil)
+                if selectedKey then ReadUIIntoWidget(selectedKey) end
+            end
+            UIDropDownMenu_AddButton(info, level)
+
+            local items = condSpecDD._fgoSpecItems
+            if type(items) == "table" then
+                for _, it in ipairs(items) do
+                    info.text = tostring(it.name or it.id)
+                    info.func = function()
+                        SetSpecSelection(it.id)
+                        if selectedKey then ReadUIIntoWidget(selectedKey) end
+                    end
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            end
+        end)
+    end
+
+    -- expose for WriteWidgetIntoUI
+    body._fgoSetClassToken = SetClassToken
+    body._fgoSetSpecSelection = SetSpecSelection
+    body._fgoFindClassTokenForSpecID = FindClassTokenForSpecID
+    body._fgoNormalizeClassToken = NormalizeClassToken
+    body._fgoBuildSpecItemsForClassToken = BuildSpecItemsForClassToken
+
     local function SetTexturePath(path)
         texEB:SetText(tostring(path or ""))
         UpdateGhost(texEB, texGhost)
         if selectedKey then
             ReadUIIntoWidget(selectedKey)
         end
+    end
+
+    if spellIconBtn and spellIconBtn.SetScript then
+        spellIconBtn:SetScript("OnClick", function()
+            local spellID = tonumber(Trim(condSpellEB and condSpellEB.GetText and condSpellEB:GetText() or ""))
+            if not spellID then return end
+
+            local icon
+            if C_Spell and C_Spell.GetSpellTexture then
+                icon = C_Spell.GetSpellTexture(spellID)
+            end
+            if icon == nil and GetSpellTexture then
+                icon = GetSpellTexture(spellID)
+            end
+
+            if icon ~= nil then
+                SetTexMode("fileid", false)
+                SetTexturePath(icon)
+            end
+        end)
+    end
+
+    local function TryRenameSelected(desired)
+        if uiSuppress then return end
+        if not selectedKey then return end
+
+        desired = Trim(desired)
+        if desired == "" or desired == selectedKey then
+            if nameEB and nameEB.SetText then
+                nameEB:SetText(tostring(selectedKey or ""))
+                UpdateGhost(nameEB, nameGhost)
+            end
+            return
+        end
+
+        db = ns.Textures.EnsureDB()
+        if not (db and db.widgets and db.widgets[selectedKey]) then return end
+
+        if db.widgets[desired] then
+            if nameEB and nameEB.SetText then
+                nameEB:SetText(tostring(selectedKey or ""))
+                UpdateGhost(nameEB, nameGhost)
+            end
+            Print("Widget name already exists")
+            return
+        end
+
+        local fn = ns.Textures.RenameWidgetKey
+        if type(fn) ~= "function" then
+            return
+        end
+
+        local newKey = fn(selectedKey, desired)
+        if not newKey then
+            if nameEB and nameEB.SetText then
+                nameEB:SetText(tostring(selectedKey or ""))
+                UpdateGhost(nameEB, nameGhost)
+            end
+            return
+        end
+
+        if dragKey == selectedKey then
+            dragKey = newKey
+        end
+
+        RefreshWidgetList()
+        SelectWidgetKey(newKey)
     end
 
     local function ShowMenu(btn, menu)
@@ -1126,6 +1623,7 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         w.y = w.y or 0
         w.alpha = w.alpha or 1
         w.scale = w.scale or 1
+        w.zoom = w.zoom or 1
         w.layer = w.layer or "ARTWORK"
         w.sub = w.sub or 0
         w.blend = w.blend or "BLEND"
@@ -1157,6 +1655,28 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         RefreshWidgetList()
         Print("Textures refreshed")
     end)
+
+    if nameEB and nameEB.SetScript then
+        nameEB:SetScript("OnEnterPressed", function(self)
+            self:ClearFocus()
+            TryRenameSelected(self:GetText())
+        end)
+        nameEB:SetScript("OnEditFocusLost", function(self)
+            TryRenameSelected(self:GetText())
+        end)
+        nameEB:SetScript("OnEscapePressed", function(self)
+            self:ClearFocus()
+            if selectedKey and self.SetText then
+                self:SetText(tostring(selectedKey))
+                UpdateGhost(self, nameGhost)
+            end
+        end)
+        if nameEB.HookScript then
+            nameEB:HookScript("OnTextChanged", function() UpdateGhost(nameEB, nameGhost) end)
+            nameEB:HookScript("OnEditFocusGained", function() UpdateGhost(nameEB, nameGhost) end)
+            nameEB:HookScript("OnEditFocusLost", function() UpdateGhost(nameEB, nameGhost) end)
+        end
+    end
 
     local function HookChange(obj, fn)
         if obj and obj.SetScript then
@@ -1264,6 +1784,11 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         OnAnyChange()
     end)
 
+    zoom:SetScript("OnValueChanged", function(self, v)
+        SetSliderValueLabel(self, v, "%.2f")
+        OnAnyChange()
+    end)
+
     EBApply(wEB)
     EBApply(hEB)
     EBApply(pointEB)
@@ -1273,6 +1798,7 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     EBApply(levelEB)
     EBApply(texEB)
     EBApply(condQuestEB)
+    EBApply(condSpellEB)
     texEB:HookScript("OnTextChanged", function() UpdateGhost(texEB, texGhost) end)
     texEB:HookScript("OnEditFocusGained", function() UpdateGhost(texEB, texGhost) end)
     texEB:HookScript("OnEditFocusLost", function() UpdateGhost(texEB, texGhost) end)
@@ -1285,31 +1811,28 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     condQuestEB:HookScript("OnEditFocusGained", function() UpdateGhost(condQuestEB, questGhost) end)
     condQuestEB:HookScript("OnEditFocusLost", function() UpdateGhost(condQuestEB, questGhost) end)
 
+    condSpellEB:HookScript("OnTextChanged", function() UpdateGhost(condSpellEB, spellGhost) end)
+    condSpellEB:HookScript("OnEditFocusGained", function() UpdateGhost(condSpellEB, spellGhost) end)
+    condSpellEB:HookScript("OnEditFocusLost", function() UpdateGhost(condSpellEB, spellGhost) end)
+
     if condPlayerBox and condPlayerBox.EditBox then
         if charsGhost then
             condPlayerBox.EditBox:HookScript("OnTextChanged", function() UpdateGhost(condPlayerBox.EditBox, charsGhost) end)
             condPlayerBox.EditBox:HookScript("OnEditFocusGained", function() UpdateGhost(condPlayerBox.EditBox, charsGhost) end)
             condPlayerBox.EditBox:HookScript("OnEditFocusLost", function() UpdateGhost(condPlayerBox.EditBox, charsGhost) end)
         end
-        condPlayerBox.EditBox:SetScript("OnEditFocusLost", function() OnAnyChange() end)
-        condPlayerBox.EditBox:SetScript("OnEscapePressed", function(self)
-            self:ClearFocus()
-            WriteWidgetIntoUI(selectedKey)
-        end)
-
-        -- Make sure the characters box is always focusable (click-catcher)
-        if not condPlayerBox._clickCatcher then
-            local cc = CreateFrame("Button", nil, right)
-            cc:SetAllPoints(condPlayerBox.Frame)
-            cc:SetAlpha(0.01)
-            cc:EnableMouse(true)
-            cc:RegisterForClicks("AnyUp")
-            cc:SetScript("OnClick", function()
-                if condPlayerBox and condPlayerBox.EditBox and condPlayerBox.EditBox.SetFocus then
-                    condPlayerBox.EditBox:SetFocus()
-                end
+        if condPlayerBox.EditBox.HookScript then
+            condPlayerBox.EditBox:HookScript("OnEditFocusLost", function() OnAnyChange() end)
+            condPlayerBox.EditBox:HookScript("OnEscapePressed", function(self)
+                self:ClearFocus()
+                WriteWidgetIntoUI(selectedKey)
             end)
-            condPlayerBox._clickCatcher = cc
+        else
+            condPlayerBox.EditBox:SetScript("OnEditFocusLost", function() OnAnyChange() end)
+            condPlayerBox.EditBox:SetScript("OnEscapePressed", function(self)
+                self:ClearFocus()
+                WriteWidgetIntoUI(selectedKey)
+            end)
         end
     end
 

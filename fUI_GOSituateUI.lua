@@ -20,6 +20,58 @@ local function GetSettings()
     return s
 end
 
+local function GetCharSettings()
+    InitSV()
+    local s = rawget(_G, "AutoGame_CharSettings") or rawget(_G, "AutoGossip_CharSettings")
+    if type(s) ~= "table" then
+        return nil
+    end
+    return s
+end
+
+local function EnsureCharSettings()
+    InitSV()
+    local cs = rawget(_G, "AutoGame_CharSettings") or rawget(_G, "AutoGossip_CharSettings")
+    if type(cs) == "table" then
+        return cs
+    end
+
+    -- Best-effort creation for UI toggles.
+    if type(rawget(_G, "AutoGame_Settings")) == "table" then
+        cs = {}
+        _G.AutoGame_CharSettings = cs
+        return cs
+    end
+    if type(rawget(_G, "AutoGossip_Settings")) == "table" then
+        cs = {}
+        _G.AutoGossip_CharSettings = cs
+        return cs
+    end
+    return nil
+end
+
+local function GetDriftEnabledChar()
+    local cs = GetCharSettings()
+    if cs and type(cs.actionBarDriftChar) == "boolean" then
+        return cs.actionBarDriftChar
+    end
+
+    -- One-time migration from legacy account setting (if present).
+    local s = GetSettings()
+    if type(s) == "table" and type(s.actionBarDriftAcc) == "boolean" then
+        local v = s.actionBarDriftAcc and true or false
+        local ecs = EnsureCharSettings()
+        if ecs then
+            ecs.actionBarDriftChar = v
+        end
+        s.actionBarDriftAcc = nil
+        return v
+    end
+
+    -- Default: enabled.
+    return true
+end
+
 local function GetBoolSetting(key, defaultValue)
     local s = GetSettings()
     if not s then
@@ -66,37 +118,6 @@ local function Trim(s)
         return ""
     end
     return s:gsub("^%s+", ""):gsub("%s+$", "")
-end
-
-local function GetActiveLoadoutName()
-    if not (C_ClassTalents and C_ClassTalents.GetActiveConfigID) then
-        return nil
-    end
-    local okCfg, configID = pcall(C_ClassTalents.GetActiveConfigID)
-    if not okCfg or type(configID) ~= "number" then
-        return nil
-    end
-    if C_Traits and C_Traits.GetConfigInfo then
-        local okInfo, info = pcall(C_Traits.GetConfigInfo, configID)
-        if okInfo and type(info) == "table" then
-            local name = Trim(info.name)
-            if name ~= "" then
-                return name
-            end
-        end
-    end
-    return nil
-end
-
-local function GetActiveLoadoutKey()
-    local classTag = GetPlayerClassTag()
-    local specID = GetActiveSpecID()
-    local name = GetActiveLoadoutName()
-    if not (classTag and specID and name) then
-        return nil
-    end
-    name = name:gsub("%s+", " ")
-    return tostring(classTag) .. ":" .. tostring(specID) .. ":" .. tostring(name)
 end
 
 local function GetActiveSpecLabel()
@@ -189,29 +210,6 @@ local function EnsureSharedAccountLayoutArray()
     return s.actionBarLayoutSharedAcc
 end
 
-local function EnsureLoadoutLayoutArray()
-    InitSV()
-    local s = GetSettings()
-    if not s then
-        return {}
-    end
-    local key = GetActiveLoadoutKey()
-    if not key then
-        return {}
-    end
-    if type(s.actionBarLayoutByLoadoutAcc) ~= "table" then
-        s.actionBarLayoutByLoadoutAcc = {}
-    end
-    if type(s.actionBarLayoutByLoadoutAcc[key]) ~= "table" then
-        s.actionBarLayoutByLoadoutAcc[key] = {}
-    end
-    local t = s.actionBarLayoutByLoadoutAcc[key]
-    if t[1] == nil and next(t) ~= nil then
-        s.actionBarLayoutByLoadoutAcc[key] = {}
-    end
-    return s.actionBarLayoutByLoadoutAcc[key]
-end
-
 local function GetSharedClassLayoutArrayReadOnly()
     InitSV()
     local s = GetSettings()
@@ -293,6 +291,14 @@ end
 local function SetStateTextYellowNoOff(btn, label, enabled)
     if enabled then
         btn:SetText(label .. ": |cffffff00ON|r")
+    else
+        btn:SetText("|cff888888" .. label .. "|r")
+    end
+end
+
+local function SetYellowGreyText(btn, label, enabled)
+    if enabled then
+        btn:SetText("|cffffff00" .. label .. "|r")
     else
         btn:SetText("|cff888888" .. label .. "|r")
     end
@@ -419,7 +425,7 @@ end
 
 local function GetEntryKind(entry)
     local k = entry and entry.kind
-    if k == "spell" or k == "macro" then
+    if k == "spell" or k == "macro" or k == "item" then
         return k
     end
     return "macro"
@@ -588,7 +594,7 @@ function ns.SituateUI_Build(panel)
 
     -- The list always shows the effective merged layout.
     -- This setting controls where Add/Override writes entries.
-    local targetScope = "spec" -- "spec" | "loadout" | "class" | "account"
+    local targetScope = "spec" -- "spec" | "class" | "account"
 
     -- Secondary scope under Account.
     -- Two toggles controlled by small buttons shown only when Target=Account:
@@ -699,9 +705,6 @@ function ns.SituateUI_Build(panel)
 
             return (EnsureTargetProfessionKey() ~= nil)
         end
-        if targetScope == "loadout" then
-            return IsViewingActiveSpec() and (GetActiveLoadoutKey() ~= nil)
-        end
         -- spec target: allow editing the currently viewed spec
         return true
     end
@@ -722,9 +725,6 @@ function ns.SituateUI_Build(panel)
         end
         if scope == "zone" then
             return (GetCurrentZoneMapID() ~= nil)
-        end
-        if scope == "loadout" then
-            return IsViewingActiveSpec() and (GetActiveLoadoutKey() ~= nil)
         end
         -- spec scope: allow editing the currently viewed spec
         return true
@@ -1149,23 +1149,6 @@ function ns.SituateUI_Build(panel)
         return t
     end
 
-    local function GetLoadoutLayoutArrayReadOnly(loadoutKey)
-        InitSV()
-        local s = GetSettings()
-        if not s then
-            return nil
-        end
-        local byLoadout = rawget(s, "actionBarLayoutByLoadoutAcc")
-        if type(byLoadout) ~= "table" then
-            return nil
-        end
-        local t = byLoadout[loadoutKey]
-        if type(t) ~= "table" then
-            return nil
-        end
-        return t
-    end
-
     local function EnsureSpecLayoutArrayFor(specID)
         InitSV()
         local s = GetSettings()
@@ -1221,14 +1204,6 @@ function ns.SituateUI_Build(panel)
             return EnsureZoneLayoutArray(GetCurrentZoneMapID())
         elseif targetScope == "class" then
             return EnsureSharedClassLayoutArray()
-        elseif targetScope == "loadout" then
-            if not IsViewingActiveSpec() then
-                return nil
-            end
-            if not GetActiveLoadoutKey() then
-                return nil
-            end
-            return EnsureLoadoutLayoutArray()
         else
             return EnsureSpecLayoutArrayFor(GetViewingSpecID())
         end
@@ -1270,15 +1245,6 @@ function ns.SituateUI_Build(panel)
         local classT = GetSharedClassLayoutArrayReadOnly()
         local specT = GetLayoutArrayReadOnlyBySpec(viewingSpecID)
 
-        local loadout = nil
-        local loadoutKey = nil
-        if viewingSpecID and activeSpecID and viewingSpecID == activeSpecID then
-            loadoutKey = GetActiveLoadoutKey()
-            if loadoutKey then
-                loadout = GetLoadoutLayoutArrayReadOnly(loadoutKey)
-            end
-        end
-
         local chosenBySlot = {}
         local function consider(scopeName, entry, expansionKey, professionKey)
             if type(entry) ~= "table" then
@@ -1316,9 +1282,6 @@ function ns.SituateUI_Build(panel)
         if type(specT) == "table" then
             for _, e in ipairs(specT) do consider("spec", e) end
         end
-        if type(loadout) == "table" then
-            for _, e in ipairs(loadout) do consider("loadout", e) end
-        end
 
         local out = {}
         for slot = 1, 180 do
@@ -1355,7 +1318,6 @@ function ns.SituateUI_Build(panel)
         end
         appendUnslotted("class", classT)
         appendUnslotted("spec", specT)
-        appendUnslotted("loadout", loadout)
 
         return out
     end
@@ -1384,7 +1346,7 @@ function ns.SituateUI_Build(panel)
     local hint = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     hint:SetPoint("TOP", panel, "TOP", 0, -32)
     hint:SetJustifyH("CENTER")
-    hint:SetText("Place existing macros/spells into action slots. Slot range: 1-180. Applying is blocked in combat.")
+    hint:SetText("Place existing macros/spells/items (including toys) into action slots. Slot range: 1-180. Applying is blocked in combat.")
 
     local specHint = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     specHint:SetPoint("TOP", hint, "BOTTOM", 0, -6)
@@ -1426,14 +1388,6 @@ function ns.SituateUI_Build(panel)
                 parts[#parts + 1] = "Active: " .. tostring(activeLabel)
             end
 
-            if viewingSpecID == activeSpecID then
-                local loadoutName = GetActiveLoadoutName()
-                if loadoutName then
-                    parts[#parts + 1] = "Loadout: " .. tostring(loadoutName)
-                else
-                    parts[#parts + 1] = "Loadout: (none)"
-                end
-            end
         else
             parts[#parts + 1] = "No spec API"
         end
@@ -1453,8 +1407,6 @@ function ns.SituateUI_Build(panel)
             end
         elseif tgt == "class" then
             parts[#parts + 1] = "Target: Class"
-        elseif tgt == "loadout" then
-            parts[#parts + 1] = "Target: Loadout"
         else
             parts[#parts + 1] = "Target: Spec"
         end
@@ -1561,6 +1513,12 @@ function ns.SituateUI_Build(panel)
     local btnDetect = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnDetect:SetSize(BTN_W, BTN_H)
 
+    local btnMute = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnMute:SetSize(BTN_W, BTN_H)
+
+    local btnDrift = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnDrift:SetSize(BTN_W, BTN_H)
+
     local btnOverwrite = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnOverwrite:SetSize(BTN_W, BTN_H)
 
@@ -1573,7 +1531,8 @@ function ns.SituateUI_Build(panel)
     else
         btnDebug:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 12)
     end
-    btnOverwrite:SetPoint("RIGHT", btnDebug, "LEFT", -BTN_GAP, 0)
+    btnMute:SetPoint("RIGHT", btnDebug, "LEFT", -BTN_GAP, 0)
+    btnOverwrite:SetPoint("RIGHT", btnMute, "LEFT", -BTN_GAP, 0)
     btnDetect:SetPoint("RIGHT", btnOverwrite, "LEFT", -BTN_GAP, 0)
     btnUseHover:SetPoint("RIGHT", btnDetect, "LEFT", -BTN_GAP, 0)
     btnUseCursor:SetPoint("RIGHT", btnUseHover, "LEFT", -BTN_GAP, 0)
@@ -1748,8 +1707,8 @@ function ns.SituateUI_Build(panel)
     end
 
     local selectedSlot = nil
-    local selectedKind = "macro" -- "macro" | "spell"
-    local selectedValue = "" -- macroName or spellID/name text
+    local selectedKind = "macro" -- "macro" | "spell" | "item"
+    local selectedValue = "" -- macroName or spellID/name text or itemID
     local selectedMacroScope = nil -- nil | "acc" | "char" (only meaningful when selectedKind=="macro")
     local selectedMacroIndex = nil -- macro index in the macro list (1..MAX_ACCOUNT+MAX_CHARACTER)
     local selectedMacroRemember = false
@@ -1783,9 +1742,14 @@ function ns.SituateUI_Build(panel)
     btnPickSpell:SetPoint("LEFT", btnPickMacro, "RIGHT", 8, 0)
     btnPickSpell:SetText("Spell")
 
+    local btnPickItem = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
+    btnPickItem:SetSize(90, 20)
+    btnPickItem:SetPoint("LEFT", btnPickSpell, "RIGHT", 8, 0)
+    btnPickItem:SetText("Item")
+
     local dropBox = CreateFrame("Button", nil, editArea, "BackdropTemplate")
     dropBox:SetSize(140, 20)
-    dropBox:SetPoint("LEFT", btnPickSpell, "RIGHT", 8, 0)
+    dropBox:SetPoint("LEFT", btnPickItem, "RIGHT", 8, 0)
     dropBox:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         tile = true,
@@ -1878,6 +1842,11 @@ function ns.SituateUI_Build(panel)
     btnApply:ClearAllPoints()
     btnApply:SetParent(panel)
     btnApply:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 12, 12)
+
+    -- Drift toggle belongs directly above Apply All.
+    btnDrift:ClearAllPoints()
+    btnDrift:SetParent(panel)
+    btnDrift:SetPoint("BOTTOMLEFT", btnApply, "TOPLEFT", 0, BTN_GAP)
 
     local btnRemember = CreateFrame("Button", nil, editArea, "UIPanelButtonTemplate")
     do
@@ -1972,6 +1941,29 @@ function ns.SituateUI_Build(panel)
             else
                 pickedText:SetText("Selected: -")
             end
+        elseif selectedKind == "item" then
+            local raw = Trim(selectedValue or "")
+            local itemID = tonumber(raw)
+            if itemID then
+                itemID = math.floor(itemID)
+            end
+
+            if itemID and itemID > 0 then
+                local name = nil
+                if GetItemInfo then
+                    local ok, itemName = pcall(GetItemInfo, itemID)
+                    if ok and type(itemName) == "string" and itemName ~= "" then
+                        name = itemName
+                    end
+                end
+                if name and name ~= "" then
+                    pickedText:SetText(string.format("Selected: %s (%d)", tostring(name), itemID))
+                else
+                    pickedText:SetText(string.format("Selected: %d", itemID))
+                end
+            else
+                pickedText:SetText("Selected: -")
+            end
         else
             local v = Trim(selectedValue or "")
             if v ~= "" then
@@ -1993,6 +1985,27 @@ function ns.SituateUI_Build(panel)
         if selectedKind == "spell" then
             local sid = GetSpellIDFromText(valueText)
             macroState = sid and "spell ok" or "spell missing"
+        elseif selectedKind == "item" then
+            local itemID = tonumber(valueText)
+            if itemID then
+                itemID = math.floor(itemID)
+            end
+            local owned = false
+            if itemID and itemID > 0 then
+                if GetItemCount then
+                    local ok, count = pcall(GetItemCount, itemID, false, false)
+                    if ok and tonumber(count) and tonumber(count) > 0 then
+                        owned = true
+                    end
+                end
+                if (not owned) and PlayerHasToy then
+                    local ok, hasToy = pcall(PlayerHasToy, itemID)
+                    if ok and hasToy then
+                        owned = true
+                    end
+                end
+            end
+            macroState = owned and "item ok" or "item missing"
         else
             local idx = SafeMacroIndexByName(valueText)
             macroState = (idx and idx > 0) and "macro ok" or "macro missing"
@@ -2035,6 +2048,17 @@ function ns.SituateUI_Build(panel)
     local function SetSelectedSpell(spellID)
         selectedKind = "spell"
         selectedValue = tostring(spellID or "")
+        selectedMacroScope = nil
+        selectedMacroIndex = nil
+        selectedMacroRemember = false
+        UpdatePickedText()
+        SetStatusForSelection()
+        UpdateRememberButton()
+    end
+
+    local function SetSelectedItem(itemID)
+        selectedKind = "item"
+        selectedValue = tostring(itemID or "")
         selectedMacroScope = nil
         selectedMacroIndex = nil
         selectedMacroRemember = false
@@ -2112,9 +2136,6 @@ function ns.SituateUI_Build(panel)
         end
         local row = GetSelectedRow()
         if row and row.entry and row.sourceScope == targetScope and NormalizeSlot(row.entry.slot) == slot then
-            if targetScope == "loadout" and not IsViewingActiveSpec() then
-                return nil
-            end
             return row.entry
         end
 
@@ -2912,6 +2933,13 @@ function ns.SituateUI_Build(panel)
 
     btnPickMacro:SetScript("OnClick", function() OpenPicker("macro") end)
     btnPickSpell:SetScript("OnClick", function() OpenPicker("spell") end)
+    btnPickItem:SetScript("OnClick", function()
+        selectedKind = "item"
+        selectedValue = ""
+        UpdatePickedText()
+        SetStatusForSelection()
+        UpdateRememberButton()
+    end)
 
     local function LoadFields()
         isLoadingFields = true
@@ -2925,6 +2953,8 @@ function ns.SituateUI_Build(panel)
             end
             if kind == "spell" then
                 SetSelectedSpell(GetSpellIDFromText(v) or v)
+            elseif kind == "item" then
+                SetSelectedItem(tonumber(v) or v)
             else
                 SetSelectedMacro(v)
             end
@@ -2964,6 +2994,15 @@ function ns.SituateUI_Build(panel)
 
         local ov = (s and s.actionBarOverwriteAcc) and true or false
         SetStateTextYellowNoOff(btnOverwrite, "Overwrite", ov)
+
+        local muteOn = true
+        if s and s.actionBarMuteAcc ~= nil then
+            muteOn = (s.actionBarMuteAcc and true or false)
+        end
+        SetStateTextYellowNoOff(btnMute, "Mute", muteOn)
+
+        local driftOn = GetDriftEnabledChar()
+        SetYellowGreyText(btnDrift, "Drift", driftOn)
 
         local dbg = (s and s.actionBarDebugAcc) and true or false
         SetStateTextYellowNoOff(btnDebug, "Debug", dbg)
@@ -3028,6 +3067,7 @@ function ns.SituateUI_Build(panel)
         if btnSlot.SetEnabled then btnSlot:SetEnabled(canEdit) end
         btnPickMacro:SetEnabled(canEdit and hasSlot)
         btnPickSpell:SetEnabled(canEdit and hasSlot)
+        btnPickItem:SetEnabled(canEdit and hasSlot)
 
         if pickerFrame:IsShown() and not (canEdit and hasSlot) then
             pickerFrame:Hide()
@@ -3067,6 +3107,28 @@ function ns.SituateUI_Build(panel)
         RefreshButtons()
     end)
 
+    btnMute:SetScript("OnClick", function()
+        InitSV()
+        local s = GetSettings()
+        if not s then
+            return
+        end
+        local cur = (s.actionBarMuteAcc == nil) and true or (s.actionBarMuteAcc and true or false)
+        s.actionBarMuteAcc = not cur
+        RefreshButtons()
+    end)
+
+    btnDrift:SetScript("OnClick", function()
+        InitSV()
+        local cs = EnsureCharSettings()
+        if not cs then
+            return
+        end
+        local cur = (cs.actionBarDriftChar == nil) and true or (cs.actionBarDriftChar and true or false)
+        cs.actionBarDriftChar = not cur
+        RefreshButtons()
+    end)
+
     btnApply:SetScript("OnClick", function()
         if ns and ns.ActionBar_ApplyNow then
             ns.ActionBar_ApplyNow("ui")
@@ -3099,6 +3161,26 @@ function ns.SituateUI_Build(panel)
         GameTooltip:Show()
     end)
     btnDebug:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnMute:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnMute, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Mute")
+        GameTooltip:AddLine("ON: mutes SFX while Situate applies placements.", 1, 1, 1, true)
+        GameTooltip:AddLine("Prevents the action placement sound from spamming.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnMute:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnDrift:SetScript("OnEnter", function()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnDrift, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Drift")
+        GameTooltip:AddLine("ON: detects and self-heals action bar slot drift.", 1, 1, 1, true)
+        GameTooltip:AddLine("OFF: stops auto re-apply when another system overwrites slots.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnDrift:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
     btnUseHover:SetScript("OnEnter", function()
         if not GameTooltip then return end
@@ -3137,7 +3219,7 @@ function ns.SituateUI_Build(panel)
         if not GameTooltip then return end
         GameTooltip:SetOwner(btnApply, "ANCHOR_RIGHT")
         GameTooltip:SetText("Apply All")
-        GameTooltip:AddLine("Applies ALL placements now (merged from Account/Class/Spec/Loadout).", 1, 1, 1, true)
+        GameTooltip:AddLine("Applies ALL placements now (merged from Account/Class/Spec).", 1, 1, 1, true)
         GameTooltip:AddLine("Does not change the saved list.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
@@ -3188,6 +3270,8 @@ function ns.SituateUI_Build(panel)
             end
         elseif hoverType == "spell" and hoverId then
             SetSelectedSpell(hoverId)
+        elseif (hoverType == "item" or hoverType == "toy") and hoverId then
+            SetSelectedItem(hoverId)
         end
 
         status:SetText("Press Add to write")
@@ -3206,7 +3290,7 @@ function ns.SituateUI_Build(panel)
         local function FillFromCursor()
             local cType, cId = GetCursorInfo()
             if not cType then
-                status:SetText("Drag a macro/spell onto cursor")
+                status:SetText("Drag a macro/spell/item onto cursor")
                 return false
             end
 
@@ -3220,6 +3304,8 @@ function ns.SituateUI_Build(panel)
                 end
             elseif cType == "spell" and cId then
                 SetSelectedSpell(cId)
+            elseif (cType == "item" or cType == "toy") and cId then
+                SetSelectedItem(cId)
             elseif cType == "mount" and cId and C_MountJournal and C_MountJournal.GetMountInfoByID then
                 local ok, _, spellID = pcall(C_MountJournal.GetMountInfoByID, cId)
                 if ok and spellID then
@@ -3248,7 +3334,7 @@ function ns.SituateUI_Build(panel)
         if not GameTooltip then return end
         GameTooltip:SetOwner(dropBox, "ANCHOR_RIGHT")
         GameTooltip:SetText("Drop here")
-        GameTooltip:AddLine("Drag a macro/spell/mount here from Blizzard UI.", 1, 1, 1, true)
+        GameTooltip:AddLine("Drag a macro/spell/item (including toys)/mount here from Blizzard UI.", 1, 1, 1, true)
         GameTooltip:AddLine("This only selects; press Add to write.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
@@ -3323,14 +3409,6 @@ function ns.SituateUI_Build(panel)
         local classT = GetSharedClassLayoutArrayReadOnly()
         local specT = GetLayoutArrayReadOnlyBySpec(viewingSpecID)
 
-        local loadout = nil
-        if viewingSpecID and activeSpecID and viewingSpecID == activeSpecID then
-            local loadoutKey = GetActiveLoadoutKey()
-            if loadoutKey then
-                loadout = GetLoadoutLayoutArrayReadOnly(loadoutKey)
-            end
-        end
-
         local bySlot = {}
         local unslotted = {}
         local function addList(scopeName, t, expansionKey, professionKey)
@@ -3351,7 +3429,6 @@ function ns.SituateUI_Build(panel)
         end
 
         -- highest -> lowest precedence for display/expand
-        addList("loadout", loadout)
         addList("spec", specT)
         addList("class", classT)
         for slot = 1, 180 do
@@ -3373,7 +3450,7 @@ function ns.SituateUI_Build(panel)
         wipe(displayRows)
 
         local function ScopeTag(scope)
-            return (scope == "loadout" and "L") or (scope == "spec" and "S") or (scope == "class" and "C") or (scope == "profession" and "P") or (scope == "expansion" and "E") or (scope == "account" and "A") or "?"
+            return (scope == "spec" and "S") or (scope == "class" and "C") or (scope == "profession" and "P") or (scope == "expansion" and "E") or (scope == "account" and "A") or "?"
         end
 
         for bar = 1, 15 do
@@ -3490,6 +3567,23 @@ function ns.SituateUI_Build(panel)
                     return string.format("%s (%d)", name, sid)
                 end
                 return raw
+            elseif kind == "item" then
+                raw = Trim(entry.value or entry.item or entry.itemID or entry.name or "")
+                local itemID = tonumber(rawget(entry, "itemID") or rawget(entry, "item")) or tonumber(raw)
+                if itemID then
+                    local name = ""
+                    if GetItemInfo then
+                        local ok, n = pcall(GetItemInfo, itemID)
+                        if ok and type(n) == "string" then
+                            name = Trim(n)
+                        end
+                    end
+                    if name == "" then
+                        name = tostring(itemID)
+                    end
+                    return string.format("%s (%d)", name, itemID)
+                end
+                return raw
             end
             raw = Trim(entry.value or entry.name or "")
             return raw
@@ -3544,7 +3638,7 @@ function ns.SituateUI_Build(panel)
                     local kind = entry and GetEntryKind(entry) or "macro"
                     local value = FormatEntryValue(entry)
                     if value == "" then value = "(empty)" end
-                    local kindTag = (kind == "spell") and "S" or "M"
+                    local kindTag = (kind == "spell") and "S" or ((kind == "item") and "I" or "M")
                     row.text:SetText(string.format("      %s:  %s", slotTxt, value))
                     row.rightText:SetText(string.format("[%s][%s]", ScopeTag(r.sourceScope), kindTag))
                     row.text:SetTextColor(0.75, 0.75, 0.75, 1)
@@ -3583,7 +3677,7 @@ function ns.SituateUI_Build(panel)
                     -- Indent so the ':' aligns with the end of "Bar 01".
                     row.text:SetText(string.format("      %s:  %s%s", slotTxt, value, extra))
                     if entry then
-                        local kindTag = (kind == "spell") and "S" or "M"
+                        local kindTag = (kind == "spell") and "S" or ((kind == "item") and "I" or "M")
                         row.rightText:SetText(string.format("[%s][%s]", srcTag, kindTag))
                     else
                         row.rightText:SetText("")
@@ -3757,8 +3851,6 @@ function ns.SituateUI_Build(panel)
             sourceList = EnsureZoneLayoutArray(GetCurrentZoneMapID())
         elseif row.sourceScope == "class" then
             sourceList = EnsureSharedClassLayoutArray()
-        elseif row.sourceScope == "loadout" then
-            sourceList = EnsureLoadoutLayoutArray()
         else
             sourceList = EnsureSpecLayoutArrayFor(GetViewingSpecID())
         end
@@ -3819,8 +3911,6 @@ function ns.SituateUI_Build(panel)
     UpdateScopeButton = function()
         if targetScope == "account" then
             btnScope:SetText("Account")
-        elseif targetScope == "loadout" then
-            btnScope:SetText("Loadout")
         elseif targetScope == "class" then
             btnScope:SetText("Class")
         else
@@ -3921,8 +4011,6 @@ function ns.SituateUI_Build(panel)
 
     btnScope:SetScript("OnClick", function()
         if targetScope == "spec" then
-            targetScope = "loadout"
-        elseif targetScope == "loadout" then
             targetScope = "class"
         elseif targetScope == "class" then
             targetScope = "account"
@@ -3944,8 +4032,7 @@ function ns.SituateUI_Build(panel)
         GameTooltip:AddLine("Use the Expansion/Profession buttons next to Target when Target=Account.", 1, 1, 1, true)
         GameTooltip:AddLine("Class: shared across all specs of this class.", 1, 1, 1, true)
         GameTooltip:AddLine("Spec: applies to the viewed spec.", 1, 1, 1, true)
-        GameTooltip:AddLine("Loadout: applies to active loadout (active spec only).", 1, 1, 1, true)
-        GameTooltip:AddLine("Precedence on same slot: Loadout > Spec > Class > Profession > Expansion > Account.", 1, 1, 1, true)
+        GameTooltip:AddLine("Precedence on same slot: Spec > Class > Profession > Expansion > Account.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
     btnScope:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

@@ -301,6 +301,26 @@ do
     end
 
     local function GetPlayerZoneName()
+        -- Prefer map-based zone resolution so we get the zone (e.g. "Valley of Eternal Blossoms")
+        -- instead of the bind/subzone/inn name (e.g. "Shrine of Two Moons").
+        if C_Map and C_Map.GetBestMapForUnit and C_Map.GetMapInfo and Enum and Enum.UIMapType and Enum.UIMapType.Zone then
+            local mapID = C_Map.GetBestMapForUnit("player")
+            if mapID then
+                local zoneType = Enum.UIMapType.Zone
+                local info = C_Map.GetMapInfo(mapID)
+                while info do
+                    if info.mapType == zoneType and info.name and info.name ~= "" then
+                        return info.name
+                    end
+                    local parentMapID = info.parentMapID
+                    if not parentMapID or parentMapID == 0 then
+                        break
+                    end
+                    info = C_Map.GetMapInfo(parentMapID)
+                end
+            end
+        end
+
         if GetRealZoneText then
             local z = GetRealZoneText()
             if z and z ~= "" then return z end
@@ -313,12 +333,12 @@ do
     end
 
     local function GetHearthZoneCaptureText()
+        local z = GetPlayerZoneName()
+        if z and z ~= "" then return z end
         local continent = GetPlayerContinentName()
         if continent and continent ~= "" then
             return continent
         end
-        local z = GetPlayerZoneName()
-        if z and z ~= "" then return z end
         return ""
     end
 
@@ -337,12 +357,19 @@ do
 
     local function GetCurrentDisplayText()
         local db, charKey = EnsureInit()
-        local bind = (GetBindLocation and GetBindLocation()) or ""
-        local zone = (db.zoneByChar and db.zoneByChar[charKey]) or ""
-        if zone == "" then
+        local zone = (db.homeZoneByChar and db.homeZoneByChar[charKey]) or ""
+        local continent = (db.homeContinentByChar and db.homeContinentByChar[charKey]) or ""
+        zone = tostring(zone or "")
+        continent = tostring(continent or "")
+
+        if zone == "" and continent == "" then
+            local bind = (GetBindLocation and GetBindLocation()) or ""
+            bind = tostring(bind or "")
             return bind, "(zone not captured yet - set your hearth once)"
         end
-        return bind, zone
+
+        -- Prefer showing Zone, Continent (not inn/subzone).
+        return zone, continent
     end
 
     ns.Hearth = ns.Hearth or {}
