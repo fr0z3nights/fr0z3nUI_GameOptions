@@ -2214,7 +2214,6 @@ do
             binder = CreateFrame("Frame", nil, UIParent)
             binder:Hide()
             binder:EnableKeyboard(true)
-            if binder.SetPropagateKeyboardInput then binder:SetPropagateKeyboardInput(false) end
             binder:SetAllPoints(UIParent)
             binder:SetFrameStrata("TOOLTIP")
             binder:SetFrameLevel(999)

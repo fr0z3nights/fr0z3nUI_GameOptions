@@ -7,6 +7,8 @@
 ## SavedVariables: AutoGame_Acc, AutoGame_Settings, AutoGame_UI
 ## SavedVariablesPerCharacter: AutoGame_Char, AutoGame_CharSettings
 
+fUI_GOSituatePF.lua
+
 fUI_GOTalk12.lua
 fUI_GOTalk11.lua
 fUI_GOTalk10.lua
@@ -39,7 +41,6 @@ fUI_GOTextures.lua
 fUI_GOTexturesUI.lua
 
 fUI_GOSituate.lua
-fUI_GOSituatePF.lua
 fUI_GOSituateUI.lua
 
 fUI_GOMacroXCMD.lua

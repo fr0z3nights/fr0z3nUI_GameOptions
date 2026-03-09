@@ -128,6 +128,32 @@ local function KnowsFishingMidnight()
    return nil
 end
 
+-- Returns: true (known), false (not known), nil (unknown/not ready)
+local function KnowsCookingMidnight()
+   if ns and ns.Profs and ns.Profs.KnowsCookingMidnight then
+      return ns.Profs.KnowsCookingMidnight()
+   end
+
+   if not (C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function") then
+      return nil
+   end
+
+   -- Authoritative presence-based check:
+   -- - If the category resolves at all, treat as known (even if skill level is 0).
+   -- - If base Cooking resolves but Midnight Cooking doesn't, treat as not known.
+   local mid = C_TradeSkillUI.GetCategoryInfo(2156)
+   if type(mid) == "table" then
+      return true
+   end
+
+   local base = C_TradeSkillUI.GetCategoryInfo(72)
+   if type(base) == "table" then
+      return false
+   end
+
+   return nil
+end
+
 -- Memoized wrapper: `when` conditions for multiple options can be evaluated back-to-back.
 -- If the professions APIs become ready between calls, results can "flip" mid-evaluation.
 -- Memoizing per gossip-open session keeps answers stable within one show, but refreshes
@@ -140,6 +166,17 @@ local function KnowsFishingMidnightMemo()
    end
    local v = KnowsFishingMidnight()
    _midnightMemoSession, _midnightMemoVal = sess, v
+   return v
+end
+
+local _midnightCookingMemoSession, _midnightCookingMemoVal
+local function KnowsCookingMidnightMemo()
+   local sess = (ns and tonumber(ns.GossipSession)) or 0
+   if sess == _midnightCookingMemoSession then
+      return _midnightCookingMemoVal
+   end
+   local v = KnowsCookingMidnight()
+   _midnightCookingMemoSession, _midnightCookingMemoVal = sess, v
    return v
 end
 
@@ -161,8 +198,16 @@ SetZone("Burning Steppes, Eastern Kingdoms")
    local t = NPC(248250, "Kudran Wildhammer")
    t[134709] = { text = "What happened?", type = "" }
 
+SetZone("Dun Morogh, Eastern Kingdoms")
+
+   local t = NPC( 124617, "Environeer Bert")
+   t[47861] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, type = "", }
+
 SetZone("Eversong Woods, Eastern Kingdoms")
       --
+      local t = NPCs({252599, }, "Alesil Dawnblood")
+      t[136288] = { text = "I'll defend the runestone", type = "" }      -- And Then They Came (92398) Alesil Dawnblood (252599)
+
       local t = NPCs({251540, }, "Apprentice Erilla")
       t[132652] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>", type = "" }      -- What's Left (86639)                Apprentice Erilla (251540)
 
@@ -170,6 +215,9 @@ SetZone("Eversong Woods, Eastern Kingdoms")
       t[136284] = { text = "<Skip conversation> What now?", type = "" }    --                               Arator (236716)
       t[133785] = { text = "<Skip conversation> What now?", type = "" }    --                               Arator (242433)
       t[132886] = { text = "<Stay silent.>", type = "" }                   -- Following the Root (86643)    Arator (236610)
+
+      local t = NPCs({249398, }, "Arcanist Taemin")
+      t[135184] = { text = "What's on your mind?", type = "" }                               -- A Ranger's Spirit (91385)     Arcanist Taemin (249398)
 
       local t = NPCs({238112, }, "Brutish Follower")
       t[132313] = { text = "<Explain situation and ask to spar.>", type = "" }                               -- Training Arc (86998)               Brutish Follower (238112)
@@ -211,7 +259,7 @@ SetZone("Eversong Woods, Eastern Kingdoms")
       t[133913] = { text = "What problems ail the people of Tranquillien?", type = "" }                      -- Rational Explanation (86624)       Matron Narsilla (242568)      KILLED
 
       local t = NPCs({247800, }, "Melandria")
-      t[38266] = { text = "Train Me.", type = "", when = function() return KnowsFishingMidnightMemo() ~= true end }  -- Fishing Trainer  Melandria (247800)
+      t[38266] = { text = "Train Me.", type = "", when = function() return KnowsFishingMidnightMemo() == false end }  -- Fishing Trainer  Melandria (247800)
       t[38267] = { text = "Show Me Your Goods", type = "", when = function() return KnowsFishingMidnightMemo() == true end } -- Fishing Trainer  Melandria (247800)
 
       local t = NPCs({236743, 236903, 236704, }, "Orweyna")
@@ -522,43 +570,88 @@ SetZone("Westfall, Eastern Kingdoms")
 
 SetZone("Zul'Aman, Eastern Kingdoms")
 
-   local t = NPCs({ 245646, }, "Zul'jan")
-   t[134133] = { text = "Are you okay, Zul'jan", type = "" }                           -- Broken Bridges (91062) Zul'jan (245646)
+   local t = NPCs({ 250292, }, "Assistant Grgl-Grgl")
+   t[137485] = { text = "King Mrgl-Mrgl is safe at the top of the temple.", type = "" }            -- Following Suit (92166) Assistant Grgl-Grgl (250292)
 
-   local t = NPCs({ 236659, 240215, 240216, 253980, 241306, }, "Zul'jarra")
-   t[138031] = { text = "<Skip the forest times meeting.>", type = "" }                -- Isolation (86723) Zul'jarra (236659)
-   t[134140] = { text = "<Enter the Den of Nalorakk with Zul'jarra>", type = "" }      -- Den of Nalorakk: Unforgiven (91958) Zul'jarra (240215)
-   t[138171] = { text = "What is next?", type = "" }                                   -- Den of Nalorakk: Unforgiven (91958) Zul'jarra (240215)
-   t[132827] = { text = "Is there nothing we can do?", type = "" }                     -- Hash'ey Away (86683) Zul'jarra (240216)
-   t[135208] = { text = "I am ready to battle Mor'duun", type = "" }                   -- Blade Shattered (86692) Zul'jarra (253980)
-   t[134131] = { text = "<Start the celebration.>", type = "" }                        -- De Legend of de Hash'ey (86693) Zul'jarra (241306)
+   local t = NPCs({ 236590, }, "Elder Doru")
+   t[132579] = { text = "Zul'jan sent me to find you.", type = "" }                                -- Important Amani (86719)       Elder Doru (236590)
 
-   local t = NPCs({ 616377, 616428, 246409, }, "Den of Nalorakk")
-   t[135009] = { text = "<Meditate on the sound of the flames.>", type = "" }      -- Den of Nalorakk Dungeon  Ethereal Pyre (616377)
-   t[135010] = { text = "<Meditate on the sound of the flames.>", type = "" }      -- Den of Nalorakk Dungeon  Ethereal Pyre (616428)
-   t[136468] = { text = "<Leave Nalorakk's Den.>", type = "" }                     -- Den of Nalorakk Dungeon  Zul'jarra (246409)
+   local t = NPCs({ 242464, }, "Elder Ren'zen")
+   t[133102] = { text = "Do you recognize this letter you sent?", type = "" }                      -- I Have a Permit (90481) Elder Ren'zen (242464)
+   t[133101] = { text = "I will let them know.", type = "" }                                       -- I Have a Permit (90481) Elder Ren'zen (242464)
 
-   local t = NPCs({ 244591, }, "Vun'zarah")
-   t[134081] = { text = "Do you know anything that will help us speak to Jan'alai?", type = "" }      -- Coals of a Dead Loa (86661) Vun'zarah (244591)
+   local t = NPCs({ 256027, }, "Haz'kel")
+   t[137297] = { text = "Have you seen Kanza?", type = "" }                                        -- A Quiet Walk Interrupted (93178) Haz'kel (256027)
 
-   local t = NPCs({ 236590, 236591, 237301, }, "Important Amani NPCs")
-   t[132579] = { text = "Zul'jan sent me to find you.", type = "" }                    -- Important Amani (86719)       Elder Doru (236590)
-   t[132582] = { text = "Zul'jan sent me to find you.", type = "" }                    -- Important Amani (86719)       Torundo the Grizzled (236591)
-   t[132584] = { text = "It is time to evacuate, Loa Speaker Kinduru", type = "" }     -- Important Amani (86719)       Loa Speaker Kinduru (237301)
+   local t = NPCs({ 253999, }, "Kel'vujo")
+   t[137663] = { text = "Good luck fighting with your legs frozen to the ground.", type = "" }     -- Amani Honor (93096) Kel'vujo (253999)
 
-   local t = NPCs({ 245589, 244562, 244479, }, "Left in the Shadows NPCs")
-   t[132891] = { text = "<Request lightwood report.>", type = "" }                     -- Left in the Shadows (86652)   Lilaju (245589)
-   t[135286] = { text = "Where are the shamans?", type = "" }                          -- Left in the Shadows (86652)   Tak'lejo (244562)
-   t[133822] = { text = "I will hel Zul'jarra", type = "" }                            -- Left in the Shadows (86652)   Loa Speaker Kinduru (244479)
+   local t = NPCs({ 257807, }, "Kovu")
+   t[137451] = { text = "<Tell Kovu to demonstrate his combat...>", type = "" }                    -- Got No Rhythm (93048) Kovu (257807)
 
-   local t = NPCs({ 250068, }, "Loa Speaker Tobul")
-   t[135472] = { text = "How do we speak to Halazzi?", type = "" }                     -- Halazzi's Guide (92084)       Loa Speaker Tobul (250068)
+   local t = NPCs({ 237956, }, "Kulzi")
+   t[134375] = { text = "What would help them to remember?", type = "" }                           -- Demands Unmet (87267) Kulzi (237956)
+
+   local t = NPCs({ 245589, 245664, }, "Lilaju")
+   t[132891] = { text = "<Request lightwood report.>", type = "" }                                 -- Left in the Shadows (86652)   Lilaju (245589)
+   t[134139] = { text = "We will, But we need to speak to Nalorakk to do so", type = "" }          -- Den of Nalorakk: Waking de Bear (86682) Lilaju (245664)
 
    local t = NPCs({ 245512, }, "Loa Speaker Brek")
-   t[134196] = { text = "Where is Jan'alai?", type = "" }                              -- The Flames Rise Higher (90772) Loa Speaker Brek (245512)
+   t[134196] = { text = "Where is Jan'alai?", type = "" }                                          -- The Flames Rise Higher (90772) Loa Speaker Brek (245512)
 
-   local t = NPCs({ 245664, }, "Lilaju")
-   t[134139] = { text = "We will, But we need to speak to Nalorakk to do so", type = "" } -- Den of Nalorakk: Waking de Bear (86682) Lilaju (245664)
+   local t = NPCs({ 237301, 244479, }, "Loa Speaker Kinduru")
+   t[132584] = { text = "It is time to evacuate, Loa Speaker Kinduru", type = "" }                 -- Important Amani (86719)       Loa Speaker Kinduru (237301)
+   t[133822] = { text = "I will hel Zul'jarra", type = "" }                                        -- Left in the Shadows (86652)   Loa Speaker Kinduru (244479)
+
+   local t = NPCs({ 246537, }, "Loa Speaker Sij'ta")
+   t[135825] = { text = "<Give Sij'ta the broken hexlord staff>", type = "" }                      -- Denial Denied (87317) Loa Speaker Sij'ta (246537)
+
+   local t = NPCs({ 250068, }, "Loa Speaker Tobul")
+   t[135472] = { text = "How do we speak to Halazzi?", type = "" }                                 -- Halazzi's Guide (92084)       Loa Speaker Tobul (250068)
+
+   local t = NPCs({ 240975, }, "Namaji")
+   t[135138] = { text = "Go with Kagara to the festival", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, }, type = "", }  -- Love Triangle (89233) Namaji (240975)
+
+   local t = NPCs({ 255907, }, "Ri'kari")
+   t[137188] = { text = "<Tell Ri'kari you're ready...>", type = "" }                              -- The Final Exam (93051)   Ri'kari (255907)
+
+   local t = NPCs({ 253037, }, "Shim'dak")
+   t[39623] = { text = "Train Me.", type = "", when = function() return KnowsCookingMidnightMemo() == false end }  -- Cooking Trainer  Shim'dak (253037)
+   t[39624] = { text = "Let me browse your goods.", type = "", when = function() return KnowsCookingMidnightMemo() == true end } -- Cooking Trainer  Shim'dak (253037)
+
+   local t = NPCs({ 244562, }, "Tak'lejo")
+   t[135286] = { text = "Where are the shamans?", type = "" }                                      -- Left in the Shadows (86652)   Tak'lejo (244562)
+
+   local t = NPCs({ 236591, }, "Torundo the Grizzled")
+   t[132582] = { text = "Zul'jan sent me to find you.", type = "" }                                -- Important Amani (86719)       Torundo the Grizzled (236591)
+
+   local t = NPCs({ 244591, }, "Vun'zarah")
+   t[134081] = { text = "Do you know anything that will help us speak to Jan'alai?", type = "" }   -- Coals of a Dead Loa (86661) Vun'zarah (244591)
+
+   local t = NPCs({ 238063, }, "Warlord Akutu")
+   t[134247] = { text = "Sij'ta said this will help you.", type = "" }                             -- Curse Cleanse (87254) Warlord Akutu (238063)
+
+   local t = NPCs({ 245646, }, "Zul'jan")
+   t[134133] = { text = "Are you okay, Zul'jan", type = "" }                                       -- Broken Bridges (91062) Zul'jan (245646)
+
+   local t = NPCs({ 236659, 240215, 240216, 253980, 241306, 246409, }, "Zul'jarra")
+   t[138031] = { text = "<Skip the forest times meeting.>", type = "" }                            -- Isolation (86723) Zul'jarra (236659)
+   t[134140] = { text = "<Enter the Den of Nalorakk with Zul'jarra>", type = "" }                  -- Den of Nalorakk: Unforgiven (91958) Zul'jarra (240215)
+   t[138171] = { text = "What is next?", type = "" }                                               -- Den of Nalorakk: Unforgiven (91958) Zul'jarra (240215)
+   t[132827] = { text = "Is there nothing we can do?", type = "" }                                 -- Hash'ey Away (86683) Zul'jarra (240216)
+   t[135208] = { text = "I am ready to battle Mor'duun", type = "" }                               -- Blade Shattered (86692) Zul'jarra (253980)
+   t[134131] = { text = "<Start the celebration.>", type = "" }                                    -- De Legend of de Hash'ey (86693) Zul'jarra (241306)
+   t[136468] = { text = "<Leave Nalorakk's Den.>", type = "" }                                     -- Den of Nalorakk Dungeon  Zul'jarra (246409)
+
+   local t = NPCs({ 616377, 616428, }, "Dungeon: Den of Nalorakk")
+   t[135009] = { text = "<Meditate on the sound of the flames.>", type = "" }                      -- Den of Nalorakk Dungeon  Ethereal Pyre (616377)
+   t[135010] = { text = "<Meditate on the sound of the flames.>", type = "" }                      -- Den of Nalorakk Dungeon  Ethereal Pyre (616428)
+
+   local t = NPCs({ 617497, 617500, }, "Quest: Following Suit")
+   t[137476] = { text = "<Collect the knapsack.>", type = "" }                                     -- Following Suit (92166) Out of Place Knapsack (617497)
+   t[137477] = { text = "<Collect the papers.>", type = "" }                                       -- Following Suit (92166) Scattered Papers (617500)
+
+
 
 
 

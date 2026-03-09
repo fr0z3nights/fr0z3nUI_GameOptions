@@ -7,7 +7,16 @@ ns.Profs = ns.Profs or {}
 
 local Profs = ns.Profs
 
-Profs.TRACKED_TIERS = Profs.TRACKED_TIERS or { 1100, 2159 } -- Fishing (Classic), Fishing (Midnight)
+-- Breadcrumbs: Profession tier categoryIDs (Retail)
+--
+-- Where we source categoryIDs:
+-- - Read-only source: z Library/ZygorGuidesViewer/Code-Retail/Profession.lua (ZGVP.tradeskills[*].subs keys)
+-- - Local copy for our addon work: Reference/Profession CategoryIDs - Full (from Zygor).md
+--
+-- We keep the addon itself lightweight (no huge hardcoded tables here). When you need a new
+-- trainer/gossip rule, grab the categoryID from the Reference file and use Profs.KnowsTier(categoryID).
+
+Profs.TRACKED_TIERS = Profs.TRACKED_TIERS or { 1100, 2159, 2156 } -- Fishing (Classic), Fishing (Midnight), Cooking (Midnight)
 Profs._lastRefreshAt = Profs._lastRefreshAt or 0
 
 local function InitSV()
@@ -78,6 +87,50 @@ function Profs.RefreshTrackedSkillTiers(force)
     Profs.RefreshKnownSkillTiers(Profs.TRACKED_TIERS or {})
 end
 
+-- Generic helper for DB packs: ask whether an expansion-tier category is known.
+-- Returns: true (known), false (not known), nil (unknown/not ready)
+--
+-- Notes:
+-- - We intentionally preserve the tri-state behavior so Talk rules can avoid
+--   misfiring when APIs aren't ready (nil should generally mean "don't auto-select").
+-- - This uses the same per-character cache as the tracked-tier refresh.
+function Profs.KnowsTier(categoryID)
+    categoryID = tonumber(categoryID)
+    if not categoryID or categoryID <= 0 then
+        return nil
+    end
+
+    local cache = EnsureCache()
+    local v = cache[categoryID]
+    if v == true then
+        return true
+    end
+    if v == false then
+        return false
+    end
+
+    -- Try an immediate probe (may be nil if APIs aren't ready yet).
+    local probed = QueryTierKnown(categoryID)
+    if probed ~= nil then
+        cache[categoryID] = probed and true or false
+        if type(time) == "function" then
+            AutoGossip_CharSettings.knownSkillTiersAt = time()
+        end
+        return cache[categoryID]
+    end
+
+    -- If the probe couldn't run, attempt a targeted refresh (still may remain nil).
+    Profs.RefreshKnownSkillTiers({ categoryID })
+    v = cache[categoryID]
+    if v == true then
+        return true
+    end
+    if v == false then
+        return false
+    end
+    return nil
+end
+
 -- Returns: true (known), false (not known), nil (unknown/not ready)
 function Profs.KnowsFishingMidnight()
     local cache = EnsureCache()
@@ -89,10 +142,23 @@ function Profs.KnowsFishingMidnight()
     -- Fallback: try to detect by known professions list (more reliable than C_TradeSkillUI
     -- during early frames, and also fixes the "cached false" case right after learning).
     if type(GetProfessions) == "function" and type(GetProfessionInfo) == "function" then
-        local profs = { GetProfessions() }
-        for _, p in ipairs(profs) do
+        -- NOTE: GetProfessions() can return nil holes (e.g., archaeology) which would
+        -- truncate a packed table and drop later returns (like Fishing). Avoid ipairs on
+        -- a packed return table; instead, iterate the explicit returned indices.
+        local p1, p2, p3, p4 = GetProfessions()
+        local indices = { p1, p2, p3, p4 }
+        for i = 1, 4 do
+            local p = indices[i]
             if p ~= nil then
-                local info = { GetProfessionInfo(p) }
+                local ok,
+                    a1, a2, a3, a4, a5,
+                    a6, a7, a8, a9, a10,
+                    a11, a12, a13, a14, a15 = pcall(GetProfessionInfo, p)
+
+                if not ok then
+                    -- ignore
+                else
+                local info = { a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15 }
                 local name = info[1]
                 local rank = info[3]
                 local skillLine = info[7]
@@ -134,6 +200,7 @@ function Profs.KnowsFishingMidnight()
                     end
                     return true
                 end
+                end
             end
         end
     end
@@ -152,6 +219,160 @@ function Profs.KnowsFishingMidnight()
         return true
     end
     if midnight == false then
+        return false
+    end
+
+    return nil
+end
+
+-- Returns: true (known), false (not known), nil (unknown/not ready)
+function Profs.KnowsCookingMidnight()
+    local cache = EnsureCache()
+    local cached = cache[2156]
+    if cached == true then
+        return true
+    end
+
+    -- Authoritative category presence check (preferred):
+    -- If the Professions UI can resolve the Midnight Cooking category at all,
+    -- we treat that as "known" regardless of current skill level.
+    --
+    -- To safely return "not known", we require evidence that TradeSkill categories
+    -- are available (base Cooking resolves) while Midnight Cooking does not.
+    if C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function" then
+        local okMid, midCat = pcall(C_TradeSkillUI.GetCategoryInfo, 2156)
+        if okMid and type(midCat) == "table" then
+            cache[2156] = true
+            if type(time) == "function" then
+                AutoGossip_CharSettings.knownSkillTiersAt = time()
+            end
+            return true
+        end
+
+        local okBase, baseCat = pcall(C_TradeSkillUI.GetCategoryInfo, 72) -- Cooking (base)
+        if okBase and type(baseCat) == "table" then
+            cache[2156] = false
+            if type(time) == "function" then
+                AutoGossip_CharSettings.knownSkillTiersAt = time()
+            end
+            return false
+        end
+    end
+
+    -- Most authoritative check: if the TradeSkill system can enumerate known profession
+    -- lines, we can definitively say whether the player knows Midnight Cooking.
+    -- This avoids the "category doesn't exist yet" case where GetCategoryInfo(2156)
+    -- returns nil even though the API is otherwise functioning.
+    if C_TradeSkillUI then
+        if type(C_TradeSkillUI.GetAllProfessionTradeSkillLines) == "function" then
+            local ok, lines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
+            if ok and type(lines) == "table" then
+                local knows = false
+                for _, skillLineID in ipairs(lines) do
+                    if tonumber(skillLineID) == 2908 then
+                        knows = true
+                        break
+                    end
+                end
+
+                if knows then
+                    cache[2156] = true
+                    if type(time) == "function" then
+                        AutoGossip_CharSettings.knownSkillTiersAt = time()
+                    end
+                    return true
+                end
+            end
+        end
+
+        -- Optional direct probe by skillLineID (if Blizzard provides it in this build).
+        if type(C_TradeSkillUI.GetProfessionInfoBySkillLineID) == "function" then
+            local ok, info = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, 2908)
+            if ok and type(info) == "table" then
+                cache[2156] = true
+                if type(time) == "function" then
+                    AutoGossip_CharSettings.knownSkillTiersAt = time()
+                end
+                return true
+            end
+        end
+    end
+
+    -- Fallback: try to detect by known professions list (more reliable than C_TradeSkillUI
+    -- during early frames, and also fixes the "cached false" case right after learning).
+    if type(GetProfessions) == "function" and type(GetProfessionInfo) == "function" then
+        -- NOTE: GetProfessions() can return nil holes (e.g., archaeology) which would
+        -- truncate a packed table and drop later returns (like Cooking). Avoid ipairs on
+        -- a packed return table; instead, iterate the explicit returned indices.
+        local p1, p2, p3, p4, p5 = GetProfessions()
+        local indices = { p1, p2, p3, p4, p5 }
+        for i = 1, 5 do
+            local p = indices[i]
+            if p ~= nil then
+                local ok,
+                    a1, a2, a3, a4, a5,
+                    a6, a7, a8, a9, a10,
+                    a11, a12, a13, a14, a15 = pcall(GetProfessionInfo, p)
+
+                if not ok then
+                    -- ignore
+                else
+                    local info = { a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15 }
+                    local rank = info[3]
+                    local skillLine = info[7]
+                    if skillLine == 2908 then
+                        cache[2156] = true
+                        if type(time) == "function" then
+                            AutoGossip_CharSettings.knownSkillTiersAt = time()
+                        end
+                        return true
+                    end
+
+                    -- Cooking tiers can show up as a specialization name (e.g. the last return value
+                    -- from GetProfessionInfo is "Midnight Cooking" even when the profession name is just "Cooking").
+                    local sawMidnightCooking = false
+                    for i = 1, 15 do
+                        local v = info[i]
+                        if type(v) == "string" then
+                            local s = v:lower()
+                            if s:find("midnight", 1, true) and s:find("cooking", 1, true) then
+                                sawMidnightCooking = true
+                                break
+                            end
+                        end
+                    end
+
+                    if sawMidnightCooking then
+                        -- Rank can be 0 immediately after training; still treat as known.
+                        if type(rank) == "number" and rank >= 0 then
+                            cache[2156] = true
+                            if type(time) == "function" then
+                                AutoGossip_CharSettings.knownSkillTiersAt = time()
+                            end
+                            return true
+                        end
+
+                        cache[2156] = true
+                        if type(time) == "function" then
+                            AutoGossip_CharSettings.knownSkillTiersAt = time()
+                        end
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    -- Try a targeted refresh (may still be nil if APIs not ready).
+    Profs.RefreshKnownSkillTiers({ 2156, 72 })
+    local v = cache[2156]
+    if v == true then
+        return true
+    end
+
+    -- Only return definitive "not known" if we also have evidence that Cooking is known.
+    -- (Avoid treating "0" levels as authoritative when APIs are half-ready.)
+    if v == false and cache[72] == true then
         return false
     end
 

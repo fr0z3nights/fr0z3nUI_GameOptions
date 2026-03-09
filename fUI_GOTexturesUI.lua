@@ -519,18 +519,14 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     StripInputBoxArt(condQuestEB)
     local questGhost = AddGhostText(left, condQuestEB, "QuestID")
 
-    -- Spell / class / spec moved under Quest row (left column)
-    local condSpellEB = CreateEditBox(left, 180)
-    condSpellEB:SetPoint("TOPLEFT", questBtn, "BOTTOMLEFT", 0, -10)
-    StripInputBoxArt(condSpellEB)
-    local spellGhost = AddGhostText(left, condSpellEB, "SpellID (ready)")
-
-    local spellIconBtn = CreateButton(left, "Icon", 56, 22)
-    spellIconBtn:SetPoint("LEFT", condSpellEB, "RIGHT", 6, 0)
-    Tip(spellIconBtn, "Use Spell Icon", "Sets Texture to this spell's icon.")
+    -- Faction / class / spec under Quest row (left column)
+    local factionDD = CreateDropDown(left, 110)
+    factionDD:SetPoint("TOPLEFT", questBtn, "BOTTOMLEFT", -14, -14)
+    StripDropDownArt(factionDD)
+    SetDropDownSelected(factionDD, "Faction", "Faction")
 
     local condClassDD = CreateDropDown(left, 110)
-    condClassDD:SetPoint("TOPLEFT", questBtn, "BOTTOMLEFT", -14, -14)
+    condClassDD:SetPoint("TOPLEFT", factionDD, "BOTTOMLEFT", 0, -12)
     StripDropDownArt(condClassDD)
     SetDropDownSelected(condClassDD, nil, "Class")
 
@@ -539,11 +535,15 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     StripDropDownArt(condSpecDD)
     SetDropDownSelected(condSpecDD, nil, "Spec")
 
-    -- Spell cooldown conditions were removed from Textures.
-    -- Keep these controls hidden to avoid confusing/non-functional UI.
-    if condSpellEB and condSpellEB.Hide then condSpellEB:Hide() end
-    if spellGhost and spellGhost.Hide then spellGhost:Hide() end
-    if spellIconBtn and spellIconBtn.Hide then spellIconBtn:Hide() end
+    -- Characters box under Class dropdown (left column)
+    local condPlayerBox = CreateMultiLineBox(left, 240, 140)
+    condPlayerBox.Frame:ClearAllPoints()
+    condPlayerBox.Frame:SetPoint("TOPLEFT", condClassDD, "BOTTOMLEFT", 14, -12)
+    condPlayerBox.Frame:SetPoint("RIGHT", left, "RIGHT", 0, 0)
+    local charsGhost = nil
+    if condPlayerBox and condPlayerBox.EditBox then
+        charsGhost = AddGhostText(left, condPlayerBox.EditBox, "Characters...")
+    end
 
     -- Right column: strata/layer/blend/texture (matches ArtLayer)
     local right = CreateFrame("Frame", nil, body)
@@ -606,27 +606,7 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     zoom:SetPoint("TOPLEFT", alpha, "BOTTOMLEFT", 0, -28)
     zoom:SetPoint("RIGHT", right, "RIGHT", 0, 0)
 
-    local afterTop = CreateFrame("Frame", nil, body)
-    afterTop:SetSize(1, 1)
-    afterTop:SetPoint("TOP", zoom, "BOTTOM", 0, -18)
-    afterTop:SetPoint("LEFT", body, "LEFT", 0, 0)
-    afterTop:SetPoint("RIGHT", body, "RIGHT", 0, 0)
-
-    -- Faction dropdown (label-less, "Faction" means off/both)
-    local factionDD = CreateDropDown(right, 110)
-    factionDD:SetPoint("TOPLEFT", afterTop, "TOPLEFT", 0, -2)
-    StripDropDownArt(factionDD)
-    SetDropDownSelected(factionDD, "Faction", "Faction")
-
-    -- Characters box moved to the old blend area region (ghost text)
-    local condPlayerBox = CreateMultiLineBox(right, 240, 140)
-    condPlayerBox.Frame:ClearAllPoints()
-    condPlayerBox.Frame:SetPoint("TOPLEFT", factionDD, "BOTTOMLEFT", 0, -8)
-    condPlayerBox.Frame:SetPoint("RIGHT", right, "RIGHT", 0, 0)
-    local charsGhost = nil
-    if condPlayerBox and condPlayerBox.EditBox then
-        charsGhost = AddGhostText(right, condPlayerBox.EditBox, "Characters...")
-    end
+    -- (Faction + Characters moved to left column)
 
     -- Optional gating: spell cooldown + class/spec moved to left column.
 
@@ -981,14 +961,12 @@ function ns.TexturesUI_Build(frame, panel, helpers)
             UpdateGhost(condPlayerBox.EditBox, charsGhost)
         end
 
-        condSpellEB:SetText("")
         if body and body._fgoSetClassToken then
             body._fgoSetClassToken(nil)
         else
             SetDropDownSelected(condClassDD, nil, "Class")
             SetDropDownSelected(condSpecDD, nil, "Spec")
         end
-        UpdateGhost(condSpellEB, spellGhost)
 
         local wantSpecID = nil
         local wantSpecName = nil
@@ -1457,25 +1435,7 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         end
     end
 
-    if spellIconBtn and spellIconBtn.SetScript then
-        spellIconBtn:SetScript("OnClick", function()
-            local spellID = tonumber(Trim(condSpellEB and condSpellEB.GetText and condSpellEB:GetText() or ""))
-            if not spellID then return end
 
-            local icon
-            if C_Spell and C_Spell.GetSpellTexture then
-                icon = C_Spell.GetSpellTexture(spellID)
-            end
-            if icon == nil and GetSpellTexture then
-                icon = GetSpellTexture(spellID)
-            end
-
-            if icon ~= nil then
-                SetTexMode("fileid", false)
-                SetTexturePath(icon)
-            end
-        end)
-    end
 
     local function TryRenameSelected(desired)
         if uiSuppress then return end
@@ -1798,7 +1758,6 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     EBApply(levelEB)
     EBApply(texEB)
     EBApply(condQuestEB)
-    EBApply(condSpellEB)
     texEB:HookScript("OnTextChanged", function() UpdateGhost(texEB, texGhost) end)
     texEB:HookScript("OnEditFocusGained", function() UpdateGhost(texEB, texGhost) end)
     texEB:HookScript("OnEditFocusLost", function() UpdateGhost(texEB, texGhost) end)
@@ -1810,10 +1769,6 @@ function ns.TexturesUI_Build(frame, panel, helpers)
     condQuestEB:HookScript("OnTextChanged", function() UpdateGhost(condQuestEB, questGhost) end)
     condQuestEB:HookScript("OnEditFocusGained", function() UpdateGhost(condQuestEB, questGhost) end)
     condQuestEB:HookScript("OnEditFocusLost", function() UpdateGhost(condQuestEB, questGhost) end)
-
-    condSpellEB:HookScript("OnTextChanged", function() UpdateGhost(condSpellEB, spellGhost) end)
-    condSpellEB:HookScript("OnEditFocusGained", function() UpdateGhost(condSpellEB, spellGhost) end)
-    condSpellEB:HookScript("OnEditFocusLost", function() UpdateGhost(condSpellEB, spellGhost) end)
 
     if condPlayerBox and condPlayerBox.EditBox then
         if charsGhost then

@@ -54,6 +54,11 @@ end
 
 -- KALIMDOR
 
+SetZone("The Barrens, Kalimdor")
+
+    local t = NPC( 115286, "Crysa")
+    t[47298] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, type = "", }
+
 SetZone("Darkshore, Kalimdor")
 
     -- Zidormi

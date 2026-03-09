@@ -3272,6 +3272,26 @@ local function OnEvent(self, event, ...)
         end
     end
 
+    -- UPDATE_MACROS can fire very frequently due to other addons/UI refreshes.
+    -- If all desired macro slots already match our desired state, we don't need to re-apply.
+    -- This avoids constant no-op applies (and chat spam when debug is enabled).
+    if event == "UPDATE_MACROS" then
+        if type(lastDesiredBySlot) == "table" and next(lastDesiredBySlot) ~= nil then
+            local needsMacroFix = false
+            for slot, desired in pairs(lastDesiredBySlot) do
+                if type(desired) == "table" and desired.kind == "macro" then
+                    if not SlotMatchesDesiredAction(slot, desired) then
+                        needsMacroFix = true
+                        break
+                    end
+                end
+            end
+            if not needsMacroFix then
+                return
+            end
+        end
+    end
+
     -- Coalesce very chatty/bursty events into stable reasons.
     local reason = event
     if event == "PLAYER_SPECIALIZATION_CHANGED" then

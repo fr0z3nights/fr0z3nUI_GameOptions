@@ -51,12 +51,25 @@ local function NPCs(npcIDs, npcName)
 end
 
 
+SetZone("Frostfire Ridge, Draenor")
+
+    local t = NPC( 87122, "Gargra")
+    t[42881] = { text = "Let's do this!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, type = "", }
+
 SetZone("Gorgrond, Draenor")
 
     local t = NPC( 83837, "Cymre Brightblade")
     t[42651] = { text = "Let's do battle!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, type = "", }
 
+SetZone("Nagrand, Draenor")
+
+    local t = NPC( 87110, "Tarr the Terrible")
+    t[42882] = { text = "Let's do this!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, type = "", }
+
 SetZone("Shadowmoon Valley, Draenor")
+
+    local t = NPC(87124, "Ashlei")
+    t[43294] = { text = "Let's do this!", type = "" }
 
     local t = NPC(79243, "Baros Alexston")
     t[43035] = { text = "We have everything we need. It's time to build the garrison.", type = "" }
@@ -65,6 +78,17 @@ SetZone("Talador, Draenor")
 
     local t = NPC(87125, "Taralune")
     t[42883] = { text = "Let's do this!", type = "" }
+
+SetZone("Spires of Arak, Draenor")
+
+    local t = NPC(86386, "Kuro'ak <Innkeeper>")
+    t[43234] = { text = "Let me browse your goods.", type = "" }
+
+    local t = NPC(84498, "Skytalon Meshaal")
+    t[42904] = { text = "Show me where I can fly.", type = "" }
+
+    local t = NPC(87123, "Vesharr")
+    t[43292] = { text = "Lets do battle!", type = "" }
 
 SetZone("Garrison, Draenor")
 

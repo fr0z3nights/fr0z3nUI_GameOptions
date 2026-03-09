@@ -28,6 +28,7 @@ local lastSelectAt = 0
 local lastAutoSelectKey = nil
 local lastAutoSelectAt = 0
 local lastAutoSelectOptionID = nil
+local firstAutoSelectSinceLogin = true
 local frame = CreateFrame("Frame")
 
 -- Chromie Time was split out to fUI_GOSwitchesCT.lua
@@ -1712,8 +1713,58 @@ local function TryAutoSelect()
         end
     end
 
-    local function SelectEntry(entry)
+    local function SelectEntry(entry, contextNpcID, contextEntriesKey, isFirstSelectSinceLogin)
         if not entry then
+            return false
+        end
+
+        local function SelectNextFrame(fn, id, retryDelay)
+            if not fn then
+                return false
+            end
+
+            local function SameGossipStillOpen()
+                local curNpcID = GetCurrentNpcID()
+                if not curNpcID or curNpcID ~= contextNpcID then
+                    return false
+                end
+
+                local curEntries = GetGossipDisplayEntries()
+                if type(curEntries) ~= "table" or #curEntries == 0 then
+                    return false
+                end
+
+                local parts = { tostring(curNpcID) }
+                for _, g in ipairs(curEntries) do
+                    parts[#parts + 1] = tostring(g.kind) .. ":" .. tostring(g.id)
+                end
+                local curKey = table.concat(parts, "|")
+                return curKey == contextEntriesKey
+            end
+
+            -- On cold login / first interaction, selecting in the same frame as GOSSIP_SHOW
+            -- can be ignored by the client. Debug printing incidentally delays enough to
+            -- make it work, so we explicitly do a small guarded re-attempt sequence.
+            if C_Timer and C_Timer.After then
+                local delays = { 0, 0.06, 0.18 }
+                if isFirstSelectSinceLogin then
+                    -- Older clients/first interaction sometimes need a longer settle.
+                    delays[#delays + 1] = (retryDelay and retryDelay > 0) and retryDelay or 0.40
+                end
+
+                for _, d in ipairs(delays) do
+                    C_Timer.After(d, function()
+                        if SameGossipStillOpen() then
+                            pcall(fn, id)
+                        end
+                    end)
+                end
+                return true
+            end
+
+            if SameGossipStillOpen() then
+                return pcall(fn, id)
+            end
             return false
         end
 
@@ -1721,20 +1772,17 @@ local function TryAutoSelect()
             if not (C_GossipInfo and C_GossipInfo.SelectOption) then
                 return false
             end
-            C_GossipInfo.SelectOption(entry.id)
-            return true
+            return SelectNextFrame(C_GossipInfo.SelectOption, entry.id, 0.20)
         elseif entry.kind == "availableQuest" then
             if not (C_GossipInfo and C_GossipInfo.SelectAvailableQuest) then
                 return false
             end
-            C_GossipInfo.SelectAvailableQuest(entry.id)
-            return true
+            return SelectNextFrame(C_GossipInfo.SelectAvailableQuest, entry.id, 0.20)
         elseif entry.kind == "activeQuest" then
             if not (C_GossipInfo and C_GossipInfo.SelectActiveQuest) then
                 return false
             end
-            C_GossipInfo.SelectActiveQuest(entry.id)
-            return true
+            return SelectNextFrame(C_GossipInfo.SelectActiveQuest, entry.id, 0.20)
         end
         return false
     end
@@ -1812,7 +1860,9 @@ local function TryAutoSelect()
                 if bestG.kind == "option" then
                     NoteLastGossipSelection(npcID, bestID, bestEntry)
                 end
-                if SelectEntry(bestG) then
+                local isFirst = firstAutoSelectSinceLogin and true or false
+                firstAutoSelectSinceLogin = false
+                if SelectEntry(bestG, npcID, entriesKey, isFirst) then
                     return true, "selected"
                 end
                 Debug("Select failed (" .. tostring(bestG.kind) .. "): " .. tostring(npcID) .. ":" .. tostring(bestID))
@@ -1891,7 +1941,9 @@ local function TryAutoSelect()
             if bestG.kind == "option" then
                 NoteLastGossipSelection(npcID, bestID, bestEntry)
             end
-            if SelectEntry(bestG) then
+            local isFirst = firstAutoSelectSinceLogin and true or false
+            firstAutoSelectSinceLogin = false
+            if SelectEntry(bestG, npcID, entriesKey, isFirst) then
                 return true, "selected"
             end
             Debug("Select failed (DB, " .. tostring(bestG.kind) .. "): " .. tostring(npcID) .. ":" .. tostring(bestID))
@@ -1928,6 +1980,9 @@ local function ScheduleGossipRetry()
     -- Small staggered retries to handle cases where gossip info isn't ready on the first frame.
     RetryAfter(0)
     RetryAfter(0.12)
+    -- Cold-login / first-interaction can take longer for NPC GUID/options to populate.
+    RetryAfter(0.25)
+    RetryAfter(0.45)
 end
 
 -- UI (layout mirrored from AutoOpen's item entry panel)
@@ -3519,6 +3574,7 @@ frame:RegisterEvent("QUEST_LOG_UPDATE")
 frame:SetScript("OnEvent", function(_, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         InitSV()
+        firstAutoSelectSinceLogin = true
         SetupChromieSelectionTracking()
         DeduplicateUserRulesAgainstDb()
 
@@ -3561,6 +3617,10 @@ frame:SetScript("OnEvent", function(_, event, arg1)
     if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_LEVEL_UP" or event == "ZONE_CHANGED_NEW_AREA" then
         InitSV()
         SetupChromieSelectionTracking()
+
+        if event == "PLAYER_ENTERING_WORLD" then
+            firstAutoSelectSinceLogin = true
+        end
 
         if event == "PLAYER_ENTERING_WORLD" then
             if ns.Profs and ns.Profs.RefreshTrackedSkillTiers then
@@ -3736,5 +3796,6 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         if not ok and (why == "no-npc" or why == "no-options") then
             ScheduleGossipRetry()
         end
+
     end
 end)
