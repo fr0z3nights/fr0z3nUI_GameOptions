@@ -7,6 +7,8 @@ ns.Profs = ns.Profs or {}
 
 local Profs = ns.Profs
 
+local issecretvalue = issecretvalue
+
 -- Breadcrumbs: Profession tier categoryIDs (Retail)
 --
 -- Where we source categoryIDs:
@@ -84,7 +86,21 @@ function Profs.RefreshTrackedSkillTiers(force)
         end
     end
     Profs._lastRefreshAt = (type(now) == "number") and now or (Profs._lastRefreshAt or 0)
-    Profs.RefreshKnownSkillTiers(Profs.TRACKED_TIERS or {})
+
+    -- Some modern expansion tiers can be "known" even with 0 current level immediately
+    -- after training. Our specialized helpers handle that better than a raw
+    -- skillLineCurrentLevel probe, so route tracked refreshes through them.
+    local tracked = Profs.TRACKED_TIERS or {}
+    for _, id in ipairs(tracked) do
+        id = tonumber(id)
+        if id == 2156 then
+            Profs.KnowsCookingMidnight()
+        elseif id == 2159 then
+            Profs.KnowsFishingMidnight()
+        else
+            Profs.RefreshKnownSkillTiers(id)
+        end
+    end
 end
 
 -- Generic helper for DB packs: ask whether an expansion-tier category is known.
@@ -98,6 +114,14 @@ function Profs.KnowsTier(categoryID)
     categoryID = tonumber(categoryID)
     if not categoryID or categoryID <= 0 then
         return nil
+    end
+
+    -- Midnight Cooking/Fishing need presence-based / fallback-aware logic.
+    if categoryID == 2156 and type(Profs.KnowsCookingMidnight) == "function" then
+        return Profs.KnowsCookingMidnight()
+    end
+    if categoryID == 2159 and type(Profs.KnowsFishingMidnight) == "function" then
+        return Profs.KnowsFishingMidnight()
     end
 
     local cache = EnsureCache()
@@ -176,10 +200,12 @@ function Profs.KnowsFishingMidnight()
                 for i = 1, 15 do
                     local v = info[i]
                     if type(v) == "string" then
-                        local s = v:lower()
-                        if s:find("midnight", 1, true) and s:find("fishing", 1, true) then
-                            sawMidnightFishing = true
-                            break
+                        if not (issecretvalue and issecretvalue(v)) then
+                            local s = v:lower()
+                            if s:find("midnight", 1, true) and s:find("fishing", 1, true) then
+                                sawMidnightFishing = true
+                                break
+                            end
                         end
                     end
                 end
@@ -233,12 +259,46 @@ function Profs.KnowsCookingMidnight()
         return true
     end
 
-    -- Authoritative category presence check (preferred):
-    -- If the Professions UI can resolve the Midnight Cooking category at all,
-    -- we treat that as "known" regardless of current skill level.
-    --
-    -- To safely return "not known", we require evidence that TradeSkill categories
-    -- are available (base Cooking resolves) while Midnight Cooking does not.
+    local sawEnumeratedLines = false
+    local enumSaysKnown = nil
+
+    -- Most authoritative check: if the TradeSkill system can enumerate known profession
+    -- lines, we can definitively say whether the player knows Midnight Cooking.
+    if C_TradeSkillUI and type(C_TradeSkillUI.GetAllProfessionTradeSkillLines) == "function" then
+        local ok, lines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
+        if ok and type(lines) == "table" then
+            sawEnumeratedLines = true
+            enumSaysKnown = false
+            for _, skillLineID in ipairs(lines) do
+                if tonumber(skillLineID) == 2908 then
+                    enumSaysKnown = true
+                    break
+                end
+            end
+            if enumSaysKnown then
+                cache[2156] = true
+                if type(time) == "function" then
+                    AutoGossip_CharSettings.knownSkillTiersAt = time()
+                end
+                return true
+            end
+        end
+    end
+
+    -- Optional direct probe by skillLineID (if Blizzard provides it in this build).
+    if C_TradeSkillUI and type(C_TradeSkillUI.GetProfessionInfoBySkillLineID) == "function" then
+        local ok, info = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, 2908)
+        if ok and type(info) == "table" then
+            cache[2156] = true
+            if type(time) == "function" then
+                AutoGossip_CharSettings.knownSkillTiersAt = time()
+            end
+            return true
+        end
+    end
+
+    -- Presence-based check: if the Professions UI can resolve the Midnight Cooking category at all,
+    -- treat it as known regardless of current skill level.
     if C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function" then
         local okMid, midCat = pcall(C_TradeSkillUI.GetCategoryInfo, 2156)
         if okMid and type(midCat) == "table" then
@@ -248,54 +308,16 @@ function Profs.KnowsCookingMidnight()
             end
             return true
         end
-
-        local okBase, baseCat = pcall(C_TradeSkillUI.GetCategoryInfo, 72) -- Cooking (base)
-        if okBase and type(baseCat) == "table" then
-            cache[2156] = false
-            if type(time) == "function" then
-                AutoGossip_CharSettings.knownSkillTiersAt = time()
-            end
-            return false
-        end
     end
 
-    -- Most authoritative check: if the TradeSkill system can enumerate known profession
-    -- lines, we can definitively say whether the player knows Midnight Cooking.
-    -- This avoids the "category doesn't exist yet" case where GetCategoryInfo(2156)
-    -- returns nil even though the API is otherwise functioning.
-    if C_TradeSkillUI then
-        if type(C_TradeSkillUI.GetAllProfessionTradeSkillLines) == "function" then
-            local ok, lines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
-            if ok and type(lines) == "table" then
-                local knows = false
-                for _, skillLineID in ipairs(lines) do
-                    if tonumber(skillLineID) == 2908 then
-                        knows = true
-                        break
-                    end
-                end
-
-                if knows then
-                    cache[2156] = true
-                    if type(time) == "function" then
-                        AutoGossip_CharSettings.knownSkillTiersAt = time()
-                    end
-                    return true
-                end
-            end
+    -- Only return definitive "not known" when we have an authoritative negative (enumerated lines)
+    -- or other strong evidence; otherwise keep tri-state nil so gossip rules don't misfire.
+    if sawEnumeratedLines and enumSaysKnown == false then
+        cache[2156] = false
+        if type(time) == "function" then
+            AutoGossip_CharSettings.knownSkillTiersAt = time()
         end
-
-        -- Optional direct probe by skillLineID (if Blizzard provides it in this build).
-        if type(C_TradeSkillUI.GetProfessionInfoBySkillLineID) == "function" then
-            local ok, info = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, 2908)
-            if ok and type(info) == "table" then
-                cache[2156] = true
-                if type(time) == "function" then
-                    AutoGossip_CharSettings.knownSkillTiersAt = time()
-                end
-                return true
-            end
-        end
+        return false
     end
 
     -- Fallback: try to detect by known professions list (more reliable than C_TradeSkillUI
@@ -334,10 +356,12 @@ function Profs.KnowsCookingMidnight()
                     for i = 1, 15 do
                         local v = info[i]
                         if type(v) == "string" then
-                            local s = v:lower()
-                            if s:find("midnight", 1, true) and s:find("cooking", 1, true) then
-                                sawMidnightCooking = true
-                                break
+                            if not (issecretvalue and issecretvalue(v)) then
+                                local s = v:lower()
+                                if s:find("midnight", 1, true) and s:find("cooking", 1, true) then
+                                    sawMidnightCooking = true
+                                    break
+                                end
                             end
                         end
                     end

@@ -436,7 +436,14 @@ do
         if not ok then
             return nil
         end
-        if type(unit) ~= "string" or unit == "" then
+        -- NOTE: `tooltip:GetUnit()` can return a "secret string" unit token.
+        -- Comparing secret strings (even to "") can throw/taint; treat it as opaque.
+        if type(unit) ~= "string" then
+            return nil
+        end
+        -- Retail 11.x+: secret string unit tokens cannot be passed to Unit* APIs from tainted execution.
+        -- If it is secret, we must not call UnitIsUnit/UnitIsPlayer/UnitLevel/etc with it.
+        if issecretvalue and issecretvalue(unit) then
             return nil
         end
         return unit

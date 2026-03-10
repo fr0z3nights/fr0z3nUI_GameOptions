@@ -248,16 +248,115 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         if GameTooltip then GameTooltip:Hide() end
     end)
 
-    -- Chromie segments
-    local segContainer = CreateFrame("Frame", nil, panel)
-    segContainer:SetSize(BTN_W, BTN_H)
-    segContainer:SetPoint("TOP", btnPetPrepareAccept, "BOTTOM", 0, -GAP_Y)
+    -- Pet Walk segments (above Chromie)
+    local petSegContainer = CreateFrame("Frame", nil, panel)
+    petSegContainer:SetSize(BTN_W, BTN_H)
+    petSegContainer:SetPoint("TOP", btnPetPrepareAccept, "BOTTOM", 0, -GAP_Y)
     if frame then
-        frame.chromieSegContainer = segContainer
+        frame.petWalkSegContainer = petSegContainer
     end
 
     local SEG_GAP = 2
     local SEG_W = math.floor((BTN_W - (SEG_GAP * 2)) / 3)
+
+    local segPetWalk = CreateFrame("Button", nil, petSegContainer, "UIPanelButtonTemplate")
+    segPetWalk:SetSize(SEG_W, BTN_H)
+    segPetWalk:SetPoint("LEFT", petSegContainer, "LEFT", 0, 0)
+    if frame then
+        frame.btnPetWalkSegMain = segPetWalk
+    end
+
+    local segPetDisable = CreateFrame("Button", nil, petSegContainer, "UIPanelButtonTemplate")
+    segPetDisable:SetSize(SEG_W, BTN_H)
+    segPetDisable:SetPoint("LEFT", segPetWalk, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnPetWalkSegDisable = segPetDisable
+    end
+
+    local segPetConfig = CreateFrame("Button", nil, petSegContainer, "UIPanelButtonTemplate")
+    segPetConfig:SetSize(BTN_W - (SEG_W * 2) - (SEG_GAP * 2), BTN_H)
+    segPetConfig:SetPoint("LEFT", segPetDisable, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnPetWalkSegConfig = segPetConfig
+    end
+
+    local function SetSegGreenGrey(btn, label, enabled)
+        if enabled then
+            btn:SetText("|cff00ff00" .. label .. "|r")
+        else
+            btn:SetText("|cff888888" .. label .. "|r")
+        end
+    end
+
+    local function UpdatePetWalkSegments()
+        InitSV()
+        SetSegGreenGrey(segPetWalk, "Pet Walk", (AutoGossip_Settings and AutoGossip_Settings.petWalkEnabledAcc) and true or false)
+        SetSegGreenGrey(segPetDisable, "Disable", (AutoGossip_CharSettings and AutoGossip_CharSettings.petWalkDisabledChar) and true or false)
+        segPetConfig:SetText("Config")
+    end
+
+    local function PetWalkSettingsChanged()
+        if ns and ns.SwitchesBP and ns.SwitchesBP.OnSettingsChanged then
+            ns.SwitchesBP.OnSettingsChanged()
+        end
+    end
+
+    segPetWalk:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_Settings.petWalkEnabledAcc = not (AutoGossip_Settings.petWalkEnabledAcc and true or false)
+        UpdatePetWalkSegments()
+        PetWalkSettingsChanged()
+    end)
+    segPetWalk:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segPetWalk, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Pet Walk")
+            GameTooltip:AddLine("Green: ON ACC (tries to keep a battle pet summoned).", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: OFF ACC.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segPetWalk:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segPetDisable:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_CharSettings.petWalkDisabledChar = not (AutoGossip_CharSettings.petWalkDisabledChar and true or false)
+        UpdatePetWalkSegments()
+        PetWalkSettingsChanged()
+    end)
+    segPetDisable:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segPetDisable, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Disable")
+            GameTooltip:AddLine("Green: disables Pet Walk on this character.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: allowed on this character.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segPetDisable:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segPetConfig:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segPetConfig, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Config")
+            GameTooltip:AddLine("Configure Pet Walk behavior.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segPetConfig:SetScript("OnClick", function()
+        if ns and ns.SwitchesBP and ns.SwitchesBP.OpenPetWalkConfigPopup then
+            ns.SwitchesBP.OpenPetWalkConfigPopup()
+        end
+    end)
+    segPetConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    -- Chromie segments
+    local segContainer = CreateFrame("Frame", nil, panel)
+    segContainer:SetSize(BTN_W, BTN_H)
+    segContainer:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.chromieSegContainer = segContainer
+    end
     local segChromie = CreateFrame("Button", nil, segContainer, "UIPanelButtonTemplate")
     segChromie:SetSize(SEG_W, BTN_H)
     segChromie:SetPoint("LEFT", segContainer, "LEFT", 0, 0)
@@ -838,6 +937,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     UpdateQueueAcceptButton()
     UpdatePetPopupDebugButton()
     UpdatePetPrepareAcceptButton()
+    UpdatePetWalkSegments()
     UpdateChromieSegments()
     UpdateReloadFloatToggle()
     UpdateTooltipXEnabledButton()
@@ -858,6 +958,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         UpdateQueueAcceptButton()
         UpdatePetPopupDebugButton()
         UpdatePetPrepareAcceptButton()
+        UpdatePetWalkSegments()
         UpdateChromieSegments()
         UpdateReloadFloatToggle()
         UpdateTooltipXEnabledButton()

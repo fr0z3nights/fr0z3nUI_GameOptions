@@ -10,6 +10,19 @@ Current flow:
 
 # CVar Enable/Disable Print Macros
 
+/fgo vault
+
+/run C_AddOns.LoadAddOn("Blizzard_WeeklyRewards");
+/run if WeeklyRewardsFrame:IsShown() then WeeklyRewardsFrame:Hide() else WeeklyRewardsFrame:Show() end
+
+#### #### #### #### #### #### #### 
+
+/fgo mountequip
+
+/run if not C_MountJournal.GetAppliedMountEquipmentID() then print(WrapTextInColorCode("WARNING: Mount equipment slot is EMPTY!", "ffff8000")) end
+
+#### #### #### #### #### #### #### 
+
 /fgo cloot
 
 /run local k,v = "autoLootDefault" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Auto Loot " .. (v == "1" and "Disabled" or "Enabled"))
@@ -25,6 +38,12 @@ Current flow:
 /fgo cmouse
 
 /run local k,v = "lootUnderMouse" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Loot Under Mouse " .. (v == "1" and "Disabled" or "Enabled"))
+
+#### #### #### #### #### #### #### 
+
+/fgo clickmove
+
+/run local k,v = "autointeract" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Click2Move " .. (v == "1" and "Disabled" or "Enabled"))
 
 #### #### #### #### #### #### #### 
 
@@ -49,6 +68,18 @@ Current flow:
 /fgo cbagrev
 
 /run local k,v = "reverseCleanupBags" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Bag Sort Reverse " .. (v == "1" and "Disabled" or "Enabled"))
+
+#### #### #### #### #### #### #### 
+
+/fgo sharpen
+
+/run local o = GetCVarBool("ResampleAlwaysSharpen"); SetCVar("ResampleAlwaysSharpen", not o); print("Sharper " .. (o and "Off" or "On"))
+
+#### #### #### #### #### #### #### 
+
+/fgo whispin
+
+/run SetCVar("whisperMode", "inline")
 
 #### #### #### #### #### #### #### 
 

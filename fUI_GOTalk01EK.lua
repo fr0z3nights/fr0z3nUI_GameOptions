@@ -259,7 +259,7 @@ SetZone("Eversong Woods, Eastern Kingdoms")
       t[133913] = { text = "What problems ail the people of Tranquillien?", type = "" }                      -- Rational Explanation (86624)       Matron Narsilla (242568)      KILLED
 
       local t = NPCs({247800, }, "Melandria")
-      t[38266] = { text = "Train Me.", type = "", when = function() return KnowsFishingMidnightMemo() == false end }  -- Fishing Trainer  Melandria (247800)
+      t[38266] = { text = "Train Me.", type = "", when = function() return KnowsFishingMidnightMemo() ~= true end }  -- Fishing Trainer  Melandria (247800)
       t[38267] = { text = "Show Me Your Goods", type = "", when = function() return KnowsFishingMidnightMemo() == true end } -- Fishing Trainer  Melandria (247800)
 
       local t = NPCs({236743, 236903, 236704, }, "Orweyna")
@@ -417,11 +417,12 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
    t[138693] = { text = "<Tell Alonsus you are ready to go to Light's Hope.>", type = "" }                        -- Relic's of Light's Hope (86839) Alonsus Faol (240240)
    t[135480] = { text = "<Tell Alonsus you are ready to go to Hammerfall.>", type = "" }                          -- The Sunwalker Path (86845) Alonsus Faol (251355)
 
-   local t = NPCs({ 240156, 240125, 240075, 240074, }, "Scared Civilian")
-   t[132686] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- Unknown Quest (XXXXX)         Scared Civilian (240156)
-   t[132670] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- Unknown Quest (XXXXX)         Scared Civilian (240125)
-   t[132655] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- Unknown Quest (XXXXX)         Scared Civilian (240075)
-   t[132654] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- Unknown Quest (XXXXX)         Scared Civilian (240074)
+   local t = NPCs({ 240156, 240125, 240075, 240074, 240152, }, "Scared Civilian")
+   t[132686] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240156)
+   t[132670] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240125)
+   t[132655] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240075)
+   t[132654] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240074)
+   t[132685] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240152)
 
    local t = NPCs({ 237211, 236657, }, "Zone Quest NPCs")
    t[132513] = { text = "The Vanguard rallies at Sunstrider Rise.", type = "" }                                   -- Champions of Quel'Danas (68770)  Faerin Lothar (237211)
@@ -573,6 +574,9 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    local t = NPCs({ 250292, }, "Assistant Grgl-Grgl")
    t[137485] = { text = "King Mrgl-Mrgl is safe at the top of the temple.", type = "" }            -- Following Suit (92166) Assistant Grgl-Grgl (250292)
 
+   local t = NPCs({ 253604, }, "Daki")
+   t[136586] = { text = "Head to Mixer Jamanga, He is making an anti-venom.", type = "" }          -- Validating the Venom (91405) Daki (253604)
+
    local t = NPCs({ 236590, }, "Elder Doru")
    t[132579] = { text = "Zul'jan sent me to find you.", type = "" }                                -- Important Amani (86719)       Elder Doru (236590)
 
@@ -582,6 +586,12 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 
    local t = NPCs({ 256027, }, "Haz'kel")
    t[137297] = { text = "Have you seen Kanza?", type = "" }                                        -- A Quiet Walk Interrupted (93178) Haz'kel (256027)
+
+   local t = NPCs({ 254719, 258014, 258363, }, "Kanza")
+   t[137771] = { text = "Your mother sent me to take you home.", type = "", close = true }         -- Childlike Devotion (93179) Kanza (254719)
+   t[137820] = { text = "I'll handle the stingers, Kanza.", type = "" }                            -- Shrine Preparations (93180) Kanza (254719)
+   t[137830] = { text = "You'd like me to pick some mushrooms as well?", type = "", close = true } -- Shrine Preparations (93180) Kanza (258014)
+   t[137968] = { text = "Let's have a tea party.", type = "", close = true }                       -- Temple and a Teapot (93181) Kanza (258363)
 
    local t = NPCs({ 253999, }, "Kel'vujo")
    t[137663] = { text = "Good luck fighting with your legs frozen to the ground.", type = "" }     -- Amani Honor (93096) Kel'vujo (253999)
@@ -609,14 +619,24 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    local t = NPCs({ 250068, }, "Loa Speaker Tobul")
    t[135472] = { text = "How do we speak to Halazzi?", type = "" }                                 -- Halazzi's Guide (92084)       Loa Speaker Tobul (250068)
 
+   local t = NPCs({ 254381, }, "Maisara Caverns")
+   t[136843] = { text = "Please take me to the entrance of Maisara Caverns", type = "" }           -- Maisara Caverns () Kul'amara the Fierce (254381)
+
+   local t = NPCs({ 247201, 247254, }, "Mixer Jamanga")
+   t[134564] = { text = "Can you make an anti-venom from these samples?", type = "" }              -- Validating the Venom (91405) Mixer Jamanga (247201)
+   t[134622] = { text = "What's going on here?", type = "" }                                       -- Seeking Shadra (91408) Mixer Jamanga (247254)
+
    local t = NPCs({ 240975, }, "Namaji")
    t[135138] = { text = "Go with Kagara to the festival", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, }, type = "", }  -- Love Triangle (89233) Namaji (240975)
+
+   local t = NPCs({ 255185, }, "Old Koko")
+   t[137130] = { text = "Train Me", type = "", }                                                   -- Fishing Trainer () Old Koko (255185)
 
    local t = NPCs({ 255907, }, "Ri'kari")
    t[137188] = { text = "<Tell Ri'kari you're ready...>", type = "" }                              -- The Final Exam (93051)   Ri'kari (255907)
 
    local t = NPCs({ 253037, }, "Shim'dak")
-   t[39623] = { text = "Train Me.", type = "", when = function() return KnowsCookingMidnightMemo() == false end }  -- Cooking Trainer  Shim'dak (253037)
+   t[39623] = { text = "Train Me.", type = "", when = function() return KnowsCookingMidnightMemo() ~= true end }  -- Cooking Trainer  Shim'dak (253037)
    t[39624] = { text = "Let me browse your goods.", type = "", when = function() return KnowsCookingMidnightMemo() == true end } -- Cooking Trainer  Shim'dak (253037)
 
    local t = NPCs({ 244562, }, "Tak'lejo")
@@ -627,9 +647,13 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 
    local t = NPCs({ 244591, }, "Vun'zarah")
    t[134081] = { text = "Do you know anything that will help us speak to Jan'alai?", type = "" }   -- Coals of a Dead Loa (86661) Vun'zarah (244591)
+   t[134561] = { text = "Halazzi has sent me to find a venom expert, Do you know of one?", type = "" }   -- Validating the Venom (91405) Vun'zarah (244591)
 
    local t = NPCs({ 238063, }, "Warlord Akutu")
    t[134247] = { text = "Sij'ta said this will help you.", type = "" }                             -- Curse Cleanse (87254) Warlord Akutu (238063)
+
+   local t = NPCs({ 242392, }, "Witherbark Visitor")
+   t[133188] = { text = "Tell me a Witherbark story.", type = "" }                                 -- A Witherbark Story (90483) Witherbark Visitor (242392)
 
    local t = NPCs({ 245646, }, "Zul'jan")
    t[134133] = { text = "Are you okay, Zul'jan", type = "" }                                       -- Broken Bridges (91062) Zul'jan (245646)
@@ -646,6 +670,10 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    local t = NPCs({ 616377, 616428, }, "Dungeon: Den of Nalorakk")
    t[135009] = { text = "<Meditate on the sound of the flames.>", type = "" }                      -- Den of Nalorakk Dungeon  Ethereal Pyre (616377)
    t[135010] = { text = "<Meditate on the sound of the flames.>", type = "" }                      -- Den of Nalorakk Dungeon  Ethereal Pyre (616428)
+
+   local t = NPCs({ 612366, 259329, }, "Quest: Crab Clues")
+   t[137687] = { text = "Take note of this for Kahanea.", type = "" }                              -- Crab Clues (93258) Suspicious Debris (612366)
+   t[137685] = { text = "Take note of this for Kahanea.", type = "" }                              -- Crab Clues (93258) Crawler Corpse (259329)
 
    local t = NPCs({ 617497, 617500, }, "Quest: Following Suit")
    t[137476] = { text = "<Collect the knapsack.>", type = "" }                                     -- Following Suit (92166) Out of Place Knapsack (617497)

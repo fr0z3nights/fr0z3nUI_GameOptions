@@ -29,7 +29,16 @@ local lastAutoSelectKey = nil
 local lastAutoSelectAt = 0
 local lastAutoSelectOptionID = nil
 local firstAutoSelectSinceLogin = true
+local lastDeclineQuestAt = nil
 local frame = CreateFrame("Frame")
+
+if hooksecurefunc and type(hooksecurefunc) == "function" then
+    hooksecurefunc("DeclineQuest", function()
+        if type(GetTime) == "function" then
+            lastDeclineQuestAt = GetTime()
+        end
+    end)
+end
 
 -- Chromie Time was split out to fUI_GOSwitchesCT.lua
 local InitSV
@@ -210,6 +219,23 @@ InitSV = function()
     end
     if type(AutoGossip_UI.reloadFloatPos) ~= "table" then
         AutoGossip_UI.reloadFloatPos = { point = "TOP", relativePoint = "TOP", x = 0, y = -120 }
+    end
+
+    -- Pet Walk (battle pets)
+    if type(AutoGossip_Settings.petWalkEnabledAcc) ~= "boolean" then
+        AutoGossip_Settings.petWalkEnabledAcc = true
+    end
+    if type(AutoGossip_CharSettings.petWalkDisabledChar) ~= "boolean" then
+        AutoGossip_CharSettings.petWalkDisabledChar = false
+    end
+    if type(AutoGossip_Settings.petWalkModeAcc) ~= "string" then
+        AutoGossip_Settings.petWalkModeAcc = "random"
+    end
+    if type(AutoGossip_Settings.petWalkDelayAcc) ~= "number" then
+        AutoGossip_Settings.petWalkDelayAcc = 1.0
+    end
+    if type(AutoGossip_Settings.petWalkDismissOnStealthAcc) ~= "boolean" then
+        AutoGossip_Settings.petWalkDismissOnStealthAcc = true
     end
 
     -- Chromie frame lock is per-character.
@@ -683,6 +709,24 @@ end
 
 local function GetCurrentNpcName()
     return UnitName("npc") or UnitName("target")
+end
+
+local function CloseGossipWindow()
+    if C_GossipInfo and C_GossipInfo.CloseGossip then
+        C_GossipInfo.CloseGossip()
+        return
+    end
+    if _G and type(_G["CloseGossip"]) == "function" then
+        _G["CloseGossip"]()
+        return
+    end
+    if GossipFrame and GossipFrame.IsShown and GossipFrame:IsShown() then
+        if HideUIPanel then
+            HideUIPanel(GossipFrame)
+        elseif GossipFrame.Hide then
+            GossipFrame:Hide()
+        end
+    end
 end
 
 local function GetCurrentZoneName()
@@ -1626,10 +1670,6 @@ local function TryAutoSelect()
             return false, "blocked"
         end
     end
-    if InCombatLockdown() then
-        Debug("Blocked (in combat)")
-        return false, "blocked"
-    end
     if not (C_GossipInfo and C_GossipInfo.GetOptions and C_GossipInfo.SelectOption) then
         Debug("Blocked (missing C_GossipInfo APIs)")
         return false, "blocked"
@@ -1642,6 +1682,14 @@ local function TryAutoSelect()
     end
 
     local now = GetTime()
+    if lastDeclineQuestAt then
+        local sinceDecline = now - lastDeclineQuestAt
+        if sinceDecline < 10 then
+            Debug("Blocked (recent DeclineQuest)")
+            return false, "blocked"
+        end
+        lastDeclineQuestAt = nil
+    end
     if now - lastSelectAt < 0.25 then
         Debug("Blocked (debounce)")
         return false, "blocked"
@@ -1787,6 +1835,33 @@ local function TryAutoSelect()
         return false
     end
 
+    local function EntryWantsCloseOnly(ruleEntry)
+        if type(ruleEntry) ~= "table" then
+            return false
+        end
+        local a = ruleEntry.action or ruleEntry.cmd
+        if type(a) ~= "string" then
+            return false
+        end
+        a = a:lower()
+        return (a == "close" or a == "closegossip" or a == "closewindow")
+    end
+
+    local function EntryWantsCloseAfterSelect(ruleEntry)
+        if type(ruleEntry) ~= "table" then
+            return false
+        end
+        if ruleEntry.close == true or ruleEntry.closeGossip == true or ruleEntry.closeWindow == true then
+            return true
+        end
+        local a = ruleEntry.after or ruleEntry.post
+        if type(a) ~= "string" then
+            return false
+        end
+        a = a:lower()
+        return (a == "close" or a == "closegossip" or a == "closewindow")
+    end
+
     -- Prefer character rules over account rules, then DB pack.
     for _, scope in ipairs({ "char", "acc" }) do
         local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
@@ -1856,6 +1931,17 @@ local function TryAutoSelect()
                     lastAutoSelectOptionID = bestID
                     lastAutoSelectAt = now
                 end
+
+                if EntryWantsCloseOnly(bestEntry) then
+                    Debug("Closing gossip (" .. scope .. ", " .. tostring(bestG.kind) .. ") prio=" .. tostring(bestPrio or 0) .. ": " .. tostring(npcID) .. ":" .. tostring(bestID))
+                    if C_Timer and C_Timer.After then
+                        C_Timer.After(0, CloseGossipWindow)
+                    else
+                        CloseGossipWindow()
+                    end
+                    return true, "closed"
+                end
+
                 Debug("Selecting (" .. scope .. ", " .. tostring(bestG.kind) .. ") prio=" .. tostring(bestPrio or 0) .. ": " .. tostring(npcID) .. ":" .. tostring(bestID))
                 if bestG.kind == "option" then
                     NoteLastGossipSelection(npcID, bestID, bestEntry)
@@ -1863,6 +1949,14 @@ local function TryAutoSelect()
                 local isFirst = firstAutoSelectSinceLogin and true or false
                 firstAutoSelectSinceLogin = false
                 if SelectEntry(bestG, npcID, entriesKey, isFirst) then
+                    if EntryWantsCloseAfterSelect(bestEntry) then
+                        local d = isFirst and 0.65 or 0.35
+                        if C_Timer and C_Timer.After then
+                            C_Timer.After(d, CloseGossipWindow)
+                        else
+                            CloseGossipWindow()
+                        end
+                    end
                     return true, "selected"
                 end
                 Debug("Select failed (" .. tostring(bestG.kind) .. "): " .. tostring(npcID) .. ":" .. tostring(bestID))
@@ -1937,6 +2031,17 @@ local function TryAutoSelect()
                 lastAutoSelectOptionID = bestID
                 lastAutoSelectAt = now
             end
+
+            if EntryWantsCloseOnly(bestEntry) then
+                Debug("Closing gossip (DB, " .. tostring(bestG.kind) .. ") prio=" .. tostring(bestPrio or 0) .. ": " .. tostring(npcID) .. ":" .. tostring(bestID))
+                if C_Timer and C_Timer.After then
+                    C_Timer.After(0, CloseGossipWindow)
+                else
+                    CloseGossipWindow()
+                end
+                return true, "closed"
+            end
+
             Debug("Selecting (DB, " .. tostring(bestG.kind) .. ") prio=" .. tostring(bestPrio or 0) .. ": " .. tostring(npcID) .. ":" .. tostring(bestID))
             if bestG.kind == "option" then
                 NoteLastGossipSelection(npcID, bestID, bestEntry)
@@ -1944,6 +2049,14 @@ local function TryAutoSelect()
             local isFirst = firstAutoSelectSinceLogin and true or false
             firstAutoSelectSinceLogin = false
             if SelectEntry(bestG, npcID, entriesKey, isFirst) then
+                if EntryWantsCloseAfterSelect(bestEntry) then
+                    local d = isFirst and 0.65 or 0.35
+                    if C_Timer and C_Timer.After then
+                        C_Timer.After(d, CloseGossipWindow)
+                    else
+                        CloseGossipWindow()
+                    end
+                end
                 return true, "selected"
             end
             Debug("Select failed (DB, " .. tostring(bestG.kind) .. "): " .. tostring(npcID) .. ":" .. tostring(bestID))
@@ -2399,24 +2512,6 @@ local function CreateOptionsWindow()
     local function CloseOptionsWindow()
         if f and f.Hide then
             f:Hide()
-        end
-    end
-
-    local function CloseGossipWindow()
-        if C_GossipInfo and C_GossipInfo.CloseGossip then
-            C_GossipInfo.CloseGossip()
-            return
-        end
-        if _G and type(_G["CloseGossip"]) == "function" then
-            _G["CloseGossip"]()
-            return
-        end
-        if GossipFrame and GossipFrame.IsShown and GossipFrame:IsShown() then
-            if HideUIPanel then
-                HideUIPanel(GossipFrame)
-            elseif GossipFrame.Hide then
-                GossipFrame:Hide()
-            end
         end
     end
 
@@ -2938,11 +3033,16 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo script                - toggle ScriptErrors",
                 "/fgo loot                  - toggle Auto Loot",
                 "/fgo mouse                 - toggle Loot Under Mouse",
+                    "/fgo clickmove             - toggle Click2Move (autointeract)",
+                "/fgo mountequip            - warn if mount equipment slot empty",
+                "/fgo vault                 - toggle Great Vault window",
                 "/fgo trade                 - toggle Block Trades",
                 "/fgo friend                - toggle Friendly Names",
                 "/fgo bars                  - toggle ActionBar Lock",
                 "/fgo situate b50            - force-apply Situate for slot 50",
                 "/fgo bagrev                - toggle Bag Sort Reverse",
+                    "/fgo sharpen               - toggle always sharpen (ResampleAlwaysSharpen)",
+                    "/fgo whispin               - set whispers to inline (whisperMode)",
                 "/fgo token                 - print WoW Token price",
                 "/fgo setup                 - apply common setup CVars",
                 "/fgo fish                  - apply fishing prep CVars",
@@ -3049,6 +3149,9 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 ["mkmacro"] = true,
                 ["script"] = true,
                 ["scripterrors"] = true,
+                ["sharpen"] = true,
+                ["whispin"] = true,
+                ["mountequip"] = true,
                 ["chromie"] = true,
                 ["chromietime"] = true,
                 ["ct"] = true,
@@ -3057,6 +3160,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 -- Macro CMD keys that would otherwise be mis-parsed as mode glue.
                 -- Example: /fgo mouse would become /fgo m ouse without this.
                 ["mouse"] = true,
+                ["clickmove"] = true,
             }
 
             if not known[cmd] then
@@ -3325,6 +3429,76 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             return
         end
 
+        if cmd == "mountequip" then
+            if not (C_MountJournal and type(C_MountJournal.GetAppliedMountEquipmentID) == "function") then
+                return
+            end
+            local id = C_MountJournal.GetAppliedMountEquipmentID()
+            if not id or tonumber(id) == 0 then
+                local msg = "WARNING: Mount equipment slot is EMPTY!"
+                if WrapTextInColorCode then
+                    msg = WrapTextInColorCode(msg, "ffff8000")
+                end
+                Print(msg)
+            end
+            return
+        end
+
+        if cmd == "vault" then
+            local loadOk = false
+            if C_AddOns and type(C_AddOns.LoadAddOn) == "function" then
+                loadOk = pcall(C_AddOns.LoadAddOn, "Blizzard_WeeklyRewards")
+            elseif type(LoadAddOn) == "function" then
+                loadOk = pcall(LoadAddOn, "Blizzard_WeeklyRewards")
+            end
+
+            local f = _G and _G["WeeklyRewardsFrame"]
+            if not (loadOk and f) then
+                -- Silent on failure (e.g., UI blocked / missing frame).
+                return
+            end
+
+            if f.IsShown and f:IsShown() then
+                if HideUIPanel then
+                    HideUIPanel(f)
+                elseif f.Hide then
+                    f:Hide()
+                end
+            else
+                if ShowUIPanel then
+                    ShowUIPanel(f)
+                elseif f.Show then
+                    f:Show()
+                end
+            end
+            return
+        end
+
+        if cmd == "clickmove" then
+            ToggleCVar("autointeract", "Click2Move")
+            return
+        end
+
+        if cmd == "sharpen" then
+            local o = false
+            if GetCVarBool then
+                o = GetCVarBool("ResampleAlwaysSharpen") and true or false
+            elseif GetCVar then
+                o = tostring(GetCVar("ResampleAlwaysSharpen") or "0") == "1"
+            elseif C_CVar and C_CVar.GetCVar then
+                o = tostring(C_CVar.GetCVar("ResampleAlwaysSharpen") or "0") == "1"
+            end
+
+            SetCVarSafe("ResampleAlwaysSharpen", o and "0" or "1")
+            Print("Sharper " .. (o and "Off" or "On"))
+            return
+        end
+
+        if cmd == "whispin" then
+            SetCVarSafe("whisperMode", "inline")
+            return
+        end
+
         if cmd == "scripterrors" or cmd == "script" then
             -- Keep /fgo script working, but route through Macro CMD so it stays editable.
             if ns and ns.MacroXCMD_HandleSlashMode then
@@ -3542,10 +3716,15 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     Print("/fgo scope     - show all /fgo commands (copy/edit)")
     Print("/fgo loot      - toggle Auto Loot")
     Print("/fgo mouse     - toggle Loot Under Mouse")
+    Print("/fgo clickmove - toggle Click2Move")
+    Print("/fgo mountequip - warn if mount equipment slot empty")
+    Print("/fgo vault     - toggle Great Vault window")
     Print("/fgo trade     - toggle Block Trades")
     Print("/fgo friend    - toggle Friendly Names")
     Print("/fgo bars      - toggle ActionBar Lock")
     Print("/fgo bagrev    - toggle Bag Sort Reverse")
+    Print("/fgo sharpen   - toggle always sharpen")
+    Print("/fgo whispin   - set whispers to inline")
     Print("/fgo token     - print WoW Token price")
     Print("/fgo setup     - apply common setup CVars")
     Print("/fgo fish      - apply fishing prep CVars")

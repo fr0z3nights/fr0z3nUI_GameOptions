@@ -916,16 +916,21 @@ UpdateChromieIndicator = function()
 
     InitSV()
 
-    local enabled = AutoGossip_UI and AutoGossip_UI.chromieFrameEnabled
+    local frameEnabled = AutoGossip_UI and AutoGossip_UI.chromieFrameEnabled
     local available = IsChromieTimeAvailableToPlayer()
+    local active = false
+    if available then
+        local ctEnabled, _, _, supported = GetChromieTimeInfo()
+        active = (supported and ctEnabled) and true or false
+    end
     -- Safety: enforce the gate here too so the frame can't get stuck visible.
     local gate = AutoGossip_UI and tonumber(AutoGossip_UI.chromieGateLevel) or nil
     local lvl = GetPlayerLevel()
     if type(gate) ~= "number" or type(lvl) ~= "number" or lvl > gate then
         available = false
     end
-    chromieIndicator:SetShown(enabled and available)
-    if enabled and available and chromieIndicator.text then
+    chromieIndicator:SetShown(frameEnabled and available and active)
+    if frameEnabled and available and active and chromieIndicator.text then
         chromieIndicator.text:SetText(GetChromieTimeDisplayText())
     end
 
@@ -973,6 +978,11 @@ EnsureChromieIndicator = function()
             return
         end
         if not (AutoGossip_UI and AutoGossip_UI.chromieFrameEnabled) then
+            self:Hide()
+            return
+        end
+        local ctEnabled, _, _, supported = GetChromieTimeInfo()
+        if not (supported and ctEnabled) then
             self:Hide()
             return
         end
@@ -1040,7 +1050,7 @@ EnsureChromieIndicator = function()
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetText("Chromie Time")
             GameTooltip:AddLine("Shows current Chromie Time status.", 1, 1, 1, true)
-            GameTooltip:AddLine("Only appears when Chromie Time is available.", 1, 1, 1, true)
+            GameTooltip:AddLine("Only appears while Chromie Time is active.", 1, 1, 1, true)
             GameTooltip:AddLine("Drag to move (unless locked).", 1, 1, 1, true)
             GameTooltip:Show()
         end
