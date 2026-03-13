@@ -12,6 +12,50 @@ end
 do
     local btn
 
+    local function Tooltip_ApplyFontDelta(tt, delta, stashKey)
+        if not (tt and tt.GetName and tt.NumLines) then
+            return
+        end
+        local name = tt:GetName()
+        if type(name) ~= "string" or name == "" then
+            return
+        end
+
+        tt._fgoFontBackup = tt._fgoFontBackup or {}
+        local stash = {}
+
+        local n = tt:NumLines() or 0
+        for i = 1, n do
+            for _, side in ipairs({ "Left", "Right" }) do
+                local fs = _G and _G[name .. "Text" .. side .. i]
+                if fs and fs.GetFont and fs.SetFont then
+                    local fontPath, fontSize, fontFlags = fs:GetFont()
+                    if fontPath and type(fontSize) == "number" then
+                        stash[#stash + 1] = { fs = fs, path = fontPath, size = fontSize, flags = fontFlags }
+                        local newSize = fontSize + (tonumber(delta) or 0)
+                        if newSize < 1 then newSize = 1 end
+                        fs:SetFont(fontPath, newSize, fontFlags)
+                    end
+                end
+            end
+        end
+
+        tt._fgoFontBackup[stashKey] = stash
+    end
+
+    local function Tooltip_RestoreFonts(tt, stashKey)
+        local backup = tt and tt._fgoFontBackup and tt._fgoFontBackup[stashKey]
+        if type(backup) ~= "table" then
+            return
+        end
+        for _, rec in ipairs(backup) do
+            if rec and rec.fs and rec.fs.SetFont then
+                rec.fs:SetFont(rec.path, rec.size, rec.flags)
+            end
+        end
+        tt._fgoFontBackup[stashKey] = nil
+    end
+
     local function InitSV()
         if ns and type(ns._InitSV) == "function" then
             ns._InitSV()
@@ -47,6 +91,23 @@ do
         frame:SetPoint(point, UIParent, relPoint, x, y)
     end
 
+    local function ApplyTextSize()
+        if not (btn and btn._label and btn._label.SetFont) then
+            return
+        end
+        local ui = GetUI()
+        local want = ui and tonumber(ui.reloadFloatTextSize)
+        if type(want) ~= "number" then
+            return
+        end
+        if want < 8 then want = 8 end
+        if want > 24 then want = 24 end
+        local fontPath, _, fontFlags = btn._label:GetFont()
+        if fontPath then
+            btn._label:SetFont(fontPath, want, fontFlags)
+        end
+    end
+
     function ns.EnsureReloadFloatButton()
         if btn and btn.SetText then
             return btn
@@ -70,6 +131,8 @@ do
         fs:SetJustifyV("MIDDLE")
         fs:SetText("|cff00ccffReload UI|r")
         btn._label = fs
+
+        ApplyTextSize()
 
         ApplySavedPosition(btn)
 
@@ -107,9 +170,10 @@ do
             end
             if GameTooltip then
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:SetText("Reload UI")
+                GameTooltip:SetText("|cff00ccff[FGO]|r Reload UI")
                 GameTooltip:AddLine("Left-click: reload", 1, 1, 1, true)
                 GameTooltip:AddLine("Right-drag: move", 1, 1, 1, true)
+                Tooltip_ApplyFontDelta(GameTooltip, -1, "FGO_ReloadFloat")
                 GameTooltip:Show()
             end
         end)
@@ -118,6 +182,7 @@ do
                 self._label:SetText("|cff00ccffReload UI|r")
             end
             if GameTooltip then
+                Tooltip_RestoreFonts(GameTooltip, "FGO_ReloadFloat")
                 GameTooltip:Hide()
             end
         end)
@@ -131,6 +196,7 @@ do
             local b = ns.EnsureReloadFloatButton()
             if b and b.Show then
                 ApplySavedPosition(b)
+                ApplyTextSize()
                 b:Show()
             end
         else

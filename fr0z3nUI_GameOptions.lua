@@ -23,22 +23,7 @@ end
 -- Expose helpers for split-out modules.
 ns.IsSecretString = IsSecretString
 ns.SafeToString = SafeToString
-
-local lastSelectAt = 0
-local lastAutoSelectKey = nil
-local lastAutoSelectAt = 0
-local lastAutoSelectOptionID = nil
-local firstAutoSelectSinceLogin = true
-local lastDeclineQuestAt = nil
 local frame = CreateFrame("Frame")
-
-if hooksecurefunc and type(hooksecurefunc) == "function" then
-    hooksecurefunc("DeclineQuest", function()
-        if type(GetTime) == "function" then
-            lastDeclineQuestAt = GetTime()
-        end
-    end)
-end
 
 -- Chromie Time was split out to fUI_GOSwitchesCT.lua
 local InitSV
@@ -217,8 +202,30 @@ InitSV = function()
     if type(AutoGossip_UI.reloadFloatEnabled) ~= "boolean" then
         AutoGossip_UI.reloadFloatEnabled = false
     end
+    if type(AutoGossip_UI.reloadFloatTextSize) ~= "number" then
+        AutoGossip_UI.reloadFloatTextSize = 12
+    end
     if type(AutoGossip_UI.reloadFloatPos) ~= "table" then
         AutoGossip_UI.reloadFloatPos = { point = "TOP", relativePoint = "TOP", x = 0, y = -120 }
+    end
+
+    -- Floating Mount Up button (Mount Up popout)
+    if type(AutoGossip_UI.mountUpFloatEnabled) ~= "boolean" then
+        AutoGossip_UI.mountUpFloatEnabled = false
+    end
+    if type(AutoGossip_UI.mountUpFloatLocked) ~= "boolean" then
+        AutoGossip_UI.mountUpFloatLocked = false
+    end
+    if type(AutoGossip_UI.mountUpFloatTextSize) ~= "number" then
+        AutoGossip_UI.mountUpFloatTextSize = 12
+    end
+    if type(AutoGossip_UI.mountUpFloatPos) ~= "table" then
+        AutoGossip_UI.mountUpFloatPos = { point = "TOP", relativePoint = "TOP", x = 0, y = -140 }
+    end
+
+    -- Mount Up float position mode: account-wide (outside Preferred Scope) by default.
+    if type(AutoGossip_UI.mountUpFloatPosAccOutsideScope) ~= "boolean" then
+        AutoGossip_UI.mountUpFloatPosAccOutsideScope = true
     end
 
     -- Pet Walk (battle pets)
@@ -236,6 +243,65 @@ InitSV = function()
     end
     if type(AutoGossip_Settings.petWalkDismissOnStealthAcc) ~= "boolean" then
         AutoGossip_Settings.petWalkDismissOnStealthAcc = true
+    end
+
+    -- Mount Up (auto mount)
+    if type(AutoGossip_Settings.mountUpEnabledAcc) ~= "boolean" then
+        -- Default ON (account): character must still enable via per-character flag.
+        AutoGossip_Settings.mountUpEnabledAcc = true
+    end
+    -- Per-character gate. Default OFF (disabled) so it doesn't surprise on every toon.
+    -- Migration: older builds used mountUpDisabledChar.
+    if type(AutoGossip_CharSettings.mountUpEnabledChar) ~= "boolean" then
+        if type(AutoGossip_CharSettings.mountUpDisabledChar) == "boolean" then
+            AutoGossip_CharSettings.mountUpEnabledChar = not (AutoGossip_CharSettings.mountUpDisabledChar and true or false)
+        else
+            AutoGossip_CharSettings.mountUpEnabledChar = false
+        end
+    end
+    if type(AutoGossip_Settings.mountUpModeAcc) ~= "string" then
+        AutoGossip_Settings.mountUpModeAcc = "smart"
+    end
+    if type(AutoGossip_Settings.mountUpDelayAcc) ~= "number" then
+        AutoGossip_Settings.mountUpDelayAcc = 1.0
+    end
+    -- Preferred mount per situation (always-smart picker): Flying/Ground/Water.
+    if type(AutoGossip_Settings.mountUpPreferredMountIDFlyingAcc) ~= "number" then
+        AutoGossip_Settings.mountUpPreferredMountIDFlyingAcc = 0
+    end
+    if type(AutoGossip_Settings.mountUpPreferredMountIDGroundAcc) ~= "number" then
+        AutoGossip_Settings.mountUpPreferredMountIDGroundAcc = 0
+    end
+    if type(AutoGossip_Settings.mountUpPreferredMountIDAquaticAcc) ~= "number" then
+        AutoGossip_Settings.mountUpPreferredMountIDAquaticAcc = 0
+    end
+
+    -- Mount Up preferred scope (profile) for preferred mounts (per-character selection).
+    -- Scopes: faction/guild/class/race are account-wide stores; character is per-character.
+    if type(AutoGossip_CharSettings.mountUpPreferredScope) ~= "string" then
+        AutoGossip_CharSettings.mountUpPreferredScope = "character"
+    end
+    if type(AutoGossip_Settings.mountUpPreferredMountIDsScopes) ~= "table" then
+        AutoGossip_Settings.mountUpPreferredMountIDsScopes = {}
+    end
+    if type(AutoGossip_CharSettings.mountUpPreferredMountIDsChar) ~= "table" then
+        AutoGossip_CharSettings.mountUpPreferredMountIDsChar = {}
+    end
+
+    -- Legacy key (older builds) used a single preferred mount.
+    if type(AutoGossip_Settings.mountUpPreferredMountIDAcc) ~= "number" then
+        AutoGossip_Settings.mountUpPreferredMountIDAcc = 0
+    end
+    do
+        local old = tonumber(AutoGossip_Settings.mountUpPreferredMountIDAcc) or 0
+        if old > 0 then
+            local anyNew = (tonumber(AutoGossip_Settings.mountUpPreferredMountIDFlyingAcc) or 0)
+                + (tonumber(AutoGossip_Settings.mountUpPreferredMountIDGroundAcc) or 0)
+                + (tonumber(AutoGossip_Settings.mountUpPreferredMountIDAquaticAcc) or 0)
+            if anyNew == 0 then
+                AutoGossip_Settings.mountUpPreferredMountIDGroundAcc = old
+            end
+        end
     end
 
     -- Chromie frame lock is per-character.
@@ -802,6 +868,13 @@ local function GetCurrentContinentName()
     return ""
 end
 
+-- Expose core gossip helpers for split-out modules.
+ns.GetCurrentNpcID = GetCurrentNpcID
+ns.GetCurrentNpcName = GetCurrentNpcName
+ns.CloseGossipWindow = CloseGossipWindow
+ns.GetCurrentZoneName = GetCurrentZoneName
+ns.GetCurrentContinentName = GetCurrentContinentName
+
 local function MakeRuleKey(npcID, optionID)
     return tostring(npcID) .. ":" .. tostring(optionID)
 end
@@ -937,6 +1010,12 @@ local function IsDisabledDBOnChar(npcID, optionID)
     return (t and t[MakeRuleKey(npcID, optionID)]) and true or false
 end
 
+-- Expose disable helpers (used by gossip engine module).
+ns.IsDisabled = IsDisabled
+ns.IsDisabledAccOnChar = IsDisabledAccOnChar
+ns.IsDisabledDB = IsDisabledDB
+ns.IsDisabledDBOnChar = IsDisabledDBOnChar
+
 local function SetDisabledDBOnChar(npcID, optionID, disabled)
     npcID = NormalizeID(npcID)
     optionID = NormalizeID(optionID)
@@ -1017,209 +1096,9 @@ local function QuestReadyForTurnIn(questID)
     return false
 end
 
-local function GetStopIfQuestAvailableSet(npcTable)
-    if type(npcTable) ~= "table" then
-        return nil
-    end
-    local meta = rawget(npcTable, "__meta")
-    if type(meta) ~= "table" then
-        return nil
-    end
-    local v = rawget(meta, "stopIfQuestAvailable")
-    if v == nil then
-        return nil
-    end
-
-    local set = {}
-    if type(v) == "number" or type(v) == "string" then
-        local q = tonumber(v)
-        if q and q > 0 then
-            set[q] = true
-        end
-        return next(set) and set or nil
-    end
-
-    if type(v) == "table" then
-        for k, vv in pairs(v) do
-            if type(k) == "number" then
-                local q = tonumber(vv)
-                if q and q > 0 then
-                    set[q] = true
-                end
-            else
-                local q = tonumber(k)
-                if q and q > 0 then
-                    set[q] = true
-                elseif vv == true then
-                    local q2 = tonumber(k)
-                    if q2 and q2 > 0 then
-                        set[q2] = true
-                    end
-                end
-            end
-        end
-        return next(set) and set or nil
-    end
-
-    return nil
-end
-
-local function GetStopIfQuestTurnInSet(npcTable)
-    if type(npcTable) ~= "table" then
-        return nil
-    end
-    local meta = rawget(npcTable, "__meta")
-    if type(meta) ~= "table" then
-        return nil
-    end
-
-    -- Accept either key for backwards/DB-pack flexibility.
-    local v = rawget(meta, "stopIfQuestTurnIn")
-    if v == nil then
-        v = rawget(meta, "stopIfQuestReadyForTurnIn")
-    end
-    if v == nil then
-        return nil
-    end
-
-    local set = {}
-    if type(v) == "number" or type(v) == "string" then
-        local q = tonumber(v)
-        if q and q > 0 then
-            set[q] = true
-        end
-        return next(set) and set or nil
-    end
-
-    if type(v) == "table" then
-        for k, vv in pairs(v) do
-            if type(k) == "number" then
-                local q = tonumber(vv)
-                if q and q > 0 then
-                    set[q] = true
-                end
-            else
-                local q = tonumber(k)
-                if q and q > 0 then
-                    set[q] = true
-                elseif vv == true then
-                    local q2 = tonumber(k)
-                    if q2 and q2 > 0 then
-                        set[q2] = true
-                    end
-                end
-            end
-        end
-        return next(set) and set or nil
-    end
-
-    return nil
-end
-
-local function MergeQuestSet(dst, src)
-    if type(dst) ~= "table" or type(src) ~= "table" then
-        return
-    end
-    for q in pairs(src) do
-        dst[q] = true
-    end
-end
-
--- Forward declarations (used by quest-gating helpers before their definitions).
+-- Forward declarations.
 local GetDbNpcTable
 local LookupNpcBucket
-
-local function IsQuestCurrentlyAvailable(entries, questID)
-    questID = tonumber(questID)
-    if not questID then
-        return false
-    end
-    for _, g in ipairs(entries or {}) do
-        if g and g.kind == "availableQuest" and tonumber(g.id) == questID then
-            return true
-        end
-    end
-    return false
-end
-
-local function IsQuestCurrentlyActive(entries, questID)
-    questID = tonumber(questID)
-    if not questID then
-        return false
-    end
-    for _, g in ipairs(entries or {}) do
-        if g and g.kind == "activeQuest" and tonumber(g.id) == questID then
-            return true
-        end
-    end
-    return false
-end
-
-local function IsQuestCurrentlyTurnInReady(entries, questID)
-    questID = tonumber(questID)
-    if not questID then
-        return false
-    end
-    for _, g in ipairs(entries or {}) do
-        if g and g.kind == "activeQuest" and tonumber(g.id) == questID then
-            local d = g.data
-            local isComplete = d and d.isComplete
-            if isComplete == true or isComplete == 1 then
-                return true
-            end
-
-            -- Fallback: if the gossip API doesn't populate isComplete, ask quest log.
-            if isComplete == nil and QuestReadyForTurnIn(questID) then
-                return true
-            end
-        end
-    end
-    return false
-end
-
-local function ShouldBlockOptionAutoSelectForNpc(npcID, entries)
-    -- If an NPC has __meta.stopIfQuestAvailable set, we suppress selecting "option" entries
-    -- while that quest is present as an available quest (i.e. not accepted yet).
-    -- This lets you accept the quest first; once accepted, the quest disappears and options can auto-select.
-    local mergedAvailable = {}
-    local mergedTurnIn = {}
-
-    local charNpc = LookupNpcBucket(AutoGossip_Char, npcID)
-    MergeQuestSet(mergedAvailable, GetStopIfQuestAvailableSet(charNpc) or {})
-    MergeQuestSet(mergedTurnIn, GetStopIfQuestTurnInSet(charNpc) or {})
-
-    local accNpc = LookupNpcBucket(AutoGossip_Acc, npcID)
-    MergeQuestSet(mergedAvailable, GetStopIfQuestAvailableSet(accNpc) or {})
-    MergeQuestSet(mergedTurnIn, GetStopIfQuestTurnInSet(accNpc) or {})
-
-    local dbNpc = GetDbNpcTable(npcID)
-    MergeQuestSet(mergedAvailable, GetStopIfQuestAvailableSet(dbNpc) or {})
-    MergeQuestSet(mergedTurnIn, GetStopIfQuestTurnInSet(dbNpc) or {})
-
-    if next(mergedAvailable) == nil and next(mergedTurnIn) == nil then
-        return false, nil
-    end
-
-    for questID in pairs(mergedAvailable) do
-        -- Only block when the quest is offered (available) and not yet accepted.
-        -- If gossip already lists it as active, treat it as accepted even if quest log APIs are briefly stale.
-        if IsQuestCurrentlyAvailable(entries, questID)
-            and (not IsQuestCurrentlyActive(entries, questID))
-            and (not PlayerIsOnQuestID(questID))
-            and (not QuestIsCompleted(questID)) then
-            return true, questID
-        end
-    end
-
-    for questID in pairs(mergedTurnIn) do
-        -- Block when the quest is present as an active quest and is ready to turn in.
-        if IsQuestCurrentlyTurnInReady(entries, questID) then
-            return true, questID
-        end
-    end
-
-    return false, nil
-end
 
 local function MaybeAutoStartFirstGarrisonMissionTableQuest()
     -- Gate behind Talk-tab toggle (DB rule disable) so it appears in the list like normal gossip entries.
@@ -1368,6 +1247,10 @@ local function HasRule(scope, npcID, optionID)
     end
     return false
 end
+
+-- Expose rule presence helpers for split-out modules.
+ns.HasDbRule = HasDbRule
+ns.HasRule = HasRule
 
 local function DeleteRule(scope, npcID, optionID, preserveToDb)
     if not (npcID and optionID) then
@@ -1547,6 +1430,8 @@ local function LookupRuleEntry(npcTable, optionID)
     return nil
 end
 
+ns.LookupRuleEntry = LookupRuleEntry
+
 LookupNpcBucket = function(db, npcID)
     if type(db) ~= "table" or npcID == nil then
         return nil
@@ -1567,535 +1452,22 @@ LookupNpcBucket = function(db, npcID)
     return (type(npcTable) == "table") and npcTable or nil
 end
 
-local gossipRetryToken = 0
-local lastGossipEntriesDebugAt = 0
-local lastGossipEntriesDebugKey = nil
+ns.LookupNpcBucket = LookupNpcBucket
 
-local function GetGossipDisplayEntries()
-    -- GossipFrame shows Quests (active/available) in the main list above normal options,
-    -- but the APIs expose them via separate getters.
-    -- To match "first option on screen" behavior, we consider quests first.
-    local entries = {}
-    if not (C_GossipInfo and C_GossipInfo.GetOptions) then
-        return entries
-    end
-
-    if C_GossipInfo.GetActiveQuests then
-        local aq = C_GossipInfo.GetActiveQuests() or {}
-        for _, q in ipairs(aq) do
-            local questID = q and q.questID
-            if questID then
-                entries[#entries + 1] = { kind = "activeQuest", id = questID, data = q }
-            end
-        end
-    end
-
-    if C_GossipInfo.GetAvailableQuests then
-        local av = C_GossipInfo.GetAvailableQuests() or {}
-        for _, q in ipairs(av) do
-            local questID = q and q.questID
-            if questID then
-                entries[#entries + 1] = { kind = "availableQuest", id = questID, data = q }
-            end
-        end
-    end
-
-    local options = C_GossipInfo.GetOptions() or {}
-    for _, opt in ipairs(options) do
-        local optionID = opt and opt.gossipOptionID
-        if optionID then
-            entries[#entries + 1] = { kind = "option", id = optionID, data = opt }
-        end
-    end
-
-    return entries
-end
-
+-- Gossip engine moved into fUI_GOTalk.lua (ns.Talk.*). Keep thin delegates here for event wiring.
 local function TryAutoSelect()
-    local debug = AutoGossip_Settings and AutoGossip_Settings.debugAcc
-    local function Debug(msg)
-        if debug then
-            Print("Gossip: " .. SafeToString(msg))
-        end
+    local Talk = ns and ns.Talk
+    if Talk and type(Talk.TryAutoSelect) == "function" then
+        return Talk.TryAutoSelect()
     end
-
-    local function RuleAllowsAutoSelect(ruleEntry, npcID, optionID, gossipEntry)
-        if type(ruleEntry) ~= "table" then
-            return true
-        end
-
-        local pred = ruleEntry.when or ruleEntry.cond or ruleEntry.condition
-        if pred == nil then
-            return true
-        end
-
-        if type(pred) == "function" then
-            local ok, ret = pcall(pred, npcID, optionID, gossipEntry, ruleEntry)
-            if not ok then
-                if debug then
-                    Debug("Match ignored (condition error): " .. tostring(npcID) .. ":" .. tostring(optionID) .. " :: " .. SafeToString(ret))
-                end
-                return false
-            end
-            return ret and true or false
-        end
-
-        -- Unknown condition type -> be safe and do not auto-select.
-        if debug then
-            Debug("Match ignored (condition invalid): " .. tostring(npcID) .. ":" .. tostring(optionID))
-        end
-        return false
-    end
-
-    if IsShiftKeyDown() then
-        Debug("Blocked (Shift held)")
-        return false, "blocked"
-    end
-    -- When the options window is open, behave like Shift is held:
-    -- don't auto-select while the user is inspecting/editing rules.
-    if AutoGossipOptions and AutoGossipOptions.IsShown and AutoGossipOptions:IsShown() then
-        -- Prefer IsVisible so a "shown but effectively invisible" frame (e.g. after /reload or bad strata)
-        -- doesn't permanently disable auto-select until the user toggles the UI.
-        local isVisible = true
-        if AutoGossipOptions.IsVisible then
-            isVisible = AutoGossipOptions:IsVisible() and true or false
-        end
-        local alpha = 1
-        if AutoGossipOptions.GetEffectiveAlpha then
-            alpha = tonumber(AutoGossipOptions:GetEffectiveAlpha()) or 1
-        end
-
-        if isVisible and alpha > 0.05 then
-            Debug("Blocked (options window open)")
-            return false, "blocked"
-        end
-    end
-    if not (C_GossipInfo and C_GossipInfo.GetOptions and C_GossipInfo.SelectOption) then
-        Debug("Blocked (missing C_GossipInfo APIs)")
-        return false, "blocked"
-    end
-
-    local npcID = GetCurrentNpcID()
-    if not npcID then
-        Debug("Blocked (could not resolve NPC ID)")
-        return false, "no-npc"
-    end
-
-    local now = GetTime()
-    if lastDeclineQuestAt then
-        local sinceDecline = now - lastDeclineQuestAt
-        if sinceDecline < 10 then
-            Debug("Blocked (recent DeclineQuest)")
-            return false, "blocked"
-        end
-        lastDeclineQuestAt = nil
-    end
-    if now - lastSelectAt < 0.25 then
-        Debug("Blocked (debounce)")
-        return false, "blocked"
-    end
-
-    local function NoteLastGossipSelection(selectedNpcID, selectedOptionID, entry)
-        -- This is used by the TalkUP module to scope StaticPopup auto-confirms
-        -- to the specific gossip option we just selected.
-        if ns and ns.TalkUP and type(ns.TalkUP.SetLastGossipSelection) == "function" then
-            pcall(ns.TalkUP.SetLastGossipSelection, selectedNpcID, selectedOptionID, entry)
-            return
-        end
-        ns = (type(ns) == "table") and ns or {}
-        ns._lastGossipSelection = {
-            npcID = selectedNpcID,
-            optionID = selectedOptionID,
-            at = now,
-            entry = entry,
-        }
-    end
-
-    local entries = GetGossipDisplayEntries()
-    if #entries == 0 then
-        Debug("No gossip entries")
-        return false, "no-options"
-    end
-
-    -- Stable signature of the current gossip list; used to avoid repeatedly selecting
-    -- the same option when the game returns you to the same gossip after selection.
-    local entrySigParts = { tostring(npcID) }
-    for _, g in ipairs(entries) do
-        entrySigParts[#entrySigParts + 1] = tostring(g.kind) .. ":" .. tostring(g.id)
-    end
-    local entriesKey = table.concat(entrySigParts, "|")
-
-    local blockOptions, blockQuestID = ShouldBlockOptionAutoSelectForNpc(npcID, entries)
-    if blockOptions and blockQuestID then
-        Debug("Option auto-select suppressed until quest accepted: questID=" .. tostring(blockQuestID))
-    end
-
-    -- Debug helper: dump the entry list so DB authors can see the real IDs.
-    if debug then
-        local parts = { tostring(npcID) }
-        for _, g in ipairs(entries) do
-            parts[#parts + 1] = tostring(g.kind) .. ":" .. tostring(g.id)
-        end
-        local k = table.concat(parts, "|")
-        if k ~= lastGossipEntriesDebugKey or (now - (lastGossipEntriesDebugAt or 0)) > 2 then
-            lastGossipEntriesDebugKey = k
-            lastGossipEntriesDebugAt = now
-
-            Debug("Entries for NPC " .. tostring(npcID) .. ":")
-            for i, g in ipairs(entries) do
-                local label = tostring(i) .. ") " .. tostring(g.kind) .. " " .. tostring(g.id)
-                local d = g and g.data
-                if g.kind == "option" then
-                    local txt = (d and (d.name or d.optionText or d.text))
-                    if txt then
-                        label = label .. " :: " .. SafeToString(txt)
-                    end
-                else
-                    local title = d and d.title
-                    if title then
-                        label = label .. " :: " .. SafeToString(title)
-                    end
-                end
-                Debug(label)
-            end
-        end
-    end
-
-    local function SelectEntry(entry, contextNpcID, contextEntriesKey, isFirstSelectSinceLogin)
-        if not entry then
-            return false
-        end
-
-        local function SelectNextFrame(fn, id, retryDelay)
-            if not fn then
-                return false
-            end
-
-            local function SameGossipStillOpen()
-                local curNpcID = GetCurrentNpcID()
-                if not curNpcID or curNpcID ~= contextNpcID then
-                    return false
-                end
-
-                local curEntries = GetGossipDisplayEntries()
-                if type(curEntries) ~= "table" or #curEntries == 0 then
-                    return false
-                end
-
-                local parts = { tostring(curNpcID) }
-                for _, g in ipairs(curEntries) do
-                    parts[#parts + 1] = tostring(g.kind) .. ":" .. tostring(g.id)
-                end
-                local curKey = table.concat(parts, "|")
-                return curKey == contextEntriesKey
-            end
-
-            -- On cold login / first interaction, selecting in the same frame as GOSSIP_SHOW
-            -- can be ignored by the client. Debug printing incidentally delays enough to
-            -- make it work, so we explicitly do a small guarded re-attempt sequence.
-            if C_Timer and C_Timer.After then
-                local delays = { 0, 0.06, 0.18 }
-                if isFirstSelectSinceLogin then
-                    -- Older clients/first interaction sometimes need a longer settle.
-                    delays[#delays + 1] = (retryDelay and retryDelay > 0) and retryDelay or 0.40
-                end
-
-                for _, d in ipairs(delays) do
-                    C_Timer.After(d, function()
-                        if SameGossipStillOpen() then
-                            pcall(fn, id)
-                        end
-                    end)
-                end
-                return true
-            end
-
-            if SameGossipStillOpen() then
-                return pcall(fn, id)
-            end
-            return false
-        end
-
-        if entry.kind == "option" then
-            if not (C_GossipInfo and C_GossipInfo.SelectOption) then
-                return false
-            end
-            return SelectNextFrame(C_GossipInfo.SelectOption, entry.id, 0.20)
-        elseif entry.kind == "availableQuest" then
-            if not (C_GossipInfo and C_GossipInfo.SelectAvailableQuest) then
-                return false
-            end
-            return SelectNextFrame(C_GossipInfo.SelectAvailableQuest, entry.id, 0.20)
-        elseif entry.kind == "activeQuest" then
-            if not (C_GossipInfo and C_GossipInfo.SelectActiveQuest) then
-                return false
-            end
-            return SelectNextFrame(C_GossipInfo.SelectActiveQuest, entry.id, 0.20)
-        end
-        return false
-    end
-
-    local function EntryWantsCloseOnly(ruleEntry)
-        if type(ruleEntry) ~= "table" then
-            return false
-        end
-        local a = ruleEntry.action or ruleEntry.cmd
-        if type(a) ~= "string" then
-            return false
-        end
-        a = a:lower()
-        return (a == "close" or a == "closegossip" or a == "closewindow")
-    end
-
-    local function EntryWantsCloseAfterSelect(ruleEntry)
-        if type(ruleEntry) ~= "table" then
-            return false
-        end
-        if ruleEntry.close == true or ruleEntry.closeGossip == true or ruleEntry.closeWindow == true then
-            return true
-        end
-        local a = ruleEntry.after or ruleEntry.post
-        if type(a) ~= "string" then
-            return false
-        end
-        a = a:lower()
-        return (a == "close" or a == "closegossip" or a == "closewindow")
-    end
-
-    -- Prefer character rules over account rules, then DB pack.
-    for _, scope in ipairs({ "char", "acc" }) do
-        local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
-        local npcTable = LookupNpcBucket(db, npcID)
-        if npcTable then
-            local bestG, bestID, bestEntry, bestPrio
-            for _, g in ipairs(entries) do
-                if not (blockOptions and g and g.kind == "option") then
-                local id = g and g.id
-                local ruleEntry = id and LookupRuleEntry(npcTable, id)
-                if ruleEntry ~= nil then
-                    if IsDisabled(scope, npcID, id) then
-                        Debug("Match blocked (" .. scope .. " disabled): " .. tostring(npcID) .. ":" .. tostring(id))
-                    elseif scope == "acc" and IsDisabledAccOnChar(npcID, id) then
-                        Debug("Match blocked (acc disabled on this char): " .. tostring(npcID) .. ":" .. tostring(id))
-                    else
-                        -- Manual-only rules: keep them for popup scoping, but do not auto-select.
-                        if type(ruleEntry) == "table" then
-                            local t = tostring(ruleEntry.type or "")
-                            local noAuto = (ruleEntry.noAuto == true) or (ruleEntry.manual == true) or (t ~= "" and t:lower() == "manual")
-                            if noAuto then
-                                if debug then
-                                    Debug("Match ignored (manual): " .. tostring(npcID) .. ":" .. tostring(id))
-                                end
-                                ruleEntry = nil
-                            end
-                        end
-
-                        if ruleEntry ~= nil then
-                        local pr = 0
-                        if type(ruleEntry) == "table" then
-                            if not RuleAllowsAutoSelect(ruleEntry, npcID, id, g) then
-                                if debug then
-                                    Debug("Match ignored (condition false): " .. tostring(npcID) .. ":" .. tostring(id))
-                                end
-                                ruleEntry = nil
-                            else
-                                pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
-                            end
-                        end
-
-                        if ruleEntry ~= nil then
-                            if bestG == nil or pr > (bestPrio or 0) then
-                                bestG, bestID, bestEntry, bestPrio = g, id, ruleEntry, pr
-                            end
-                            if debug then
-                                Debug("Match (" .. scope .. ", " .. tostring(g.kind) .. ") prio=" .. tostring(pr) .. ": " .. tostring(npcID) .. ":" .. tostring(id))
-                            end
-                        end
-                        end
-                    end
-                end
-                end
-            end
-
-            if bestG and bestID then
-                -- Loop guard: if we just auto-selected this exact option for this exact
-                -- NPC+entry list, don't immediately do it again.
-                if bestG.kind == "option" and lastAutoSelectKey == entriesKey and lastAutoSelectOptionID == bestID and (now - (lastAutoSelectAt or 0)) < 2.0 then
-                    Debug("Blocked (repeat selection): " .. tostring(npcID) .. ":" .. tostring(bestID))
-                    return false, "blocked"
-                end
-
-                lastSelectAt = now
-                if bestG.kind == "option" then
-                    lastAutoSelectKey = entriesKey
-                    lastAutoSelectOptionID = bestID
-                    lastAutoSelectAt = now
-                end
-
-                if EntryWantsCloseOnly(bestEntry) then
-                    Debug("Closing gossip (" .. scope .. ", " .. tostring(bestG.kind) .. ") prio=" .. tostring(bestPrio or 0) .. ": " .. tostring(npcID) .. ":" .. tostring(bestID))
-                    if C_Timer and C_Timer.After then
-                        C_Timer.After(0, CloseGossipWindow)
-                    else
-                        CloseGossipWindow()
-                    end
-                    return true, "closed"
-                end
-
-                Debug("Selecting (" .. scope .. ", " .. tostring(bestG.kind) .. ") prio=" .. tostring(bestPrio or 0) .. ": " .. tostring(npcID) .. ":" .. tostring(bestID))
-                if bestG.kind == "option" then
-                    NoteLastGossipSelection(npcID, bestID, bestEntry)
-                end
-                local isFirst = firstAutoSelectSinceLogin and true or false
-                firstAutoSelectSinceLogin = false
-                if SelectEntry(bestG, npcID, entriesKey, isFirst) then
-                    if EntryWantsCloseAfterSelect(bestEntry) then
-                        local d = isFirst and 0.65 or 0.35
-                        if C_Timer and C_Timer.After then
-                            C_Timer.After(d, CloseGossipWindow)
-                        else
-                            CloseGossipWindow()
-                        end
-                    end
-                    return true, "selected"
-                end
-                Debug("Select failed (" .. tostring(bestG.kind) .. "): " .. tostring(npcID) .. ":" .. tostring(bestID))
-                return false, "blocked"
-            end
-        end
-    end
-
-    local dbNpc = GetDbNpcTable(npcID)
-    if dbNpc then
-        local bestG, bestID, bestEntry, bestPrio
-        for _, g in ipairs(entries) do
-            if not (blockOptions and g and g.kind == "option") then
-            local id = g and g.id
-            local ruleEntry = id and LookupRuleEntry(dbNpc, id)
-            if ruleEntry ~= nil then
-                if IsDisabledDB(npcID, id) then
-                    Debug("DB match blocked (disabled): " .. tostring(npcID) .. ":" .. tostring(id))
-                elseif IsDisabledDBOnChar(npcID, id) then
-                    Debug("DB match blocked (disabled on this char): " .. tostring(npcID) .. ":" .. tostring(id))
-                else
-                    -- Manual-only DB rules: keep them for popup scoping, but do not auto-select.
-                    if type(ruleEntry) == "table" then
-                        local t = tostring(ruleEntry.type or "")
-                        local noAuto = (ruleEntry.noAuto == true) or (ruleEntry.manual == true) or (t ~= "" and t:lower() == "manual")
-                        if noAuto then
-                            if debug then
-                                Debug("DB match ignored (manual): " .. tostring(npcID) .. ":" .. tostring(id))
-                            end
-                            ruleEntry = nil
-                        end
-                    end
-
-                    if ruleEntry ~= nil then
-                    local pr = 0
-                    if type(ruleEntry) == "table" then
-                        if not RuleAllowsAutoSelect(ruleEntry, npcID, id, g) then
-                            if debug then
-                                Debug("DB match ignored (condition false): " .. tostring(npcID) .. ":" .. tostring(id))
-                            end
-                            ruleEntry = nil
-                        else
-                            pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
-                        end
-                    end
-
-                    if ruleEntry ~= nil then
-                        if bestG == nil or pr > (bestPrio or 0) then
-                            bestG, bestID, bestEntry, bestPrio = g, id, ruleEntry, pr
-                        end
-                        if debug then
-                            Debug("DB match (" .. tostring(g.kind) .. ") prio=" .. tostring(pr) .. ": " .. tostring(npcID) .. ":" .. tostring(id))
-                        end
-                    end
-                    end
-                end
-            end
-            end
-        end
-
-        if bestG and bestID then
-            -- Loop guard: if we just auto-selected this exact option for this exact
-            -- NPC+entry list, don't immediately do it again.
-            if bestG.kind == "option" and lastAutoSelectKey == entriesKey and lastAutoSelectOptionID == bestID and (now - (lastAutoSelectAt or 0)) < 2.0 then
-                Debug("Blocked (repeat selection): " .. tostring(npcID) .. ":" .. tostring(bestID))
-                return false, "blocked"
-            end
-
-            lastSelectAt = now
-            if bestG.kind == "option" then
-                lastAutoSelectKey = entriesKey
-                lastAutoSelectOptionID = bestID
-                lastAutoSelectAt = now
-            end
-
-            if EntryWantsCloseOnly(bestEntry) then
-                Debug("Closing gossip (DB, " .. tostring(bestG.kind) .. ") prio=" .. tostring(bestPrio or 0) .. ": " .. tostring(npcID) .. ":" .. tostring(bestID))
-                if C_Timer and C_Timer.After then
-                    C_Timer.After(0, CloseGossipWindow)
-                else
-                    CloseGossipWindow()
-                end
-                return true, "closed"
-            end
-
-            Debug("Selecting (DB, " .. tostring(bestG.kind) .. ") prio=" .. tostring(bestPrio or 0) .. ": " .. tostring(npcID) .. ":" .. tostring(bestID))
-            if bestG.kind == "option" then
-                NoteLastGossipSelection(npcID, bestID, bestEntry)
-            end
-            local isFirst = firstAutoSelectSinceLogin and true or false
-            firstAutoSelectSinceLogin = false
-            if SelectEntry(bestG, npcID, entriesKey, isFirst) then
-                if EntryWantsCloseAfterSelect(bestEntry) then
-                    local d = isFirst and 0.65 or 0.35
-                    if C_Timer and C_Timer.After then
-                        C_Timer.After(d, CloseGossipWindow)
-                    else
-                        CloseGossipWindow()
-                    end
-                end
-                return true, "selected"
-            end
-            Debug("Select failed (DB, " .. tostring(bestG.kind) .. "): " .. tostring(npcID) .. ":" .. tostring(bestID))
-            return false, "blocked"
-        end
-    end
-
-    if blockOptions and blockQuestID then
-        Debug("No auto-select (waiting for quest accept): questID=" .. tostring(blockQuestID))
-        return false, "quest-block"
-    end
-
-    Debug("No matching enabled rules")
-    return false, "no-match"
+    return false, "no-module"
 end
 
 local function ScheduleGossipRetry()
-    if not (C_Timer and C_Timer.After) then
-        return
+    local Talk = ns and ns.Talk
+    if Talk and type(Talk.ScheduleGossipRetry) == "function" then
+        return Talk.ScheduleGossipRetry()
     end
-
-    gossipRetryToken = (gossipRetryToken or 0) + 1
-    local token = gossipRetryToken
-
-    local function RetryAfter(delay)
-        C_Timer.After(delay, function()
-            if token ~= gossipRetryToken then
-                return
-            end
-            TryAutoSelect()
-        end)
-    end
-
-    -- Small staggered retries to handle cases where gossip info isn't ready on the first frame.
-    RetryAfter(0)
-    RetryAfter(0.12)
-    -- Cold-login / first-interaction can take longer for NPC GUID/options to populate.
-    RetryAfter(0.25)
-    RetryAfter(0.45)
 end
 
 -- UI (layout mirrored from AutoOpen's item entry panel)
@@ -2456,6 +1828,16 @@ local function CreateOptionsWindow()
         if p and p.Hide then
             p:Hide()
         end
+
+        local mu = (_G and rawget(_G, "FGO_MountUpConfigPopup"))
+        if mu and mu.Hide then
+            mu:Hide()
+        end
+
+        local pw = (_G and rawget(_G, "FGO_PetWalkConfigPopup"))
+        if pw and pw.Hide then
+            pw:Hide()
+        end
     end)
 
     local function BumpFont(fs, delta)
@@ -2669,6 +2051,7 @@ local function CreateOptionsWindow()
                     UpdateChromieIndicator = UpdateChromieIndicator,
                     ForceHideChromieIndicator = ForceHideChromieIndicator,
                     OpenChromieConfigPopup = OpenChromieConfigPopup,
+                    GetChromieConfigPopupFrame = (ns and ns.SwitchesCT and ns.SwitchesCT.GetChromieConfigPopupFrame) or nil,
                     EnsureReloadFloatButton = ns and ns.EnsureReloadFloatButton,
                     UpdateReloadFloatButton = ns and ns.UpdateReloadFloatButton,
                 }) or UpdateUI
@@ -2764,226 +2147,17 @@ local function ToggleUI(optionID)
     end
 end
 
-local lastPrintOnShowAt = 0
-local lastPrintOnShowKey = nil
-local PRINT_ON_SHOW_DEBOUNCE_WINDOW = 0.75
-
 local function PrintCurrentOptions(debounce)
-    if not (C_GossipInfo and C_GossipInfo.GetOptions) then
-        Print("Gossip API not available")
-        return
-    end
-
-    InitSV()
-    local minOptions = tonumber(AutoGossip_UI and AutoGossip_UI.printOnShowMinOptions) or 2
-    minOptions = math.floor(minOptions)
-    if minOptions < 1 then
-        minOptions = 1
-    end
-
-    local options = C_GossipInfo.GetOptions() or {}
-    local optionCount = #options
-    -- Avoid chat spam: by default, skip single-option NPCs.
-    if optionCount >= minOptions then
-        local function GetPlayerContinentNameForHeader()
-            if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetMapInfo) then
-                return ""
-            end
-            local mapID = C_Map.GetBestMapForUnit("player")
-            local safety = 0
-            while mapID and safety < 30 do
-                local info = C_Map.GetMapInfo(mapID)
-                if not info then
-                    break
-                end
-                if Enum and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent then
-                    local name = info.name or ""
-                    -- Some APIs/overrides may include commas in continent names; normalize to spaces.
-                    if type(name) == "string" and name:find(",", 1, true) then
-                        name = name:gsub("%s*,%s*", " ")
-                        name = name:gsub("%s%s+", " ")
-                        name = name:gsub("^%s+", ""):gsub("%s+$", "")
-                    end
-                    return name
-                end
-                mapID = info.parentMapID
-                safety = safety + 1
-            end
-            return ""
-        end
-
-        local function GetPlayerZoneNameForHeader()
-            if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetMapInfo) then
-                return ""
-            end
-            local mapID = C_Map.GetBestMapForUnit("player")
-            local safety = 0
-            while mapID and safety < 30 do
-                local info = C_Map.GetMapInfo(mapID)
-                if not info then
-                    break
-                end
-                if Enum and Enum.UIMapType and info.mapType == Enum.UIMapType.Zone then
-                    return info.name or ""
-                end
-                mapID = info.parentMapID
-                safety = safety + 1
-            end
-            return ""
-        end
-
-        local function GetLocationTextForHeader()
-            local zone = GetPlayerZoneNameForHeader()
-            if zone == "" then
-                zone = (GetRealZoneText and GetRealZoneText()) or ((GetZoneText and GetZoneText()) or "")
-            end
-            local continent = GetPlayerContinentNameForHeader()
-            if zone ~= "" and continent ~= "" then
-                return zone .. ", " .. continent
-            end
-            return zone ~= "" and zone or (continent ~= "" and continent or "")
-        end
-
-        local npcID = GetCurrentNpcID()
-        local npcName = GetCurrentNpcName()
-        if IsSecretString(npcName) then
-            npcName = ""
-        end
-        npcName = npcName or ""
-
-        -- Print-on-show is primarily used for building rules; if we don't have the NPC ID yet,
-        -- skip so we don't double-print when the ID becomes available a fraction later.
-        if debounce and not npcID then
-            return
-        end
-
-        -- Debounce only for Print-on-show. Both GOSSIP_SHOW and
-        -- PLAYER_INTERACTION_MANAGER_FRAME_SHOW can fire for the same interaction.
-        if debounce then
-            local ids = {}
-            for _, opt in ipairs(options) do
-                local optionID = opt and opt.gossipOptionID
-                if optionID then
-                    ids[#ids + 1] = optionID
-                end
-            end
-            table.sort(ids)
-            local key = tostring(optionCount) .. ":" .. table.concat(ids, ",")
-
-            local now = (GetTime and GetTime()) or 0
-            if lastPrintOnShowKey == key and (now - (lastPrintOnShowAt or 0)) < PRINT_ON_SHOW_DEBOUNCE_WINDOW then
-                return
-            end
-            lastPrintOnShowKey = key
-            lastPrintOnShowAt = now
-        end
-
-        if npcID then
-            Print(string.format("NPC:  %s (%d)", npcName, npcID))
-        end
-
-        do
-            local locText = GetLocationTextForHeader()
-            if IsSecretString(locText) then
-                locText = ""
-            end
-            if type(locText) == "string" and locText ~= "" then
-                Print("LOC:  " .. locText)
-            end
-        end
-
-        for _, opt in ipairs(options) do
-            if opt and opt.gossipOptionID then
-                local optName = opt.name
-                if IsSecretString(optName) then
-                    optName = ""
-                end
-                local optionID = opt.gossipOptionID
-                local isSet = false
-                if npcID and optionID then
-                    if HasRule("char", npcID, optionID) and (not IsDisabled("char", npcID, optionID)) then
-                        isSet = true
-                    elseif HasRule("acc", npcID, optionID) and (not IsDisabled("acc", npcID, optionID)) then
-                        isSet = true
-                    elseif HasDbRule(npcID, optionID) and (not IsDisabledDB(npcID, optionID)) and (not IsDisabledDBOnChar(npcID, optionID)) then
-                        isSet = true
-                    end
-                end
-
-                if isSet then
-                    Print(string.format("OID:  |cff00ff00%d|r  %s", optionID, optName or ""))
-                else
-                    Print(string.format("OID:  %d  %s", optionID, optName or ""))
-                end
-            end
-        end
+    local Talk = ns and ns.Talk
+    if Talk and type(Talk.PrintCurrentOptions) == "function" then
+        return Talk.PrintCurrentOptions(debounce)
     end
 end
 
-local lastDebugPrintAt = 0
-local lastDebugPrintKey = nil
-
 local function PrintDebugOptionsOnShow(skipOptionLines)
-    InitSV()
-
-    if not (C_GossipInfo and C_GossipInfo.GetOptions) then
-        return
-    end
-
-    local options = C_GossipInfo.GetOptions() or {}
-
-    local npcID = GetCurrentNpcID()
-    local npcName = GetCurrentNpcName()
-    if IsSecretString(npcName) then
-        npcName = ""
-    end
-    npcName = npcName or ""
-
-    -- Debounce: both GOSSIP_SHOW and PLAYER_INTERACTION_MANAGER_FRAME_SHOW can fire for the
-    -- same interaction, which would otherwise print the same block twice.
-    do
-        local ids = {}
-        for _, opt in ipairs(options) do
-            local optionID = opt and opt.gossipOptionID
-            if optionID then
-                ids[#ids + 1] = optionID
-            end
-        end
-        table.sort(ids)
-        local key = tostring(npcID or "?") .. ":" .. tostring(#options) .. ":" .. table.concat(ids, ",")
-
-        local now = (GetTime and GetTime()) or 0
-        if lastDebugPrintKey == key and (now - (lastDebugPrintAt or 0)) < 0.20 then
-            return
-        end
-        lastDebugPrintKey = key
-        lastDebugPrintAt = now
-    end
-
-    if npcID then
-        Print(string.format("%d: %s", npcID, npcName))
-    else
-        Print(string.format("?: %s", npcName))
-    end
-
-    -- When Print-on-show is enabled, avoid printing a second OID list.
-    -- The Print-on-show block already prints OIDs (with green highlighting), so here we only emit the header.
-    if skipOptionLines then
-        return
-    end
-
-    for _, opt in ipairs(options) do
-        local optionID = opt and opt.gossipOptionID
-        if optionID then
-            local text = opt.name
-            if IsSecretString(text) then
-                text = ""
-            end
-            if type(text) ~= "string" or text == "" then
-                text = "(no text)"
-            end
-            Print(string.format("OID:  %d  %s", optionID, text))
-        end
+    local Talk = ns and ns.Talk
+    if Talk and type(Talk.PrintDebugOptionsOnShow) == "function" then
+        return Talk.PrintDebugOptionsOnShow(skipOptionLines)
     end
 end
 
@@ -3035,6 +2209,14 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo mouse                 - toggle Loot Under Mouse",
                     "/fgo clickmove             - toggle Click2Move (autointeract)",
                 "/fgo mountequip            - warn if mount equipment slot empty",
+                "/fgo mu acc               - toggle Mount Up (Account)",
+                "/fgo mu on                - enable Mount Up (Character)",
+                "/fgo mu son               - enable Mount Up (Character, silent)",
+                "/fgo mu off               - disable Mount Up (Character)",
+                "/fgo mu soff              - disable Mount Up (Character, silent)",
+                "/fgo mu sw                - toggle Mount Up (Character)",
+                "/fgo mountupon            - alias for /fgo mu on",
+                "/fgo mountupoff           - alias for /fgo mu off",
                 "/fgo vault                 - toggle Great Vault window",
                 "/fgo trade                 - toggle Block Trades",
                 "/fgo friend                - toggle Friendly Names",
@@ -3152,6 +2334,11 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 ["sharpen"] = true,
                 ["whispin"] = true,
                 ["mountequip"] = true,
+                ["mu"] = true,
+                ["mountup"] = true,
+                ["mountupon"] = true,
+                ["mountupoff"] = true,
+                ["mountupconfig"] = true,
                 ["chromie"] = true,
                 ["chromietime"] = true,
                 ["ct"] = true,
@@ -3444,6 +2631,141 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             return
         end
 
+        if cmd == "mu" then
+            InitSV()
+
+            local sub, subarg = (rest or ""):match("^(%S*)%s*(.-)$")
+            sub = (sub or ""):lower()
+            subarg = (subarg or ""):lower()
+
+            local function MU_SettingsChanged()
+                if ns and ns.SwitchesMU and ns.SwitchesMU.OnSettingsChanged then
+                    ns.SwitchesMU.OnSettingsChanged()
+                end
+            end
+
+            local function MU_PrintAcc()
+                local onAcc = (AutoGossip_Settings.mountUpEnabledAcc and true or false)
+                Print("|cff00ccffMount Up|r: " .. (onAcc and "ON" or "OFF") .. " ACC")
+            end
+
+            local function MU_PrintChar()
+                local onChar = (AutoGossip_CharSettings.mountUpEnabledChar and true or false)
+                local status = onChar and "Enabled" or "Disabled"
+                if WrapTextInColorCode then
+                    if onChar then
+                        status = WrapTextInColorCode(status, "ff00ff00")
+                    else
+                        status = WrapTextInColorCode(status, "ffff8000")
+                    end
+                end
+                Print("|cff00ccffMount Up|r " .. status)
+            end
+
+            if sub == "" then
+                Print("Usage: /fgo mu acc|on|son|off|soff|sw|types|mounted|preferred")
+                return
+            end
+
+            if sub == "types" then
+                if ns and ns.SwitchesMU and ns.SwitchesMU.DebugDumpMountTypes then
+                    ns.SwitchesMU.DebugDumpMountTypes()
+                end
+                return
+            end
+
+            if sub == "mounted" then
+                if ns and ns.SwitchesMU and ns.SwitchesMU.DebugPrintMountedMountType then
+                    ns.SwitchesMU.DebugPrintMountedMountType()
+                end
+                return
+            end
+
+            if sub == "preferred" then
+                if ns and ns.SwitchesMU and ns.SwitchesMU.DebugPrintPreferredMounts then
+                    ns.SwitchesMU.DebugPrintPreferredMounts()
+                end
+                return
+            end
+
+            if sub == "acc" then
+                AutoGossip_Settings.mountUpEnabledAcc = not (AutoGossip_Settings.mountUpEnabledAcc and true or false)
+                MU_PrintAcc()
+                MU_SettingsChanged()
+                return
+            end
+
+            if sub == "on" or sub == "son" then
+                AutoGossip_CharSettings.mountUpEnabledChar = true
+                if sub == "on" then
+                    MU_PrintChar()
+                end
+                MU_SettingsChanged()
+                return
+            end
+
+            if sub == "off" or sub == "soff" then
+                AutoGossip_CharSettings.mountUpEnabledChar = false
+                if sub == "off" then
+                    MU_PrintChar()
+                end
+                MU_SettingsChanged()
+                return
+            end
+
+            if sub == "sw" then
+                AutoGossip_CharSettings.mountUpEnabledChar = not (AutoGossip_CharSettings.mountUpEnabledChar and true or false)
+                MU_PrintChar()
+                MU_SettingsChanged()
+                return
+            end
+
+            Print("Usage: /fgo mu acc|on|son|off|soff|sw|types|mounted|preferred")
+            return
+        end
+
+        if cmd == "mountup" or cmd == "mountupon" or cmd == "mountupoff" or cmd == "mountupconfig" then
+            InitSV()
+
+            local function MU_SettingsChanged()
+                if ns and ns.SwitchesMU and ns.SwitchesMU.OnSettingsChanged then
+                    ns.SwitchesMU.OnSettingsChanged()
+                end
+            end
+
+            if cmd == "mountupconfig" then
+                Print("Mount Up: use the Config button in /fgo (Switches tab).")
+                return
+            end
+
+            -- Back-compat:
+            --  /fgo mountup    -> /fgo mu acc
+            --  /fgo mountupon  -> /fgo mu on
+            --  /fgo mountupoff -> /fgo mu off
+            if cmd == "mountup" then
+                AutoGossip_Settings.mountUpEnabledAcc = not (AutoGossip_Settings.mountUpEnabledAcc and true or false)
+                local on = (AutoGossip_Settings.mountUpEnabledAcc and true or false)
+                Print("Mount Up: " .. (on and "ON" or "OFF") .. " ACC")
+                MU_SettingsChanged()
+                return
+            end
+
+            if cmd == "mountupon" then
+                AutoGossip_CharSettings.mountUpEnabledChar = true
+                MU_PrintChar()
+                MU_SettingsChanged()
+                return
+            end
+
+            if cmd == "mountupoff" then
+                AutoGossip_CharSettings.mountUpEnabledChar = false
+                MU_PrintChar()
+                MU_SettingsChanged()
+                return
+            end
+            return
+        end
+
         if cmd == "vault" then
             local loadOk = false
             if C_AddOns and type(C_AddOns.LoadAddOn) == "function" then
@@ -3718,6 +3040,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     Print("/fgo mouse     - toggle Loot Under Mouse")
     Print("/fgo clickmove - toggle Click2Move")
     Print("/fgo mountequip - warn if mount equipment slot empty")
+    Print("/fgo mu ...    - Mount Up (auto mount) controls")
     Print("/fgo vault     - toggle Great Vault window")
     Print("/fgo trade     - toggle Block Trades")
     Print("/fgo friend    - toggle Friendly Names")
@@ -3955,6 +3278,14 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         if AutoGossipOptions and AutoGossipOptions:IsShown() and AutoGossipOptions.RefreshOptionsList then
             AutoGossipOptions:RefreshOptionsList()
         end
+        -- Pre-arm gossip engine state so first-run doesn’t fail on nil timestamps.
+        do
+            local Talk = ns and ns.Talk
+            if Talk and type(Talk.EnsureEngineInitialized) == "function" then
+                pcall(Talk.EnsureEngineInitialized)
+            end
+        end
+
         local ok, why
         do
             local callOk, a, b = pcall(TryAutoSelect)
@@ -3972,7 +3303,7 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         end
         -- Sometimes gossip data isn't ready on the first frame (empty options / missing NPC ID).
         -- Retry very shortly so auto-select works without requiring the user to toggle the UI.
-        if not ok and (why == "no-npc" or why == "no-options") then
+        if not ok and (why == "no-npc" or why == "no-options" or why == "no-api") then
             ScheduleGossipRetry()
         end
 

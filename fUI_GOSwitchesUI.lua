@@ -25,9 +25,44 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     local UpdateChromieIndicator = helpers.UpdateChromieIndicator
     local ForceHideChromieIndicator = helpers.ForceHideChromieIndicator
     local OpenChromieConfigPopup = helpers.OpenChromieConfigPopup
+    local GetChromieConfigPopupFrame = helpers.GetChromieConfigPopupFrame
 
     local EnsureReloadFloatButton = helpers.EnsureReloadFloatButton
     local UpdateReloadFloatButton = helpers.UpdateReloadFloatButton
+
+    local function HideIfShown(f)
+        if f and f.IsShown and f:IsShown() then
+            if f.Hide then
+                f:Hide()
+            end
+        end
+    end
+
+    local function CloseAllConfigPopouts(exceptFrame)
+        local pet = nil
+        if ns and ns.SwitchesBP and ns.SwitchesBP.GetPetWalkConfigPopupFrame then
+            pet = ns.SwitchesBP.GetPetWalkConfigPopupFrame()
+        end
+        pet = pet or (_G and rawget(_G, "FGO_PetWalkConfigPopup"))
+
+        local mu = nil
+        if ns and ns.SwitchesMU and ns.SwitchesMU.GetMountUpConfigPopupFrame then
+            mu = ns.SwitchesMU.GetMountUpConfigPopupFrame()
+        end
+        mu = mu or (_G and rawget(_G, "FGO_MountUpConfigPopup"))
+
+        local chromie = nil
+        if GetChromieConfigPopupFrame then
+            chromie = GetChromieConfigPopupFrame()
+        end
+        chromie = chromie or (_G and rawget(_G, "FGO_ChromieConfigPopup"))
+
+        for _, f in ipairs({ pet, mu, chromie }) do
+            if f and f ~= exceptFrame then
+                HideIfShown(f)
+            end
+        end
+    end
 
     local BTN_W, BTN_H = 260, 22
     local START_Y = -64
@@ -85,7 +120,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     -- Tooltip Border
     local btnBorder = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnBorder:SetSize(BTN_W, BTN_H)
-    btnBorder:SetPoint("TOP", btnTutorial, "BOTTOM", 0, -GAP_Y)
+    btnBorder:SetPoint("TOP", panel, "TOP", LEFT_X, START_Y)
     if frame then
         frame.btnBorder = btnBorder
     end
@@ -124,7 +159,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     -- Queue Accept
     local btnQueueAccept = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnQueueAccept:SetSize(BTN_W, BTN_H)
-    btnQueueAccept:SetPoint("TOP", btnBorder, "BOTTOM", 0, -GAP_Y)
+    btnQueueAccept:SetPoint("TOP", btnTutorial, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.btnQueueAccept = btnQueueAccept
     end
@@ -291,7 +326,8 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     local function UpdatePetWalkSegments()
         InitSV()
         SetSegGreenGrey(segPetWalk, "Pet Walk", (AutoGossip_Settings and AutoGossip_Settings.petWalkEnabledAcc) and true or false)
-        SetSegGreenGrey(segPetDisable, "Disable", (AutoGossip_CharSettings and AutoGossip_CharSettings.petWalkDisabledChar) and true or false)
+        local enabledChar = not ((AutoGossip_CharSettings and AutoGossip_CharSettings.petWalkDisabledChar) and true or false)
+        SetSegGreenGrey(segPetDisable, "Enable", enabledChar)
         segPetConfig:SetText("Config")
     end
 
@@ -327,9 +363,9 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     segPetDisable:SetScript("OnEnter", function()
         if GameTooltip then
             GameTooltip:SetOwner(segPetDisable, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Disable")
-            GameTooltip:AddLine("Green: disables Pet Walk on this character.", 1, 1, 1, true)
-            GameTooltip:AddLine("Grey: allowed on this character.", 1, 1, 1, true)
+            GameTooltip:SetText("Enable")
+            GameTooltip:AddLine("Green: enables Pet Walk on this character.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: disabled on this character.", 1, 1, 1, true)
             GameTooltip:Show()
         end
     end)
@@ -344,16 +380,131 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         end
     end)
     segPetConfig:SetScript("OnClick", function()
-        if ns and ns.SwitchesBP and ns.SwitchesBP.OpenPetWalkConfigPopup then
-            ns.SwitchesBP.OpenPetWalkConfigPopup()
+        if not (ns and ns.SwitchesBP and ns.SwitchesBP.OpenPetWalkConfigPopup) then
+            return
         end
+
+        local p = nil
+        if ns.SwitchesBP.GetPetWalkConfigPopupFrame then
+            p = ns.SwitchesBP.GetPetWalkConfigPopupFrame()
+        end
+        if p and p.IsShown and p:IsShown() then
+            if p.Hide then p:Hide() end
+            return
+        end
+
+        CloseAllConfigPopouts(p)
+        ns.SwitchesBP.OpenPetWalkConfigPopup()
     end)
     segPetConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    -- Mount Up segments (between Pet Walk and Chromie)
+    local mountSegContainer = CreateFrame("Frame", nil, panel)
+    mountSegContainer:SetSize(BTN_W, BTN_H)
+    mountSegContainer:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.mountUpSegContainer = mountSegContainer
+    end
+
+    local segMountUp = CreateFrame("Button", nil, mountSegContainer, "UIPanelButtonTemplate")
+    segMountUp:SetSize(SEG_W, BTN_H)
+    segMountUp:SetPoint("LEFT", mountSegContainer, "LEFT", 0, 0)
+    if frame then
+        frame.btnMountUpSegMain = segMountUp
+    end
+
+    local segMountDisable = CreateFrame("Button", nil, mountSegContainer, "UIPanelButtonTemplate")
+    segMountDisable:SetSize(SEG_W, BTN_H)
+    segMountDisable:SetPoint("LEFT", segMountUp, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnMountUpSegDisable = segMountDisable
+    end
+
+    local segMountConfig = CreateFrame("Button", nil, mountSegContainer, "UIPanelButtonTemplate")
+    segMountConfig:SetSize(BTN_W - (SEG_W * 2) - (SEG_GAP * 2), BTN_H)
+    segMountConfig:SetPoint("LEFT", segMountDisable, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnMountUpSegConfig = segMountConfig
+    end
+
+    local function UpdateMountUpSegments()
+        InitSV()
+        SetSegGreenGrey(segMountUp, "Mount Up", (AutoGossip_Settings and AutoGossip_Settings.mountUpEnabledAcc) and true or false)
+        SetSegGreenGrey(segMountDisable, "Enable", (AutoGossip_CharSettings and AutoGossip_CharSettings.mountUpEnabledChar) and true or false)
+        segMountConfig:SetText("Config")
+    end
+
+    local function MountUpSettingsChanged()
+        if ns and ns.SwitchesMU and ns.SwitchesMU.OnSettingsChanged then
+            ns.SwitchesMU.OnSettingsChanged()
+        end
+    end
+
+    segMountUp:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_Settings.mountUpEnabledAcc = not (AutoGossip_Settings.mountUpEnabledAcc and true or false)
+        UpdateMountUpSegments()
+        MountUpSettingsChanged()
+    end)
+    segMountUp:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segMountUp, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Mount Up")
+            GameTooltip:AddLine("Green: ON ACC (allows Mount Up on enabled characters).", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: OFF ACC.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segMountUp:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segMountDisable:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_CharSettings.mountUpEnabledChar = not (AutoGossip_CharSettings.mountUpEnabledChar and true or false)
+        UpdateMountUpSegments()
+        MountUpSettingsChanged()
+    end)
+    segMountDisable:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segMountDisable, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Enable")
+            GameTooltip:AddLine("Green: enables Mount Up on this character.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: disabled on this character.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segMountDisable:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segMountConfig:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segMountConfig, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Config")
+            GameTooltip:AddLine("Configure Mount Up behavior.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segMountConfig:SetScript("OnClick", function()
+        if not (ns and ns.SwitchesMU and ns.SwitchesMU.OpenMountUpConfigPopup) then
+            return
+        end
+
+        local p = nil
+        if ns.SwitchesMU.GetMountUpConfigPopupFrame then
+            p = ns.SwitchesMU.GetMountUpConfigPopupFrame()
+        end
+        if p and p.IsShown and p:IsShown() then
+            if p.Hide then p:Hide() end
+            return
+        end
+
+        CloseAllConfigPopouts(p)
+        ns.SwitchesMU.OpenMountUpConfigPopup()
+    end)
+    segMountConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
     -- Chromie segments
     local segContainer = CreateFrame("Frame", nil, panel)
     segContainer:SetSize(BTN_W, BTN_H)
-    segContainer:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
+    segContainer:SetPoint("TOP", mountSegContainer, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.chromieSegContainer = segContainer
     end
@@ -441,6 +592,16 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         end
     end)
     segConfig:SetScript("OnClick", function()
+        local p = nil
+        if GetChromieConfigPopupFrame then
+            p = GetChromieConfigPopupFrame()
+        end
+        if p and p.IsShown and p:IsShown() then
+            if p.Hide then p:Hide() end
+            return
+        end
+
+        CloseAllConfigPopouts(p)
         if OpenChromieConfigPopup then
             OpenChromieConfigPopup()
         end
@@ -450,20 +611,70 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     -- Floating Reload UI button
     local btnReloadFloat = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnReloadFloat:SetSize(BTN_W, BTN_H)
-    btnReloadFloat:SetPoint("TOP", segContainer, "BOTTOM", 0, -GAP_Y)
+    btnReloadFloat:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.btnReloadFloat = btnReloadFloat
+    end
+
+    -- Reorder right-column segment rows to match spec:
+    -- Chromie (top) -> Mount Up -> Pet Walk -> then the rest of the buttons.
+    if segContainer and mountSegContainer and petSegContainer then
+        segContainer:ClearAllPoints()
+        segContainer:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
+
+        mountSegContainer:ClearAllPoints()
+        mountSegContainer:SetPoint("TOP", segContainer, "BOTTOM", 0, -GAP_Y)
+
+        petSegContainer:ClearAllPoints()
+        petSegContainer:SetPoint("TOP", mountSegContainer, "BOTTOM", 0, -GAP_Y)
+    end
+
+    if btnTutorial then
+        btnTutorial:ClearAllPoints()
+        btnTutorial:SetPoint("TOP", btnReloadFloat, "BOTTOM", 0, -GAP_Y)
     end
 
     local function UpdateReloadFloatToggle()
         InitSV()
         local on = (AutoGossip_UI and AutoGossip_UI.reloadFloatEnabled) and true or false
-        SetAcc2StateText(btnReloadFloat, "Reload Button", on)
+        local size = (AutoGossip_UI and tonumber(AutoGossip_UI.reloadFloatTextSize)) or 12
+        local sizeSuffix = " |cff888888(" .. tostring(math.floor(size + 0.5)) .. ")|r"
+        if on then
+            btnReloadFloat:SetText("Reload Button: |cff00ccffON ACC|r" .. sizeSuffix)
+        else
+            btnReloadFloat:SetText("Reload Button: |cffff0000OFF ACC|r" .. sizeSuffix)
+        end
     end
 
-    btnReloadFloat:SetScript("OnClick", function()
+    btnReloadFloat:RegisterForClicks("LeftButtonUp")
+    btnReloadFloat:SetScript("OnClick", function(self)
         InitSV()
-        AutoGossip_UI.reloadFloatEnabled = not (AutoGossip_UI.reloadFloatEnabled and true or false)
+
+        local clickRightThird = false
+        if GetCursorPosition and self and self.GetLeft and self.GetEffectiveScale and self.GetWidth then
+            local x = GetCursorPosition()
+            local scale = self:GetEffectiveScale() or 1
+            x = x / scale
+            local left = self:GetLeft() or 0
+            local relX = x - left
+            clickRightThird = (relX > (self:GetWidth() * (2 / 3)))
+        end
+
+        if clickRightThird then
+            local sizes = { 12, 14, 16, 18, 20 }
+            local cur = tonumber(AutoGossip_UI.reloadFloatTextSize)
+            local nextSize = sizes[1]
+            for i, s in ipairs(sizes) do
+                if s == cur then
+                    nextSize = sizes[(i % #sizes) + 1]
+                    break
+                end
+            end
+            AutoGossip_UI.reloadFloatTextSize = nextSize
+        else
+            AutoGossip_UI.reloadFloatEnabled = not (AutoGossip_UI.reloadFloatEnabled and true or false)
+        end
+
         UpdateReloadFloatToggle()
         if UpdateReloadFloatButton then
             UpdateReloadFloatButton()
@@ -474,10 +685,9 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     btnReloadFloat:SetScript("OnEnter", function()
         if GameTooltip then
             GameTooltip:SetOwner(btnReloadFloat, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Reload Button")
-            GameTooltip:AddLine("Shows a small on-screen Reload UI button.", 1, 1, 1, true)
-            GameTooltip:AddLine("Left-click reload; right-drag to move.", 1, 1, 1, true)
-            GameTooltip:AddLine("No background.", 1, 1, 1, true)
+            GameTooltip:SetText("Reload Floating Switch")
+            GameTooltip:AddLine("Click Left to Enable / Disable", 1, 1, 1, true)
+            GameTooltip:AddLine("Click Right to Change Font Size", 1, 1, 1, true)
             GameTooltip:Show()
         end
     end)
@@ -486,7 +696,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     -- TooltipX
     local btnTooltipXEnabled = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnTooltipXEnabled:SetSize(BTN_W, BTN_H)
-    btnTooltipXEnabled:SetPoint("TOP", panel, "TOP", LEFT_X, START_Y)
+    btnTooltipXEnabled:SetPoint("TOP", btnBorder, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.btnTooltipXEnabled = btnTooltipXEnabled
     end
@@ -938,6 +1148,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     UpdatePetPopupDebugButton()
     UpdatePetPrepareAcceptButton()
     UpdatePetWalkSegments()
+    UpdateMountUpSegments()
     UpdateChromieSegments()
     UpdateReloadFloatToggle()
     UpdateTooltipXEnabledButton()
@@ -959,6 +1170,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         UpdatePetPopupDebugButton()
         UpdatePetPrepareAcceptButton()
         UpdatePetWalkSegments()
+        UpdateMountUpSegments()
         UpdateChromieSegments()
         UpdateReloadFloatToggle()
         UpdateTooltipXEnabledButton()

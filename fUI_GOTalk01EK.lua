@@ -50,136 +50,6 @@ local function NPCs(npcIDs, npcName)
    })
 end
 
--- Returns: true (known), false (not known), nil (unknown/not ready)
-local function KnowsFishingClassicOrMidnight()
-   if ns and ns.Profs and ns.Profs.KnowsFishingClassicOrMidnight then
-      return ns.Profs.KnowsFishingClassicOrMidnight()
-   end
-
-   -- Fishing tiers (category IDs) based on the modern Professions UI.
-   -- Classic Fishing category is typically 1100; Midnight Fishing is 2159.
-   local function TierKnown(categoryID)
-      if not (C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function") then
-         return nil
-      end
-      local cat = C_TradeSkillUI.GetCategoryInfo(categoryID)
-      local lvl = cat and cat.skillLineCurrentLevel
-      if type(lvl) ~= "number" then
-         return nil
-      end
-      if lvl > 0 then
-         return true
-      end
-      if lvl == 0 then
-         return false
-      end
-      return nil
-   end
-
-   local classic = TierKnown(1100)
-   local midnight = TierKnown(2159)
-   if classic == true or midnight == true then
-      return true
-   end
-   if classic == false and midnight == false then
-      return false
-   end
-
-   -- Fallback: if Fishing shows up as a secondary profession with rank info, use it.
-   if type(GetProfessions) == "function" and type(GetProfessionInfo) == "function" then
-      local _, _, _, fish = GetProfessions()
-      if fish == nil then
-         return nil
-      end
-      local _, _, rank = GetProfessionInfo(fish)
-      if type(rank) == "number" then
-         if rank > 0 then
-            return true
-         end
-         if rank == 0 then
-            return false
-         end
-      end
-   end
-
-   return nil
-end
-
--- Returns: true (known), false (not known), nil (unknown/not ready)
-local function KnowsFishingMidnight()
-   if ns and ns.Profs and ns.Profs.KnowsFishingMidnight then
-      return ns.Profs.KnowsFishingMidnight()
-   end
-
-   if not (C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function") then
-      return nil
-   end
-   local cat = C_TradeSkillUI.GetCategoryInfo(2159)
-   local lvl = cat and cat.skillLineCurrentLevel
-   if type(lvl) ~= "number" then
-      return nil
-   end
-   if lvl > 0 then
-      return true
-   end
-   if lvl == 0 then
-      return false
-   end
-   return nil
-end
-
--- Returns: true (known), false (not known), nil (unknown/not ready)
-local function KnowsCookingMidnight()
-   if ns and ns.Profs and ns.Profs.KnowsCookingMidnight then
-      return ns.Profs.KnowsCookingMidnight()
-   end
-
-   if not (C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function") then
-      return nil
-   end
-
-   -- Authoritative presence-based check:
-   -- - If the category resolves at all, treat as known (even if skill level is 0).
-   -- - If base Cooking resolves but Midnight Cooking doesn't, treat as not known.
-   local mid = C_TradeSkillUI.GetCategoryInfo(2156)
-   if type(mid) == "table" then
-      return true
-   end
-
-   local base = C_TradeSkillUI.GetCategoryInfo(72)
-   if type(base) == "table" then
-      return false
-   end
-
-   return nil
-end
-
--- Memoized wrapper: `when` conditions for multiple options can be evaluated back-to-back.
--- If the professions APIs become ready between calls, results can "flip" mid-evaluation.
--- Memoizing per gossip-open session keeps answers stable within one show, but refreshes
--- immediately across manual close/re-open.
-local _midnightMemoSession, _midnightMemoVal
-local function KnowsFishingMidnightMemo()
-   local sess = (ns and tonumber(ns.GossipSession)) or 0
-   if sess == _midnightMemoSession then
-      return _midnightMemoVal
-   end
-   local v = KnowsFishingMidnight()
-   _midnightMemoSession, _midnightMemoVal = sess, v
-   return v
-end
-
-local _midnightCookingMemoSession, _midnightCookingMemoVal
-local function KnowsCookingMidnightMemo()
-   local sess = (ns and tonumber(ns.GossipSession)) or 0
-   if sess == _midnightCookingMemoSession then
-      return _midnightCookingMemoVal
-   end
-   local v = KnowsCookingMidnight()
-   _midnightCookingMemoSession, _midnightCookingMemoVal = sess, v
-   return v
-end
-
 -- EASTERN KINGDOMS
 
 SetZone("Blasted Lands, Eastern Kingdoms")
@@ -204,137 +74,137 @@ SetZone("Dun Morogh, Eastern Kingdoms")
    t[47861] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, type = "", }
 
 SetZone("Eversong Woods, Eastern Kingdoms")
-      --
-      local t = NPCs({252599, }, "Alesil Dawnblood")
-      t[136288] = { text = "I'll defend the runestone", type = "" }      -- And Then They Came (92398) Alesil Dawnblood (252599)
 
-      local t = NPCs({251540, }, "Apprentice Erilla")
-      t[132652] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>", type = "" }      -- What's Left (86639)                Apprentice Erilla (251540)
+   local t = NPCs({252599, }, "Alesil Dawnblood")
+   t[136288] = { text = "I'll defend the runestone", type = "" }      -- And Then They Came (92398) Alesil Dawnblood (252599)
 
-      local t = NPCs({236716, 242433, 236610, }, "Arator")
-      t[136284] = { text = "<Skip conversation> What now?", type = "" }    --                               Arator (236716)
-      t[133785] = { text = "<Skip conversation> What now?", type = "" }    --                               Arator (242433)
-      t[132886] = { text = "<Stay silent.>", type = "" }                   -- Following the Root (86643)    Arator (236610)
+   local t = NPCs({251540, }, "Apprentice Erilla")
+   t[132652] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>", type = "" }      -- What's Left (86639)                Apprentice Erilla (251540)
 
-      local t = NPCs({249398, }, "Arcanist Taemin")
-      t[135184] = { text = "What's on your mind?", type = "" }                               -- A Ranger's Spirit (91385)     Arcanist Taemin (249398)
+   local t = NPCs({236716, 242433, 236610, }, "Arator")
+   t[136284] = { text = "<Skip conversation> What now?", type = "" }    --                               Arator (236716)
+   t[133785] = { text = "<Skip conversation> What now?", type = "" }    --                               Arator (242433)
+   t[132886] = { text = "<Stay silent.>", type = "" }                   -- Following the Root (86643)    Arator (236610)
 
-      local t = NPCs({238112, }, "Brutish Follower")
-      t[132313] = { text = "<Explain situation and ask to spar.>", type = "" }                               -- Training Arc (86998)               Brutish Follower (238112)
+   local t = NPCs({249398, }, "Arcanist Taemin")
+   t[135184] = { text = "What's on your mind?", type = "" }                               -- A Ranger's Spirit (91385)     Arcanist Taemin (249398)
 
-      local t = NPCs({240532, }, "Grand Magister Rommath")
-      t[132750] = { text = "Begin the ritual.", type = "" }
+   local t = NPCs({240532, }, "Grand Magister Rommath")
+   t[132750] = { text = "Begin the ritual.", type = "" }
 
-      local t = NPCs({239457, }, "Guard Captain Leonic")
-      t[132706] = { text = " - Have you seen anything suspicious lately?", type = "" }                       -- Rational Explanation (86624)       Guard Captain Leonic (239457) KILLED
+   local t = NPCs({239457, }, "Guard Captain Leonic")
+   t[132706] = { text = " - Have you seen anything suspicious lately?", type = "" }                       -- Rational Explanation (86624)       Guard Captain Leonic (239457) KILLED
 
-      local t = NPCs({241654, }, "High Exarch Turalyon")
-      t[132931] = { text = "I'm Ready.", type = "" }
+   local t = NPCs({241654, }, "High Exarch Turalyon")
+   t[132931] = { text = "I'm Ready.", type = "" }
 
-      local t = NPC(236149, "Innkeeper Kalarin")
-      t[132744] = { text = "Have you seen anything strange recently?", type = "", prio = 10 }                -- Rational Explanation (86624)
-      t[137854] = { text = "Let me browse your goods.", type = "", prio = -5 }
-      t[137856] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, type = "", prio = -10, noAuto = true }
+   local t = NPC(236149, "Innkeeper Kalarin")
+   t[132744] = { text = "Have you seen anything strange recently?", type = "", prio = 10 }                -- Rational Explanation (86624)
+   t[137854] = { text = "Let me browse your goods.", type = "", prio = -5 }
+   t[137856] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, type = "", prio = -10, noAuto = true }
 
-      local t = NPCs({245285, }, "Instructor Thalendir")
-      t[134484] = { text = "<Give Recommendation.>", type = "" }                                             -- How to Train Your Protege (91301)  Instructor Thalendir (245285)
+   local t = NPCs({245285, }, "Instructor Thalendir")
+   t[134484] = { text = "<Give Recommendation.>", type = "" }                                             -- How to Train Your Protege (91301) Instructor Thalendir (245285)
 
-      local t = NPCs({247085, }, "Jesthenis Sunstriker")
-      t[134482] = { text = "I am ready to fight.", type = "" }                                               -- A Test of Blood (91291)            Jesthenis Sunstriker (247085)
+   local t = NPCs({247085, }, "Jesthenis Sunstriker")
+   t[134482] = { text = "I am ready to fight.", type = "" }                                               -- A Test of Blood (91291) Jesthenis Sunstriker (247085)
 
-      local t = NPCs({246557, }, "Kyltus Bloodburn")
-      t[134090] = { text = "<Pick the one that showed the most courage.>", type = "" }                       -- How to Train Your Protege (91301)  Kyltus Bloodburn (246557)
+   local t = NPCs({246557, }, "Kyltus Bloodburn")
+   t[134090] = { text = "<Pick the one that showed the most courage.>", type = "" }                       -- How to Train Your Protege (91301) Kyltus Bloodburn (246557)
 
-      local t = NPCs({245004, }, "Lord Antenorian")
-      t[134001] = { text = " - Lie to Lord Antenorian about how much you know.", type = "" }                 -- The First to Know (90907)          Lord Antenorian (245004)      DELVE BOSS
+   local t = NPCs({245004, }, "Lord Antenorian")
+   t[134001] = { text = " - Lie to Lord Antenorian about how much you know.", type = "" }                 -- The First to Know (90907) Lord Antenorian (245004)      DELVE BOSS
 
-      local t = NPCs({242688, }, "Luna")
-      t[133262] = { text = "<Pet Luma.>", type = "" }                                                        -- Thief at Bark (90544)              Luna (242688)
-      t[137322] = { text = "<Pet Luma.>", type = "" }                                                        -- Thief at Bark (90544)              Luna (242688)
+   local t = NPCs({242688, }, "Luna")
+   t[133262] = { text = "<Pet Luma.>", type = "" }                                                        -- Thief at Bark (90544) Luna (242688)
+   t[137322] = { text = "<Pet Luma.>", type = "" }                                                        -- Thief at Bark (90544) Luna (242688)
 
-      local t = NPCs({251539, }, "Magistrix Silanna")
-      t[132680] = { text = " - I'll cover your escape.", type = "" }                                         -- What's Left (86639)                Magistrix Silanna (251539)
+   local t = NPCs({237890, 238112, 238113 }, "Mage Follower")
+   t[132313] = { text = "<Explain situation and ask to spar.>", type = "" }                               -- Training Arc (86998) Mage Follower (237890)
 
-      local t = NPCs({242568, }, "Matron Narsilla")
-      t[133913] = { text = "What problems ail the people of Tranquillien?", type = "" }                      -- Rational Explanation (86624)       Matron Narsilla (242568)      KILLED
+   local t = NPCs({251539, }, "Magistrix Silanna")
+   t[132680] = { text = " - I'll cover your escape.", type = "" }                                         -- What's Left (86639) Magistrix Silanna (251539)
 
-      local t = NPCs({247800, }, "Melandria")
-      t[38266] = { text = "Train Me.", type = "", when = function() return KnowsFishingMidnightMemo() ~= true end }  -- Fishing Trainer  Melandria (247800)
-      t[38267] = { text = "Show Me Your Goods", type = "", when = function() return KnowsFishingMidnightMemo() == true end } -- Fishing Trainer  Melandria (247800)
+   local t = NPCs({242568, }, "Matron Narsilla")
+   t[133913] = { text = "What problems ail the people of Tranquillien?", type = "" }                      -- Rational Explanation (86624) Matron Narsilla (242568)      KILLED
 
-      local t = NPCs({236743, 236903, 236704, }, "Orweyna")
-      t[133725] = { text = "Let's follow the trail you found.", type = "" }
-      t[132833] = { text = "I'm ready when you are.", type = "" }
-      t[135559] = { text = "I'm ready, Lets go!", type = "" }                                                -- The Root Cause (86899)             Orweyna (236704)
+   local t = NPCs({247800, }, "Melandria")
+   t[38266] = { text = "Train Me.", type = "", prio = 0 }  -- Fishing Trainer  Melandria (247800)
+   t[38267] = { text = "Show Me Your Goods", type = "", prio = 5, print = "MidnightFishing" }            -- Fishing Trainer  Melandria (247800)
 
-      local t = NPCs({251542, }, "Outrunner Alarion")
-      t[135781] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>", type = "" }      -- What's Left (86639)                Outrunner Alarion (251542)
+   local t = NPCs({236743, 236903, 236704, }, "Orweyna")
+   t[133725] = { text = "Let's follow the trail you found.", type = "" }
+   t[132833] = { text = "I'm ready when you are.", type = "" }
+   t[135559] = { text = "I'm ready, Lets go!", type = "" }                                                -- The Root Cause (86899)             Orweyna (236704)
 
-      local t = NPCs({244840, }, "Quartermaster Lymel")
-      t[133888] = { text = "Have there been any issues around town lately?", type = "" }                     -- Rational Explanation (86624)       Quartermaster Lymel (244840)
+   local t = NPCs({251542, }, "Outrunner Alarion")
+   t[135781] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>", type = "" }      -- What's Left (86639)                Outrunner Alarion (251542)
 
-      local t = NPCs({239406, }, "Ranger Belonis")
-      t[132894] = { text = "You've had scouts go missing?", type = "" }                                      -- Rational Explanation (86624)       Ranger Belonis (239406)
+   local t = NPCs({244840, }, "Quartermaster Lymel")
+   t[133888] = { text = "Have there been any issues around town lately?", type = "" }                     -- Rational Explanation (86624)       Quartermaster Lymel (244840)
 
-      local t = NPCs({248307, }, "Ranger Valsarin")
-      t[134809] = { text = "Saddle me up!", type = "" }                                                      -- Strider Stampede (91347)           Ranger Valsarin (248307)
+   local t = NPCs({239406, }, "Ranger Belonis")
+   t[132894] = { text = "You've had scouts go missing?", type = "" }                                      -- Rational Explanation (86624)       Ranger Belonis (239406)
 
-      local t = NPCs({239405, }, "Secretary Faloria")
-      t[132741] = { text = " - We need to speak to Lord Antenorian", type = "" }                             -- The First to Know (90907)          Secretary Faloria (239405)    KILLED
+   local t = NPCs({248307, }, "Ranger Valsarin")
+   t[134809] = { text = "Saddle me up!", type = "" }                                                      -- Strider Stampede (91347)           Ranger Valsarin (248307)
 
-      local t = NPCs({251405, }, "Sheri")
-      t[136683] = { text = "I would like to see your wares", type = "", prio = 10, }                        -- Sheri (251405)
+   local t = NPCs({239405, }, "Secretary Faloria")
+   t[132741] = { text = " - We need to speak to Lord Antenorian", type = "" }                             -- The First to Know (90907)          Secretary Faloria (239405)    KILLED
 
-      local t = NPCs({252156, }, "Solwin Brightstitch")
-      t[135911] = { text = "I'm ready for anything!", type = "" }                                           -- Clothes Make the Man (91389)       Solwin Brightstitch (252156)
+   local t = NPCs({251405, }, "Sheri")
+   t[136683] = { text = "I would like to see your wares", type = "", prio = 10, }                        -- Sheri (251405)
 
-      local t = NPCs({249337, }, "Talandra Dawnsprite")
-      t[136372] = { text = " - Very well.", type = "" }                                                     -- Flowers for Amalthea (92025)       Talandra Dawnsprite (249337)
+   local t = NPCs({252156, }, "Solwin Brightstitch")
+   t[135911] = { text = "I'm ready for anything!", type = "" }                                           -- Clothes Make the Man (91389)       Solwin Brightstitch (252156)
 
-      local t = NPCs({251543, }, "Trainee Solamine")
-      t[132684] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>", type = "" }     -- What's Left (86639)                Trainee Solamine (251543)
+   local t = NPCs({249337, }, "Talandra Dawnsprite")
+   t[136372] = { text = " - Very well.", type = "" }                                                     -- Flowers for Amalthea (92025)       Talandra Dawnsprite (249337)
 
-      local t = NPCs({242099, }, "Valeera Sanguinar")
-      t[136049] = { text = "I'm Ready.", type = "" }
+   local t = NPCs({251543, }, "Trainee Solamine")
+   t[132684] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>", type = "" }     -- What's Left (86639)                Trainee Solamine (251543)
 
-      local t = NPCs({245745, }, "Valdekar Solaar")
-      t[134361] = { text = "<Hand over the fish.>", type = "" }                                 -- A Fish! (91271) Valdekar Solaar (245745)   
+   local t = NPCs({242099, }, "Valeera Sanguinar")
+   t[136049] = { text = "I'm Ready.", type = "" }
 
-      local t = NPC(249211, "Zul'jan")
-      t[135099] = { text = "Return to Zul'Aman", type = "", }                                               -- The Line Must be Drawn Here (86710) Zul'jan (249211)
+   local t = NPCs({245745, }, "Valdekar Solaar")
+   t[134361] = { text = "<Hand over the fish.>", type = "" }                                 -- A Fish! (91271) Valdekar Solaar (245745)   
 
-      local t = NPCs({207283, }, "Unknown NPC")
-      t[122661] = { text = "<View goods and repair gear.>", type = "", prio = 10,  }
-      t[135011] = { text = "<View companion supplies.>", type = "", prio = -10,  }
+   local t = NPC(249211, "Zul'jan")
+   t[135099] = { text = "Return to Zul'Aman", type = "", }                                               -- The Line Must be Drawn Here (86710) Zul'jan (249211)
 
-      local t = NPCs({253050, 253054, 254710, }, "Quest: House Call")
-      t[136353] = { text = "Something is watching you.", type = "" }                                        -- House Call (92024)    Stained Tool Rack (253050)
-      t[136354] = { text = "Something is watching you.", type = "" }                                        -- House Call (92024)    Suspicious Urn (253054)
-      t[136355] = { text = "Something is watching you.", type = "" }                                        -- House Call (92024)    Well-Loved Tome (254710)
+   local t = NPCs({207283, }, "Unknown NPC")
+   t[122661] = { text = "<View goods and repair gear.>", type = "", prio = 10,  }
+   t[135011] = { text = "<View companion supplies.>", type = "", prio = -10,  }
 
-      local t = NPCs({249436, 249437, 249426, }, "Quest: Suspicious Sundries")
-      t[136321] = { text = "I would like to see your wares", type = "", prio = 10, }                        -- Suspicious Sundries (92023) Vehn Sorrelstride (249439)
-      t[136322] = { text = "I would like to see your wares", type = "", prio = 10, }                        -- Suspicious Sundries (92023) Nara Fadebranch (249437)
-      t[136323] = { text = "I would like to see your wares", type = "", prio = 10, }                        -- Suspicious Sundries (92023) Limien Bountcask (249426)
+   local t = NPCs({253050, 253054, 254710, }, "Quest: House Call")
+   t[136353] = { text = "Something is watching you.", type = "" }                                        -- House Call (92024)    Stained Tool Rack (253050)
+   t[136354] = { text = "Something is watching you.", type = "" }                                        -- House Call (92024)    Suspicious Urn (253054)
+   t[136355] = { text = "Something is watching you.", type = "" }                                        -- House Call (92024)    Well-Loved Tome (254710)
 
-      local t = NPCs({ 248060, 248058, 248059, }, "Quest: Familiar Faces in Peril")
-      t[134652] = { text = "Get to safety.", type = "" }                                                    -- Familiar Faces in Peril (91495)     Apothecary Enith (248060)
-      t[134653] = { text = "Get to safety.", type = "" }                                                    -- Familiar Faces in Peril (91495)     Ranger Vedoran (248058)
-      t[134654] = { text = "Get to safety.", type = "" }                                                    -- Familiar Faces in Peril (91495)     Apprentice Varnis (248059)
+   local t = NPCs({249436, 249437, 249426, }, "Quest: Suspicious Sundries")
+   t[136321] = { text = "I would like to see your wares", type = "", prio = 10, }                        -- Suspicious Sundries (92023) Vehn Sorrelstride (249439)
+   t[136322] = { text = "I would like to see your wares", type = "", prio = 10, }                        -- Suspicious Sundries (92023) Nara Fadebranch (249437)
+   t[136323] = { text = "I would like to see your wares", type = "", prio = 10, }                        -- Suspicious Sundries (92023) Limien Bountcask (249426)
 
-      local t = NPCs({542849, 542850, }, "Quest: Gods Before Us")
-      t[133889] = { text = "<Place Bonecarapace Fangs into the vase.>", type = "" }                         -- Gods Before Us (86644)             Ritual Vase (542849)
-      t[133890] = { text = "<Place Bloodvein Clot into the vase.>", type = "" }                             -- Gods Before Us (86644)             Ritual Vase (542850)
+   local t = NPCs({ 248060, 248058, 248059, }, "Quest: Familiar Faces in Peril")
+   t[134652] = { text = "Get to safety.", type = "" }                                                    -- Familiar Faces in Peril (91495)     Apothecary Enith (248060)
+   t[134653] = { text = "Get to safety.", type = "" }                                                    -- Familiar Faces in Peril (91495)     Ranger Vedoran (248058)
+   t[134654] = { text = "Get to safety.", type = "" }                                                    -- Familiar Faces in Peril (91495)     Apprentice Varnis (248059)
 
-      local t = NPCs({258559, 258560, 258561, 258562, 258563, 258564,  }, "Quest: Light Guide Us")
-      t[137985] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Farstrider (258559)
-      t[137986] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Spellbreaker (258560)
-      t[137987] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Arch Magister (258561)
-      t[137988] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Blessed Lightbringer (258562)
-      t[137989] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Veteran Blood Knight (258563)
-      t[137990] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Blessed Lightbringer (258564)
-      t[137991] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Magister (258565)
-      t[137992] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Veteran Blood Knight (258566)
+   local t = NPCs({542849, 542850, }, "Quest: Gods Before Us")
+   t[133889] = { text = "<Place Bonecarapace Fangs into the vase.>", type = "" }                         -- Gods Before Us (86644)             Ritual Vase (542849)
+   t[133890] = { text = "<Place Bloodvein Clot into the vase.>", type = "" }                             -- Gods Before Us (86644)             Ritual Vase (542850)
+
+   local t = NPCs({258559, 258560, 258561, 258562, 258563, 258564,  }, "Quest: Light Guide Us")
+   t[137985] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Farstrider (258559)
+   t[137986] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Spellbreaker (258560)
+   t[137987] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Arch Magister (258561)
+   t[137988] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Blessed Lightbringer (258562)
+   t[137989] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Veteran Blood Knight (258563)
+   t[137990] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Blessed Lightbringer (258564)
+   t[137991] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Magister (258565)
+   t[137992] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Veteran Blood Knight (258566)
 
 SetZone("Hammerfall, Eastern Kingdoms")
 
@@ -353,6 +223,19 @@ SetZone("Hammerfall, Eastern Kingdoms")
    t[134042] = { text = "Dezco sent these supplies for you.", type = "" }                                -- Resupplying Our Suppliers (86846)   Mu'uta (232037)
 
 SetZone("Harandar, Eastern Kingdoms")
+
+   local t = NPCs({ 253392, }, "Akazi")
+   t[136773] = { text = "<Ask about mentoring Ketan.>", type = "" }                                              -- A Hunter's Plight (92882) Akazi (253392)
+   t[136774] = { text = "<Accept the task.>", type = "" }                                                        -- A Hunter's Plight (92882) Akazi (253392)
+
+   local t = NPCs({ 590789, 254116, }, "Altar of Wisdom")
+   t[136764] = { text = "<Meditate here for a moment.>", type = "" }                                              -- Toy () Altar of Wisdom (590789)
+   t[136767] = { text = "<Offer the old rolled up pillow...>", type = "", close = true }                          -- Toy () Elder Spirit (254116)
+
+   local t = NPCs({ 243178, 246208, 257287, }, "Brakko")
+   t[135601] = { text = "<Ask if they want to join your new team.>", type = "", close = true }                    -- A Few Fun Guys (90617) Brakko (243178)
+   t[135664] = { text = "<Ask your new teammate to spar.>", type = "" }                                           -- What Doesn't Kill Them (90619) Brakko (246208)
+   t[136986] = { text = "Do you have any good ideas we could use for a team name?", type = "", close = true }     -- The Most Important Thing (91270) Brakko (257287)
 
    local t = NPCs({ 237343, 237345, 237787, 250363, }, "Halduron Brightwing")
    t[133774] = { text = "Let's head down.", type = "" }                                                           -- To Har'athir (86900)    Halduron Brightwing (237343)
@@ -383,6 +266,21 @@ SetZone("Harandar, Eastern Kingdoms")
    local t = NPCs({ 240225, 244126, }, "Eonka")
    t[132714] = { text = "<Ask if they have Lightbloom in their village.>", type = ""}                             -- The Traveling Flowers (86956) Eonka (240225)
    t[133712] = { text = "Are you still feeling well?", type = ""}                                                 -- Seeds of the Rift (86944) Eonka (244126)
+
+   local t = NPCs({ 243181, 246210, 251715, 247252, }, "Tuktuk")
+   t[135600] = { text = "<Ask if they want to join your new team.>", type = "", close = true }                    -- A Few Fun Guys (90617) Tuktuk (243181)
+   t[135663] = { text = "<Ask your new teammate to spar.>", type = "" }                                           -- What Doesn't Kill Them (90619) Tuktuk (246210)
+   t[136991] = { text = "Do you have any good ideas we could use for a team name?", type = "", close = true }     -- The Most Important Thing (91270) Tuktuk (251715)
+   t[136990] = { text = "I'm ready to choose a team name, Tuktuk.", type = "" }                                   -- The Most Important Thing (91270) Tuktuk (251715)
+   t[135670] = { text = "The Fungal Fellowship.", type = "", close = true }                                       -- The Most Important Thing (91270) Tuktuk (251715)
+   t[136164] = { text = "No one starts ready. That's why we train", type = "" }                                   -- Mushrooming Confidence (92618) Tuktuk (247252)
+   t[136163] = { text = "You're right, Tuktuk won't be good enough...", type = "" }                               -- Mushrooming Confidence (92618) Tuktuk (247252)
+   t[136162] = { text = "If you stay, you'll get soggy...", type = "" }                                           -- Mushrooming Confidence (92618) Tuktuk (247252)
+
+   local t = NPCs({ 243180, 246211, 251723, }, "Ziny")
+   t[135599] = { text = "<Ask if they want to join your new team.>", type = "", close = true }                    -- A Few Fun Guys (90617) Ziny (243180)
+   t[135666] = { text = "<Ask your new teammate to spar.>", type = "" }                                           -- What Doesn't Kill Them (90619) Ziny (246211)
+   t[136989] = { text = "Do you have any good ideas we could use for a team name?", type = "", close = true }     -- The Most Important Thing (91270) Ziny (251723)
 
    local t = NPCs({ 237866, 237865, }, "To Har'athir NPCs")
    t[133721] = { text = "It's safe to return to the village.", type = "" }                                        -- To Har'athir (86900)          Oorla (237866)
@@ -417,12 +315,14 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
    t[138693] = { text = "<Tell Alonsus you are ready to go to Light's Hope.>", type = "" }                        -- Relic's of Light's Hope (86839) Alonsus Faol (240240)
    t[135480] = { text = "<Tell Alonsus you are ready to go to Hammerfall.>", type = "" }                          -- The Sunwalker Path (86845) Alonsus Faol (251355)
 
-   local t = NPCs({ 240156, 240125, 240075, 240074, 240152, }, "Scared Civilian")
+   local t = NPCs({ 240156, 240125, 240075, 240074, 240152, 240073, 240068, }, "Scared Civilian")
    t[132686] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240156)
    t[132670] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240125)
    t[132655] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240075)
    t[132654] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240074)
    t[132685] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240152)
+   t[132656] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240073)
+   t[132653] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240068)
 
    local t = NPCs({ 237211, 236657, }, "Zone Quest NPCs")
    t[132513] = { text = "The Vanguard rallies at Sunstrider Rise.", type = "" }                                   -- Champions of Quel'Danas (68770)  Faerin Lothar (237211)
@@ -436,6 +336,9 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
    t[136038] = { text = "<Give Velen the remaining relics to distribute.>", type = "" }                           -- Relinquishing Relics (86902)  Prophet Velen (239623)
 
 SetZone("Silvermoon City, Eastern Kingdoms")
+
+   local t = NPC(240936, "Guard Captain Goldblade")
+   t[132828] = { text = "The Alliance will be staying...", type = "" }                                            -- Paved in Ash (86735) Guard Captain Goldblade (240936)
 
    local t = NPC(248629, "General Amias Bellamy")
    t[135224] = { text = "<Offer Greeting.>", type = "" }                                                          -- Paved in Ash (86735) General Amias Bellamy (248629)
@@ -491,8 +394,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[132678] = { text = "Lor'themar has has allowed us to stay in the city...", type = "", prio = 10 }  -- Paved in Ash (86735) Magistrix Narinth (239673)
    
    local t = NPC(253468, "Drathen")
-   t.__meta.stopIfQuestAvailable = 92869  -- questID to block gossip options until accepted
-   t.__meta.stopIfQuestTurnIn = 92869     -- questID to block gossip options while ready to turn in
+   t.__meta.stopIfQuestAvailable = 92869  -- Fishy Dis-pondencies: block auto-selecting options until quest is accepted
+   t.__meta.stopIfQuestTurnIn = 92869     -- Fishy Dis-pondencies: block auto-selecting options while ready to turn in
    t[136540] = { text = "Train me.", type = "" }
 
    local t = NPCs({ 249174, 248630, 248826, }, "Deepening Shadows NPCs")
@@ -537,7 +440,6 @@ SetZone("Stormwind City, Eastern Kingdoms")
    t[52725] = { text = "I have heard this tale before. <Skip the Maw introduction. Oribos awaits.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, type = "", }
 
    local t = NPC( 54334, "Darkmoon Faire Mystic Mage")
-   t.__meta.stopIfQuestAvailable = 7905  -- questID to block gossip options until accepted
    t[40457] = { text = "Take me to the faire staging area.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Travel to the faire staging area" }, within = 3, }, type = "", }
 
    local t = NPC( 150122, "Honor Hold Mage")
@@ -577,12 +479,24 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    local t = NPCs({ 253604, }, "Daki")
    t[136586] = { text = "Head to Mixer Jamanga, He is making an anti-venom.", type = "" }          -- Validating the Venom (91405) Daki (253604)
 
+   local t = NPCs({ 254842, }, "Eagletender Rhyd")
+   t[137198] = { text = "<Deliver the supplies.>", type = "" }                                     -- Shrine, Sealed, Delivered (93433) Eagletender Rhyd (254842)
+
    local t = NPCs({ 236590, }, "Elder Doru")
    t[132579] = { text = "Zul'jan sent me to find you.", type = "" }                                -- Important Amani (86719)       Elder Doru (236590)
 
    local t = NPCs({ 242464, }, "Elder Ren'zen")
    t[133102] = { text = "Do you recognize this letter you sent?", type = "" }                      -- I Have a Permit (90481) Elder Ren'zen (242464)
    t[133101] = { text = "I will let them know.", type = "" }                                       -- I Have a Permit (90481) Elder Ren'zen (242464)
+
+   local t = NPCs({ 254834, }, "Elder Shimarra")
+   t[137196] = { text = "<Deliver the supplies.>", type = "" }                                     -- Shrine, Sealed, Delivered (93433) Elder Shimarra (254834)
+
+   local t = NPCs({ 254830, }, "Elder Thak")
+   t[137197] = { text = "<Deliver the supplies.>", type = "" }                                     -- Shrine, Sealed, Delivered (93433) Elder Thak (254830)
+
+   local t = NPCs({ 254828, }, "Elder Vu'lona")
+   t[137195] = { text = "<Deliver the supplies.>", type = "" }                                     -- Shrine, Sealed, Delivered (93433) Elder Vu'lona (254828)
 
    local t = NPCs({ 256027, }, "Haz'kel")
    t[137297] = { text = "Have you seen Kanza?", type = "" }                                        -- A Quiet Walk Interrupted (93178) Haz'kel (256027)
@@ -636,8 +550,8 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    t[137188] = { text = "<Tell Ri'kari you're ready...>", type = "" }                              -- The Final Exam (93051)   Ri'kari (255907)
 
    local t = NPCs({ 253037, }, "Shim'dak")
-   t[39623] = { text = "Train Me.", type = "", when = function() return KnowsCookingMidnightMemo() ~= true end }  -- Cooking Trainer  Shim'dak (253037)
-   t[39624] = { text = "Let me browse your goods.", type = "", when = function() return KnowsCookingMidnightMemo() == true end } -- Cooking Trainer  Shim'dak (253037)
+   t[39623] = { text = "Train Me.", type = "", prio = 0 }  -- Cooking Trainer  Shim'dak (253037)
+   t[39624] = { text = "Let me browse your goods.", type = "", prio = 5, print = "MidnightCooking" } -- Cooking Trainer  Shim'dak (253037)
 
    local t = NPCs({ 244562, }, "Tak'lejo")
    t[135286] = { text = "Where are the shamans?", type = "" }                                      -- Left in the Shadows (86652)   Tak'lejo (244562)
@@ -666,6 +580,9 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    t[135208] = { text = "I am ready to battle Mor'duun", type = "" }                               -- Blade Shattered (86692) Zul'jarra (253980)
    t[134131] = { text = "<Start the celebration.>", type = "" }                                    -- De Legend of de Hash'ey (86693) Zul'jarra (241306)
    t[136468] = { text = "<Leave Nalorakk's Den.>", type = "" }                                     -- Den of Nalorakk Dungeon  Zul'jarra (246409)
+
+   local t = NPCs({ 255504, }, "Zungam's Anvil")
+   t[137204] = { text = "<Repair Equipment.>", type = "" }                                         -- Repair () Zungam's Anvil (245646)
 
    local t = NPCs({ 616377, 616428, }, "Dungeon: Den of Nalorakk")
    t[135009] = { text = "<Meditate on the sound of the flames.>", type = "" }                      -- Den of Nalorakk Dungeon  Ethereal Pyre (616377)

@@ -1105,43 +1105,37 @@ local function EnsureChromieConfigPopup()
         return chromieConfigPopup
     end
 
-    local p = CreateFrame("Frame", "FGO_ChromieConfigPopup", UIParent, "BasicFrameTemplateWithInset")
+    local p = CreateFrame("Frame", "FGO_ChromieConfigPopup", UIParent, "BackdropTemplate")
     p:SetSize(360, 280)
-    p:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    do
+        local main = _G and rawget(_G, "AutoGameOptions")
+        if main and main.IsShown and main:IsShown() then
+            -- Overlap by 8px to remove the visible gap caused by 4px backdrop insets on both frames.
+            p:SetPoint("TOPLEFT", main, "TOPRIGHT", -8, 0)
+        else
+            p:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        end
+    end
     p:SetFrameStrata("DIALOG")
+    p:SetClampedToScreen(true)
     p:Hide()
 
+    p:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        tile = true,
+        tileSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    p:SetBackdropColor(0, 0, 0, 0.85)
+
     do
-        if p.NineSlice and p.NineSlice.Hide then p.NineSlice:Hide() end
-        if p.Bg and p.Bg.Hide then p.Bg:Hide() end
-        if p.TitleBg and p.TitleBg.Hide then p.TitleBg:Hide() end
-        if p.InsetBg and p.InsetBg.Hide then p.InsetBg:Hide() end
-        if p.Inset and p.Inset.Hide then p.Inset:Hide() end
-
-        local bg = CreateFrame("Frame", nil, p, "BackdropTemplate")
-        bg:SetAllPoints(p)
-        bg:SetBackdrop({
-            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-            tile = true,
-            tileSize = 16,
-            insets = { left = 4, right = 4, top = 4, bottom = 4 },
-        })
-        bg:SetBackdropColor(0, 0, 0, 0.85)
-        bg:SetFrameLevel((p.GetFrameLevel and p:GetFrameLevel() or 0))
-        p._unifiedBG = bg
-
-        local closeBtn = p.CloseButton
-        if not closeBtn then
-            closeBtn = CreateFrame("Button", nil, p, "UIPanelCloseButton")
+        local closeBtn = CreateFrame("Button", nil, p, "UIPanelCloseButton")
+        closeBtn:SetPoint("TOPRIGHT", p, "TOPRIGHT", -6, -6)
+        if closeBtn.SetFrameLevel then
+            closeBtn:SetFrameLevel((p.GetFrameLevel and p:GetFrameLevel() or 0) + 20)
         end
-        if closeBtn and closeBtn.ClearAllPoints and closeBtn.SetPoint then
-            closeBtn:ClearAllPoints()
-            closeBtn:SetPoint("TOPRIGHT", p, "TOPRIGHT", -6, -6)
-            if closeBtn.SetFrameLevel then
-                closeBtn:SetFrameLevel((p.GetFrameLevel and p:GetFrameLevel() or 0) + 20)
-            end
-            closeBtn:SetScript("OnClick", function() if p and p.Hide then p:Hide() end end)
-        end
+        closeBtn:SetScript("OnClick", function() if p and p.Hide then p:Hide() end end)
+        p._closeBtn = closeBtn
     end
 
     p.title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1151,6 +1145,29 @@ local function EnsureChromieConfigPopup()
         local fontPath, fontSize, fontFlags = p.title:GetFont()
         if fontPath and fontSize then
             p.title:SetFont(fontPath, fontSize + 2, fontFlags)
+        end
+    end
+
+    do
+        local tabBarBG = CreateFrame("Frame", nil, p, "BackdropTemplate")
+        tabBarBG:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -4)
+        tabBarBG:SetPoint("TOPRIGHT", p, "TOPRIGHT", -4, -4)
+        tabBarBG:SetHeight(26)
+        tabBarBG:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            tile = true,
+            tileSize = 16,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        tabBarBG:SetBackdropColor(0, 0, 0, 0.92)
+        tabBarBG:SetFrameLevel((p.GetFrameLevel and p:GetFrameLevel() or 0) + 1)
+        p._tabBarBG = tabBarBG
+
+        -- Keep the title above the bar background.
+        if p.title and p.title.SetParent then
+            p.title:SetParent(tabBarBG)
+            p.title:ClearAllPoints()
+            p.title:SetPoint("LEFT", tabBarBG, "LEFT", 8, 0)
         end
     end
 
@@ -1535,6 +1552,17 @@ local function EnsureChromieConfigPopup()
     end)
 
     p:SetScript("OnShow", function()
+        local function HideOther(name)
+            local f = _G and rawget(_G, name)
+            if f and f.IsShown and f:IsShown() and f.Hide then
+                f:Hide()
+            end
+        end
+
+        -- Enforce: only one config popout open at a time.
+        HideOther("FGO_PetWalkConfigPopup")
+        HideOther("FGO_MountUpConfigPopup")
+
         if p.RefreshFromSV then
             p.RefreshFromSV()
         end

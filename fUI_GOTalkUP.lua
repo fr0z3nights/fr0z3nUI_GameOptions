@@ -95,6 +95,114 @@ local function GetShortStack(skip)
     return table.concat(out, " | ")
 end
 
+local function GetEntryPrintKey(entry)
+    if type(entry) ~= "table" then
+        return nil
+    end
+    local k = entry.print
+    if k == nil then
+        k = entry.Print
+    end
+    return k
+end
+
+local function GetCachedTier(categoryID)
+    if ns and ns.Profs and type(ns.Profs.GetCachedTier) == "function" then
+        return ns.Profs.GetCachedTier(categoryID)
+    end
+    return nil
+end
+
+local function GetCachedProfessionKey(professionKey)
+    if ns and ns.Profs and type(ns.Profs.GetCachedProfessionKey) == "function" then
+        return ns.Profs.GetCachedProfessionKey(professionKey)
+    end
+    return nil
+end
+
+local _lastHintKey, _lastHintAt = nil, 0
+local function MaybePrintRuleHint(npcID, optionID, entry)
+    local key = GetEntryPrintKey(entry)
+    if key == nil then
+        return
+    end
+
+    -- Table-form hint spec (more robust than string keys):
+    -- { msg/text, tier/categoryID, profession/profKey }
+    if type(key) == "table" then
+        local msg = key.msg or key.text or key.print
+        local tier = tonumber(key.tier or key.categoryID)
+        local profKey = key.profKey or key.professionKey or key.profession or key.prof
+
+        local knows = nil
+        if tier ~= nil then
+            knows = GetCachedTier(tier)
+        end
+        if knows == nil and profKey ~= nil then
+            knows = GetCachedProfessionKey(profKey)
+        end
+
+        if knows ~= false then
+            return
+        end
+        if type(msg) == "string" and msg ~= "" then
+            Print(msg)
+        end
+        return
+    end
+
+    local now = (type(GetTime) == "function") and GetTime() or 0
+    local hintKey = tostring(key)
+    local spamKey = tostring(npcID) .. ":" .. tostring(optionID) .. ":" .. hintKey
+    if spamKey == _lastHintKey and type(now) == "number" and (now - (_lastHintAt or 0)) < 1.0 then
+        return
+    end
+    _lastHintKey, _lastHintAt = spamKey, now
+
+    -- Profession-key hints (robust across trainers): print only if the cached known-profession set
+    -- says you do NOT know that profession. Prefix required to avoid breaking generic string prints.
+    do
+        local prof = hintKey:match("^Prof:(.+)$")
+        if prof then
+            local knows = GetCachedProfessionKey(prof)
+            if knows ~= false then
+                return
+            end
+            Print("Train " .. tostring(prof))
+            return
+        end
+    end
+
+    if hintKey == "MidnightFishing" then
+        local knows = GetCachedTier(2159)
+        if knows == nil then
+            return
+        end
+        if knows == true then
+            return
+        end
+        Print("Train Midnight Fishing")
+        return
+    end
+
+    if hintKey == "MidnightCooking" then
+        local knows = GetCachedTier(2156)
+        if knows == nil then
+            return
+        end
+        if knows == true then
+            return
+        end
+        Print("Train Midnight Cooking")
+        return
+    end
+
+    -- Generic fallback: print the provided string.
+    if hintKey ~= "" then
+        Print(hintKey)
+    end
+end
+
 
 local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dialogText)
     InitSV()
@@ -746,6 +854,9 @@ function M.Setup()
                         Print("TalkUP: Captured selection (" .. tostring(hit.scope) .. "): npc=" .. tostring(hit.npcID) .. " opt=" .. tostring(optionID) .. " hasXpop=" .. tostring(HasXpop(hit.entry)))
                     end
                     pcall(M.SetLastGossipSelection, hit.npcID or preferredNpcID, optionID, hit.entry)
+                    if preferredNpcID and ((hit.npcID or preferredNpcID) == preferredNpcID) then
+                        pcall(MaybePrintRuleHint, hit.npcID or preferredNpcID, optionID, hit.entry)
+                    end
                 else
                     if dbg then
                         Print("TalkUP: Captured selection (no rule): npc=" .. tostring(preferredNpcID) .. " opt=" .. tostring(optionID))

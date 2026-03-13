@@ -344,11 +344,26 @@ local function GetActiveLayout()
     end
 
     local function GetKnownProfessionKeys()
+        -- Prefer the shared cached set (keeps Situate consistent with gossip hints and
+        -- handles up to 5 professions / archaeology / locale-safe keys).
+        if ns and ns.Profs then
+            if type(ns.Profs.RefreshKnownProfessionKeys) == "function" then
+                pcall(ns.Profs.RefreshKnownProfessionKeys, false)
+            end
+            if type(ns.Profs.ListCachedProfessionKeys) == "function" then
+                local ok, list = pcall(ns.Profs.ListCachedProfessionKeys)
+                if ok and type(list) == "table" then
+                    return list
+                end
+            end
+        end
+
+        -- Fallback: probe live profession APIs (older codepath).
         local out = {}
 
         if type(GetProfessions) == "function" and type(GetProfessionInfo) == "function" then
-            local p1, p2 = GetProfessions()
-            local indices = { p1, p2 }
+            local p1, p2, p3, p4, p5 = GetProfessions()
+            local indices = { p1, p2, p3, p4, p5 }
             for i = 1, #indices do
                 local idx = indices[i]
                 if idx then

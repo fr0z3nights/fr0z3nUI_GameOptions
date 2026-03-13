@@ -31,7 +31,9 @@ function ns.TalkUI_Build(frame, panel, helpers)
 
     -- Rules browser (all rules)
     InitSV()
-    AutoGossip_UI.treeState = AutoGossip_UI.treeState or {}
+    -- After reload/login, always start the Talk tree collapsed.
+    -- (Still persists for the remainder of the session while the UI is alive.)
+    AutoGossip_UI.treeState = {}
 
     local function GetTreeExpanded(key, defaultValue)
         local v = AutoGossip_UI.treeState[key]
@@ -393,7 +395,7 @@ function ns.TalkUI_Build(frame, panel, helpers)
         local visible = {}
         for _, continent in ipairs(continents) do
             local contKey = "cont:" .. continent
-            local contExpanded = GetTreeExpanded(contKey, true)
+            local contExpanded = GetTreeExpanded(contKey, false)
             table.insert(visible, { kind = "continent", key = contKey, label = continent, level = 0, expanded = contExpanded })
 
             if contExpanded then
@@ -405,7 +407,7 @@ function ns.TalkUI_Build(frame, panel, helpers)
 
                 for _, zone in ipairs(zones) do
                     local zoneKey = "zone:" .. continent .. ":" .. zone
-                    local zoneExpanded = GetTreeExpanded(zoneKey, true)
+                    local zoneExpanded = GetTreeExpanded(zoneKey, false)
                     table.insert(visible, { kind = "zone", key = zoneKey, label = zone, level = 1, expanded = zoneExpanded, continent = continent, zone = zone })
 
                     if zoneExpanded then
