@@ -838,11 +838,50 @@ function ns.SituateUI_Build(panel)
         end
 
         if C_Map.GetMapInfo and Enum and Enum.UIMapType then
+            -- Prefer locale-independent mapIDs.
+            local CONTINENT_MAPID_TO_KEY = {
+                [13] = "easternkingdoms",
+                [12] = "kalimdor",
+                [101] = "outland",
+                [113] = "northrend",
+                [424] = "pandaria",
+                [572] = "draenor",
+                [619] = "brokenisles",
+                [876] = "kultiras",
+                [875] = "zandalar",
+                [1550] = "shadowlands",
+                [1978] = "dragonisles",
+                [2274] = "khazalgar",
+            }
+
+            -- Midnight: known/projected zone mapIDs (fallback until continent/root mapIDs are stable).
+            local MIDNIGHT_ZONE_MAPID_TO_KEY = {
+                [2393] = "midnight", -- Silvermoon City
+                [2395] = "midnight", -- Eversong Woods
+                [2424] = "midnight", -- Isle of Quel'Danas
+                [2413] = "midnight", -- Harandar
+                [2405] = "midnight", -- Voidstorm
+                [2536] = "midnight", -- Atal'Aman
+                [2541] = "midnight", -- Arcantina
+                [2576] = "midnight", -- The Den
+                [2437] = "midnight", -- Zul'Aman
+            }
+
             local cur = mapID
             for _ = 1, 12 do
                 local okInfo, info = pcall(C_Map.GetMapInfo, cur)
                 if not okInfo or type(info) ~= "table" then
                     break
+                end
+
+                local byMidnight = MIDNIGHT_ZONE_MAPID_TO_KEY[tonumber(cur) or 0]
+                if byMidnight then
+                    return byMidnight
+                end
+
+                local byID = CONTINENT_MAPID_TO_KEY[tonumber(cur) or 0]
+                if byID then
+                    return byID
                 end
 
                 local mapType = info.mapType
@@ -967,7 +1006,7 @@ function ns.SituateUI_Build(panel)
         -- handles up to 5 professions / archaeology / locale-safe keys).
         if ns and ns.Profs then
             if type(ns.Profs.RefreshKnownProfessionKeys) == "function" then
-                pcall(ns.Profs.RefreshKnownProfessionKeys, false)
+                pcall(ns.Profs.RefreshKnownProfessionKeys, true)
             end
             if type(ns.Profs.ListCachedProfessionKeys) == "function" then
                 local ok, list = pcall(ns.Profs.ListCachedProfessionKeys)
@@ -3303,7 +3342,7 @@ function ns.SituateUI_Build(panel)
         end
 
         local function FillFromCursor()
-            local cType, cId = GetCursorInfo()
+            local cType, cId, cSubType, cExtra = GetCursorInfo()
             if not cType then
                 status:SetText("Drag a macro/spell/item onto cursor")
                 return false
@@ -3318,7 +3357,35 @@ function ns.SituateUI_Build(panel)
                     return false
                 end
             elseif cType == "spell" and cId then
-                SetSelectedSpell(cId)
+                -- Cursor "spell" can be either:
+                -- - spellID (direct)
+                -- - spellbook index + bookType (e.g., professions window/spellbook)
+                local resolvedSpellID = nil
+
+                if type(cSubType) == "string" and type(cId) == "number" and GetSpellBookItemInfo then
+                    local okInfo, spellType, spellID = pcall(GetSpellBookItemInfo, cId, cSubType)
+                    if okInfo and spellType == "SPELL" and type(spellID) == "number" and spellID > 0 then
+                        resolvedSpellID = spellID
+                    end
+                end
+
+                if not resolvedSpellID and type(cExtra) == "number" and cExtra > 0 then
+                    resolvedSpellID = cExtra
+                end
+
+                if not resolvedSpellID and type(cId) == "number" and cId > 0 and GetSpellInfo then
+                    local okName, name = pcall(GetSpellInfo, cId)
+                    if okName and type(name) == "string" and name ~= "" then
+                        resolvedSpellID = cId
+                    end
+                end
+
+                if not resolvedSpellID then
+                    status:SetText("Spell drag unresolved")
+                    return false
+                end
+
+                SetSelectedSpell(resolvedSpellID)
             elseif (cType == "item" or cType == "toy") and cId then
                 SetSelectedItem(cId)
             elseif cType == "mount" and cId and C_MountJournal and C_MountJournal.GetMountInfoByID then

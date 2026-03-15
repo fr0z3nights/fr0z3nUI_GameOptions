@@ -2,6 +2,150 @@
 
 Format: `YYMMDD-###` (sanity stamp) — short summary.
 
+# 260316-014
+- Files: `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Core boundary: moved the main addon event frame + event registrations out of `fr0z3nUI_GameOptions.lua` into `fUI_GOCore.lua` so runtime/event wiring is early; core now delegates to `ns.FGO_OnEvent(...)` implemented in main.
+- Bumped TOC `## Version` to `2026.03.16.17`.
+
+# 260316-015
+- Files: `fUI_GOCore.lua`, `fUI_GOTextureMail.lua`, `fUI_GOTradeBank.lua`, `fr0z3nUI_GameOptions.toc`
+- Fix: resolved Lua load/runtime blockers (`<eof>`/unexpected `end`) in core + mail notifier module; repaired `Mail.HandleSlash` debug handling.
+- Safety: guarded `DepositCfgAcc()` against nil DB during early load to avoid TradeBank crashing on startup.
+- Bumped TOC `## Version` to `2026.03.16.18`.
+
+# 260316-016
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOTexturesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- UI: LootIt/Tax/Trade tabs now render inside a proper content inset (below the tab bar) to prevent controls being clipped/out-of-frame.
+- UI: Mail config popout now opens beside the main window (instead of centered over it).
+- Bumped TOC `## Version` to `2026.03.16.19`.
+
+# 260316-017
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- UI: Tax tab now reuses the main frame `Reload UI` button when available (prevents a duplicate Reload button on the Tax tab).
+- Bumped TOC `## Version` to `2026.03.16.20`.
+
+# 260316-018
+- Files: `fUI_GOTexturesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- UI: Mail popout no longer anchors its Debug button to the main window (prevents Debug appearing on the Textures tab when Mail is opened).
+- Bumped TOC `## Version` to `2026.03.16.21`.
+
+# 260316-019
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- UI: Trade tab now uses a left/right split layout; controls are contained on the left.
+- UI: Items list is now a permanent right-side panel (no toggle popout) and refreshes when mode/target changes (e.g. Bank button).
+- Bumped TOC `## Version` to `2026.03.16.22`.
+
+# 260316-020
+- Files: `fUI_GOTexturesUI.lua`, `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Fix: Mail popout now lazily (re)builds its UI on open so it can’t get stuck blank after `/reload`.
+- UI: Tax owed rows now align under the Vendor↔Loot and Mail↔System gaps (instead of a generic left/right split).
+- Bumped TOC `## Version` to `2026.03.16.23`.
+
+# 260316-021
+- Files: `fUI_GOTexturesUI.lua`, `fUI_GOTextureMail.lua`, `fr0z3nUI_GameOptions.toc`
+- Fix: Mail popout now preloads/builds its content once the Mail module is available (tab-style), even if the popout was opened early.
+- Bumped TOC `## Version` to `2026.03.16.24`.
+
+# 260316-022
+- Files: `fUI_GOSwitchesUI.lua`, `fUI_GOTexturesUI.lua`, `fUI_GOSwitchesMN.lua`, `fr0z3nUI_GameOptions.toc`
+- UI: moved Mail Notifier controls to the Switches tab using a 3-segment control (Mail=ACC on/off, Enable=CHAR on/off, Config=popout).
+- UI: removed the obsolete enable/mode button from the Mail Notifier popout; updated the popout title to “Mail Notifier”; removed the Textures header Mail button.
+- Rename: `fUI_GOTextureMail.lua` → `fUI_GOSwitchesMN.lua`.
+- Bumped TOC `## Version` to `2026.03.16.25`.
+
+# 260316-023
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOTexturesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Fix: ensured LootIt hosted env wiring runs at addon load (not just after using `/fgo li`), so the Mail Notifier popout config fields populate reliably.
+- Safety: Mail Notifier popout also wires env on-demand before building UI.
+- Bumped TOC `## Version` to `2026.03.16.26`.
+
+# 260316-024
+- Files: `fUI_GOTexturesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Fix: after building the Mail Notifier popout, it now calls the embedded mail editor `Refresh()` immediately so controls populate without needing to click Scope.
+- Bumped TOC `## Version` to `2026.03.16.27`.
+
+# 260316-013
+- Files: `fUI_GOCore.lua`, `fUI_GOLootAliasDB.lua`, `fUI_GOLoot.lua`, `fUI_GOLootChat.lua`, `fUI_GOLootAlias.lua`, `fUI_GOLootUI.lua`, `fUI_GOTrade.lua`, `fUI_GOTradeBank.lua`, `fUI_GOTradeUI.lua`, `fUI_GOTextureMail.lua`, `fUI_GOTax.lua`, `fUI_GOTaxUI.lua`, `fUI_GOTexturesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: migrated remaining module entrypoints to prefer the shared addon namespace `ns.LootIt` (global kept only as a fallback/compat alias).
+- LootIt: moved `fUI_GOLootAliasDB.lua` earlier in the TOC so built-in alias tables exist before core snapshots them.
+- Bumped TOC `## Version` to `2026.03.16.16`.
+
+# 260316-011
+- Files: `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt/Core: moved the UI shim + bootstrap wiring + `/fgo li` handler implementation out of core and into the main GameOptions file (core is now runtime/DB/events only).
+- LootIt/Main: main now calls `LI.Bootstrap.WireAll(LI.CoreBuildBootstrapEnv())` once at load.
+- Bumped TOC `## Version` to `2026.03.16.14`.
+
+# 260316-012
+- Files: `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: treat this as a single addon namespace — core now publishes LootIt as `ns.LootIt`, and the main file prefers `ns.LootIt` over `_G.fr0z3nUI_LootIt` (global kept only as a compatibility alias).
+- Bumped TOC `## Version` to `2026.03.16.15`.
+
+# 260316-010
+- Files: `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt/Core: renamed `fUI_GOLootItHost.lua` to `fUI_GOCore.lua` (no logic changes; just a cleanup rename).
+- Bumped TOC `## Version` to `2026.03.16.13`.
+
+# 260316-009
+- Files: `fUI_GOLootItHost.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt/Core: merged the former `fUI_GOLootBootstrap.lua` (UI/env wiring) and `fUI_GOLootUIV.lua` (slash handler) into the Host/core file; removed both from the TOC so LootIt initializes from a single early file.
+- Bumped TOC `## Version` to `2026.03.16.12`.
+
+# 260316-008
+- Files: `fUI_GOLootUI.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt/UI: the LootIt panel Reset button now clears the new FGO-backed SV tables (`AutoGame_Acc.lootIt`, `AutoGame_Char.lootIt`) in-place (so reset works after SV consolidation).
+- Bumped TOC `## Version` to `2026.03.16.11`.
+
+# 260316-007
+- Files: `fUI_GOLootItHost.lua`, `fr0z3nUI_GameOptions.toc`
+- SavedVariables: hosted LootIt/Tax/Trade now persist inside FGO SV (`AutoGame_Acc.lootIt`, `AutoGame_Char.lootIt`); removed `fr0z3nUI_LootItDB` / `fr0z3nUI_LootItCharDB` from the TOC.
+- Note: this resets prior LootIt settings unless they are reconfigured.
+- Bumped TOC `## Version` to `2026.03.16.10`.
+
+# 260316-006
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOLootItHost.lua`, `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt/Trade: extracted the full deposit/bank engine (deposit runners, deposit button, bank ticker, bank-open state, guild bank query session helpers) into the dedicated `fUI_GOTradeBank.lua` file.
+- LootIt/Host: rewired event wiring to call the moved exports (`LI.RunDeposit`, `LI.UpdateDepositButtonVisibility`, bank interaction open/close setters, bank ticker start/stop), keeping Host focused on wiring.
+- LootIt/Trade: removed bank/deposit lifecycle handlers from `fUI_GOTrade.lua` so there is a single source of truth.
+- Fix: repaired an accidental corruption in `fUI_GOTrade.lua` during handler removal (restored player-name color helper + realm/scope trade-rule resolution).
+- Fix: restored missing `DepositCfgChar()` buy tables in `fUI_GOTradeBank.lua` and fixed guild-bank helper scoping (local `QueryGuildBankTabIfNeeded`, local `GetCurrentGuildKey`).
+- Bumped TOC `## Version` to `2026.03.16.09`.
+
+# 260316-005
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt/Trade: moved the merchant vendor buy/sell/restock engine (merchant ticker + rule resolution + food selling/restock helpers) into `fUI_GOTrade.lua` so Trade owns Trade.
+- Fix: restores missing `StartMerchantTradeTicker` / `StopMerchantTradeTicker` / `RunMerchantTradeOnce` that were previously only present in older/live Host code.
+- Fix: `GetItemRequiredPlayerLevel()` now reads the correct `GetItemInfo` return (avoids treating item level as required level when uncached).
+- Slash: `/fgo li food debug` now falls back to `LI.DebugSellOldFoodAtMerchant` when the env debug hook isn’t present.
+- Bumped TOC `## Version` to `2026.03.16.08`.
+
+# 260316-003
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOTexturesUI.lua`, `fUI_GOLootBootstrap.lua`, `fUI_GOLootItHost.lua`, `fr0z3nUI_GameOptions.toc`
+- UI: promoted LootIt’s former internal tabs to native FGO tabs: `LootIt`, `Tax`, `Trade`.
+- UI: Mail config is now a `Mail` button popout on the `Textures` tab (no separate LootIt config window / nested tabs).
+- Compat: LootIt’s existing `CreateConfigUI()` / `SelectTab("mail")` calls now route into the FGO window + Mail popout.
+- Cleanup: removed `fUI_GOLootItUI.lua` (UI shim now lives in `fUI_GOLootBootstrap.lua`).
+- Bumped TOC `## Version` to `2026.03.16.04`.
+
+# 260316-004
+- Files: `fr0z3nUI_GameOptions.toc`, `fUI_GOLootItHost.lua`, `fUI_GOLoot.lua`, `fUI_GOLootChat.lua`, `fUI_GOLootUIV.lua`, `fUI_GOLootUI.lua`, `fUI_GOLootAlias.lua`, `fUI_GOLootBootstrap.lua`, `fUI_GOTrade.lua`, `fUI_GOTradeUI.lua`
+- LootIt: consolidated bootstrap so `fUI_GOLootItHost.lua` loads first and owns `LI.ADDON` + `[FGO]` prefix.
+- Cleanup: removed unused `fUI_GOLootItNS.lua` (ns-bridge).
+- Cleanup: removed redundant per-file `fr0z3nUI_LootIt = LI` bootstrapping; LootIt modules now depend on Host and avoid side effects.
+- Bumped TOC `## Version` to `2026.03.16.07`.
+
+# 260316-002
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`, `fUI_GOLootItHost.lua`, `fUI_GOLootBootstrap.lua`, `fUI_GOLootUIV.lua`, `fUI_GOLoot.lua`, `fUI_GOLootAlias.lua`, `fUI_GOLootChat.lua`, `fUI_GOTrade.lua`, `fUI_GOTextureMail.lua`
+- Slash: removed LootIt’s `/fli` registration from the FGO build; LootIt is now driven by the native `/fgo` router.
+- Slash: added `/fgo li ...` (and `/fgo lootit ...` alias) for LootIt commands; avoids collision with existing `/fgo loot` (Auto Loot).
+- Output: LootIt host output prefix now shows `[FGO]` so it feels native.
+- Bumped TOC `## Version` to `2026.03.16.02`.
+
+# 260316-001
+- Files: `fr0z3nUI_GameOptions.toc`, `fUI_GOLootIt*.lua`, `fUI_GOLoot*.lua`, `fUI_GOTrade*.lua`, `fUI_GOTax*.lua`, `fUI_GOTextureMail.lua`
+- LootIt: hosted inside FGO (modules migrated as `fUI_GO*`; no `fr0z3nUI_LootIt*` wrapper spam).
+- Safety: added a double-load guard so enabling standalone LootIt at the same time won’t double-init.
+- Bumped TOC `## Version` to `2026.03.16.01`.
 
 # 260313-001
 - Files: `fUI_GOSwitchesMU.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
@@ -325,6 +469,45 @@ Format: `YYMMDD-###` (sanity stamp) — short summary.
 - Switches/UI: `Reload Button` now has a split click zone; the right 1/3 cycles the floating button font size (12/14/16/18/20).
 - Floating Reload UI: applies the saved font size via `AutoGossip_UI.reloadFloatTextSize`.
 - Bumped TOC `## Version` to `2026.03.13.50`.
+
+
+# 260313-051
+- Files: `fUI_GOSituatePF.lua`, `fUI_GOSituate.lua`, `fUI_GOSituateUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Situate: Expansion detection now prefers continent `mapID` mapping (locale-independent), fixing the `Expansion` button showing Unknown on non-English clients.
+- SituatePF: avoid caching an all-nil `GetProfessions()` result as "no professions" on first refresh; Profession button now sees the character's professions once skills are loaded.
+- Situate/UI: Profession list refresh now forces a profession-key refresh when opening/using the account Profession selector.
+- Bumped TOC `## Version` to `2026.03.13.51`.
+
+
+# 260313-052
+- Files: `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Switches/UI: moved both columns up by ~1.5 button heights.
+- Bumped TOC `## Version` to `2026.03.13.52`.
+
+
+# 260313-053
+- Files: `fUI_GOSituate.lua`, `fUI_GOSituateUI.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Situate: expansion detection now resolves by matching known continent mapIDs anywhere in the map parent chain (less dependent on `mapType`).
+- Slash: added `/fgo situate info` to print map ancestry + resolved expansion key + cached profession keys for debugging.
+- Bumped TOC `## Version` to `2026.03.13.53`.
+
+
+# 260313-054
+- Files: `fUI_GOSituate.lua`, `fUI_GOSituateUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Situate: added Midnight zone mapID fallbacks so Expansion resolves to `midnight` in Quel'Thalas/Midnight zones even before continent/root mapIDs are confirmed.
+- Bumped TOC `## Version` to `2026.03.13.54`.
+
+
+# 260313-055
+- Files: `fUI_GOSituateUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Situate/UI: fixed drag/drop from the Professions/Spellbook UI by resolving cursor `spell` drags (spellbook index + bookType) into a real spellID before writing.
+- Bumped TOC `## Version` to `2026.03.13.55`.
+
+
+# 260313-056
+- Files: `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Switches/UI: moved both columns down by ~0.5 button height.
+- Bumped TOC `## Version` to `2026.03.13.56`.
 
 
 # 260312-013

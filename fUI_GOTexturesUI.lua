@@ -401,10 +401,297 @@ function ns.TexturesUI_Build(frame, panel, helpers)
 
     local texPickBtn = CreateButton(header, "Pick", 56, 22)
     texPickBtn:SetPoint("RIGHT", header, "RIGHT", 0, 0)
-    texEB:ClearAllPoints()
-    texEB:SetPoint("LEFT", refreshBtn, "RIGHT", 6, 0)
+
     texModeBtn:SetPoint("RIGHT", texPickBtn, "LEFT", -6, 0)
     texEB:SetPoint("RIGHT", texModeBtn, "LEFT", -6, 0)
+
+    local mailPopout
+    local mailUI = {}
+
+    local function EnsureMailPopoutBuilt()
+        if mailPopout then
+            return mailPopout
+        end
+
+        local function SafeCall(fn, ...)
+            if type(fn) == "function" then
+                return fn(...)
+            end
+        end
+
+        local function ApplyInteractivityNow()
+            local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+            local ui = LI and LI.UI
+            local liEnv = (ui and type(ui.GetEnv) == "function") and ui.GetEnv() or {}
+            SafeCall(liEnv.ApplyMailNotifierInteractivity)
+        end
+
+        mailPopout = CreateFrame("Frame", "FGO_MailConfigPopup", UIParent, "BackdropTemplate")
+        mailPopout:SetSize(480, 400)
+        mailPopout:SetPoint("TOPLEFT", frame, "TOPRIGHT", 10, -40)
+        mailPopout:SetFrameStrata("DIALOG")
+        mailPopout:SetFrameLevel((frame.GetFrameLevel and frame:GetFrameLevel() or 0) + 80)
+        mailPopout:SetClampedToScreen(true)
+        mailPopout:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            tile = true,
+            tileSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        mailPopout:SetBackdropColor(0, 0, 0, 0.85)
+        mailPopout:Hide()
+
+        local titleFS = mailPopout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        titleFS:SetPoint("TOPLEFT", mailPopout, "TOPLEFT", 12, -10)
+        titleFS:SetText("Mail Notifier")
+
+        local closeBtn = CreateFrame("Button", nil, mailPopout, "UIPanelCloseButton")
+        closeBtn:SetPoint("TOPRIGHT", mailPopout, "TOPRIGHT", -6, -6)
+        closeBtn:SetScript("OnClick", function()
+            if mailPopout and mailPopout.Hide then
+                mailPopout:Hide()
+                ApplyInteractivityNow()
+            end
+        end)
+
+        local content = CreateFrame("Frame", nil, mailPopout)
+        content:SetPoint("TOPLEFT", mailPopout, "TOPLEFT", 12, -40)
+        content:SetPoint("BOTTOMRIGHT", mailPopout, "BOTTOMRIGHT", -12, 12)
+
+        local placeholderFS = content:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        placeholderFS:SetPoint("TOPLEFT", content, "TOPLEFT", 6, -6)
+        placeholderFS:SetPoint("RIGHT", content, "RIGHT", -6, 0)
+        placeholderFS:SetJustifyH("LEFT")
+        placeholderFS:SetText("")
+
+        local function TryBuildMailUI()
+            if mailPopout._liBuilt == true then
+                return true
+            end
+
+            -- Safety: ensure the hosted env is wired before building UI so config getters work.
+            do
+                local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+                if LI and LI._FGO_LootItWired ~= true then
+                    local boot = LI.Bootstrap
+                    if boot and type(boot.WireAll) == "function" and type(LI.CoreBuildBootstrapEnv) == "function" then
+                        pcall(boot.WireAll, LI.CoreBuildBootstrapEnv())
+                        LI._FGO_LootItWired = true
+                    end
+                end
+            end
+
+            local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+            local ui = LI and LI.UI
+            local liEnv = (ui and type(ui.GetEnv) == "function") and ui.GetEnv() or {}
+
+            local EnsureDB = liEnv.EnsureDB or function() end
+            local GetDB = liEnv.GetDB or function() return _G and rawget(_G, "fr0z3nUI_LootItDB") end
+            local GetCharDB = liEnv.GetCharDB or function() return _G and rawget(_G, "fr0z3nUI_LootItCharDB") end
+            local MailNotifyCfg = liEnv.MailNotifyCfg or function() return nil end
+
+            local ApplyMailNotifierInteractivity = liEnv.ApplyMailNotifierInteractivity or function() end
+                        local SetCheckBoxText = liEnv.SetCheckBoxText or function(cb, text)
+                            if cb and cb.Text and cb.Text.SetText then
+                                cb.Text:SetText(tostring(text or ""))
+                            end
+                        end
+                        local SetCheckBoxChecked = liEnv.SetCheckBoxChecked or function(cb, checked)
+                            if cb and cb.SetChecked then
+                                cb:SetChecked(checked == true)
+                            end
+                        end
+
+                        local Print = liEnv.Print or (LI and LI.Print) or function(...) end
+            local UpdateMailNotifier = liEnv.UpdateMailNotifier or function() end
+            local CreateMailNotifier = liEnv.CreateMailNotifier or function() return nil end
+            local ApplyMailModelToFrame = liEnv.ApplyMailModelToFrame or function() end
+            local ModelApplyAnimation = liEnv.ModelApplyAnimation or function() end
+            local ModelGetRotation = liEnv.ModelGetRotation or function() return 0 end
+            local ModelSetRotation = liEnv.ModelSetRotation or function() end
+            local ModelApplyZoom = liEnv.ModelApplyZoom or function() end
+            local GetMailNotifier = liEnv.GetMailNotifier or function() return nil end
+
+            local function RefreshRefs()
+                SafeCall(EnsureDB)
+            end
+
+            local function GetMailNotifyMode()
+                RefreshRefs()
+                local DB = SafeCall(GetDB)
+                local CHARDB = SafeCall(GetCharDB)
+                if CHARDB and CHARDB.mailNotifyEnabledOverride == true then return "on" end
+                if CHARDB and CHARDB.mailNotifyEnabledOverride == false then return "off" end
+                if DB and DB.mailNotify and DB.mailNotify.enabled then return "acc" end
+                return "off"
+            end
+
+            local function SetMailNotifyMode(mode)
+                RefreshRefs()
+                local DB = SafeCall(GetDB)
+                local CHARDB = SafeCall(GetCharDB)
+                if type(DB) ~= "table" then return end
+                if type(DB.mailNotify) ~= "table" then DB.mailNotify = {} end
+
+                mode = tostring(mode or ""):lower()
+                if mode == "on" then
+                    if CHARDB then CHARDB.mailNotifyEnabledOverride = true end
+                elseif mode == "acc" then
+                    if CHARDB then CHARDB.mailNotifyEnabledOverride = nil end
+                    DB.mailNotify.enabled = true
+                else
+                    if CHARDB then CHARDB.mailNotifyEnabledOverride = false end
+                end
+                SafeCall(UpdateMailNotifier)
+            end
+
+            local function GetMailNotifyScope()
+                RefreshRefs()
+                local CHARDB = SafeCall(GetCharDB)
+                return (CHARDB and CHARDB.mailNotifyScope == "char") and "char" or "acc"
+            end
+
+            local function SetMailNotifyScope(scope)
+                RefreshRefs()
+                local CHARDB = SafeCall(GetCharDB)
+                if type(CHARDB) ~= "table" then return end
+                scope = tostring(scope or ""):lower()
+                if scope == "char" or scope == "character" then
+                    CHARDB.mailNotifyScope = "char"
+                else
+                    CHARDB.mailNotifyScope = nil
+                end
+                SafeCall(UpdateMailNotifier)
+            end
+
+            local function IsMailCombatOn()
+                RefreshRefs()
+                local DB = SafeCall(GetDB)
+                local CHARDB = SafeCall(GetCharDB)
+
+                local scope = (CHARDB and CHARDB.mailNotifyScope == "char") and "char" or "acc"
+                local cfg
+                if scope == "char" then
+                    cfg = (CHARDB and CHARDB.mailNotify)
+                else
+                    cfg = (DB and DB.mailNotify)
+                end
+                cfg = (type(cfg) == "table") and cfg or {}
+                return (cfg.showInCombat ~= false) and true or false
+            end
+
+            local function RefreshMailNotifyModeButton()
+                local btn = mailUI and mailUI.notifyModeBtn
+                if not (btn and btn.SetText) then return end
+                local m = GetMailNotifyMode()
+                btn:SetText((m == "on") and "On" or ((m == "acc") and "On Acc" or "Off"))
+            end
+
+            local function RefreshMailCombatButton()
+                local btn = mailUI and mailUI.combatBtn
+                if not (btn and btn.SetText) then return end
+                if IsMailCombatOn() then
+                    btn:SetText("|cffffff00Combat|r")
+                else
+                    btn:SetText("|cff808080Combat|r")
+                end
+            end
+
+            if not (LI and LI.Mail and type(LI.Mail.BuildTab) == "function") then
+                placeholderFS:SetText("Mail UI is still loading. Try again in a moment.")
+                return false
+            end
+
+            placeholderFS:SetText("")
+            local ok, err = pcall(function()
+                SafeCall(EnsureDB)
+                LI.Mail.BuildTab(content, mailUI, {
+                    EnsureDB = EnsureDB,
+                    GetDB = GetDB,
+                    GetCharDB = GetCharDB,
+                    MailNotifyCfg = MailNotifyCfg,
+                    GetMailNotifyScope = GetMailNotifyScope,
+                    SetMailNotifyScope = SetMailNotifyScope,
+                    GetMailNotifyMode = GetMailNotifyMode,
+                    SetMailNotifyMode = SetMailNotifyMode,
+                    RefreshMailNotifyModeButton = RefreshMailNotifyModeButton,
+                    RefreshMailCombatButton = RefreshMailCombatButton,
+                    UpdateMailNotifier = UpdateMailNotifier,
+                    CreateMailNotifier = CreateMailNotifier,
+                    ApplyMailModelToFrame = ApplyMailModelToFrame,
+                    ModelApplyAnimation = ModelApplyAnimation,
+                    ModelGetRotation = ModelGetRotation,
+                    ModelSetRotation = ModelSetRotation,
+                    ModelApplyZoom = ModelApplyZoom,
+                    GetMailNotifier = GetMailNotifier,
+                    Print = Print,
+                    SetCheckBoxText = SetCheckBoxText,
+                    SetCheckBoxChecked = SetCheckBoxChecked,
+                })
+            end)
+
+            if not ok then
+                placeholderFS:SetText("Mail UI failed to build (reload may fix).")
+                return false
+            end
+
+            mailPopout._liBuilt = true
+
+            -- Ensure initial values are painted into the embedded mail editor.
+            if content and content.modelUI and type(content.modelUI.Refresh) == "function" then
+                pcall(content.modelUI.Refresh, content.modelUI)
+            end
+            RefreshMailNotifyModeButton()
+            RefreshMailCombatButton()
+            if mailPopout and mailPopout.IsShown and mailPopout:IsShown() then
+                SafeCall(ApplyMailNotifierInteractivity)
+            end
+            return true
+        end
+
+        -- Expose a safe builder so we can preload like a normal tab,
+        -- and so the Mail module can notify when it has finished loading.
+        mailPopout._liTryBuildMailUI = TryBuildMailUI
+
+        _G.FGO_MailModuleReady = function()
+            if not mailPopout then return end
+            if type(mailPopout._liTryBuildMailUI) == "function" then
+                mailPopout._liTryBuildMailUI()
+            end
+        end
+
+        mailPopout:SetScript("OnShow", function()
+            TryBuildMailUI()
+        end)
+
+        mailPopout:SetScript("OnHide", function()
+            ApplyInteractivityNow()
+        end)
+
+        return mailPopout
+    end
+
+    _G.FGO_IsMailPopoutOpen = function()
+        return (mailPopout and mailPopout.IsShown and mailPopout:IsShown()) and true or false
+    end
+
+    _G.FGO_ToggleMailPopout = function(show)
+        EnsureMailPopoutBuilt()
+        local wantShow = show
+        if wantShow == nil then
+            wantShow = not (_G.FGO_IsMailPopoutOpen and _G.FGO_IsMailPopoutOpen())
+        end
+
+        if wantShow then
+            if mailPopout and mailPopout.Show then
+                mailPopout:Show()
+            end
+        else
+            if mailPopout and mailPopout.Hide then
+                mailPopout:Hide()
+            end
+        end
+    end
 
     local function IsKnownAddonMediaName(name)
         if type(name) ~= "string" then

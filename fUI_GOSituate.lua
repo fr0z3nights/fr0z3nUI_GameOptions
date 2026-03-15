@@ -162,13 +162,52 @@ local function GetCurrentExpansionKeyForPlayer()
         return nil
     end
 
-    -- Walk up to the Continent (landmass) and use its name as the expansion key.
+    -- Walk up the map ancestry and resolve the expansion from the continent landmass.
     if C_Map.GetMapInfo and Enum and Enum.UIMapType then
+        -- Prefer locale-independent mapIDs.
+        local CONTINENT_MAPID_TO_KEY = {
+            [13] = "easternkingdoms",
+            [12] = "kalimdor",
+            [101] = "outland",
+            [113] = "northrend",
+            [424] = "pandaria",
+            [572] = "draenor",
+            [619] = "brokenisles",
+            [876] = "kultiras",
+            [875] = "zandalar",
+            [1550] = "shadowlands",
+            [1978] = "dragonisles",
+            [2274] = "khazalgar",
+        }
+
+        -- Midnight: known/projected zone mapIDs (fallback until continent/root mapIDs are stable).
+        local MIDNIGHT_ZONE_MAPID_TO_KEY = {
+            [2393] = "midnight", -- Silvermoon City
+            [2395] = "midnight", -- Eversong Woods
+            [2424] = "midnight", -- Isle of Quel'Danas
+            [2413] = "midnight", -- Harandar
+            [2405] = "midnight", -- Voidstorm
+            [2536] = "midnight", -- Atal'Aman
+            [2541] = "midnight", -- Arcantina
+            [2576] = "midnight", -- The Den
+            [2437] = "midnight", -- Zul'Aman
+        }
+
         local cur = mapID
         for _ = 1, 12 do
             local okInfo, info = pcall(C_Map.GetMapInfo, cur)
             if not okInfo or type(info) ~= "table" then
                 break
+            end
+
+            local byMidnight = MIDNIGHT_ZONE_MAPID_TO_KEY[tonumber(cur) or 0]
+            if byMidnight then
+                return byMidnight
+            end
+
+            local byID = CONTINENT_MAPID_TO_KEY[tonumber(cur) or 0]
+            if byID then
+                return byID
             end
 
             local mapType = info.mapType
@@ -231,6 +270,9 @@ local function GetCurrentExpansionKeyForPlayer()
 
     return nil
 end
+
+-- Export (used by /fgo situate info diagnostics).
+ns.Situate_GetCurrentExpansionKeyForPlayer = GetCurrentExpansionKeyForPlayer
 
 local function GetActiveLayout()
     local s = GetSettings()

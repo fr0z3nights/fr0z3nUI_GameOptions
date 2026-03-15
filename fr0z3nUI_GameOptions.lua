@@ -23,7 +23,6 @@ end
 -- Expose helpers for split-out modules.
 ns.IsSecretString = IsSecretString
 ns.SafeToString = SafeToString
-local frame = CreateFrame("Frame")
 
 -- Chromie Time was split out to fUI_GOSwitchesCT.lua
 local InitSV
@@ -1569,6 +1568,25 @@ local function CreateOptionsWindow()
     macrosPanel:Hide()
     f.macrosPanel = macrosPanel
 
+    -- LootIt tabs (native in FGO)
+    local lootItPanel = CreateFrame("Frame", nil, f)
+    lootItPanel:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -34)
+    lootItPanel:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 8)
+    lootItPanel:Hide()
+    f.lootItPanel = lootItPanel
+
+    local lootTaxPanel = CreateFrame("Frame", nil, f)
+    lootTaxPanel:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -34)
+    lootTaxPanel:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 8)
+    lootTaxPanel:Hide()
+    f.lootTaxPanel = lootTaxPanel
+
+    local lootTradePanel = CreateFrame("Frame", nil, f)
+    lootTradePanel:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -34)
+    lootTradePanel:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 8)
+    lootTradePanel:Hide()
+    f.lootTradePanel = lootTradePanel
+
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 12, -6)
     title:SetJustifyH("LEFT")
@@ -1644,7 +1662,7 @@ local function CreateOptionsWindow()
 
     f.UpdateChromieLabel()
 
-    local TAB_COUNT = 8
+    local TAB_COUNT = 11
     local TAB_OVERLAP_X = -6
 
     local function SizeTabToText(btn, pad, minW)
@@ -1691,7 +1709,7 @@ local function CreateOptionsWindow()
 
     local function SelectTab(self, tabID)
         f.activeTab = tabID
-        -- Tab order: 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tabard, 6 Tale, 7 Talk, 8 Textures
+        -- Tab order: 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tabard, 6 Tale, 7 Talk, 8 Textures, 9 LootIt, 10 Tax, 11 Trade
         if f.macrosPanel then f.macrosPanel:SetShown(tabID == 1) end
         if f.macroPanel then f.macroPanel:SetShown(tabID == 2) end
         if f.actionBarPanel then f.actionBarPanel:SetShown(tabID == 3) end
@@ -1700,6 +1718,9 @@ local function CreateOptionsWindow()
         if f.editPanel then f.editPanel:SetShown(tabID == 6) end
         if f.browserPanel then f.browserPanel:SetShown(tabID == 7) end
         if f.texturesPanel then f.texturesPanel:SetShown(tabID == 8) end
+        if f.lootItPanel then f.lootItPanel:SetShown(tabID == 9) end
+        if f.lootTaxPanel then f.lootTaxPanel:SetShown(tabID == 10) end
+        if f.lootTradePanel then f.lootTradePanel:SetShown(tabID == 11) end
 
         if tabID == 2 and f.UpdateMacroButtons then
             f.UpdateMacroButtons()
@@ -1713,6 +1734,12 @@ local function CreateOptionsWindow()
         if tabID == 8 and f.UpdateTexturesUI then
             f.UpdateTexturesUI()
         end
+        if tabID == 9 and f.lootItPanel and f.lootItPanel.Refresh then
+            f.lootItPanel:Refresh()
+        end
+        if tabID == 10 and f.lootTaxPanel and f.lootTaxPanel.Refresh then
+            f.lootTaxPanel:Refresh()
+        end
 
         StyleTab(f.tab1, tabID == 1)
         StyleTab(f.tab2, tabID == 2)
@@ -1722,6 +1749,9 @@ local function CreateOptionsWindow()
         StyleTab(f.tab6, tabID == 6)
         StyleTab(f.tab7, tabID == 7)
         StyleTab(f.tab8, tabID == 8)
+        StyleTab(f.tab9, tabID == 9)
+        StyleTab(f.tab10, tabID == 10)
+        StyleTab(f.tab11, tabID == 11)
 
         UpdateTabZOrder(tabID)
     end
@@ -1733,7 +1763,7 @@ local function CreateOptionsWindow()
     tab1:SetPoint("LEFT", title, "RIGHT", 10, 0)
     tab1:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab1:SetHeight(22)
-    SizeTabToText(tab1, 18, 70)
+    SizeTabToText(tab1, 14, 60)
     f.tab1 = tab1
 
     local tab2 = CreateFrame("Button", "$parentTab2", f, "UIPanelButtonTemplate")
@@ -1742,7 +1772,7 @@ local function CreateOptionsWindow()
     tab2:SetPoint("LEFT", tab1, "RIGHT", TAB_OVERLAP_X, 0)
     tab2:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab2:SetHeight(22)
-    SizeTabToText(tab2, 18, 70)
+    SizeTabToText(tab2, 14, 60)
     f.tab2 = tab2
 
     local tab3 = CreateFrame("Button", "$parentTab3", f, "UIPanelButtonTemplate")
@@ -1751,7 +1781,7 @@ local function CreateOptionsWindow()
     tab3:SetPoint("LEFT", tab2, "RIGHT", TAB_OVERLAP_X, 0)
     tab3:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab3:SetHeight(22)
-    SizeTabToText(tab3, 18, 70)
+    SizeTabToText(tab3, 14, 60)
     f.tab3 = tab3
 
     local tab4 = CreateFrame("Button", "$parentTab4", f, "UIPanelButtonTemplate")
@@ -1760,7 +1790,7 @@ local function CreateOptionsWindow()
     tab4:SetPoint("LEFT", tab3, "RIGHT", TAB_OVERLAP_X, 0)
     tab4:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab4:SetHeight(22)
-    SizeTabToText(tab4, 18, 70)
+    SizeTabToText(tab4, 14, 60)
     f.tab4 = tab4
 
     local tab5 = CreateFrame("Button", "$parentTab5", f, "UIPanelButtonTemplate")
@@ -1769,7 +1799,7 @@ local function CreateOptionsWindow()
     tab5:SetPoint("LEFT", tab4, "RIGHT", TAB_OVERLAP_X, 0)
     tab5:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab5:SetHeight(22)
-    SizeTabToText(tab5, 18, 70)
+    SizeTabToText(tab5, 14, 60)
     f.tab5 = tab5
 
     local tab6 = CreateFrame("Button", "$parentTab6", f, "UIPanelButtonTemplate")
@@ -1778,7 +1808,7 @@ local function CreateOptionsWindow()
     tab6:SetPoint("LEFT", tab5, "RIGHT", TAB_OVERLAP_X, 0)
     tab6:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab6:SetHeight(22)
-    SizeTabToText(tab6, 18, 70)
+    SizeTabToText(tab6, 14, 60)
     f.tab6 = tab6
 
     local tab7 = CreateFrame("Button", "$parentTab7", f, "UIPanelButtonTemplate")
@@ -1787,7 +1817,7 @@ local function CreateOptionsWindow()
     tab7:SetPoint("LEFT", tab6, "RIGHT", TAB_OVERLAP_X, 0)
     tab7:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab7:SetHeight(22)
-    SizeTabToText(tab7, 18, 70)
+    SizeTabToText(tab7, 14, 60)
     f.tab7 = tab7
 
     local tab8 = CreateFrame("Button", "$parentTab8", f, "UIPanelButtonTemplate")
@@ -1796,8 +1826,35 @@ local function CreateOptionsWindow()
     tab8:SetPoint("LEFT", tab7, "RIGHT", TAB_OVERLAP_X, 0)
     tab8:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab8:SetHeight(22)
-    SizeTabToText(tab8, 18, 70)
+    SizeTabToText(tab8, 14, 60)
     f.tab8 = tab8
+
+    local tab9 = CreateFrame("Button", "$parentTab9", f, "UIPanelButtonTemplate")
+    tab9:SetID(9)
+    tab9:SetText("LootIt")
+    tab9:SetPoint("LEFT", tab8, "RIGHT", TAB_OVERLAP_X, 0)
+    tab9:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    tab9:SetHeight(22)
+    SizeTabToText(tab9, 14, 60)
+    f.tab9 = tab9
+
+    local tab10 = CreateFrame("Button", "$parentTab10", f, "UIPanelButtonTemplate")
+    tab10:SetID(10)
+    tab10:SetText("Tax")
+    tab10:SetPoint("LEFT", tab9, "RIGHT", TAB_OVERLAP_X, 0)
+    tab10:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    tab10:SetHeight(22)
+    SizeTabToText(tab10, 14, 60)
+    f.tab10 = tab10
+
+    local tab11 = CreateFrame("Button", "$parentTab11", f, "UIPanelButtonTemplate")
+    tab11:SetID(11)
+    tab11:SetText("Trade")
+    tab11:SetPoint("LEFT", tab10, "RIGHT", TAB_OVERLAP_X, 0)
+    tab11:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
+    tab11:SetHeight(22)
+    SizeTabToText(tab11, 14, 60)
+    f.tab11 = tab11
 
     -- Initialize first tab styling + z-order.
     StyleTab(tab1, true)
@@ -1808,6 +1865,9 @@ local function CreateOptionsWindow()
     StyleTab(tab6, false)
     StyleTab(tab7, false)
     StyleTab(tab8, false)
+    StyleTab(tab9, false)
+    StyleTab(tab10, false)
+    StyleTab(tab11, false)
     UpdateTabZOrder(1)
 
     -- Clear selection when the window closes so reopening starts fresh.
@@ -2036,6 +2096,191 @@ local function CreateOptionsWindow()
         end
     end
 
+    -- LootIt tab content
+    do
+        local panel = f.lootItPanel
+        if panel and not panel._lootItBuilt then
+            panel._lootItBuilt = true
+
+            local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+            local ui = LI and LI.UI
+            local liEnv = (ui and type(ui.GetEnv) == "function") and ui.GetEnv() or {}
+
+            local function SafeCall(fn, ...)
+                if type(fn) == "function" then
+                    return fn(...)
+                end
+            end
+
+            local EnsureDB = liEnv.EnsureDB or (LI and LI.EnsureDB) or function() end
+            local GetDB = liEnv.GetDB or (LI and LI.GetDB) or function() return _G and rawget(_G, "fr0z3nUI_LootItDB") end
+            local GetCharDB = liEnv.GetCharDB or (LI and LI.GetCharDB) or function() return _G and rawget(_G, "fr0z3nUI_LootItCharDB") end
+            local ApplyFilters = liEnv.ApplyFilters or function() end
+
+            local function RefreshRefs()
+                SafeCall(EnsureDB)
+            end
+
+            local function GetEnableMode()
+                RefreshRefs()
+                local DB = SafeCall(GetDB)
+                local CHARDB = SafeCall(GetCharDB)
+                if CHARDB and CHARDB.enabledOverride == true then return "on" end
+                if CHARDB and CHARDB.enabledOverride == false then return "off" end
+                if DB and DB.enabled then return "acc" end
+                return "off"
+            end
+
+            local function SetEnableMode(mode)
+                RefreshRefs()
+                local DB = SafeCall(GetDB)
+                local CHARDB = SafeCall(GetCharDB)
+                mode = tostring(mode or ""):lower()
+                if mode == "on" then
+                    if CHARDB then CHARDB.enabledOverride = true end
+                elseif mode == "acc" then
+                    if CHARDB then CHARDB.enabledOverride = nil end
+                    if DB then DB.enabled = true end
+                else
+                    if CHARDB then CHARDB.enabledOverride = nil end
+                    if DB then DB.enabled = false end
+                end
+                SafeCall(ApplyFilters)
+            end
+
+            local enableModeBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+            enableModeBtn:SetSize(90, 20)
+            enableModeBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -10)
+            enableModeBtn:SetScript("OnClick", function()
+                local cur = GetEnableMode()
+                local nextMode = (cur == "off") and "on" or ((cur == "on") and "acc" or "off")
+                SetEnableMode(nextMode)
+                local m = GetEnableMode()
+                enableModeBtn:SetText((m == "on") and "On" or ((m == "acc") and "On Acc" or "Off"))
+            end)
+
+            do
+                local m = GetEnableMode()
+                enableModeBtn:SetText((m == "on") and "On" or ((m == "acc") and "On Acc" or "Off"))
+            end
+
+            -- Alias popout (keeps LootIt tab clean; opens on-demand)
+            local aliasPopout = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+            aliasPopout:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -44)
+            aliasPopout:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 44)
+            aliasPopout:SetWidth(320)
+            aliasPopout:SetFrameLevel((panel.GetFrameLevel and panel:GetFrameLevel() or 0) + 50)
+            aliasPopout:SetBackdrop({
+                bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+                tile = true,
+                tileSize = 16,
+                insets = { left = 4, right = 4, top = 4, bottom = 4 },
+            })
+            aliasPopout:SetBackdropColor(0, 0, 0, 0.85)
+            aliasPopout:Hide()
+
+            local aliasClose = CreateFrame("Button", nil, aliasPopout, "UIPanelCloseButton")
+            aliasClose:SetPoint("TOPRIGHT", aliasPopout, "TOPRIGHT", -6, -6)
+            aliasClose:SetScript("OnClick", function() if aliasPopout.Hide then aliasPopout:Hide() end end)
+
+            local aliasPanel = CreateFrame("Frame", nil, aliasPopout)
+            aliasPanel:SetPoint("TOPLEFT", aliasPopout, "TOPLEFT", 10, -34)
+            aliasPanel:SetPoint("BOTTOMRIGHT", aliasPopout, "BOTTOMRIGHT", -10, 10)
+
+            local function ToggleAliasPopout(force)
+                local show = force
+                if show == nil then
+                    show = not (aliasPopout.IsShown and aliasPopout:IsShown())
+                end
+                if show then
+                    aliasPopout:Show()
+                    if aliasPanel and aliasPanel.Refresh then
+                        aliasPanel:Refresh()
+                    end
+                else
+                    aliasPopout:Hide()
+                end
+            end
+
+            if LI and LI.Alias and type(LI.Alias.BuildTab) == "function" then
+                LI.Alias.BuildTab(aliasPanel, {
+                    EnsureDB = EnsureDB,
+                    GetDB = GetDB,
+                    GetCharDB = GetCharDB,
+                    PREFIX = liEnv.PREFIX,
+                    Print = liEnv.Print,
+                    SetCheckBoxText = liEnv.SetCheckBoxText,
+                    AddonLinkAliases = (LI and LI.AddonLinkAliases) or nil,
+                    AddonCurrencyAliases = (LI and LI.AddonCurrencyAliases) or nil,
+                })
+            end
+
+            if LI and LI.LootTab and type(LI.LootTab.BuildTab) == "function" then
+                LI.LootTab.BuildTab(panel, {
+                    EnsureDB = EnsureDB,
+                    GetDB = GetDB,
+                    GetCharDB = GetCharDB,
+                    LootCombineCancelTimers = liEnv.LootCombineCancelTimers,
+                    LootCombineFlush = liEnv.LootCombineFlush,
+                    ApplyFilters = ApplyFilters,
+                    UpdateMailNotifier = liEnv.UpdateMailNotifier,
+                    RefreshMailNotifyModeButton = function() end,
+                    RefreshMailCombatButton = function() end,
+                    SetCheckBoxText = liEnv.SetCheckBoxText,
+                    SetCheckBoxChecked = liEnv.SetCheckBoxChecked,
+                    GetSupportedMessageLines = liEnv.GetSupportedMessageLines,
+                    enableModeBtn = enableModeBtn,
+                    ToggleAliasPopout = ToggleAliasPopout,
+                })
+            end
+
+            do
+                local lootRefresh = panel.Refresh
+                panel.Refresh = function()
+                    if enableModeBtn and enableModeBtn.SetText then
+                        local m = GetEnableMode()
+                        enableModeBtn:SetText((m == "on") and "On" or ((m == "acc") and "On Acc" or "Off"))
+                    end
+                    if type(lootRefresh) == "function" then
+                        lootRefresh()
+                    end
+                end
+            end
+        end
+    end
+
+    -- Tax tab content
+    do
+        local panel = f.lootTaxPanel
+        if panel then
+            local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+            local ui = LI and LI.UI
+            local liEnv = (ui and type(ui.GetEnv) == "function") and ui.GetEnv() or {}
+
+            if LI and LI.Tax and type(LI.Tax.BuildTab_UI) == "function" then
+                LI.Tax.BuildTab_UI(panel, {
+                    EnsureDB = liEnv.EnsureDB,
+                    GetDB = liEnv.GetDB,
+                    GetCharDB = liEnv.GetCharDB,
+                    Clamp = liEnv.Clamp,
+                    SetCheckBoxText = liEnv.SetCheckBoxText,
+                    reloadBtn = f and f._reloadBtn,
+                })
+            end
+        end
+    end
+
+    -- Trade tab content
+    do
+        local panel = f.lootTradePanel
+        if panel then
+            local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+            if LI and LI.Trade and type(LI.Trade.BuildTab_UI) == "function" then
+                LI.Trade.BuildTab_UI(panel)
+            end
+        end
+    end
+
     -- Switches tab content
     do
         local panel = f.togglesPanel
@@ -2147,6 +2392,566 @@ local function ToggleUI(optionID)
     end
 end
 
+-- Global helper for hosted modules (LootIt) to open/select a specific tab.
+-- tabID: number (1..N). forceShow: true/false/nil (nil = show).
+_G.FGO_OpenOptionsTab = function(tabID, forceShow)
+    CreateOptionsWindow()
+    local f = AutoGossipOptions
+    if not f then
+        return
+    end
+    if forceShow == false then
+        if f.Hide then f:Hide() end
+        return
+    end
+    if f.Show then f:Show() end
+    if tabID and f.SelectTab then
+        f:SelectTab(tabID)
+    end
+end
+
+-- LootIt (hosted) UI shim + bootstrap wiring + slash handler.
+-- These live in the main file so the core can remain early-only runtime.
+do
+    local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+    if type(LI) == "table" then
+        -- UI shim (FGO-hosted): provides the LI.UI surface without a standalone window.
+        -- This keeps existing calls (CreateConfigUI/ToggleConfigUI/IsMailEditorOpen) working,
+        -- while routing everything into the native FGO options tabs + Textures/Mail popout.
+        LI.UI = LI.UI or {}
+        do
+            local UI = LI.UI
+
+            UI._env = UI._env or {}
+            local ConfigUI
+
+            function UI.SetEnv(env)
+                UI._env = (type(env) == "table") and env or {}
+            end
+
+            function UI.GetEnv()
+                return UI._env or {}
+            end
+
+            function UI.GetConfigUI()
+                return ConfigUI
+            end
+
+            function UI.IsMailEditorOpen()
+                local isOpen = _G and rawget(_G, "FGO_IsMailPopoutOpen")
+                if type(isOpen) == "function" then
+                    return isOpen() and true or false
+                end
+                return false
+            end
+
+            local function EnsureProxy()
+                if ConfigUI then
+                    return ConfigUI
+                end
+
+                local openTab = _G and rawget(_G, "FGO_OpenOptionsTab")
+                if type(openTab) ~= "function" then
+                    -- FGO UI not loaded yet; return nil (callers already SafeCall/guard).
+                    return nil
+                end
+
+                local proxy = { _activeTab = "" }
+
+                function proxy:Show()
+                    self._activeTab = "loot"
+                    openTab(9, true) -- LootIt
+                end
+
+                function proxy:Hide()
+                    local f = _G and rawget(_G, "AutoGossipOptions")
+                    if f and f.Hide then
+                        f:Hide()
+                    end
+                    local toggleMail = _G and rawget(_G, "FGO_ToggleMailPopout")
+                    if type(toggleMail) == "function" then
+                        toggleMail(false)
+                    end
+                end
+
+                function proxy:IsShown()
+                    local f = _G and rawget(_G, "AutoGossipOptions")
+                    return (f and f.IsShown and f:IsShown()) and true or false
+                end
+
+                function proxy.SelectTab(which)
+                    which = tostring(which or ""):lower()
+                    if which == "mail" then
+                        proxy._activeTab = "mail"
+                        openTab(8, true) -- Textures
+                        local toggleMail = _G and rawget(_G, "FGO_ToggleMailPopout")
+                        if type(toggleMail) == "function" then
+                            toggleMail(true)
+                        end
+                        return
+                    end
+                    if which == "tax" then
+                        proxy._activeTab = "tax"
+                        openTab(10, true)
+                        return
+                    end
+                    if which == "deposit" or which == "trade" then
+                        proxy._activeTab = "deposit"
+                        openTab(11, true)
+                        return
+                    end
+                    proxy._activeTab = "loot"
+                    openTab(9, true)
+                end
+
+                ConfigUI = proxy
+                return proxy
+            end
+
+            function UI.CreateConfigUI()
+                return EnsureProxy()
+            end
+
+            function UI.ToggleConfigUI()
+                local openTab = _G and rawget(_G, "FGO_OpenOptionsTab")
+                if type(openTab) ~= "function" then
+                    return
+                end
+
+                local f = _G and rawget(_G, "AutoGossipOptions")
+                if f and f.IsShown and f:IsShown() then
+                    if f.Hide then f:Hide() end
+                else
+                    local proxy = EnsureProxy()
+                    if proxy and proxy.Show then
+                        proxy:Show()
+                    else
+                        openTab(9, true)
+                    end
+                end
+            end
+        end
+
+        LI.Bootstrap = LI.Bootstrap or {}
+        local Boot = LI.Bootstrap
+
+        function Boot.RegisterLootItSlash(env)
+            env = (type(env) == "table") and env or {}
+
+            -- Hosted in FGO: slash registration is owned by /fgo (see below).
+            -- This function only wires the UIV env.
+            local uiv = LI and (LI.UIV or LI.UIV_Impl)
+            if uiv and type(uiv.SetEnv) == "function" then
+                uiv.SetEnv(env)
+            end
+        end
+
+        function Boot.WireLootChatEnv(env)
+            env = (type(env) == "table") and env or {}
+            local lootChat = LI and LI.LootChat
+            if lootChat and type(lootChat.SetEnv) == "function" then
+                lootChat.SetEnv(env)
+            end
+        end
+
+        function Boot.WireUIEnv(env)
+            env = (type(env) == "table") and env or {}
+            local ui = LI and LI.UI
+            if not (ui and type(ui.SetEnv) == "function") then
+                return
+            end
+
+            ui.SetEnv({
+                EnsureDB = env.EnsureDB,
+                GetDB = env.GetDB,
+                GetCharDB = env.GetCharDB,
+                ApplyFilters = env.ApplyFilters,
+                LootCombineCancelTimers = env.LootCombineCancelTimers,
+                LootCombineFlush = env.LootCombineFlush,
+                SetCheckBoxText = env.SetCheckBoxText,
+                SetCheckBoxChecked = env.SetCheckBoxChecked,
+                GetSupportedMessageLines = env.GetSupportedMessageLines,
+                MailNotifyCfg = env.MailNotifyCfg,
+                Clamp = env.Clamp,
+                Print = env.Print,
+
+                ApplyMailNotifierInteractivity = (LI and LI.Mail and LI.Mail.ApplyMailNotifierInteractivity) or nil,
+                CreateMailNotifier = (LI and LI.Mail and LI.Mail.CreateMailNotifier) or nil,
+                UpdateMailNotifier = (LI and LI.Mail and LI.Mail.UpdateMailNotifier) or nil,
+                ApplyMailModelToFrame = (LI and LI.Mail and LI.Mail.ApplyMailModelToFrame) or nil,
+                ModelApplyAnimation = (LI and LI.Mail and LI.Mail.ModelApplyAnimation) or nil,
+                ModelGetRotation = (LI and LI.Mail and LI.Mail.ModelGetRotation) or nil,
+                ModelSetRotation = (LI and LI.Mail and LI.Mail.ModelSetRotation) or nil,
+                ModelApplyZoom = (LI and LI.Mail and LI.Mail.ModelApplyZoom) or nil,
+                GetMailNotifier = (LI and LI.Mail and LI.Mail.GetMailNotifier) or nil,
+            })
+        end
+
+        function Boot.WireAliasEnv(env)
+            env = (type(env) == "table") and env or {}
+            local alias = LI and LI.Alias
+            if alias and type(alias.SetEnv) == "function" then
+                alias.SetEnv({
+                    EnsureDB = env.EnsureDB,
+                    GetDB = env.GetDB,
+                    GetCharDB = env.GetCharDB,
+                    PREFIX = env.PREFIX,
+                    Print = env.Print,
+                    SetCheckBoxText = env.SetCheckBoxText,
+                    AddonLinkAliases = env.AddonLinkAliases or (LI and LI.AddonLinkAliases) or nil,
+                    AddonCurrencyAliases = env.AddonCurrencyAliases or (LI and LI.AddonCurrencyAliases) or nil,
+                })
+            end
+        end
+
+        function Boot.WireMailNotifierEnv(env)
+            env = (type(env) == "table") and env or {}
+            local mail = LI and LI.Mail
+            if not (mail and type(mail.SetNotifierEnv) == "function") then
+                return
+            end
+
+            mail.SetNotifierEnv({
+                EnsureDB = env.EnsureDB,
+                GetDB = env.GetDB,
+                MailNotifyCfg = env.MailNotifyCfg,
+                IsMailNotifierEnabled = env.IsMailNotifierEnabled,
+                IsMailEditorOpen = env.IsMailEditorOpen,
+                ToggleConfigUI = env.ToggleMailConfigUI or env.ToggleConfigUI,
+                Clamp = env.Clamp,
+                Print = env.Print,
+            })
+
+            return {
+                ApplyMailNotifierInteractivity = mail.ApplyMailNotifierInteractivity,
+                ModelGetRotation = mail.ModelGetRotation,
+                ModelSetRotation = mail.ModelSetRotation,
+                ModelApplyZoom = mail.ModelApplyZoom,
+                ModelApplyAnimation = mail.ModelApplyAnimation,
+                ApplyMailModelToFrame = mail.ApplyMailModelToFrame,
+                CreateMailNotifier = mail.CreateMailNotifier,
+                UpdateMailNotifier = mail.UpdateMailNotifier,
+            }
+        end
+
+        function Boot.WireAll(env)
+            env = (type(env) == "table") and env or {}
+
+            Boot.WireLootChatEnv(env)
+            Boot.WireUIEnv(env)
+            Boot.WireAliasEnv(env)
+
+            local wiredMail = Boot.WireMailNotifierEnv(env)
+            if wiredMail then
+                env.ApplyMailNotifierInteractivity = wiredMail.ApplyMailNotifierInteractivity
+                env.ModelGetRotation = wiredMail.ModelGetRotation
+                env.ModelSetRotation = wiredMail.ModelSetRotation
+                env.ModelApplyZoom = wiredMail.ModelApplyZoom
+                env.ModelApplyAnimation = wiredMail.ModelApplyAnimation
+                env.ApplyMailModelToFrame = wiredMail.ApplyMailModelToFrame
+                env.CreateMailNotifier = wiredMail.CreateMailNotifier
+                env.UpdateMailNotifier = wiredMail.UpdateMailNotifier
+            end
+
+            Boot.RegisterLootItSlash(env)
+            return wiredMail
+        end
+
+        LI.UIV_Impl = LI.UIV_Impl or {}
+        local UIV = LI.UIV_Impl
+
+        local uivEnv
+
+        function UIV.SetEnv(e)
+            uivEnv = e or {}
+        end
+
+        local function UIVSafeCall(fn, ...)
+            if type(fn) == "function" then
+                return fn(...)
+            end
+        end
+
+        local function GetLootItVersion()
+            local addon = (LI and LI.ADDON) or "fr0z3nUI_LootIt"
+            local v
+            do
+                local api = _G and rawget(_G, "C_AddOns")
+                if type(api) == "table" and type(api.GetAddOnMetadata) == "function" then
+                    local ok, r = pcall(api.GetAddOnMetadata, addon, "Version")
+                    if ok and type(r) == "string" and r ~= "" then v = r end
+                end
+            end
+            if not v and type(GetAddOnMetadata) == "function" then
+                local ok, r = pcall(GetAddOnMetadata, addon, "Version")
+                if ok and type(r) == "string" and r ~= "" then v = r end
+            end
+            return v
+        end
+
+        function UIV.Handle(msg)
+            local e = uivEnv or {}
+            UIVSafeCall(e.EnsureDB)
+
+            local DB = UIVSafeCall(e.GetDB)
+            local CHARDB = UIVSafeCall(e.GetCharDB)
+
+            local Print = e.Print
+            local ToggleConfigUI = e.ToggleConfigUI
+
+            msg = tostring(msg or "")
+            local cmd, rest = msg:match("^(%S+)%s*(.-)$")
+            cmd = (cmd and cmd:lower()) or ""
+
+            if cmd == "" then
+                UIVSafeCall(ToggleConfigUI)
+                return
+            end
+
+            if cmd == "?" or cmd == "help" then
+                local function PrintHelpLine(s)
+                    if type(s) == "string" and s:find("|", 1, true) then
+                        s = s:gsub("|", "||")
+                    end
+                    UIVSafeCall(Print, s)
+                end
+
+                PrintHelpLine("/fgo li - open options")
+                PrintHelpLine("/fgo li on|off|toggle")
+                PrintHelpLine("/fgo li ui|config|options")
+                PrintHelpLine("/fgo li mail on|off|toggle|test")
+                PrintHelpLine("/fgo li mail debug on|off|toggle|status")
+                PrintHelpLine("/fgo li mail model player")
+                PrintHelpLine("/fgo li mail model katy")
+                PrintHelpLine("/fgo li mail model dalaran")
+                PrintHelpLine("/fgo li mail model plagued")
+                PrintHelpLine("/fgo li mail model npc <id>")
+                PrintHelpLine("/fgo li mail model display <id>")
+                PrintHelpLine("/fgo li mail model file <id>")
+                PrintHelpLine("/fgo li alias set [acc|char] <itemID> <text>")
+                PrintHelpLine("/fgo li alias del [acc|char] <itemID>")
+                PrintHelpLine("/fgo li alias list")
+                PrintHelpLine("/fgo li capture on|off|status|dump|clear|max|stacks")
+                PrintHelpLine("/fgo li chatdebug on|off|toggle|status|dump")
+                PrintHelpLine("/fgo li delayflush on|off|toggle|status")
+                PrintHelpLine("/fgo li status")
+                return
+            end
+
+            if cmd == "status" then
+                do
+                    local loot = LI and LI.Loot
+                    if loot and type(loot.HandleSlash) == "function" then
+                        loot.HandleSlash("status", "", e)
+                    end
+                end
+
+                do
+                    local mailEnabled = (UIVSafeCall(e.IsMailNotifierEnabled) == true)
+                    local scope = (CHARDB and CHARDB.mailNotifyScope == "char") and "char" or "acc"
+                    local cfg = UIVSafeCall(e.MailNotifyCfg)
+                    cfg = (type(cfg) == "table") and cfg or {}
+
+                    local showInCombat = (cfg.showInCombat ~= false)
+
+                    local db = UIVSafeCall(e.GetDB)
+                    local debugOn = (type(db) == "table" and type(db.mailNotify) == "table" and db.mailNotify.debug == true) or false
+
+                    local mailboxOpen = false
+                    local mail = LI and LI.Mail
+                    if mail and type(mail.IsMailboxOpen) == "function" then
+                        mailboxOpen = (mail.IsMailboxOpen() == true)
+                    end
+
+                    local shown = false
+                    if mail and type(mail.GetMailNotifier) == "function" then
+                        local mn = mail.GetMailNotifier()
+                        if mn and mn.IsShown and mn:IsShown() then
+                            shown = true
+                        end
+                    end
+
+                    UIVSafeCall(Print, string.format(
+                        "mail=%s (scope=%s), combat=%s, mailbox=%s, ui=%s, debug=%s",
+                        mailEnabled and "on" or "off",
+                        scope,
+                        showInCombat and "show" or "hide",
+                        mailboxOpen and "open" or "closed",
+                        shown and "shown" or "hidden",
+                        debugOn and "on" or "off"
+                    ))
+                end
+
+                do
+                    local dp = (DB and type(DB.delayPrint) == "table") and DB.delayPrint or nil
+                    local dpEnabled = (dp and dp.enabled ~= false) and true or false
+                    local flushOnClose = (dp and dp.flushOnMerchantClose == true) and true or false
+                    UIVSafeCall(Print, string.format(
+                        "delayPrint=%s, flushOnMerchantClose=%s",
+                        dpEnabled and "on" or "off",
+                        flushOnClose and "on" or "off"
+                    ))
+                end
+
+                do
+                    local function CountKeys(t)
+                        local n = 0
+                        if type(t) == "table" then
+                            for _ in pairs(t) do n = n + 1 end
+                        end
+                        return n
+                    end
+                    local acc = (DB and type(DB.linkAliases) == "table") and DB.linkAliases or nil
+                    local chr = (CHARDB and type(CHARDB.linkAliases) == "table") and CHARDB.linkAliases or nil
+                    UIVSafeCall(Print, string.format("aliases=acc:%d, char:%d", CountKeys(acc), CountKeys(chr)))
+                end
+
+                do
+                    local ui = LI and LI.UI
+                    local frame = (ui and type(ui.GetConfigUI) == "function") and ui.GetConfigUI() or nil
+                    local shown = (frame and frame.IsShown and frame:IsShown()) and true or false
+                    local tab = (frame and type(frame._activeTab) == "string" and frame._activeTab ~= "") and frame._activeTab or ""
+                    if tab == "" then tab = "-" end
+                    UIVSafeCall(Print, string.format("configUI=%s, tab=%s", shown and "shown" or "hidden", tab))
+                end
+
+                local v = GetLootItVersion()
+                if v then
+                    UIVSafeCall(Print, "version=" .. tostring(v))
+                end
+
+                return
+            end
+
+            do
+                local trade = LI and LI.Trade
+                if trade and type(trade.HandleSlash) == "function" then
+                    local handled = trade.HandleSlash(cmd, rest, e)
+                    if handled then
+                        return
+                    end
+                end
+            end
+
+            do
+                local loot = LI and LI.Loot
+                if loot and type(loot.HandleSlash) == "function" then
+                    local handled = loot.HandleSlash(cmd, rest, e)
+                    if handled then
+                        return
+                    end
+                end
+            end
+
+            if cmd == "chatdebug" then
+                local lootChat = LI and LI.LootChat
+                if lootChat and type(lootChat.HandleChatDebugSlash) == "function" then
+                    return lootChat.HandleChatDebugSlash(rest, e)
+                end
+                UIVSafeCall(Print, "LootChat module not available.")
+                return
+            end
+
+            if cmd == "capture" or cmd == "cap" then
+                local lootChat = LI and LI.LootChat
+                if lootChat and type(lootChat.HandleCaptureSlash) == "function" then
+                    return lootChat.HandleCaptureSlash(rest, e)
+                end
+                UIVSafeCall(Print, "LootChat module not available.")
+                return
+            end
+
+            if cmd == "delayflush" or cmd == "delayprint" then
+                local sub = tostring(rest or "")
+                sub = (sub:match("^(%S+)") or "status"):lower()
+
+                DB = UIVSafeCall(e.GetDB)
+                if DB then
+                    DB.delayPrint = (type(DB.delayPrint) == "table") and DB.delayPrint or {}
+                    if DB.delayPrint.enabled == nil then DB.delayPrint.enabled = true end
+                    if DB.delayPrint.flushOnMerchantClose == nil then DB.delayPrint.flushOnMerchantClose = true end
+                end
+
+                if sub == "status" then
+                    local dp = (DB and type(DB.delayPrint) == "table") and DB.delayPrint or nil
+                    local flushOnClose = (dp and dp.flushOnMerchantClose == true) and true or false
+                    UIVSafeCall(Print, "DelayPrint flushOnMerchantClose: " .. (flushOnClose and "On" or "Off"))
+                    return
+                end
+
+                if sub == "on" or sub == "enable" then
+                    if DB and DB.delayPrint then DB.delayPrint.flushOnMerchantClose = true end
+                    UIVSafeCall(Print, "DelayPrint flushOnMerchantClose: On")
+                    return
+                end
+                if sub == "off" or sub == "disable" then
+                    if DB and DB.delayPrint then DB.delayPrint.flushOnMerchantClose = false end
+                    UIVSafeCall(Print, "DelayPrint flushOnMerchantClose: Off")
+                    return
+                end
+                if sub == "toggle" then
+                    if DB and DB.delayPrint then
+                        DB.delayPrint.flushOnMerchantClose = not (DB.delayPrint.flushOnMerchantClose == true)
+                        UIVSafeCall(Print, "DelayPrint flushOnMerchantClose: " .. ((DB.delayPrint.flushOnMerchantClose == true) and "On" or "Off"))
+                        return
+                    end
+                    UIVSafeCall(Print, "DelayPrint: DB not available.")
+                    return
+                end
+
+                UIVSafeCall(Print, "Usage: /fgo li delayflush on|off|toggle|status")
+                return
+            end
+
+            if cmd == "alias" then
+                local alias = LI and LI.Alias
+                if alias and type(alias.HandleSlash) == "function" then
+                    return alias.HandleSlash(rest, e)
+                end
+                UIVSafeCall(Print, "Alias module not available.")
+                return
+            end
+
+            if cmd == "ui" or cmd == "config" or cmd == "options" then
+                UIVSafeCall(ToggleConfigUI)
+                return
+            end
+
+            if cmd == "mail" then
+                local mail = LI and LI.Mail
+                if mail and type(mail.HandleSlash) == "function" then
+                    return mail.HandleSlash(rest, e)
+                end
+                UIVSafeCall(Print, "Mail module not available.")
+                return
+            end
+
+            UIVSafeCall(Print, "Unknown command. Try /fgo li ?")
+        end
+
+        -- Wire hosted modules once after all files are loaded.
+        if LI and LI._FGO_LootItWired ~= true then
+            local boot = LI.Bootstrap
+            if boot and type(boot.WireAll) == "function" and type(LI.CoreBuildBootstrapEnv) == "function" then
+                boot.WireAll(LI.CoreBuildBootstrapEnv())
+                LI._FGO_LootItWired = true
+            end
+        end
+    end
+end
+
+-- Wire hosted LootIt env at addon load as well (not just when /fgo li is used).
+do
+    local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+    if LI and LI._FGO_LootItWired ~= true then
+        local boot = LI.Bootstrap
+        if boot and type(boot.WireAll) == "function" and type(LI.CoreBuildBootstrapEnv) == "function" then
+            boot.WireAll(LI.CoreBuildBootstrapEnv())
+            LI._FGO_LootItWired = true
+        end
+    end
+end
+
 local function PrintCurrentOptions(debounce)
     local Talk = ns and ns.Talk
     if Talk and type(Talk.PrintCurrentOptions) == "function" then
@@ -2181,6 +2986,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo <id>                  - open window + set option id",
                 "/fgo list                  - print current gossip options",
                 "/fgo petbattle             - force-enable pet battle auto-accept",
+                "/fgo li ...                - LootIt (loot chat cleaner) commands",
+                "/fgo lootit ...            - alias for /fgo li",
                 "",
                 "/fgo x <key>               - exclusion macros (MAIN/OTHER based on Characters list)",
                 "/fgo m <key>               - macros (single text)",
@@ -2222,6 +3029,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo friend                - toggle Friendly Names",
                 "/fgo bars                  - toggle ActionBar Lock",
                 "/fgo situate b50            - force-apply Situate for slot 50",
+                "/fgo situate info           - print Situate expansion/profession detection",
                 "/fgo bagrev                - toggle Bag Sort Reverse",
                     "/fgo sharpen               - toggle always sharpen (ResampleAlwaysSharpen)",
                     "/fgo whispin               - set whispers to inline (whisperMode)",
@@ -2310,6 +3118,17 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 ns.Textures.HandleSlash(rest)
             else
                 Print("Textures module not loaded.")
+            end
+            return
+        end
+
+        if cmd == "li" or cmd == "lootit" then
+            local li = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+            local uiv = li and (li.UIV or li.UIV_Impl)
+            if uiv and type(uiv.Handle) == "function" then
+                uiv.Handle(rest)
+            else
+                Print("LootIt module not loaded.")
             end
             return
         end
@@ -2582,19 +3401,86 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         end
 
         if cmd == "situate" then
-            local a = (rest or ""):match("^(%S+)") or ""
+            local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
             a = (a or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            b = (b or ""):gsub("^%s+", ""):gsub("%s+$", "")
             if a == "" then
                 Print("Usage: /fgo situate b50")
+                Print("   or: /fgo situate info")
+                return
+            end
+
+            local lowA = a:lower()
+            if lowA == "info" or lowA == "dbg" then
+                local mapID = nil
+                if C_Map and type(C_Map.GetBestMapForUnit) == "function" then
+                    local ok, id = pcall(C_Map.GetBestMapForUnit, "player")
+                    if ok and type(id) == "number" and id > 0 then
+                        mapID = id
+                    end
+                end
+
+                Print("Situate info")
+                Print("  bestMapID = " .. tostring(mapID))
+
+                -- Map ancestry dump (helps diagnose why expansion key resolves to nil)
+                if mapID and C_Map and type(C_Map.GetMapInfo) == "function" then
+                    local cur = mapID
+                    for i = 1, 12 do
+                        local okInfo, info = pcall(C_Map.GetMapInfo, cur)
+                        if not okInfo or type(info) ~= "table" then
+                            Print("  [" .. tostring(i) .. "] mapID=" .. tostring(cur) .. " (no map info)")
+                            break
+                        end
+
+                        local name = tostring(info.name or "")
+                        local mapType = info.mapType
+                        local parent = tonumber(info.parentMapID) or 0
+                        Print("  [" .. tostring(i) .. "] mapID=" .. tostring(cur) .. " type=" .. tostring(mapType) .. " parent=" .. tostring(parent) .. " name='" .. name .. "'")
+
+                        if not parent or parent <= 0 then
+                            break
+                        end
+                        cur = parent
+                    end
+                end
+
+                local expKey = (ns and type(ns.Situate_GetCurrentExpansionKeyForPlayer) == "function") and ns.Situate_GetCurrentExpansionKeyForPlayer() or nil
+                Print("  expansionKey = " .. tostring(expKey))
+
+                local profs = nil
+                if ns and ns.Profs and type(ns.Profs.RefreshKnownProfessionKeys) == "function" then
+                    pcall(ns.Profs.RefreshKnownProfessionKeys, true)
+                end
+                if ns and ns.Profs and type(ns.Profs.ListCachedProfessionKeys) == "function" then
+                    local okList, list = pcall(ns.Profs.ListCachedProfessionKeys)
+                    if okList then
+                        profs = list
+                    end
+                end
+
+                if profs == nil then
+                    Print("  professionKeys = nil (uncached)")
+                elseif type(profs) ~= "table" then
+                    Print("  professionKeys = (unexpected type) " .. tostring(type(profs)))
+                elseif #profs == 0 then
+                    Print("  professionKeys = (empty)")
+                else
+                    Print("  professionKeys = " .. table.concat(profs, ", "))
+                end
+
+                if AutoGossip_CharSettings and type(AutoGossip_CharSettings.knownProfessionKeysAt) == "number" then
+                    Print("  professionKeysAt = " .. tostring(AutoGossip_CharSettings.knownProfessionKeysAt))
+                end
+
                 return
             end
 
             local slot = nil
-            local low = a:lower()
-            if low:sub(1, 1) == "b" then
-                slot = tonumber(low:sub(2))
+            if lowA:sub(1, 1) == "b" then
+                slot = tonumber(lowA:sub(2))
             else
-                slot = tonumber(low)
+                slot = tonumber(lowA)
             end
 
             if not slot then
@@ -3055,25 +3941,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     Print("/fgo ctoff     - attempt to disable Chromie Time (rested areas only)")
 end
 
-frame:RegisterEvent("ADDON_LOADED")
-frame:RegisterEvent("GOSSIP_SHOW")
-frame:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
-frame:RegisterEvent("LFG_PROPOSAL_SHOW")
-frame:RegisterEvent("LFG_PROPOSAL_UPDATE")
-frame:RegisterEvent("LFG_PROPOSAL_FAILED")
-frame:RegisterEvent("LFG_PROPOSAL_SUCCEEDED")
-frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-frame:RegisterEvent("PET_BATTLE_OPENING_START")
-frame:RegisterEvent("PET_BATTLE_CLOSE")
-frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-frame:RegisterEvent("SKILL_LINES_CHANGED")
-frame:RegisterEvent("TRADE_SKILL_SHOW")
-frame:RegisterEvent("TRADE_SKILL_DATA_SOURCE_CHANGED")
-frame:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
-frame:RegisterEvent("PLAYER_LEVEL_UP")
-frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-frame:RegisterEvent("QUEST_LOG_UPDATE")
-frame:SetScript("OnEvent", function(_, event, arg1)
+-- Core owns the event frame (early load). Main owns the handler body.
+function ns.FGO_OnEvent(event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         InitSV()
         firstAutoSelectSinceLogin = true
@@ -3308,4 +4177,5 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         end
 
     end
-end)
+
+end

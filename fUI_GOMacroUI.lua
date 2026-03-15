@@ -830,7 +830,6 @@ local function BuildMacrosPanel(parent)
     btnHSHearth:SetSize(BTN_W, BTN_H)
     btnHSHearth:SetText("HS Hearth")
 
-    ---@type any
     local hearthZoneLine = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     hearthZoneLine:SetJustifyH("CENTER")
     hearthZoneLine:SetWordWrap(false)

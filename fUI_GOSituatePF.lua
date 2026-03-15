@@ -113,12 +113,10 @@ function Profs.RefreshKnownProfessionKeys(force)
     EnsureProfessionKeyCache()
 
     local now = (type(GetTime) == "function") and GetTime() or nil
+    local withinThrottle = false
     if not force and type(now) == "number" then
-        if (now - (Profs._lastProfKeyRefreshAt or 0)) < 1 then
-            return false
-        end
+        withinThrottle = ((now - (Profs._lastProfKeyRefreshAt or 0)) < 1)
     end
-    Profs._lastProfKeyRefreshAt = (type(now) == "number") and now or (Profs._lastProfKeyRefreshAt or 0)
 
     local out = {}
     local sawAny = false
@@ -163,10 +161,22 @@ function Profs.RefreshKnownProfessionKeys(force)
         return false
     end
 
-    -- If we can call GetProfessions and we're logged in, an empty result is authoritative ("no professions").
+    -- NOTE: GetProfessions() can return all-nil during early login/reload frames even when the
+    -- character *does* have professions. Do NOT treat that as authoritative emptiness unless we
+    -- already have some cached state from a prior successful refresh.
+    local hadPriorCache = (type(AutoGossip_CharSettings.knownProfessionKeysAt) == "number" and AutoGossip_CharSettings.knownProfessionKeysAt > 0)
     if not sawAny and calledGetProfessions and PlayerContextReady() and p1 == nil and p2 == nil and p3 == nil and p4 == nil and p5 == nil then
-        sawAny = true
+        if hadPriorCache then
+            sawAny = true
+        end
     end
+
+    -- Throttle only when we didn't observe any usable data.
+    if withinThrottle and not sawAny then
+        return false
+    end
+
+    Profs._lastProfKeyRefreshAt = (type(now) == "number") and now or (Profs._lastProfKeyRefreshAt or 0)
 
     -- If we couldn't observe anything and we can't assert emptiness, do not clobber prior cache.
     if not sawAny then

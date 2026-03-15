@@ -158,6 +158,10 @@ SetZone("Eversong Woods, Eastern Kingdoms")
    local t = NPCs({252156, }, "Solwin Brightstitch")
    t[135911] = { text = "I'm ready for anything!", type = "" }                                           -- Clothes Make the Man (91389)       Solwin Brightstitch (252156)
 
+   local t = NPCs({587307, }, "Stone Vat")
+   t[136681] = { text = "<Deposit 10 Bunches of Ripe Grapes into the vat.", type = "" }                  -- () Stone Vat (587307)
+   t[136684] = { text = "<Deposit Packet of Instant Yeast into the vat.", type = "" }                    -- () Stone Vat (587307)
+
    local t = NPCs({249337, }, "Talandra Dawnsprite")
    t[136372] = { text = " - Very well.", type = "" }                                                     -- Flowers for Amalthea (92025)       Talandra Dawnsprite (249337)
 
@@ -168,7 +172,9 @@ SetZone("Eversong Woods, Eastern Kingdoms")
    t[136049] = { text = "I'm Ready.", type = "" }
 
    local t = NPCs({245745, }, "Valdekar Solaar")
-   t[134361] = { text = "<Hand over the fish.>", type = "" }                                 -- A Fish! (91271) Valdekar Solaar (245745)   
+   t[134361] = { text = "<Hand over the fish.>", type = "" }                                             -- A Fish! (91271) Valdekar Solaar (245745)   
+   t[134506] = { text = "<Hand over the fish.>", type = "" }                                             -- A Fish! (91271) Valdekar Solaar (245745)   
+   t[134505] = { text = "<Hand over the fish.>", type = "" }                                             -- A Fish! (91271) Valdekar Solaar (245745)   
 
    local t = NPC(249211, "Zul'jan")
    t[135099] = { text = "Return to Zul'Aman", type = "", }                                               -- The Line Must be Drawn Here (86710) Zul'jan (249211)
@@ -193,10 +199,10 @@ SetZone("Eversong Woods, Eastern Kingdoms")
    t[134654] = { text = "Get to safety.", type = "" }                                                    -- Familiar Faces in Peril (91495)     Apprentice Varnis (248059)
 
    local t = NPCs({542849, 542850, }, "Quest: Gods Before Us")
-   t[133889] = { text = "<Place Bonecarapace Fangs into the vase.>", type = "" }                         -- Gods Before Us (86644)             Ritual Vase (542849)
-   t[133890] = { text = "<Place Bloodvein Clot into the vase.>", type = "" }                             -- Gods Before Us (86644)             Ritual Vase (542850)
+   t[133889] = { text = "<Place Bonecarapace Fangs into the vase.>", type = "", close = true }                         -- Gods Before Us (86644)             Ritual Vase (542849)
+   t[133890] = { text = "<Place Bloodvein Clot into the vase.>", type = "", close = true }                             -- Gods Before Us (86644)             Ritual Vase (542850)
 
-   local t = NPCs({258559, 258560, 258561, 258562, 258563, 258564,  }, "Quest: Light Guide Us")
+   local t = NPCs({258559, 258560, 258561, 258562, 258563, 258564, 258565, 258566, }, "Quest: Light Guide Us")
    t[137985] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Farstrider (258559)
    t[137986] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Spellbreaker (258560)
    t[137987] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Arch Magister (258561)
@@ -205,6 +211,17 @@ SetZone("Eversong Woods, Eastern Kingdoms")
    t[137990] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Blessed Lightbringer (258564)
    t[137991] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Eversong Magister (258565)
    t[137992] = { text = "Stop! The Amani are not the real threat here", type = "" }                      -- Light Guide Us (86648)             Veteran Blood Knight (258566)
+
+SetZone("Founder's Point, Eastern Kingdoms")
+
+   local t = NPCs({ 255222, }, "High Tides Ren")
+   t[137315] = { text = "Okay, lets see what you've got.", type = "" }
+
+   local t = NPCs({ 255104, }, "Jorvari Longmoor")
+   t[137141] = { text = "I'd like to upgrade my house.", type = "" }
+   t[137143] = { text = "I'd like to upgrade my house.", type = "" }
+   t[137139] = { text = "Let's Do This!", type = "" }
+   t[137142] = { text = "I'll be back.", type = "" }
 
 SetZone("Hammerfall, Eastern Kingdoms")
 
@@ -300,20 +317,39 @@ SetZone("Harandar, Eastern Kingdoms")
 
 SetZone("Quel'Thalas, Eastern Kingdoms")
 
-   local t = NPC(237278, "Lady Liadrin")
-   t[132924] = { text = "Nothing will get past me!", type = "" }
-
-   local t = NPC(237255, "High Exarch Turalyon")
-   t[133285] = { text = "Let's drive this threat back!", type = "" }
+   local t = NPCs({ 236789, 240240, 251355, }, "Alonsus Faol")
+   t[132515] = { text = "The Vanguard rallies at Sunstrider Rise.", type = "" }                                   -- Champions of Quel'Danas (68770)  Alonsus Faol (236789)
+   t[138693] = { text = "<Tell Alonsus you are ready to go to Light's Hope.>", type = "" }                        -- Relic's of Light's Hope (86839) Alonsus Faol (240240)
+   t[135480] = { text = "<Tell Alonsus you are ready to go to Hammerfall.>", type = "" }                          -- The Sunwalker Path (86845) Alonsus Faol (251355)
 
    local t = NPCs({ 236959, 237502, }, "Arator")
    t[132388] = { text = "Your father sent me to find you.", type = "" }                                           -- My Son (89271) Arator (236959)
    t[136469] = { text = "Let's get back to Silvermoon.", type = "" }
 
-   local t = NPCs({ 236789, 240240, 251355, }, "Alonsus Faol")
-   t[132515] = { text = "The Vanguard rallies at Sunstrider Rise.", type = "" }                                   -- Champions of Quel'Danas (68770)  Alonsus Faol (236789)
-   t[138693] = { text = "<Tell Alonsus you are ready to go to Light's Hope.>", type = "" }                        -- Relic's of Light's Hope (86839) Alonsus Faol (240240)
-   t[135480] = { text = "<Tell Alonsus you are ready to go to Hammerfall.>", type = "" }                          -- The Sunwalker Path (86845) Alonsus Faol (251355)
+   local t = NPCs({ 237211, }, "Faerin Lothar")
+   t[132513] = { text = "The Vanguard rallies at Sunstrider Rise.", type = "" }                                   -- Champions of Quel'Danas (68770)  Faerin Lothar (237211)
+
+   local t = NPC(237255, "High Exarch Turalyon")
+   t[133285] = { text = "Let's drive this threat back!", type = "" }
+
+   local t = NPC(237278, "Lady Liadrin")
+   t[132924] = { text = "Nothing will get past me!", type = "" }
+
+   local t = NPCs({ 236657, }, "Lathraxion")
+   t[132514] = { text = "The Vanguard rallies at Sunstrider Rise.", type = "" }                                   -- Champions of Quel'Danas (68770)  Lathraxion (236657)
+
+   local t = NPCs({ 235395, 234148, }, "Magister Umbric")
+   t[131939] = { text = "<Tell Umbric you'd like to enter Magiers' Terrace.>", type = "" }                        -- Magisters' Terrace: Homecoming (86543) Magister Umbric (235395)
+   t[135804] = { text = "<Tell Umbric you'd like to enter Magiers' Terrace.>", type = "" }                        -- Magisters' Terrace: Homecoming (86543) Magister Umbric (234148)
+
+   local t = NPCs({ 248321, }, "Mehlar Dawnblade")
+   t[134854] = { text = "This is Uther's kit from his work as a healer...", type = "" }                           -- Relinquishing Relics (86902)  Mehlar Dawnblade (248321)
+
+   local t = NPCs({ 239623, }, "Prophet Velen")
+   t[136038] = { text = "<Give Velen the remaining relics to distribute.>", type = "" }                           -- Relinquishing Relics (86902)  Prophet Velen (239623)
+
+   local t = NPCs({ 248322, }, "Salandria")
+   t[134853] = { text = "Take this sword. It has a great deal of Light within it...", type = "" }                 -- Relinquishing Relics (86902)  Salandria (248322)
 
    local t = NPCs({ 240156, 240125, 240075, 240074, 240152, 240073, 240068, }, "Scared Civilian")
    t[132686] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240156)
@@ -324,24 +360,13 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
    t[132656] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240073)
    t[132653] = { text = "Arator and I will see you safely to the boats.", type = "" }                             -- The Hour of Need (86805)   Scared Civilian (240068)
 
-   local t = NPCs({ 237211, 236657, }, "Zone Quest NPCs")
-   t[132513] = { text = "The Vanguard rallies at Sunstrider Rise.", type = "" }                                   -- Champions of Quel'Danas (68770)  Faerin Lothar (237211)
-   t[132514] = { text = "The Vanguard rallies at Sunstrider Rise.", type = "" }                                   -- Champions of Quel'Danas (68770)  Lathraxion (236657)
-
-   local t = NPCs({ 248323, 248326, 248322, 248321, 239623, }, "Relinquishing Relics NPCs")
+   local t = NPCs({ 248323, }, "Taelia Fordragon")
    t[134818] = { text = "I have a relic to sustain you. It's Mara Fordragon's prayer book.", type = "" }          -- Relinquishing Relics (86902)  Taelia Fordragon (248323)
+
+   local t = NPCs({ 248326, }, "Valunei")
    t[134855] = { text = "Vindicator Maraad found peace and strength from this...", type = "" }                    -- Relinquishing Relics (86902)  Valunei (248326)
-   t[134853] = { text = "Take this sword. It has a great deal of Light within it...", type = "" }                 -- Relinquishing Relics (86902)  Salandria (248322)
-   t[134854] = { text = "This is Uther's kit from his work as a healer...", type = "" }                           -- Relinquishing Relics (86902)  Mehlar Dawnblade (248321)
-   t[136038] = { text = "<Give Velen the remaining relics to distribute.>", type = "" }                           -- Relinquishing Relics (86902)  Prophet Velen (239623)
 
 SetZone("Silvermoon City, Eastern Kingdoms")
-
-   local t = NPC(240936, "Guard Captain Goldblade")
-   t[132828] = { text = "The Alliance will be staying...", type = "" }                                            -- Paved in Ash (86735) Guard Captain Goldblade (240936)
-
-   local t = NPC(248629, "General Amias Bellamy")
-   t[135224] = { text = "<Offer Greeting.>", type = "" }                                                          -- Paved in Ash (86735) General Amias Bellamy (248629)
 
    local t = NPCs({ 244644, 237510, }, "Arator")
    t[133853] = { text = "Alonsus Faol asks that we meet him at the Sunwell.", type = "" }                         -- Meet at the Sunwell (86837)   Arator (244644)
@@ -349,90 +374,110 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[133121] = { text = "I'm ready!", type = "" }                                                                 -- A Bulwark Remade (86833)      Arator (237510)
    t[136685] = { text = "What will you do next?", type = "" }                                                     -- A Bulwark Remade (86833)      Arator (237510)
 
-   local t = NPC( 249270, "Grand Magister Rommath")
-   t[135139] = { text = "<Explain that Lor'themar wants to see Umbric freed.>", type = "" }                       -- You Know This Evil? (91967) Grand Magister Rommath (249270)
-   t[135140] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>", type = "" }               -- You Know This Evil? (91967) Grand Magister Rommath (249270)
-
    local t = NPCs({ 249289, }, "Anduin Wrynn")
    t[135179] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>", type = "" }                       -- You Know This Evil? (91967) Anduin Wrynn (249289)
    t[135178] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>", type = "" }               -- You Know This Evil? (91967) Anduin Wrynn (249289)
 
-   local t = NPC(235787, "Lor'themar Theron")
-   t[132632] = { text = "<Skip conversation> I expect you'll sort things out.", type = "" }                       -- Unknown Quest (XXXXX) Lor'themar Theron (235787)
-   t[134143] = { text = "What now?", type = "" }                                                                  -- Fractured (86650) Lor'themar Theron (235787)
-
-   local t = NPCs({ 249268, }, "Lothraxion")
-   t[135157] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>", type = "" }                       -- You Know This Evil? (91967) Lothraxion (249268)
-   t[135156] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>", type = "" }               -- You Know This Evil? (91967) Lothraxion (249268)
-
-   local t = NPC(241458, "Lothene")
-   t[133298] = { text = "I have a bag full of creature parts ...", type = "", prio = 10 }                         -- Five Finger Discount (89204) Lothene (241458)
-   t[133299] = { text = "What do you have for sale?", type = "", prio = -5 }
+   local t = NPCs({ 248629, 250587, }, "General Amias Bellamy")
+   t[135224] = { text = "<Offer Greeting.>", type = "" }                                                          -- Paved in Ash (86735) General Amias Bellamy (248629)
+   t[135530] = { text = "Lor'themar requires a report.", type = "" }                                              -- Rising Storm (92061) General Amias Bellamy (250587)
 
    local t = NPC(241455, "Belil")
    t[133290] = { text = "I've never seen a rock in my life...", type = "", prio = 10 }                            -- Five Finger Discount (89204) Belil (241455)
    t[133293] = { text = "Train me in Mining", type = "", prio = -5 }
 
-   local t = NPC(239630, "Innkeeper Jovia")
-   t[134012] = { text = "The Alliance will be staying here temporarily. Lodgings will be needed.", type = "", prio = 10 }
-   t[132666] = { text = "Lor'themar has allowed us to stay for now...", type = "", prio = 9 } -- Paved in Ash (86735) Innkeeper Jovia (239630)
-   t[132667] = { text = "Let me browse your goods.", type = "", prio = -5 }
-   t[132668] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, type = "", prio = -10, noAuto = true }
-
-   local t = NPC(242381, "Valeera Sanguinar")
-   t[133099] = { text = "Lor'themar will need the services of the Reliquary", type = "" }
-
-   local t = NPC(239664, "Banker Ceera")
+   local t = NPC(239664, "Ceera <Banker>")
    t[132676] = { text = "Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Ceera (239664)
    t[132677] = { text = "I would like to check my deposit box.", type = "", prio = -10 }
 
-   local t = NPC(239639, "Skymaster Skyles")
-   t[132674] = { text = "Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Skymaster Skyles (239639)
-   t[132675] = { text = "Show me where I can fly.", type = "", prio = -10 }
+   local t = NPCs({ 248630, }, "Commander Venei Lightblood")
+   t[135203] = { text = "Why are you seizing people?", type = "" }                                             -- Deepening Shadows (91854) Commander Venei Lightblood (248630)
+   t[135204] = { text = "Arresting citizens is not why the Vanguard are here.", type = "" }                    -- Deepening Shadows (91854) Commander Venei Lightblood (248630)
 
-   local t = NPC(239673, "Magistrix Narinth")
-   t[132678] = { text = "Lor'themar has has allowed us to stay in the city...", type = "", prio = 10 }  -- Paved in Ash (86735) Magistrix Narinth (239673)
-   
+   local t = NPCs({ 244469, }, "Denorin")
+   t[133942] = { text = "My employer asked me to look for some unique mana wyrms.", type = "" }                -- Murder Row: Acting the Part (90819) Denorin (244469)
+   t[133942] = { text = "My employer asked me to look for some unique mana wyrms.", type = "" }                -- Murder Row: Acting the Part (90819) Denorin (244469)
+
+   local t = NPCs({ 248826, }, "Doomsayer")
+   t[135052] = { text = "Hail the victories of the Vanguard and Sin'dorei you have seen so far.", type = "" }  -- Deepening Shadows (91854) Doomsayer (248826)
+
    local t = NPC(253468, "Drathen")
    t.__meta.stopIfQuestAvailable = 92869  -- Fishy Dis-pondencies: block auto-selecting options until quest is accepted
    t.__meta.stopIfQuestTurnIn = 92869     -- Fishy Dis-pondencies: block auto-selecting options while ready to turn in
    t[136540] = { text = "Train me.", type = "" }
 
-   local t = NPCs({ 249174, 248630, 248826, }, "Deepening Shadows NPCs")
+   local t = NPCs({ 247647, }, "Gaari")
+   t[135588] = { text = "Mr. Brightstitch isn't accepting more work right now.", type = "" }                   -- Mad to Measure (91386) Gaari (247647)
+
+   local t = NPC( 249270, "Grand Magister Rommath")
+   t[135139] = { text = "<Explain that Lor'themar wants to see Umbric freed.>", type = "" }                       -- You Know This Evil? (91967) Grand Magister Rommath (249270)
+   t[135140] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>", type = "" }               -- You Know This Evil? (91967) Grand Magister Rommath (249270)
+
+   local t = NPC(240936, "Guard Captain Goldblade")
+   t[132828] = { text = "The Alliance will be staying...", type = "" }                                            -- Paved in Ash (86735) Guard Captain Goldblade (240936)
+
+   local t = NPC(250580, "High Exarch Turalyon")
+   t[135523] = { text = "Lor'themar requires a report", type = "" }                                            -- Rising Storm (92061) High Exarch Turalyon (250580)
+
+   local t = NPCs({ 241399, }, "Jaeth")
+   t[132992] = { text = "<Lay the documents on the table...>", type = "" }                                     -- Mutual Benefit (89203) Jaeth (241399)
+
+   local t = NPC(239630, "Jovia <Innkeeper>")
+   t[134012] = { text = "The Alliance will be staying here temporarily. Lodgings will be needed.", type = "", prio = 10 }
+   t[132666] = { text = "Lor'themar has allowed us to stay for now...", type = "", prio = 9 } -- Paved in Ash (86735) Innkeeper Jovia (239630)
+   t[132667] = { text = "Let me browse your goods.", type = "", prio = -5 }
+   t[132668] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, type = "", prio = -10, noAuto = true }
+
+   local t = NPCs({ 242200, }, "Lendranil")
+   t[133247] = { text = "I have some very specific upgrade needs for these gloves...", type = "" }             -- Five Finger Discount (89204) Lendranil (242200)
+
+   local t = NPC(235787, "Lor'themar Theron")
+   t[132632] = { text = "<Skip conversation> I expect you'll sort things out.", type = "" }                       -- Unknown Quest (XXXXX) Lor'themar Theron (235787)
+   t[134143] = { text = "What now?", type = "" }                                                                  -- Fractured (86650) Lor'themar Theron (235787)
+
+   local t = NPC(241458, "Lothene")
+   t[133298] = { text = "I have a bag full of creature parts ...", type = "", prio = 10 }                         -- Five Finger Discount (89204) Lothene (241458)
+   t[133299] = { text = "What do you have for sale?", type = "", prio = -5 }
+
+   local t = NPCs({ 249268, }, "Lothraxion")
+   t[135157] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>", type = "" }                       -- You Know This Evil? (91967) Lothraxion (249268)
+   t[135156] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>", type = "" }               -- You Know This Evil? (91967) Lothraxion (249268)
+
+   local t = NPCs({ 241490, }, "Magister Dawnblaze")
+   t[133545] = { text = "We killed Aradis and freed the people he too from Murder Row.", type = "" }           -- What We're Owed (89208) Magister Dawnblaze (241490)
+
+   local t = NPC(239673, "Magistrix Narinth")
+   t[132678] = { text = "Lor'themar has has allowed us to stay in the city...", type = "", prio = 10 }  -- Paved in Ash (86735) Magistrix Narinth (239673)
+
+   local t = NPCs({ 244471, }, "Miss Len'dali")
+   t[133938] = { text = [[My employer sent me to purchase some "special" reagents]], type = "" }               -- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
+
+   local t = NPCs({ 241425, }, "Row Rat")
+   t[132989] = { text = "I'm looking for Jaeth. Do you know where he is?", type = "" }                         -- Stir the Nest (89202) Row Rat (241425)
+
+   local t = NPCs({ 249174, }, "Sin'dorei Vendor")
    t[135112] = { text = "<Explain the events of the Sunwell.>", type = "" }                                    -- Deepening Shadows (91854) Sin'dorei Vendor (249174)
-   t[135203] = { text = "Why are you seizing people?", type = "" }                                             -- Deepening Shadows (91854) Commander Venei Lightblood (248630)
-   t[135204] = { text = "Arresting citizens is not why the Vanguard are here.", type = "" }                    -- Deepening Shadows (91854) Commander Venei Lightblood (248630)
-   t[135052] = { text = "Hail the victories of the Vanguard and Sin'dorei you have seen so far.", type = "" }  -- Deepening Shadows (91854) Doomsayer (248826)
+
+   local t = NPC(239639, "Skymaster Skyles")
+   t[132674] = { text = "Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Skymaster Skyles (239639)
+   t[132675] = { text = "Show me where I can fly.", type = "", prio = -10 }
+
+   local t = NPCs({ 244474, }, "Tarelin")
+   t[134044] = { text = "I'm picking up a shipment for Zaen.", type = "" }                                     -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
+
+   local t = NPCs({ 244470, }, "Thiel")
+   t[133946] = { text = "Where can I get more of these?", type = "" }                                          -- Murder Row: Acting the Part (90819) Thiel (244470)
+
+   local t = NPC(242381, "Valeera Sanguinar")
+   t[133099] = { text = "Lor'themar will need the services of the Reliquary", type = "" }
+
+   local t = NPCs({ 244472, }, "Vira Bloodsong")
+   t[133969] = { text = "I'm looking to purchase more of these?", type = "" }                                  -- Murder Row: Acting the Part (90819) Vira Bloodsong (244472)
 
    local t = NPCs({ 248628, }, "War Chaplain Senn")
    t[135148] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>", type = "" }                    -- You Know This Evil? (91967) War Chaplain Senn (248628)
    t[135147] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>", type = "" }            -- You Know This Evil? (91967) War Chaplain Senn (248628)
    t[135149] = { text = "<Ask how they would enter the Voidstorm without Umbric's help.>", type = "" }         -- You Know This Evil? (91967) War Chaplain Senn (248628)
-
-   local t = NPCs({ 247647, }, "Gaari")
-   t[135588] = { text = "Mr. Brightstitch isn't accepting more work right now.", type = "" }                   -- Mad to Measure (91386) Gaari (247647)
-
-   local t = NPCs({ 244471, 244469, 244470, 244472, }, "Murder Row NPCs")
-   t[133938] = { text = [[My employer sent me to purchase some "special" reagents]], type = "" }               -- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
-   t[133942] = { text = "My employer asked me to look for some unique mana wyrms.", type = "" }                -- Murder Row: Acting the Part (90819) Denorin (244469)
-   t[133942] = { text = "My employer asked me to look for some unique mana wyrms.", type = "" }                -- Murder Row: Acting the Part (90819) Denorin (244469)
-   t[133946] = { text = "Where can I get more of these?", type = "" }                                          -- Murder Row: Acting the Part (90819) Thiel (244470)
-   t[133969] = { text = "I'm looking to purchase more of these?", type = "" }                                  -- Murder Row: Acting the Part (90819) Vira Bloodsong (244472)
-
-   local t = NPCs({ 241425, }, "Row Rat")
-   t[132989] = { text = "I'm looking for Jaeth. Do you know where he is?", type = "" }                         -- Stir the Nest (89202) Row Rat (241425)
-
-   local t = NPCs({ 241399, }, "Jaeth")
-   t[132992] = { text = "<Lay the documents on the table...>", type = "" }                                     -- Mutual Benefit (89203) Jaeth (241399)
-
-   local t = NPCs({ 242200, }, "Lendranil")
-   t[133247] = { text = "I have some very specific upgrade needs for these gloves...", type = "" }             -- Five Finger Discount (89204) Lendranil (242200)
-
-   local t = NPCs({ 241490, }, "Magister Dawnblaze")
-   t[133545] = { text = "We killed Aradis and freed the people he too from Murder Row.", type = "" }           -- What We're Owed (89208) Magister Dawnblaze (241490)
-
-   local t = NPCs({ 244474, }, "Tarelin")
-   t[134044] = { text = "I'm picking up a shipment for Zaen.", type = "" }                                     -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
 
 SetZone("Stormwind City, Eastern Kingdoms")
 
@@ -445,8 +490,14 @@ SetZone("Stormwind City, Eastern Kingdoms")
    local t = NPC( 150122, "Honor Hold Mage")
    t[50005] = { text = "I must report to the Dark Portal.", type = "" }
 
+   local t = NPC( 185468, "Tawny Seabraid")
+   t[107827] = { text = "I'd like to see what you have to off this month.", type = "" }               -- Venndor () Tawny Seabraid (185468)
+
    local t = NPC( 149626, "Vanguard Battlemage")
    t[51033] = { text = "I must help Khadgar. Send me to the Blasted Lands!", type = "" }
+
+   local t = NPC( 185467, "Wilder Seabraid")
+   t[107824] = { text = "I'd like to see what you have to off this month.", type = "" }               -- Venndor () Wilder Seabraid (185467)
 
    local t = NPCs({ 246155, 246154, }, "Zone Quest NPCs")
    t[134631] = { text = "Are you talking about the Twilight's Blade?", type = "" }
@@ -470,6 +521,17 @@ SetZone("Westfall, Eastern Kingdoms")
 
    local t = NPC(523, "Thor")
    t[32677] = { text = "I need a ride.", type = "" }
+
+SetZone("Voidstorm, Eastern Kingdoms")
+
+   local t = NPCs({ 235521, }, "Alleria Windrunner")
+   t[132609] = { text = "<Ask Alleria how you can help.>", type = "" }                             -- The Far Far Frontier (86881) Alleria Windrunner (235521)
+
+   local t = NPCs({ 235607, }, "Decimus")
+   t[132998] = { text = "<Apply Force.>", type = "" }                                            -- Reliable Enemies (86536) Decimus (235607)
+
+   local t = NPCs({ 235522, }, "Lothraxion")
+   t[132585] = { text = "Tell Lothraxion you're ready to survey the Voidstorm.>", type = "" }      -- The Far Far Frontier (86881) Lothraxion (235522)
 
 SetZone("Zul'Aman, Eastern Kingdoms")
 

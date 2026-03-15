@@ -65,7 +65,8 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end
 
     local BTN_W, BTN_H = 260, 22
-    local START_Y = -64
+    -- Move both columns up by 1.0 button height (net: down 0.5 from the previous +1.5).
+    local START_Y = -64 + math.floor(BTN_H + 0.5)
     local GAP_Y = 10
 
     -- Split screen (figuratively): TooltipX on the left, everything else on the right.
@@ -608,17 +609,151 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end)
     segConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
+    -- Mail Notifier segments (above Reload Button)
+    local mailSegContainer = CreateFrame("Frame", nil, panel)
+    mailSegContainer:SetSize(BTN_W, BTN_H)
+    mailSegContainer:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.mailNotifySegContainer = mailSegContainer
+    end
+
+    local segMail = CreateFrame("Button", nil, mailSegContainer, "UIPanelButtonTemplate")
+    segMail:SetSize(SEG_W, BTN_H)
+    segMail:SetPoint("LEFT", mailSegContainer, "LEFT", 0, 0)
+    if frame then
+        frame.btnMailNotifySegMain = segMail
+    end
+
+    local segMailEnable = CreateFrame("Button", nil, mailSegContainer, "UIPanelButtonTemplate")
+    segMailEnable:SetSize(SEG_W, BTN_H)
+    segMailEnable:SetPoint("LEFT", segMail, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnMailNotifySegEnable = segMailEnable
+    end
+
+    local segMailConfig = CreateFrame("Button", nil, mailSegContainer, "UIPanelButtonTemplate")
+    segMailConfig:SetSize(BTN_W - (SEG_W * 2) - (SEG_GAP * 2), BTN_H)
+    segMailConfig:SetPoint("LEFT", segMailEnable, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnMailNotifySegConfig = segMailConfig
+    end
+
+    local function GetMailDBRefs()
+        local LI = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+        if LI and type(LI.EnsureDB) == "function" then
+            pcall(LI.EnsureDB)
+        end
+
+        local db = (LI and type(LI.GetDB) == "function" and LI.GetDB()) or (_G and rawget(_G, "fr0z3nUI_LootItDB"))
+        local ch = (LI and type(LI.GetCharDB) == "function" and LI.GetCharDB()) or (_G and rawget(_G, "fr0z3nUI_LootItCharDB"))
+        if type(db) ~= "table" then db = nil end
+        if type(ch) ~= "table" then ch = nil end
+        if db and type(db.mailNotify) ~= "table" then db.mailNotify = {} end
+        return db, ch, LI
+    end
+
+    local function UpdateMailNotifierNow()
+        local _, _, LI = GetMailDBRefs()
+        local ui = LI and LI.UI
+        local env = (ui and type(ui.GetEnv) == "function") and ui.GetEnv() or {}
+        local fn = rawget(env, "UpdateMailNotifier") or (LI and LI.Mail and LI.Mail.UpdateMailNotifier) or (LI and LI.UpdateMailNotifier)
+        if type(fn) == "function" then
+            pcall(fn)
+        end
+    end
+
+    local function UpdateMailNotifySegments()
+        local db, ch = GetMailDBRefs()
+
+        local accOn = (db and db.mailNotify and db.mailNotify.enabled) and true or false
+        local effective = accOn
+        if ch and ch.mailNotifyEnabledOverride ~= nil then
+            effective = (ch.mailNotifyEnabledOverride == true)
+        end
+
+        SetSegGreenGrey(segMail, "Mail", accOn)
+        SetSegGreenGrey(segMailEnable, "Enable", effective)
+        segMailConfig:SetText("Config")
+    end
+
+    segMail:SetScript("OnClick", function()
+        local db = GetMailDBRefs()
+        if type(db) ~= "table" then return end
+        db.mailNotify = (type(db.mailNotify) == "table") and db.mailNotify or {}
+        db.mailNotify.enabled = not (db.mailNotify.enabled and true or false)
+        UpdateMailNotifySegments()
+        UpdateMailNotifierNow()
+    end)
+    segMail:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segMail, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Mail Notifier")
+            GameTooltip:AddLine("Green: ON ACC (enables Mail Notifier account-wide).", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: OFF ACC.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segMail:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segMailEnable:SetScript("OnClick", function()
+        local db, ch = GetMailDBRefs()
+        if type(ch) ~= "table" then return end
+
+        local accOn = (db and db.mailNotify and db.mailNotify.enabled) and true or false
+        local effective = accOn
+        if ch.mailNotifyEnabledOverride ~= nil then
+            effective = (ch.mailNotifyEnabledOverride == true)
+        end
+        ch.mailNotifyEnabledOverride = not effective
+
+        UpdateMailNotifySegments()
+        UpdateMailNotifierNow()
+    end)
+    segMailEnable:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segMailEnable, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Enable")
+            GameTooltip:AddLine("Green: enabled on this character.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: disabled on this character.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segMailEnable:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segMailConfig:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segMailConfig, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Config")
+            GameTooltip:AddLine("Open Mail Notifier configuration.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segMailConfig:SetScript("OnClick", function()
+        if _G and type(_G.FGO_IsMailPopoutOpen) == "function" and _G.FGO_IsMailPopoutOpen() then
+            if type(_G.FGO_ToggleMailPopout) == "function" then
+                _G.FGO_ToggleMailPopout(false)
+            end
+            return
+        end
+
+        CloseAllConfigPopouts(nil)
+        if _G and type(_G.FGO_ToggleMailPopout) == "function" then
+            _G.FGO_ToggleMailPopout(true)
+        end
+    end)
+    segMailConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
     -- Floating Reload UI button
     local btnReloadFloat = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnReloadFloat:SetSize(BTN_W, BTN_H)
-    btnReloadFloat:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
+    btnReloadFloat:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.btnReloadFloat = btnReloadFloat
     end
 
     -- Reorder right-column segment rows to match spec:
     -- Chromie (top) -> Mount Up -> Pet Walk -> then the rest of the buttons.
-    if segContainer and mountSegContainer and petSegContainer then
+    if segContainer and mountSegContainer and petSegContainer and mailSegContainer then
         segContainer:ClearAllPoints()
         segContainer:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
 
@@ -627,6 +762,9 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
         petSegContainer:ClearAllPoints()
         petSegContainer:SetPoint("TOP", mountSegContainer, "BOTTOM", 0, -GAP_Y)
+
+        mailSegContainer:ClearAllPoints()
+        mailSegContainer:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
     end
 
     if btnTutorial then
@@ -1150,6 +1288,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     UpdatePetWalkSegments()
     UpdateMountUpSegments()
     UpdateChromieSegments()
+    UpdateMailNotifySegments()
     UpdateReloadFloatToggle()
     UpdateTooltipXEnabledButton()
     UpdateTooltipXCombatButton()
@@ -1172,6 +1311,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         UpdatePetWalkSegments()
         UpdateMountUpSegments()
         UpdateChromieSegments()
+        UpdateMailNotifySegments()
         UpdateReloadFloatToggle()
         UpdateTooltipXEnabledButton()
         UpdateTooltipXCombatButton()
