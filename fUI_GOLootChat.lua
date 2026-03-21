@@ -2,11 +2,10 @@
 local addonName, ns = ...
 if type(ns) ~= "table" then ns = {} end
 
-local LI = (ns and ns.LootIt) or fr0z3nUI_LootIt
-if type(LI) ~= "table" then return end
-
+local LI = (ns and ns.LootIt) or {}
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
+LI.ADDON = LI.ADDON or addonName
 
 LI.LootChat = LI.LootChat or {}
 local LootChat = LI.LootChat
@@ -24,6 +23,61 @@ local MessageStartsWithLootPrefix
 local ParseCoinsFromMoneyMessage
 local FormatMoney
 local IsLikelyMoneyMessage
+local FormatSelfLine
+
+-- Secret-string guard (must be a local up-front; early helpers use it).
+local IsSecretString
+
+-- Forward declarations for helpers used by chat filters.
+local QuestXPEnabled
+local IsPlayedSystemMessage
+
+local function SuppressRulesEnabled()
+  local s = DB and DB.suppress
+  if type(s) ~= "table" then return false, nil end
+  if s.enabled == false then return false, nil end
+  if type(s.rules) ~= "table" or #s.rules == 0 then return false, nil end
+  return true, s.rules
+end
+
+local function NormalizeSuppressText(msg)
+  if type(msg) ~= "string" or msg == "" then return nil end
+  if IsSecretString(msg) then return nil end
+
+  local t = msg:gsub("\r", " "):gsub("\n", " ")
+  t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  t = t:gsub("|T.-|t", "")
+  t = t:gsub("\194\160", " ")
+  t = t:gsub("\226\128\175", " ")
+  t = t:gsub("\226\128\135", " ")
+  t = t:gsub("%s+", " ")
+  t = t:gsub("^%s+", ""):gsub("%s+$", "")
+  if t == "" then return nil end
+  return t:lower()
+end
+
+local function ShouldSuppressMessage(msg)
+  local ok, rules = SuppressRulesEnabled()
+  if (not ok) or type(rules) ~= "table" then return false end
+
+  local t = NormalizeSuppressText(msg)
+  if not t then return false end
+
+  for i = 1, #rules do
+    local r = rules[i]
+    if type(r) == "table" and r.enabled ~= false then
+      local needle = r.text
+      if type(needle) == "string" and needle ~= "" and not IsSecretString(needle) then
+        local n = needle:lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if n ~= "" and string.find(t, n, 1, true) then
+          return true, i, needle
+        end
+      end
+    end
+  end
+
+  return false
+end
 
 function LootChat.SetEnv(e)
   env = e or {}
@@ -64,8 +118,17 @@ local function EnsureRefs()
   end
 end
 
-local function IsSecretString(v)
-  return type(issecretvalue) == "function" and issecretvalue(v)
+IsSecretString = function(v)
+  if type(issecretvalue) == "function" then
+    local ok, r = pcall(issecretvalue, v)
+    return ok and r == true
+  end
+  local g = _G and rawget(_G, "IsSecretString")
+  if type(g) == "function" then
+    local ok, r = pcall(g, v)
+    return ok and r == true
+  end
+  return false
 end
 
 local function IsNonEmptyPublicString(v)
@@ -215,10 +278,44 @@ local function HookChatFrameAddMessage(frame)
     end
 
     EnsureRefs()
-    if not (IsEnabled() and DB and DB.hideLootText) then
+    if not IsNonEmptyPublicString(text) then
       return orig(self, text, ...)
     end
-    if not IsNonEmptyPublicString(text) then
+
+    -- Capture debug: direct AddMessage prints can bypass chat event filters.
+    LootChat.CaptureChatIn("CHATFRAME_ADD", text)
+
+    -- Generic suppress rules (SV-backed): catches addon spam that prints directly via AddMessage.
+    do
+      local hit, idx, needle = ShouldSuppressMessage(text)
+      if hit then
+        LootChat.CaptureChatOut("CHAT_MSG_SYSTEM", "(suppress) suppressed", {
+          handled = true,
+          suppressedByRule = true,
+          suppressRuleIndex = idx,
+          suppressRuleText = needle,
+          directPrint = true,
+        })
+        return
+      end
+    end
+
+    -- /played system output can bypass chat event filters and print directly.
+    -- Suppress it whenever the Played toggle is enabled (independent of hideLootText).
+    if (DB and DB.other and DB.other.hidePlayed) == true and IsPlayedSystemMessage then
+      local playedKey = IsPlayedSystemMessage(text)
+      if playedKey then
+        LootChat.CaptureChatOut("CHAT_MSG_SYSTEM", "(played) suppressed", {
+          handled = true,
+          suppressedPlayed = true,
+          directPrint = true,
+          fromKey = playedKey,
+        })
+        return
+      end
+    end
+
+    if not (IsEnabled() and DB and DB.hideLootText) then
       return orig(self, text, ...)
     end
 
@@ -239,12 +336,12 @@ local function HookChatFrameAddMessage(frame)
     local startsLoot = MessageStartsWithLootPrefix(text)
     local startsMoney = MessageStartsWithAnyPrefix(text, DIRECT_MONEY_PREFIXES)
     local startsCurrency = MessageStartsWithAnyPrefix(text, DIRECT_CURRENCY_PREFIXES)
+    local isMoney = (IsLikelyMoneyMessage and IsLikelyMoneyMessage(text)) and true or false
 
-    if startsLoot or startsMoney or startsCurrency then
+    if startsLoot or startsMoney or startsCurrency or isMoney then
       local hasItem = (string.find(text, "|Hitem:", 1, true) ~= nil)
       local hasCurrency = (string.find(text, "|Hcurrency:", 1, true) ~= nil)
       local hasBracket = (string.match(text, "%b[]") ~= nil)
-      local isMoney = (IsLikelyMoneyMessage and IsLikelyMoneyMessage(text)) and true or false
 
       if hasItem or hasCurrency or hasBracket or isMoney then
         local outFrame = (DB and DB.outputChatFrame) or 1
@@ -270,9 +367,11 @@ local function HookChatFrameAddMessage(frame)
         end
 
         -- Reprint (if configured) so the loot isn't lost.
-        if DB and DB.echoItem then
-          local display = nil
+        local handledByEcho = false
+        local combined = false
+        local display = nil
 
+        if DB and DB.echoItem then
           if isMoney and ParseCoinsFromMoneyMessage and FormatMoney then
             local coins = ParseCoinsFromMoneyMessage(text)
             display = FormatMoney(coins)
@@ -325,13 +424,29 @@ local function HookChatFrameAddMessage(frame)
               else
                 LootCombineAdd(tostring(display), "item")
               end
+              combined = true
+              handledByEcho = true
             else
               addMessageInHook = true
               PrintToChatFrame(FormatSelfLine(tostring(display)), outFrame)
               addMessageInHook = false
+              handledByEcho = true
             end
           end
         end
+
+        -- Capture debug: record what we did with this direct print.
+        LootChat.CaptureChatOut("CHATFRAME_ADD", tostring(display or ""), {
+          handled = true,
+          directPrint = true,
+          echo = (DB and DB.echoItem) and true or false,
+          echoed = handledByEcho,
+          combined = combined,
+          isMoney = isMoney,
+          startsMoney = startsMoney,
+          startsLoot = startsLoot,
+          startsCurrency = startsCurrency,
+        })
 
         if DebugChatSetupEnabled() then
           addMessageInHook = true
@@ -1273,7 +1388,7 @@ local function AppendSuffixInsideColorReset(text, suffix)
   return text .. suffix
 end
 
-local function FormatSelfLine(text)
+FormatSelfLine = function(text)
   EnsureRefs()
   if IsInAnyGroup() or (DB and DB.showSelfNameAlways) then
     local me = GetClassColoredName(UnitName and UnitName("player"))
@@ -1801,8 +1916,15 @@ ParseCoinsFromMoneyMessage = function(msg)
 
     local function numBeforeToken(token)
       if type(token) ~= "string" or token == "" then return nil end
-      local n = string.match(lower, "([%d,]+)%s*" .. EscapeLuaPattern(string.lower(token)))
+      local pat = EscapeLuaPattern(string.lower(token))
+      local n, tokenEndPos = string.match(lower, "([%d,]+)%s*" .. pat .. "()%f[%W]")
       if not n then return nil end
+
+      -- Reject false positives like "n=1, gold=on": the numeric capture ends with a comma
+      -- and the token is used in an assignment expression.
+      if string.match(n, ",$") then return nil end
+      if tokenEndPos and string.match(lower:sub(tokenEndPos), "^%s*=") then return nil end
+
       n = string.gsub(n, ",", "")
       return tonumber(n)
     end
@@ -1813,6 +1935,54 @@ ParseCoinsFromMoneyMessage = function(msg)
       or numBeforeToken((_G and rawget(_G, "SILVER_AMOUNT_SYMBOL")) or "s")
     copper = numBeforeToken((_G and rawget(_G, "COPPER")) or "copper")
       or numBeforeToken((_G and rawget(_G, "COPPER_AMOUNT_SYMBOL")) or "c")
+  end
+
+  -- Some chat paths (or other addons) can print money without textures/tokens,
+  -- leaving only a numeric triple (gold/silver/copper) after a prefix.
+  -- Example: "You gained: 7,536 63 26"
+  if not (gold or silver or copper) then
+    local cleaned = msg
+    cleaned = cleaned:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    cleaned = cleaned:gsub("|T.-|t", "")
+    cleaned = cleaned:gsub("\194\160", " ")
+    cleaned = cleaned:gsub("\226\128\175", " ")
+    cleaned = cleaned:gsub("\226\128\135", " ")
+    cleaned = cleaned:gsub("%s+", " ")
+    cleaned = cleaned:gsub("^%s+", ""):gsub("%s+$", "")
+
+    local lower = string.lower(cleaned)
+    local g, s, c = string.match(lower, "^you gained:%s*([%d,]+)%s+([%d,]+)%s+([%d,]+)%s*[%.!]*%s*$")
+    if g and s and c then
+      g = tonumber((g:gsub(",", "")))
+      s = tonumber((s:gsub(",", "")))
+      c = tonumber((c:gsub(",", "")))
+      if g or s or c then
+        gold = g
+        silver = s
+        copper = c
+      end
+    else
+      local g2, s2 = string.match(lower, "^you gained:%s*([%d,]+)%s+([%d,]+)%s*[%.!]*%s*$")
+      if g2 and s2 then
+        g2 = tonumber((g2:gsub(",", "")))
+        s2 = tonumber((s2:gsub(",", "")))
+        if g2 or s2 then
+          gold = g2
+          silver = s2
+          copper = 0
+        end
+      else
+        local g3 = string.match(lower, "^you gained:%s*([%d,]+)%s*[%.!]*%s*$")
+        if g3 then
+          g3 = tonumber((g3:gsub(",", "")))
+          if g3 then
+            gold = g3
+            silver = 0
+            copper = 0
+          end
+        end
+      end
+    end
   end
 
   return {
@@ -1857,11 +2027,26 @@ end
 IsLikelyMoneyMessage = function(msg)
   if not IsNonEmptyPublicString(msg) then return false end
 
-  if string.find(msg, "UI%-GoldIcon") or string.find(msg, "UI%-SilverIcon") or string.find(msg, "UI%-CopperIcon") then
+  -- Strip color codes but keep textures for some checks.
+  local noclr = msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+
+  -- Texture-based money lines should only be treated as money when the line STARTS with
+  -- an amount + coin texture. (Prevents addon prints that happen to include coin textures
+  -- later in the line from being misclassified and rewritten.)
+  if string.match(noclr, "^%s*[%d,]+%s*|TInterface\\MoneyFrame\\UI%-GoldIcon")
+    or string.match(noclr, "^%s*[%d,]+%s*|TInterface\\MoneyFrame\\UI%-SilverIcon")
+    or string.match(noclr, "^%s*[%d,]+%s*|TInterface\\MoneyFrame\\UI%-CopperIcon")
+  then
     return true
   end
 
-  local lower = string.lower(msg)
+  local plain = noclr:gsub("|T.-|t", "")
+  local lower = string.lower(plain)
+
+  -- Textureless numeric triple money line (gold/silver/copper).
+  if string.match(lower, "^%s*you gained:%s*[%d,]+%s+[%d,]+%s+[%d,]+%s*$") then
+    return true
+  end
 
   if not MONEY_PATTERNS then BuildMoneyPatterns() end
 
@@ -1877,19 +2062,34 @@ IsLikelyMoneyMessage = function(msg)
     end
   end
 
-  local function hasToken(token)
+  -- Avoid false positives on config/status text like "gold=on".
+  -- Only treat GOLD/SILVER/COPPER words as money when an amount precedes them.
+  local function hasNumberBeforeWordToken(token)
     if type(token) ~= "string" or token == "" then return false end
-    return string.find(lower, string.lower(token), 1, true) ~= nil
+    local pat = EscapeLuaPattern(string.lower(token))
+    local n, tokenEndPos = string.match(lower, "([%d,]+)%s*" .. pat .. "()%f[%W]")
+    if not n then return false end
+    if string.match(n, ",$") then return false end
+    if tokenEndPos and string.match(lower:sub(tokenEndPos), "^%s*=") then return false end
+    return true
   end
-  if hasToken((_G and rawget(_G, "GOLD")) or "gold")
-    or hasToken((_G and rawget(_G, "SILVER")) or "silver")
-    or hasToken((_G and rawget(_G, "COPPER")) or "copper") then
+  if hasNumberBeforeWordToken((_G and rawget(_G, "GOLD")) or "gold")
+    or hasNumberBeforeWordToken((_G and rawget(_G, "SILVER")) or "silver")
+    or hasNumberBeforeWordToken((_G and rawget(_G, "COPPER")) or "copper") then
     return true
   end
 
   local function hasNumberBeforeToken(token)
     if type(token) ~= "string" or token == "" then return false end
-    return string.match(lower, "[%d,]+%s*" .. EscapeLuaPattern(string.lower(token))) ~= nil
+    local pat = EscapeLuaPattern(string.lower(token))
+
+    -- Guard against false positives like "8612 guides" matching the gold symbol "g".
+    -- Require a non-alphanumeric boundary after the token.
+    local n, tokenEndPos = string.match(lower, "([%d,]+)%s*" .. pat .. "()%f[%W]")
+    if not n then return false end
+    if string.match(n, ",$") then return false end
+    if tokenEndPos and string.match(lower:sub(tokenEndPos), "^%s*=") then return false end
+    return true
   end
   if hasNumberBeforeToken((_G and rawget(_G, "GOLD_AMOUNT_SYMBOL")) or "g")
     or hasNumberBeforeToken((_G and rawget(_G, "SILVER_AMOUNT_SYMBOL")) or "s")
@@ -1942,13 +2142,279 @@ local function OnMoneyChat(_, _, msg, ...)
   return (DB and DB.hideLootText) and true or false
 end
 
+local QUEST_STATUS_PATTERNS
+local function BuildQuestStatusPatterns()
+  local patterns = {}
+
+  local function GS2PatPos(globalString)
+    if type(globalString) ~= "string" or globalString == "" then return nil end
+    local s = globalString
+    s = s:gsub("%%%%", "\0P\0")
+    s = s:gsub("%%%d*%$?s", "\0S\0")
+    s = s:gsub("%%%d*%$?d", "\0D\0")
+    s = EscapeLuaPattern(s)
+    s = s:gsub("\0S\0", "(.-)")
+    s = s:gsub("\0D\0", "([%d,%.%s'%\194\160]+)")
+    s = s:gsub("\0P\0", "%%")
+    return "^" .. s .. "$"
+  end
+
+  local function AddByKey(kind, key)
+    local gs = _G and rawget(_G, key)
+    local pat = GS2PatPos(gs)
+    if pat then
+      patterns[#patterns + 1] = { kind = kind, key = key, pat = pat }
+    end
+  end
+
+  -- These keys vary by client/patch/locale; include all that might exist.
+  AddByKey("accepted", "ERR_QUEST_ACCEPTED_S")
+  AddByKey("accepted", "QUEST_ACCEPTED")
+  AddByKey("completed", "ERR_QUEST_COMPLETE_S")
+  AddByKey("completed", "QUEST_COMPLETE")
+
+  -- Quest log status lines (e.g. removed/abandoned).
+  AddByKey("removed", "ERR_QUEST_REMOVED_S")
+  AddByKey("removed", "QUEST_REMOVED")
+  AddByKey("abandoned", "ERR_QUEST_ABANDONED_S")
+  AddByKey("abandoned", "QUEST_ABANDONED")
+
+  QUEST_STATUS_PATTERNS = patterns
+end
+
+local PLAYED_PATTERNS
+local function BuildPlayedPatterns()
+  local patterns = {}
+
+  local function GS2Pat(globalString)
+    if type(globalString) ~= "string" or globalString == "" then return nil end
+    local s = globalString
+    s = s:gsub("%%%%", "\0P\0")
+    s = s:gsub("%%%d*%$?s", "\0S\0")
+    s = s:gsub("%%%d*%$?d", "\0D\0")
+    s = EscapeLuaPattern(s)
+    -- We don't need captures for suppression; just match loosely.
+    s = s:gsub("\0S\0", ".-")
+    s = s:gsub("\0D\0", "[%d,%.%s'%\194\160]+")
+    s = s:gsub("\0P\0", "%%")
+    return "^" .. s .. "$"
+  end
+
+  local function AddByKey(key)
+    local gs = _G and rawget(_G, key)
+    local pat = GS2Pat(gs)
+    if pat then
+      patterns[#patterns + 1] = { key = key, pat = pat }
+    end
+  end
+
+  AddByKey("TIME_PLAYED_TOTAL")
+  AddByKey("TIME_PLAYED_LEVEL")
+
+  PLAYED_PATTERNS = patterns
+end
+
+IsPlayedSystemMessage = function(msg)
+  if type(msg) ~= "string" or msg == "" then return nil end
+
+  local t = msg:gsub("\r", " "):gsub("\n", " ")
+  t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  t = t:gsub("|T.-|t", "")
+  t = t:gsub("\194\160", " ")
+  t = t:gsub("\226\128\175", " ")
+  t = t:gsub("\226\128\135", " ")
+  t = t:gsub("\239\188\136", "(")
+  t = t:gsub("\239\188\137", ")")
+  t = t:gsub("%s+", " ")
+  t = t:gsub("^%s+", ""):gsub("%s+$", "")
+
+  if PLAYED_PATTERNS == nil then BuildPlayedPatterns() end
+  for _, e in ipairs(PLAYED_PATTERNS or {}) do
+    if t:match(e.pat) then
+      return e.key or true
+    end
+  end
+
+  -- Fallback (English-like).
+  if t:match("^Total time played:%s*") then return "fallback" end
+  if t:match("^Time played this level:%s*") then return "fallback" end
+
+  return nil
+end
+
+local function ParseQuestStatusSystemMessage(msg)
+  if type(msg) ~= "string" or msg == "" then return nil end
+
+  local t = msg:gsub("\r", " "):gsub("\n", " ")
+  t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  t = t:gsub("|T.-|t", "")
+  t = t:gsub("\194\160", " ")
+  t = t:gsub("\226\128\175", " ")
+  t = t:gsub("\226\128\135", " ")
+  t = t:gsub("\239\188\136", "(")
+  t = t:gsub("\239\188\137", ")")
+  t = t:gsub("%s+", " ")
+  t = t:gsub("^%s+", ""):gsub("%s+$", "")
+
+  if QUEST_STATUS_PATTERNS == nil then BuildQuestStatusPatterns() end
+  for _, e in ipairs(QUEST_STATUS_PATTERNS or {}) do
+    local a = t:match(e.pat)
+    if IsNonEmptyPublicString(a) then
+      local title = a:gsub("^%s+", ""):gsub("%s+$", "")
+      if title ~= "" then
+        return { kind = e.kind, title = title, key = e.key }
+      end
+    end
+  end
+
+  -- Fallback (English-like).
+  do
+    local title = t:match("^[Qq]uest%s+[Aa]ccepted:%s*(.-)%s*$")
+    if IsNonEmptyPublicString(title) then
+      title = title:gsub("^%s+", ""):gsub("%s+$", "")
+      if title ~= "" then
+        return { kind = "accepted", title = title, key = "fallback" }
+      end
+    end
+  end
+  do
+    local title = t:match("^[Qq]uest%s+[Cc]ompleted:%s*(.-)%s*$")
+    if IsNonEmptyPublicString(title) then
+      title = title:gsub("^%s+", ""):gsub("%s+$", "")
+      if title ~= "" then
+        return { kind = "completed", title = title, key = "fallback" }
+      end
+    end
+  end
+
+  -- Fallback: some clients/styles use "<Quest Title> completed." (no "Quest completed:" prefix).
+  -- Keep this fairly strict to avoid false positives.
+  do
+    local low = t:lower()
+    -- Avoid matching achievement/other system lines.
+    if (not low:find("achievement", 1, true)) and (not low:find("earned", 1, true)) then
+      local title = t:match("^(.+)%s+[Cc]ompleted%.?$")
+      if IsNonEmptyPublicString(title) then
+        title = title:gsub("^%s+", ""):gsub("%s+$", "")
+        -- Exclude generic phrases like "Quest completed" etc.
+        local tlow = title:lower()
+        if title ~= "" and (not tlow:find("quest", 1, true)) and #title >= 3 then
+          return { kind = "completed", title = title, key = "fallback-title-completed" }
+        end
+      end
+    end
+  end
+
+  -- Fallback: quest removed from quest log (English-like).
+  do
+    local title = t:match("^The quest%s+(.+)%s+has been removed from your quest log%.?$")
+    if IsNonEmptyPublicString(title) then
+      title = title:gsub("^%s+", ""):gsub("%s+$", "")
+      if title ~= "" then
+        return { kind = "removed", title = title, key = "fallback" }
+      end
+    end
+  end
+
+  return nil
+end
+
+-- Forward decls: quest completed system lines are processed much earlier than
+-- XP parsing, but they need a consistent timebase + a later fallback printer.
+local SafeNow
+local ScheduleQuestCompletedFallbackPrint
+local MaybePrintXPDebug
+
 local function OnSystemChat(_, eventName, msg, ...)
   EnsureRefs()
-  if not IsEnabled() then return false end
   if not IsNonEmptyPublicString(msg) then return false end
 
   local ev = (type(eventName) == "string" and eventName ~= "") and eventName or "CHAT_MSG_SYSTEM"
   LootChat.CaptureChatIn(ev, msg)
+
+  -- Generic suppress rules (SV-backed): hide matching lines early.
+  do
+    local hit, idx, needle = ShouldSuppressMessage(msg)
+    if hit then
+      LootChat.CaptureChatOut(ev, "(suppress) suppressed", {
+        handled = true,
+        suppressedByRule = true,
+        suppressRuleIndex = idx,
+        suppressRuleText = needle,
+      })
+      return true
+    end
+  end
+
+  -- /played system output (two lines). Optional suppression toggle.
+  -- This is intentionally independent of LootIt's main enabled toggle.
+  if (DB and DB.other and DB.other.hidePlayed) == true then
+    local playedKey = IsPlayedSystemMessage(msg)
+    if playedKey then
+      LootChat.CaptureChatOut(ev, "(played) suppressed", {
+        handled = true,
+        suppressedPlayed = true,
+        fromKey = playedKey,
+      })
+      return true
+    end
+  end
+
+  -- Quest system lines (accepted/completed) are separate from XP gain lines.
+  -- This behavior belongs to the Experience module; it should work even if
+  -- LootIt's main toggle is off.
+  if (DB and DB.other and DB.other.experience and DB.other.experience.enabled) and QuestXPEnabled() then
+    -- Some clients emit a generic "Quest completed" line without a title. If we recently
+    -- captured a titled completion (e.g. "<Title> completed."), suppress this too so the
+    -- quest name can live on the XP line.
+    do
+      local t = msg:gsub("\r", " "):gsub("\n", " ")
+      t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+      t = t:gsub("|T.-|t", "")
+      t = t:gsub("\194\160", " ")
+      t = t:gsub("\226\128\175", " ")
+      t = t:gsub("\226\128\135", " ")
+      t = t:gsub("%s+", " ")
+      t = t:gsub("^%s+", ""):gsub("%s+$", "")
+      if t:lower():match("^quest%s+completed%.?$") then
+        local now = SafeNow()
+        if IsNonEmptyPublicString(_xpQuestLastTitle) and _xpQuestLastTS and (now - _xpQuestLastTS) <= QUEST_XP_ATTACH_WINDOW then
+          LootChat.CaptureChatOut(ev, "(quest) suppressed", {
+            handled = true,
+            suppressedQuestStatus = true,
+            questStatus = "completed",
+            questTitle = _xpQuestLastTitle,
+            fromKey = "fallback-generic-completed",
+          })
+          MaybePrintXPDebug("quest-completed suppressed (generic)")
+          return true
+        end
+      end
+    end
+
+    local qs = ParseQuestStatusSystemMessage(msg)
+    if qs and IsNonEmptyPublicString(qs.title) then
+      if qs.kind == "completed" then
+        _xpQuestLastTS = SafeNow()
+        _xpQuestLastTitle = qs.title
+        _xpQuestLastXP = nil
+        MaybePrintXPDebug(string.format("quest-completed stored title='%s'", tostring(qs.title)))
+      else
+        MaybePrintXPDebug(string.format("quest-%s suppressed title='%s'", tostring(qs.kind), tostring(qs.title)))
+      end
+
+      LootChat.CaptureChatOut(ev, "(quest) suppressed", {
+        handled = true,
+        suppressedQuestStatus = true,
+        questStatus = qs.kind,
+        questTitle = qs.title,
+        fromKey = qs.key,
+      })
+      return true
+    end
+  end
+
+  if not IsEnabled() then return false end
 
   local moneyOut, moneyCoins = TryFormatMoneyFromMessage(msg)
   if moneyOut then
@@ -2773,7 +3239,11 @@ local function ParseExperienceGainMessage(msg)
       end
 
       if xp then
-        return { xp = xp, rested = rested, mob = mob }
+        local kind = "kill"
+        if e.key == "COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED" then
+          kind = "unnamed"
+        end
+        return { xp = xp, rested = rested, mob = mob, kind = kind, sourceKey = e.key }
       end
     end
   end
@@ -2786,7 +3256,7 @@ local function ParseExperienceGainMessage(msg)
       local xp = ParseNumberFromChat(n)
       if xp then
         local rested = ParseRestedBonusFromParen(paren)
-        return { xp = xp, rested = rested, mob = mob }
+        return { xp = xp, rested = rested, mob = mob, kind = "kill", sourceKey = "fallback-dies" }
       end
     end
   end
@@ -2798,7 +3268,7 @@ local function ParseExperienceGainMessage(msg)
       local xp = ParseNumberFromChat(n)
       if xp then
         local rested = ParseRestedBonusFromParen(paren)
-        return { xp = xp, rested = rested }
+        return { xp = xp, rested = rested, kind = "unnamed", sourceKey = "fallback-you-gain" }
       end
     end
   end
@@ -2810,9 +3280,9 @@ local function ParseExperienceGainMessage(msg)
       local xp = ParseNumberFromChat(n)
       if xp then
         if IsNonEmptyPublicString(place) then
-          return { xp = xp, mob = place }
+          return { xp = xp, mob = place, kind = "discovery", sourceKey = "fallback-discovery" }
         end
-        return { xp = xp }
+        return { xp = xp, kind = "discovery", sourceKey = "fallback-discovery" }
       end
     end
   end
@@ -2837,7 +3307,8 @@ local function ParseExperienceGainMessage(msg)
             if mob == "" then mob = nil end
           end
 
-          return { xp = xp, rested = rested, mob = mob }
+          local kind = mob and "kill" or "unnamed"
+          return { xp = xp, rested = rested, mob = mob, kind = kind, sourceKey = "fallback-tolerant" }
         end
       end
     end
@@ -2858,7 +3329,7 @@ local function GetOtherSelfPrefix()
   return "<" .. me .. ">"
 end
 
-local function SafeNow()
+SafeNow = function()
   local now
   if type(GetTime) == "function" then
     local ok, v = pcall(GetTime)
@@ -2878,9 +3349,13 @@ local _xpRecentPrintedTS
 local _xpRecentPrintedDelta
 local _xpPendingNoMatchTS
 local _xpPendingNoMatchMsg
+local _xpPendingNoMatchCleanMsg
 local _xpPendingNoMatchEvent
 local _xpChatLastSig
 local _xpChatLastTS
+local _xpChatLastLiteSig
+local _xpChatLastLiteTS
+local _xpChatLastLiteHadMob
 
 local function GetExperienceOutputFrame()
   return (DB and DB.other and DB.other.experience and DB.other.experience.outputChatFrame)
@@ -2913,7 +3388,7 @@ local function ColorCodes()
   return gold, green, close
 end
 
-local function MaybePrintXPDebug(line)
+MaybePrintXPDebug = function(line)
   if not XPDebugEnabled() then return end
   if not IsNonEmptyPublicString(line) then return end
 
@@ -2935,28 +3410,42 @@ local function GetXPLabelPos()
   return pos
 end
 
-local XP_NUM_WIDTH = 5
+QuestXPEnabled = function()
+  return (DB and DB.other and DB.other.experience and DB.other.experience.questXP) == true
+end
 
-local function FormatXPNumber(x)
+local XP_NUM_WIDTH = 5
+local XP_PAD_COLOR = "|cff555555"
+local XP_PAD_CHAR = "0"
+
+local function FormatXPNumberColored(x, numCC, close)
   x = tonumber(x) or 0
-  -- Use leading spaces (not zeros) so shorter values align without visual noise.
-  return string.format("%" .. tostring(XP_NUM_WIDTH) .. "d", x)
+  x = math.floor(x)
+  local s = tostring(x)
+
+  -- Use dim 0-padding (not spaces) so the number block aligns in proportional fonts.
+  -- Avoid "real" leading zeros by keeping them visually distinct.
+  local padCount = XP_NUM_WIDTH - #s
+  if padCount <= 0 then
+    return string.format("%s%s%s", tostring(numCC or ""), s, tostring(close or ""))
+  end
+
+  local pad = XP_PAD_COLOR .. string.rep(XP_PAD_CHAR, padCount)
+  return string.format("%s%s%s%s", pad, tostring(numCC or ""), s, tostring(close or ""))
 end
 
 local function FormatXPMainChunk(xp, xpPos, hcc, gcc, close)
-  local xpStr = FormatXPNumber(xp)
   if xpPos == "before" then
-    return string.format("%sXP%s %s%s%s", hcc, close, gcc, xpStr, close)
+    return string.format("%sXP%s %s", hcc, close, FormatXPNumberColored(xp, gcc, close))
   end
-  return string.format("%s%s%s %sXP%s", gcc, xpStr, close, hcc, close)
+  return string.format("%s %sXP%s", FormatXPNumberColored(xp, gcc, close), hcc, close)
 end
 
 local function FormatXPBonusChunk(rested, xpPos, hcc, close)
-  local restedStr = FormatXPNumber(rested)
   if xpPos == "before" then
-    return string.format(" (%s+XP %s%s)", hcc, restedStr, close)
+    return string.format(" (%s+XP %s)", hcc, FormatXPNumberColored(rested, hcc, close))
   end
-  return string.format(" (%s+%s XP%s)", hcc, restedStr, close)
+  return string.format(" (%s+%s %sXP%s)", hcc, FormatXPNumberColored(rested, hcc, close), hcc, close)
 end
 
 local function ShortXPMsg(s)
@@ -2975,6 +3464,112 @@ local function ShortXPMsg(s)
     s = s:sub(1, 90) .. "…"
   end
   return s
+end
+
+local function CleanXPMsg(s)
+  if type(s) ~= "string" then return "" end
+  -- sanitize (strip color/texture; collapse whitespace) but do NOT truncate
+  s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  s = s:gsub("|T.-|t", "")
+  s = s:gsub("\194\160", " ")
+  s = s:gsub("\226\128\175", " ")
+  s = s:gsub("\226\128\135", " ")
+  s = s:gsub("\239\188\136", "(")
+  s = s:gsub("\239\188\137", ")")
+  s = s:gsub("%s+", " ")
+  s = s:gsub("^%s+", ""):gsub("%s+$", "")
+  return s
+end
+
+local _xpQuestLastTS
+local _xpQuestLastTitle
+local _xpQuestLastXP
+
+local QUEST_XP_ATTACH_WINDOW = 10.0
+local QUEST_XP_COMPLETED_FALLBACK_DELAY = 10.25
+
+local _xpQuestCompletedLastTS
+local _xpQuestCompletedLastTitle
+
+local function GetQuestTitleSafe(questID)
+  questID = tonumber(questID)
+  if not questID then return nil end
+
+  if C_QuestLog and type(C_QuestLog.GetTitleForQuestID) == "function" then
+    local ok, title = pcall(C_QuestLog.GetTitleForQuestID, questID)
+    if ok and IsNonEmptyPublicString(title) then
+      return title
+    end
+  end
+
+  return nil
+end
+
+local function GetRecentQuestTitleForXP(xp)
+  local title = _xpQuestLastTitle
+  if not IsNonEmptyPublicString(title) then return nil end
+
+  local now = SafeNow()
+  if not (_xpQuestLastTS and (now - _xpQuestLastTS) <= QUEST_XP_ATTACH_WINDOW) then
+    return nil
+  end
+
+  local qxp = tonumber(_xpQuestLastXP)
+  xp = tonumber(xp)
+  if qxp and xp and qxp > 0 and xp > 0 and qxp ~= xp then
+    -- xpReward from QUEST_TURNED_IN can differ from the final XP gain message
+    -- due to various bonuses; tolerate small/moderate drift.
+    local diff = math.abs(qxp - xp)
+    local maxv = math.max(qxp, xp)
+    if maxv > 0 and (diff / maxv) > 0.30 then
+      return nil
+    end
+  end
+
+  return title
+end
+
+local function GetRecentQuestCompletedTitle()
+  local title = _xpQuestCompletedLastTitle
+  if not IsNonEmptyPublicString(title) then return nil end
+
+  local now = SafeNow()
+  if not (_xpQuestCompletedLastTS and (now - _xpQuestCompletedLastTS) <= 2.5) then
+    return nil
+  end
+
+  -- One-shot: consume so it won't attach to unrelated XP lines.
+  _xpQuestCompletedLastTS = nil
+  _xpQuestCompletedLastTitle = nil
+  return title
+end
+
+local _xpQuestCompletedFallbackToken = 0
+ScheduleQuestCompletedFallbackPrint = function(ts, title)
+  -- Intentionally disabled: quest completion system lines are always hidden,
+  -- and we only display the quest title when it can be appended onto an XP line.
+  -- If no XP line occurs, do not print a fallback completion line.
+  _xpQuestCompletedFallbackToken = (_xpQuestCompletedFallbackToken or 0) + 1
+end
+
+local _xpQuestDelayedToken = 0
+local _xpQuestDelayed = {}
+
+do
+  if type(CreateFrame) == "function" then
+    local qev = CreateFrame("Frame")
+    qev:RegisterEvent("QUEST_TURNED_IN")
+    qev:SetScript("OnEvent", function(_, _, questID, xpReward)
+      _xpQuestLastTS = SafeNow()
+      _xpQuestLastXP = tonumber(xpReward)
+      local t = GetQuestTitleSafe(questID)
+      -- Don't erase a title we captured from system messages if the quest log API
+      -- can't resolve the title (cache/timing).
+      if IsNonEmptyPublicString(t) then
+        _xpQuestLastTitle = t
+      end
+    end)
+  end
 end
 
 local function OnExperienceChat(_, eventName, msg, ...)
@@ -3003,14 +3598,19 @@ local function OnExperienceChat(_, eventName, msg, ...)
     local now = SafeNow()
     _xpPendingNoMatchTS = now
     _xpPendingNoMatchMsg = msg
+    _xpPendingNoMatchCleanMsg = CleanXPMsg(msg)
     _xpPendingNoMatchEvent = ev
     LootChat.CaptureChatOut(ev, "(xp) no-match", { handled = false, xpNoMatch = true })
     MaybePrintXPDebug(string.format("no-match (event=%s) msg='%s'", tostring(ev), ShortXPMsg(msg)))
-    return false
+
+    -- If we leave the original line visible, the XP_UPDATE fallback prints a second line.
+    -- Suppress here so the player sees only one XP line.
+    return true
   end
   local xp = parsed.xp
   local rested = parsed.rested
   local mob = parsed.mob
+  local kind = parsed.kind
 
   local showBonus = true
   if DB and DB.other and DB.other.experience and DB.other.experience.showBonus ~= nil then
@@ -3029,10 +3629,109 @@ local function OnExperienceChat(_, eventName, msg, ...)
       outText = outText .. string.format("%s*%s", hcc, close)
     end
   end
-  if type(mob) == "string" and mob ~= "" then
-    mob = mob:gsub("^%s+", ""):gsub("%s+$", "")
-    if mob ~= "" then
-      outText = outText .. " " .. mob
+  do
+    if type(mob) == "string" and mob ~= "" then
+      mob = mob:gsub("^%s+", ""):gsub("%s+$", "")
+      if mob ~= "" then
+        if kind == "discovery" then
+          -- Discovery XP: treat the place name like a proper label (extra spacing + light-blue).
+          outText = outText .. "  |cff66ccff" .. mob .. close
+        else
+          outText = outText .. " " .. mob
+        end
+      end
+    end
+
+    -- Quest completion titles should attach to the next *unnamed* XP line.
+    -- Some clients use XP patterns we don't have a key for; in that case, infer
+    -- unnamed vs kill from whether we have a mob string.
+    local effectiveKind = kind
+    if effectiveKind == nil then
+      effectiveKind = (type(mob) == "string" and mob ~= "") and "kill" or "unnamed"
+    end
+
+    if QuestXPEnabled() and effectiveKind == "unnamed" then
+      local qTitle = GetRecentQuestTitleForXP(xp)
+      if IsNonEmptyPublicString(qTitle) then
+        outText = outText .. "  |cffffffff" .. qTitle .. close
+        _xpQuestLastTS = nil
+        _xpQuestLastTitle = nil
+        _xpQuestLastXP = nil
+      else
+        -- Some clients emit the XP line before the quest-completed system line.
+        -- Delay printing very briefly so a completion that arrives just after can
+        -- still be appended onto the XP line.
+        if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+          -- De-dupe before scheduling so repeated events don't queue multiple prints.
+          do
+            local now = SafeNow()
+            local sig = tostring(xp or 0) .. "|" .. tostring(rested or 0) .. "|" .. tostring(mob or "")
+            if _xpChatLastSig == sig and _xpChatLastTS and (now - _xpChatLastTS) < 0.35 then
+              MaybePrintXPDebug(string.format("dedup (event=%s) sig=%s", tostring(ev), sig))
+              return true
+            end
+            _xpChatLastSig = sig
+            _xpChatLastTS = now
+          end
+
+          local outFrame = (DB.other and DB.other.experience and DB.other.experience.outputChatFrame)
+            or (DB.other and DB.other.outputChatFrame)
+            or (DB and DB.outputChatFrame)
+            or 1
+
+          _xpQuestDelayedToken = (_xpQuestDelayedToken or 0) + 1
+          local token = _xpQuestDelayedToken
+          _xpQuestDelayed[token] = {
+            xp = xp,
+            rested = rested,
+            mob = mob,
+            baseOutText = outText,
+            outFrame = outFrame,
+            ev = ev,
+          }
+
+          C_Timer.After(0.25, function()
+            local entry = _xpQuestDelayed and _xpQuestDelayed[token]
+            if not entry then return end
+            _xpQuestDelayed[token] = nil
+
+            EnsureRefs()
+            if not (DB and DB.other and DB.other.experience and DB.other.experience.enabled) then return end
+
+            local finalText = entry.baseOutText
+            if QuestXPEnabled() then
+              local t = GetRecentQuestTitleForXP(entry.xp)
+              if IsNonEmptyPublicString(t) then
+                finalText = finalText .. "  |cffffffff" .. t .. close
+                _xpQuestLastTS = nil
+                _xpQuestLastTitle = nil
+                _xpQuestLastXP = nil
+              end
+            end
+
+            local out = FormatSelfLine(finalText)
+            PrintToChatFrame(out, entry.outFrame)
+            do
+              local now = SafeNow()
+              _xpRecentPrintedTS = now
+              _xpRecentPrintedDelta = entry.xp
+            end
+            MaybePrintXPDebug(string.format("out(delayed)->%s %s", tostring(entry.outFrame), tostring(out)))
+            LootChat.CaptureChatOut(entry.ev or "CHAT_MSG_COMBAT_XP_GAIN", out, {
+              handled = true,
+              xp = entry.xp,
+              rested = entry.rested,
+              mob = entry.mob,
+              outFrame = entry.outFrame,
+              xpDelayed = true,
+            })
+          end)
+
+          MaybePrintXPDebug("xp delayed (quest-title-wait)")
+          LootChat.CaptureChatOut(ev, "(xp) delayed", { handled = true, xp = xp, rested = rested, mob = mob, xpDelayed = true })
+          return true
+        end
+      end
     end
   end
 
@@ -3045,6 +3744,21 @@ local function OnExperienceChat(_, eventName, msg, ...)
       MaybePrintXPDebug(string.format("dedup (event=%s) sig=%s", tostring(ev), sig))
       return true
     end
+
+    -- Some clients emit two variants back-to-back: one with a mob/source label and one without.
+    -- Prefer the more informative line; suppress the plain one if the XP amount matches.
+    do
+      local lite = tostring(xp or 0) .. "|" .. tostring(rested or 0)
+      local hasMob = IsNonEmptyPublicString(mob)
+      if (not hasMob) and _xpChatLastLiteSig == lite and _xpChatLastLiteTS and (now - _xpChatLastLiteTS) < 0.40 and _xpChatLastLiteHadMob == true then
+        MaybePrintXPDebug(string.format("dedup-lite (event=%s) sig=%s", tostring(ev), lite))
+        return true
+      end
+      _xpChatLastLiteSig = lite
+      _xpChatLastLiteTS = now
+      _xpChatLastLiteHadMob = hasMob and true or false
+    end
+
     _xpChatLastSig = sig
     _xpChatLastTS = now
   end
@@ -3105,6 +3819,31 @@ function LootChat.OnPlayerXPUpdate()
     return
   end
   if not delta or delta <= 0 then
+    local now = SafeNow()
+    if _xpPendingNoMatchTS and (now - _xpPendingNoMatchTS) < 1.0 then
+      local msg = _xpPendingNoMatchCleanMsg or CleanXPMsg(_xpPendingNoMatchMsg)
+      local ev = _xpPendingNoMatchEvent or "CHAT_MSG_COMBAT_XP_GAIN"
+      _xpPendingNoMatchTS = nil
+      _xpPendingNoMatchMsg = nil
+      _xpPendingNoMatchCleanMsg = nil
+      _xpPendingNoMatchEvent = nil
+
+      if IsNonEmptyPublicString(msg) then
+        local outFrame = GetExperienceOutputFrame()
+        local out = FormatSelfLine(msg)
+        PrintToChatFrame(out, outFrame)
+        MaybePrintXPDebug(string.format("fallback-print-msg (event=%s) msg='%s' out->%s %s", tostring(ev), ShortXPMsg(msg), tostring(outFrame), tostring(out)))
+        LootChat.CaptureChatOut("PLAYER_XP_UPDATE", out, {
+          handled = true,
+          xp = 0,
+          xpUpdateFallback = true,
+          fromEvent = ev,
+          msg = ShortXPMsg(msg),
+          outFrame = outFrame,
+          xpUpdatePrintedMsg = true,
+        })
+      end
+    end
     return
   end
 
@@ -3124,11 +3863,24 @@ function LootChat.OnPlayerXPUpdate()
   local ev = _xpPendingNoMatchEvent or "CHAT_MSG_COMBAT_XP_GAIN"
   _xpPendingNoMatchTS = nil
   _xpPendingNoMatchMsg = nil
+  _xpPendingNoMatchCleanMsg = nil
   _xpPendingNoMatchEvent = nil
 
   local hcc, gcc, close = ColorCodes()
   local xpPos = GetXPLabelPos()
   local outText = FormatXPMainChunk(delta, xpPos, hcc, gcc, close)
+  do
+    if QuestXPEnabled() then
+      -- XP_UPDATE fallback always represents an unnamed gain; safe to attach.
+      local qTitle = GetRecentQuestTitleForXP(delta)
+      if IsNonEmptyPublicString(qTitle) then
+        outText = outText .. " " .. qTitle
+        _xpQuestLastTS = nil
+        _xpQuestLastTitle = nil
+        _xpQuestLastXP = nil
+      end
+    end
+  end
   local out = FormatSelfLine(outText)
 
   local outFrame = GetExperienceOutputFrame()
@@ -3362,16 +4114,28 @@ function LootChat.ApplyFilters()
   ChatFrame_RemoveMessageEventFilter("CHAT_MSG_COMBAT_MISC_INFO", OnExperienceChat)
   ChatFrame_RemoveMessageEventFilter("CHAT_MSG_SYSTEM", OnExperienceChat)
   ChatFrame_RemoveMessageEventFilter("CHAT_MSG_SYSTEM", OnProfessionSkillChat)
-  if IsEnabled() then
+  local enabledNow = IsEnabled() and true or false
+  local wantSuppress = (SuppressRulesEnabled() and true or false)
+  local wantQuestXP = (DB and DB.other and DB.other.experience and DB.other.experience.enabled) and QuestXPEnabled()
+  local wantSystemFilter = enabledNow or ((DB and DB.other and DB.other.hidePlayed) == true) or wantSuppress or (wantQuestXP and true or false)
+
+  if enabledNow then
     ChatFrame_AddMessageEventFilter("CHAT_MSG_LOOT", OnLootChat)
     ChatFrame_AddMessageEventFilter("CHAT_MSG_CURRENCY", OnCurrencyChat)
     ChatFrame_AddMessageEventFilter("CHAT_MSG_MONEY", OnMoneyChat)
+    -- OnSystemChat handles multiple optional suppressions (including Played).
     ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", OnSystemChat)
     ChatFrame_AddMessageEventFilter("CHAT_MSG_COMBAT_MISC_INFO", OnSystemChat)
     if not (DB and DB.other and DB.other.profession and DB.other.profession.enabled) then
       ChatFrame_AddMessageEventFilter("CHAT_MSG_SKILL", OnSystemChat)
     end
     ChatFrame_AddMessageEventFilter("CHAT_MSG_TRADESKILLS", OnSystemChat)
+  end
+
+  -- If LootIt is disabled, still allow system-level filters that belong to submodules
+  -- (e.g. /played suppression, QuestXP quest-line suppression).
+  if (not enabledNow) and wantSystemFilter then
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", OnSystemChat)
   end
   if DB and DB.other and DB.other.achievement and DB.other.achievement.enabled then
     ChatFrame_AddMessageEventFilter("CHAT_MSG_ACHIEVEMENT", OnAchievementChat)

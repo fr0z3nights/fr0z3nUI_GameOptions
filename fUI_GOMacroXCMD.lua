@@ -465,11 +465,11 @@ local function GetExtraFlightStopmacroTokens()
     end
 
     local extra = {}
-    -- Modern retail builds introduced advanced flight (Skyriding/dynamic flight) conditionals.
-    -- Keep this conservative: only include tokens that this client can parse.
-    if SupportsMacroOptionToken("advfly") then
-        extra[#extra + 1] = "advfly"
-    end
+    -- NOTE: Some clients (including modern retail) will print:
+    --   "Unknown macro option: advfly"
+    -- when a macro contains [advfly], even if SecureCmdOptionParse() doesn't throw a Lua error.
+    -- Until there's a verified, stable macro conditional for advanced flight on this client,
+    -- do not inject any additional flight tokens here.
 
     _flightOptionTokens = extra
     return _flightOptionTokens

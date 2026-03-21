@@ -52,7 +52,7 @@ function ns.TaleUI_Build(frame, panel, helpers)
 
     -- Print/Debug: only shown on the Tale (edit) tab
     local btnPrint = CreateFrame("Button", nil, editPanel, "UIPanelButtonTemplate")
-    btnPrint:SetSize(90, 22)
+    btnPrint:SetSize(70, 22)
     btnPrint:SetPoint("BOTTOMLEFT", editPanel, "BOTTOMLEFT", 12, 12)
     btnPrint:SetFrameLevel((editPanel.GetFrameLevel and editPanel:GetFrameLevel() or 0) + 10)
     f._btnPrint = btnPrint
@@ -167,7 +167,7 @@ function ns.TaleUI_Build(frame, panel, helpers)
     UpdatePrintMinBox()
 
     local btnDebug = CreateFrame("Button", nil, editPanel, "UIPanelButtonTemplate")
-    btnDebug:SetSize(90, 22)
+    btnDebug:SetSize(70, 22)
     btnDebug:SetPoint("LEFT", editPrintMin, "RIGHT", 8, 0)
     btnDebug:SetFrameLevel((editPanel.GetFrameLevel and editPanel:GetFrameLevel() or 0) + 10)
     f._btnDebug = btnDebug
@@ -249,6 +249,7 @@ function ns.TaleUI_Build(frame, panel, helpers)
         end
     end
     HideEditBoxFrame(edit)
+    HideEditBoxFrame(editPrintMin)
 
     -- NPC header (top center)
     local zoneContinentLabel = editPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

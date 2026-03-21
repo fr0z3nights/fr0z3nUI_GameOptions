@@ -643,6 +643,49 @@ local function IsCastingOrChanneling()
     return false
 end
 
+local function IsEatingOrDrinking()
+    -- Prefer spellID checks to avoid localized name dependencies.
+    -- Some clients return restricted/"secret" aura spellIDs; comparing those values can taint.
+    -- To avoid that, delegate spellID matching to Blizzard helpers (no direct comparisons).
+    local EAT_1 = 433 -- "Food"
+    local DRINK_1 = 430 -- "Drink"
+    local EATDRINK_1 = 431 -- "Food & Drink" (observed on some clients)
+    local EATDRINK_2 = 432 -- fallback for older variants
+
+    if AuraUtil and type(AuraUtil.FindAuraBySpellID) == "function" then
+        local ok, found = pcall(AuraUtil.FindAuraBySpellID, EAT_1, "player", "HELPFUL")
+        if ok and found then return true end
+        ok, found = pcall(AuraUtil.FindAuraBySpellID, DRINK_1, "player", "HELPFUL")
+        if ok and found then return true end
+        ok, found = pcall(AuraUtil.FindAuraBySpellID, EATDRINK_1, "player", "HELPFUL")
+        if ok and found then return true end
+        ok, found = pcall(AuraUtil.FindAuraBySpellID, EATDRINK_2, "player", "HELPFUL")
+        if ok and found then return true end
+    end
+
+    -- Fallback: name matching only (less ideal for localization, but avoids spellID taint).
+    if C_UnitAuras and C_UnitAuras.GetBuffDataByIndex then
+        for i = 1, 40 do
+            local data = C_UnitAuras.GetBuffDataByIndex("player", i)
+            if not data then
+                break
+            end
+
+            local name = type(data) == "table" and data.name or nil
+            if type(name) == "string" then
+                local ok, n = pcall(string.lower, name)
+                if ok and type(n) == "string" then
+                    if n == "food" or n == "drink" or n == "food & drink" or n == "food and drink" then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
 local function CanMountNow()
     if not IsEnabled() then
         return false
@@ -669,6 +712,10 @@ local function CanMountNow()
     end
 
     if UnitUsingVehicle and UnitUsingVehicle("player") then
+        return false
+    end
+
+    if IsEatingOrDrinking() then
         return false
     end
 
@@ -939,6 +986,11 @@ local function TryMount(reason)
         return false
     end
 
+    -- Re-check here because Mount Up can be delayed.
+    if IsEatingOrDrinking() then
+        return false
+    end
+
     local mountID = PickMount()
     if type(mountID) ~= "number" or mountID <= 0 then
         return false
@@ -1064,6 +1116,30 @@ function MU.DebugPrintPreferredMounts()
 end
 
 local pendingTimer
+local lastArmAt = 0
+local lastArmReason
+
+local function ArmWindow(reason)
+    if type(GetTime) ~= "function" then
+        lastArmAt = 0
+        lastArmReason = reason
+        return
+    end
+    lastArmAt = GetTime() or 0
+    lastArmReason = reason
+end
+
+local function IsWithinArmWindow(seconds)
+    seconds = tonumber(seconds) or 8.0
+    if seconds < 0 then
+        seconds = 0
+    end
+    if type(GetTime) ~= "function" then
+        return true
+    end
+    local now = GetTime() or 0
+    return (now - (tonumber(lastArmAt) or 0)) <= seconds
+end
 
 local function CancelPending()
     if pendingTimer and pendingTimer.Cancel then
@@ -1077,6 +1153,8 @@ local function ScheduleMount(reason, delay)
         CancelPending()
         return
     end
+
+    ArmWindow(reason)
 
     delay = tonumber(delay)
     if type(delay) ~= "number" then
@@ -1256,6 +1334,7 @@ do
         btn:SetFrameStrata("DIALOG")
         btn:EnableMouse(true)
         btn:SetMovable(true)
+        btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         btn:RegisterForDrag("RightButton")
 
         local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1270,9 +1349,17 @@ do
         UpdateLabel()
 
         btn:SetScript("OnClick", function(_, mouseButton)
+            if mouseButton == "RightButton" then
+                if IsLocked() and type(DoEmote) == "function" then
+                    DoEmote("MOUNTSPECIAL")
+                end
+                return
+            end
+
             if mouseButton ~= "LeftButton" then
                 return
             end
+
             InitSV()
             if not (AutoGossip_Settings and AutoGossip_Settings.mountUpEnabledAcc and true or false) then
                 return
@@ -1324,7 +1411,9 @@ do
                 GameTooltip:AddLine("Left-click: " .. (onChar and "disable" or "enable"), 1, 1, 1, true)
             end
 
-            if not IsLocked() then
+            if IsLocked() then
+                GameTooltip:AddLine("Right-click: mount special", 1, 1, 1, true)
+            else
                 GameTooltip:AddLine("Right-drag: move", 1, 1, 1, true)
             end
 
@@ -1395,6 +1484,28 @@ local function EnsureConfigPopup()
     p:SetFrameStrata("DIALOG")
     p:SetClampedToScreen(true)
     p:Hide()
+
+    do
+        local key = "mountUpCfg"
+        local reg = _G and rawget(_G, "FGO_RegisterPopout")
+        if type(reg) == "function" then
+            reg(key, function()
+                if p and p.Hide then
+                    p:Hide()
+                end
+            end)
+        end
+        local prev = p.GetScript and p:GetScript("OnShow")
+        p:SetScript("OnShow", function(self, ...)
+            local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+            if type(closeAll) == "function" then
+                closeAll(key)
+            end
+            if type(prev) == "function" then
+                prev(self, ...)
+            end
+        end)
+    end
 
     p:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
@@ -2397,25 +2508,120 @@ end
 
 do
     local f = CreateFrame("Frame")
+    local wasEatingOrDrinking = false
+    local armedWhileEating = false
+    local eatFinishTimer
 
-    local function OnEvent(_, event)
+    local function CancelEatFinishTimer()
+        if eatFinishTimer and eatFinishTimer.Cancel then
+            eatFinishTimer:Cancel()
+        end
+        eatFinishTimer = nil
+    end
+
+    local function OnEvent(_, event, ...)
         if event == "PLAYER_LOGIN" or event == "VARIABLES_LOADED" then
             InitSV()
+            wasEatingOrDrinking = IsEatingOrDrinking() and true or false
+            armedWhileEating = false
+            CancelEatFinishTimer()
             return
         end
 
         if not IsEnabled() then
             CancelPending()
+            wasEatingOrDrinking = false
+            armedWhileEating = false
+            CancelEatFinishTimer()
+            return
+        end
+
+        if event == "UNIT_AURA" then
+            local unit = ...
+            if unit ~= "player" then
+                return
+            end
+
+            local nowEating = IsEatingOrDrinking() and true or false
+
+            -- While consuming: never allow a queued delayed mount to fire.
+            if nowEating then
+                -- If Mount Up was armed (or had a pending timer) when consumption started,
+                -- schedule a one-shot retry for when the typical ~20s channel ends.
+                if pendingTimer or IsWithinArmWindow(8.0) then
+                    armedWhileEating = true
+                end
+                wasEatingOrDrinking = true
+                CancelPending()
+
+                CancelEatFinishTimer()
+                if armedWhileEating and (C_Timer and C_Timer.NewTimer) then
+                    eatFinishTimer = C_Timer.NewTimer(20.0, function()
+                        eatFinishTimer = nil
+
+                        if not armedWhileEating then
+                            return
+                        end
+                        if IsMoving() then
+                            armedWhileEating = false
+                            return
+                        end
+                        if IsEatingOrDrinking() then
+                            -- Still consuming (or still detected). Don't spam retries.
+                            return
+                        end
+
+                        ScheduleMount("eat-finish", 0.20)
+                        armedWhileEating = false
+                    end)
+                end
+                return
+            end
+
+            -- Transition: eating/drinking ended. If we recently armed Mount Up
+            -- (e.g. stop-moving fired when you sat down), retry shortly.
+            if wasEatingOrDrinking then
+                wasEatingOrDrinking = false
+                CancelEatFinishTimer()
+                if armedWhileEating and not IsMoving() then
+                    ScheduleMount(event, 0.20)
+                end
+                armedWhileEating = false
+            end
             return
         end
 
         if event == "PLAYER_STARTED_MOVING" then
             CancelPending()
+            armedWhileEating = false
+            CancelEatFinishTimer()
             return
         end
 
         if event == "PLAYER_STOPPED_MOVING" then
             ScheduleMount(event, GetDelay())
+            return
+        end
+
+        if event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_SUCCEEDED" then
+            local unit = ...
+            if unit ~= "player" then
+                return
+            end
+
+            -- If we recently tried/armed MountUp (e.g. stop-moving fired while gathering),
+            -- re-attempt shortly after the cast/channel completes.
+            if IsWithinArmWindow(8.0) and not IsMoving() then
+                ScheduleMount(event, 0.20)
+            end
+            return
+        end
+
+        if event == "LOOT_CLOSED" then
+            -- Common after gathering: cast ends -> loot -> close; allow a quick retry.
+            if IsWithinArmWindow(8.0) and not IsMoving() then
+                ScheduleMount(event, 0.20)
+            end
             return
         end
 
@@ -2453,6 +2659,13 @@ do
     f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     f:RegisterEvent("PLAYER_CONTROL_GAINED")
     f:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+
+    f:RegisterEvent("UNIT_AURA")
+
+    f:RegisterEvent("UNIT_SPELLCAST_STOP")
+    f:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
+    f:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+    f:RegisterEvent("LOOT_CLOSED")
 
     f:SetScript("OnEvent", OnEvent)
 end

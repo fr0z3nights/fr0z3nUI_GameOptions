@@ -475,6 +475,68 @@ local function CreateOrUpdateNamedMacro(name, body, perCharacter, icon)
     end
 end
 
+local function CreateOrUpdateNamedMacro_NoOptional(name, body, perCharacter, icon)
+    if InCombat() then
+        return
+    end
+    if type(GetMacroIndexByName) ~= "function" or type(CreateMacro) ~= "function" then
+        Print("Macro API unavailable.")
+        return
+    end
+    if type(body) ~= "string" or body == "" then
+        Print("Nothing to write for macro '" .. tostring(name) .. "'.")
+        return
+    end
+
+    local function NormalizeBodyForCompare(s)
+        if type(s) ~= "string" then
+            return ""
+        end
+        s = s:gsub("\r", "")
+        s = s:gsub("%s+$", "")
+        return s
+    end
+
+    local okLen, whyLen = MacroWithinLimit(body)
+    if not okLen then
+        Print("Macro too long (" .. tostring(#body) .. "/" .. tostring(MAX_MACRO_CHARS) .. ").")
+        return
+    end
+
+    local idx = GetMacroIndexByName(name)
+    if idx and idx > 0 then
+        if type(EditMacro) == "function" then
+            local existingBody = nil
+            if type(GetMacroInfo) == "function" then
+                local ok, _, _, b = pcall(GetMacroInfo, idx)
+                if ok then
+                    existingBody = b
+                end
+            end
+
+            if NormalizeBodyForCompare(existingBody) == NormalizeBodyForCompare(body) then
+                return
+            end
+
+            EditMacro(idx, name, NormalizeMacroIcon(icon), body)
+        else
+            -- No-op (can't edit). Intentionally silent.
+        end
+        return
+    end
+
+    if perCharacter == nil then
+        perCharacter = GetMacroPerCharSetting()
+    end
+
+    local ok = CreateMacro(name, NormalizeMacroIcon(icon), body, perCharacter and true or false)
+    if ok then
+        -- Success. Intentionally silent.
+    else
+        Print("Could not create macro '" .. tostring(name) .. "' (macro slots full?).")
+    end
+end
+
 local function GetMacroBindText(macroName)
     if not (GetBindingKey and macroName) then return "" end
     local k1, k2 = GetBindingKey("MACRO " .. macroName)
@@ -574,6 +636,652 @@ local function MacroBody_ScriptErrors()
     return "/fgo scripterrors"
 end
 
+-- ====================================
+-- Food/Drink macros (DrinkBot-style, minimal)
+-- ====================================
+
+local FOOD_DRINK_SCAN_COOLDOWN_SEC = 1.0
+local FOOD_DRINK_SCAN_MIN_DELAY_SEC = 0.10
+
+local FOOD_MACRO_NAME = "FGO Food"
+local DRINK_MACRO_NAME = "FGO Drink"
+
+local CLASS_CONSUMABLE = (Enum and Enum.ItemClass and Enum.ItemClass.Consumable) or 0
+local SUB_FOOD_DRINK = (Enum and Enum.ItemConsumableSubclass and Enum.ItemConsumableSubclass.FoodAndDrink) or 5
+local foodDrinkSubclassIDs = { [SUB_FOOD_DRINK] = true }
+do
+    if Enum and Enum.ItemConsumableSubclass then
+        local S = Enum.ItemConsumableSubclass
+        if S.Food then foodDrinkSubclassIDs[S.Food] = true end
+        if S.Drink then foodDrinkSubclassIDs[S.Drink] = true end
+    end
+end
+
+local function GetHighestPlayerBagIndex()
+    local highest = NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4
+    if REAGENTBAG_CONTAINER and REAGENTBAG_CONTAINER > highest then
+        highest = REAGENTBAG_CONTAINER
+    end
+    return highest
+end
+
+local function GetFoodDrinkDB()
+    local db = GetHearthDB()
+    db.window = db.window or {}
+    db.window.foodDrink = db.window.foodDrink or {}
+    local fd = db.window.foodDrink
+    if fd.preferConjured == nil then
+        fd.preferConjured = true
+    end
+    return fd
+end
+
+local function GetPreferConjured()
+    local fd = GetFoodDrinkDB()
+    return fd.preferConjured and true or false
+end
+
+local function SetPreferConjured(on)
+    local fd = GetFoodDrinkDB()
+    fd.preferConjured = on and true or false
+end
+
+local FoodDrink = {
+    pendingBags = {},
+    itemsPending = {},
+    tooltipCache = {},
+    lastScanAt = 0,
+    scanTimerArmed = false,
+    scanPending = false,
+    needsRewrite = false,
+    createdFood = false,
+    createdDrink = false,
+    lastFoodID = 0,
+    lastDrinkID = 0,
+}
+
+local function StrNum(s)
+    if not s then return 0 end
+    s = tostring(s)
+    s = s:gsub("%s", "")
+    s = s:gsub("[^%d,%.]", "")
+    local hasComma = s:find(",", 1, true) ~= nil
+    local hasDot = s:find(".", 1, true) ~= nil
+
+    if hasComma and hasDot then
+        local lastComma = s:match(".*(),")
+        local lastDot = s:match(".*()%." )
+        if (lastComma or 0) > (lastDot or 0) then
+            s = s:gsub("%.", "")
+            s = s:gsub(",", ".")
+        else
+            s = s:gsub(",", "")
+        end
+    elseif hasComma then
+        local nCommas = select(2, s:gsub(",", ""))
+        if nCommas == 1 then
+            local pre, post = s:match("^(%d+),(%d+)$")
+            if post and #post <= 2 then
+                s = pre .. "." .. post
+            else
+                s = s:gsub(",", "")
+            end
+        else
+            s = s:gsub(",", "")
+        end
+    elseif hasDot then
+        local nDots = select(2, s:gsub("%.", ""))
+        if nDots > 1 then
+            s = s:gsub("%.", "")
+        end
+    end
+
+    return tonumber(s) or 0
+end
+
+local scanTip
+local function EnsureScanTip()
+    if scanTip then return scanTip end
+    scanTip = CreateFrame("GameTooltip", "FGOFoodDrinkScanTip", UIParent, "GameTooltipTemplate")
+    scanTip:SetOwner(UIParent, "ANCHOR_NONE")
+    return scanTip
+end
+
+local function GetTooltipLinesByItemID(itemID)
+    local lines = {}
+
+    local function SurfaceArgsSafe(x)
+        if TooltipUtil and TooltipUtil.SurfaceArgs then
+            TooltipUtil.SurfaceArgs(x)
+        end
+    end
+    local data = C_TooltipInfo and C_TooltipInfo.GetItemByID and C_TooltipInfo.GetItemByID(itemID)
+    if data and data.lines then
+        SurfaceArgsSafe(data)
+        for i = 1, #data.lines do
+            local line = data.lines[i]
+            SurfaceArgsSafe(line)
+            if line.leftText and line.leftText ~= "" then
+                lines[#lines + 1] = line.leftText
+            end
+            if line.rightText and line.rightText ~= "" then
+                lines[#lines + 1] = line.rightText
+            end
+        end
+        return lines
+    end
+
+    local tip = EnsureScanTip()
+    tip:ClearLines()
+    tip:SetItemByID(itemID)
+    tip:Show()
+
+    for i = 1, 30 do
+        local fs = _G["FGOFoodDrinkScanTipTextLeft" .. i]
+        if fs then
+            local t = fs:GetText()
+            if t and t ~= "" then
+                lines[#lines + 1] = t
+            end
+        end
+    end
+
+    tip:Hide()
+    return lines
+end
+
+local function IsFoodDrinkSubclass(subID, subclassName)
+    if subID and foodDrinkSubclassIDs[subID] then
+        return true
+    end
+    if subclassName and _G.ITEM_SUBCLASS_CONSUMABLE_FOOD_AND_DRINK and subclassName == _G.ITEM_SUBCLASS_CONSUMABLE_FOOD_AND_DRINK then
+        return true
+    end
+    return false
+end
+
+local function GetItemClassSubclassReq(itemID)
+    local name, link, quality, iLevel, reqLevel, className, subclassName,
+          maxStack, equipLoc, icon, sellPrice, classID, subclassID = GetItemInfo(itemID)
+
+    if classID and subclassID then
+        return classID, subclassID, reqLevel or 0, subclassName
+    end
+
+    local _, _, _, _, _, iclass, isub = C_Item.GetItemInfoInstant(itemID)
+    if iclass and isub then
+        local _, _, _, _, req, _, subName = GetItemInfo(itemID)
+        return iclass, isub, req or 0, subName
+    end
+
+    return nil, nil, 0, nil
+end
+
+local function IsConjuredItem(itemID, tooltipLines)
+    if C_Item and C_Item.IsConjuredItem then
+        local ok, v = pcall(C_Item.IsConjuredItem, itemID)
+        if ok and v ~= nil then
+            return v and true or false
+        end
+    end
+
+    if type(tooltipLines) == "table" then
+        for i = 1, #tooltipLines do
+            local t = tostring(tooltipLines[i] or "")
+            if t ~= "" and t:lower():find("conjured", 1, true) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function GetMaxPercentRate(text, maxValue)
+    if not text or text == "" or not maxValue or maxValue <= 0 then
+        return 0, nil
+    end
+    local bestRate = 0
+    local bestSec = nil
+    for percentText, secText in text:gmatch("(%d+)%s*%%%D+(%d+)") do
+        local pct = tonumber(percentText)
+        local sec = tonumber(secText)
+        if pct and sec and sec > 0 then
+            local rate = (maxValue * (pct / 100)) / sec
+            if rate > bestRate then
+                bestRate = rate
+                bestSec = sec
+            end
+        end
+    end
+    return bestRate, bestSec
+end
+
+local function ParseFoodDrinkRates(itemID)
+    local lines = GetTooltipLinesByItemID(itemID)
+    if not lines or #lines == 0 then
+        return nil
+    end
+
+    local hpMax = UnitHealthMax("player") or 0
+    local mpMax = UnitPowerMax("player", 0) or 0
+    local kwHealth = tostring(_G.HEALTH or "health"):lower()
+    local kwMana = tostring(_G.MANA or "mana"):lower()
+
+    local st = {
+        hRate = 0,
+        mRate = 0,
+        isPercent = false,
+        percentDuration = nil,
+        lastSec = nil,
+        lines = lines,
+        parsedLines = #lines,
+    }
+
+    local function isSecondsToken(x)
+        local n = tonumber(x)
+        return n and n > 0 and n <= 120 and n or nil
+    end
+
+    local function parseLine(text)
+        if not text or text == "" then return end
+        local tl = tostring(text):lower()
+
+        -- Percent-based parsing (best-effort, enUS-ish but generally robust)
+        if tl:find("%%") then
+            local percentHealthRate, secH = GetMaxPercentRate(tl, hpMax)
+            local percentManaRate, secM = GetMaxPercentRate(tl, mpMax)
+            local sawH = percentHealthRate > 0 and tl:find(kwHealth, 1, true) ~= nil
+            local sawM = percentManaRate > 0 and tl:find(kwMana, 1, true) ~= nil
+            if sawH then
+                st.hRate = math.max(st.hRate, percentHealthRate)
+                st.isPercent = true
+                st.percentDuration = secH or st.percentDuration
+            end
+            if sawM then
+                st.mRate = math.max(st.mRate, percentManaRate)
+                st.isPercent = true
+                st.percentDuration = secM or st.percentDuration
+            end
+        end
+
+        -- Track a seconds token for continuation lines.
+        do
+            local s = isSecondsToken(tl:match("over%s+(%d+)%s*sec"))
+                or isSecondsToken(tl:match("over%s+(%d+)%s*seconds"))
+                or isSecondsToken(tl:match("over%s+(%d+)%s"))
+                or isSecondsToken(tl:match("(%d+)%s*sec"))
+                or isSecondsToken(tl:match("(%d+)%s*seconds"))
+            if s then
+                st.lastSec = s
+            end
+        end
+
+        -- EnUS restore patterns.
+        -- "Restores X health and Y mana over Z sec"
+        local a1, a2, s = tl:match("restores%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-over%s+(%d+)")
+        if not (a1 and a2 and s) then
+            -- Some tooltips reverse order.
+            a1, a2, s = tl:match("restores%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-over%s+(%d+)")
+            if a1 and a2 and s then
+                -- swap into health,mana order
+                a1, a2 = a2, a1
+            end
+        end
+        if a1 and a2 and s then
+            local sec = isSecondsToken(s)
+            if sec then
+                local h = StrNum(a1)
+                local m = StrNum(a2)
+                if h > 0 then st.hRate = math.max(st.hRate, h / sec) end
+                if m > 0 then st.mRate = math.max(st.mRate, m / sec) end
+            end
+            return
+        end
+
+        -- "Restores X health over Z sec" / "Restores X mana over Z sec"
+        local one, s2 = tl:match("restores%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-over%s+(%d+)")
+        if one and s2 then
+            local sec = isSecondsToken(s2)
+            if sec then
+                local h = StrNum(one)
+                if h > 0 then st.hRate = math.max(st.hRate, h / sec) end
+            end
+            return
+        end
+
+        one, s2 = tl:match("restores%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-over%s+(%d+)")
+        if one and s2 then
+            local sec = isSecondsToken(s2)
+            if sec then
+                local m = StrNum(one)
+                if m > 0 then st.mRate = math.max(st.mRate, m / sec) end
+            end
+            return
+        end
+
+        -- Sec-first patterns: "Over Z sec, restores X health and Y mana" (rare but happens in some strings)
+        local sFirst, n1, n2 = tl:match("over%s+(%d+)%s*sec.-restores%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwMana)
+        if sFirst and n1 and n2 then
+            local sec = isSecondsToken(sFirst)
+            if sec then
+                local h = StrNum(n1)
+                local m = StrNum(n2)
+                if h > 0 then st.hRate = math.max(st.hRate, h / sec) end
+                if m > 0 then st.mRate = math.max(st.mRate, m / sec) end
+            end
+            return
+        end
+
+        sFirst, n1 = tl:match("over%s+(%d+)%s*sec.-restores%s+(%d[%d,%.]*)%s+.-" .. kwHealth)
+        if sFirst and n1 then
+            local sec = isSecondsToken(sFirst)
+            if sec then
+                local h = StrNum(n1)
+                if h > 0 then st.hRate = math.max(st.hRate, h / sec) end
+            end
+            return
+        end
+
+        sFirst, n1 = tl:match("over%s+(%d+)%s*sec.-restores%s+(%d[%d,%.]*)%s+.-" .. kwMana)
+        if sFirst and n1 then
+            local sec = isSecondsToken(sFirst)
+            if sec then
+                local m = StrNum(n1)
+                if m > 0 then st.mRate = math.max(st.mRate, m / sec) end
+            end
+            return
+        end
+
+        -- Continuation fallback: line has a value and keyword, but no explicit seconds.
+        if st.lastSec and st.lastSec > 0 then
+            local v = tl:match("(%d[%d,%.]*)")
+            if v and tl:find(kwHealth, 1, true) then
+                local h = StrNum(v)
+                if h > 0 then st.hRate = math.max(st.hRate, h / st.lastSec) end
+                return
+            end
+            if v and tl:find(kwMana, 1, true) then
+                local m = StrNum(v)
+                if m > 0 then st.mRate = math.max(st.mRate, m / st.lastSec) end
+                return
+            end
+        end
+    end
+
+    for i = 1, #lines do
+        parseLine(lines[i])
+    end
+    if #lines > 1 then
+        parseLine(table.concat(lines, " "))
+    end
+
+    -- If we got nothing useful and the tooltip is effectively empty, treat as pending item data.
+    if st.hRate <= 0 and st.mRate <= 0 then
+        local joined = table.concat(lines, " "):lower()
+        local looksEmpty = (#joined <= 8) or (not joined:find("%d") and not joined:find("%%") and not joined:find(kwHealth, 1, true) and not joined:find(kwMana, 1, true))
+        if looksEmpty then
+            C_Item.RequestLoadItemDataByID(itemID)
+            FoodDrink.itemsPending[itemID] = true
+        end
+    end
+
+    return st
+end
+
+local function ClassifyFoodDrink(itemID)
+    if not itemID then return nil end
+
+    local classID, subID, req, subName = GetItemClassSubclassReq(itemID)
+    if not classID then
+        C_Item.RequestLoadItemDataByID(itemID)
+        FoodDrink.itemsPending[itemID] = true
+        return nil
+    end
+
+    if classID ~= CLASS_CONSUMABLE or not IsFoodDrinkSubclass(subID, subName) then
+        return nil
+    end
+
+    local cached = FoodDrink.tooltipCache[itemID]
+    if cached then
+        return cached
+    end
+
+    local st = ParseFoodDrinkRates(itemID)
+    if not st then return nil end
+
+    local conjured = IsConjuredItem(itemID, st.lines)
+
+    cached = {
+        id = itemID,
+        req = req or 0,
+        hRate = st.hRate or 0,
+        mRate = st.mRate or 0,
+        isPercent = st.isPercent and true or false,
+        percentDuration = st.percentDuration,
+        conjured = conjured,
+    }
+    FoodDrink.tooltipCache[itemID] = cached
+    return cached
+end
+
+local function PickBestFromBags(kind)
+    local bestID = 0
+    local bestScore = 0
+    local lvl = UnitLevel("player") or 1
+    local preferConjured = GetPreferConjured()
+
+    for bag = 0, GetHighestPlayerBagIndex() do
+        local n = C_Container and C_Container.GetContainerNumSlots and (C_Container.GetContainerNumSlots(bag) or 0) or 0
+        for slot = 1, n do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            local id = info and info.itemID
+            if id then
+                local qty = (GetItemCount and GetItemCount(id, false)) or 0
+                if qty and qty > 0 then
+                    local e = ClassifyFoodDrink(id)
+                    if e and (e.req or 0) <= lvl then
+                        local rate = (kind == "food") and (e.hRate or 0) or (e.mRate or 0)
+                        if rate and rate > 0 then
+                            local score = rate
+                            if preferConjured and e.conjured then
+                                score = score + 1e12
+                            end
+                            if score > bestScore or (score == bestScore and id < bestID) then
+                                bestScore = score
+                                bestID = id
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return bestID
+end
+
+local function BuildUseItemMacroBody(itemID, includeHealthstoneCombat, includeConjureRightClick)
+    itemID = tonumber(itemID) or 0
+    if itemID <= 0 then
+        return "#showtooltip\n"
+    end
+
+    local out = "#showtooltip item:" .. tostring(itemID) .. "\n"
+    if includeHealthstoneCombat then
+        -- Healthstone (item:5512): combat fallback when available.
+        out = out .. "/use [combat] item:5512\n"
+    end
+    out = out .. "/use [btn:1] item:" .. tostring(itemID) .. "\n"
+
+    if includeConjureRightClick then
+        -- Right-click conjure fallback (guarded so non-mages don't spam errors).
+        out = out .. "/cast [btn:2,known:Conjure Refreshment] Conjure Refreshment\n"
+        out = out .. "/cast [btn:2,known:Conjure Water] Conjure Water\n"
+        out = out .. "/cast [btn:2,known:Conjure Food] Conjure Food\n"
+    end
+    return out
+end
+
+local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateDrink)
+    if not (GetMacroIndexByName and CreateMacro and EditMacro) then
+        return false, "Macro API unavailable"
+    end
+
+    if InCombat() then
+        FoodDrink.needsRewrite = true
+        return false, "in-combat"
+    end
+
+    local bestFood = PickBestFromBags("food")
+    local bestDrink = PickBestFromBags("drink")
+
+    if allowCreateFood or FoodDrink.createdFood or (GetMacroIndexByName(FOOD_MACRO_NAME) or 0) > 0 then
+        if forceRewrite or bestFood ~= FoodDrink.lastFoodID or (GetMacroIndexByName(FOOD_MACRO_NAME) or 0) == 0 then
+            FoodDrink.lastFoodID = bestFood
+            CreateOrUpdateNamedMacro_NoOptional(FOOD_MACRO_NAME, BuildUseItemMacroBody(bestFood, true, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+        end
+    end
+
+    if allowCreateDrink or FoodDrink.createdDrink or (GetMacroIndexByName(DRINK_MACRO_NAME) or 0) > 0 then
+        if forceRewrite or bestDrink ~= FoodDrink.lastDrinkID or (GetMacroIndexByName(DRINK_MACRO_NAME) or 0) == 0 then
+            FoodDrink.lastDrinkID = bestDrink
+            CreateOrUpdateNamedMacro_NoOptional(DRINK_MACRO_NAME, BuildUseItemMacroBody(bestDrink, false, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+        end
+    end
+
+    FoodDrink.needsRewrite = false
+    return true
+end
+
+local function RunFoodDrinkScan(forceRewrite)
+    FoodDrink.lastScanAt = GetTime()
+
+    local active = (FoodDrink.createdFood or FoodDrink.createdDrink)
+    if not active and type(GetMacroIndexByName) == "function" then
+        active = ((GetMacroIndexByName(FOOD_MACRO_NAME) or 0) > 0) or ((GetMacroIndexByName(DRINK_MACRO_NAME) or 0) > 0)
+    end
+
+    if active then
+        UpdateFoodDrinkMacros(forceRewrite, false, false)
+    end
+end
+
+local function RequestFoodDrinkScan(forceRewrite)
+    FoodDrink.scanPending = true
+    local now = GetTime()
+    local elapsed = now - (FoodDrink.lastScanAt or 0)
+
+    if not FoodDrink.scanTimerArmed then
+        if elapsed >= FOOD_DRINK_SCAN_COOLDOWN_SEC then
+            FoodDrink.scanPending = false
+            RunFoodDrinkScan(forceRewrite)
+            return
+        end
+
+        FoodDrink.scanTimerArmed = true
+        local delay = math.max(FOOD_DRINK_SCAN_MIN_DELAY_SEC, FOOD_DRINK_SCAN_COOLDOWN_SEC - elapsed)
+        C_Timer.After(delay, function()
+            FoodDrink.scanTimerArmed = false
+            if not FoodDrink.scanPending then return end
+            FoodDrink.scanPending = false
+            RunFoodDrinkScan(forceRewrite)
+        end)
+    end
+end
+
+do
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("BAG_UPDATE_DELAYED")
+    f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+    f:RegisterEvent("ITEM_DATA_LOAD_RESULT")
+    f:RegisterEvent("PLAYER_REGEN_ENABLED")
+    f:RegisterEvent("UNIT_MAXHEALTH")
+    f:RegisterEvent("UNIT_MAXPOWER")
+
+    f:SetScript("OnEvent", function(_, event, arg1, arg2)
+        local function IsFoodDrinkActive()
+            if FoodDrink.createdFood or FoodDrink.createdDrink then
+                return true
+            end
+            if type(GetMacroIndexByName) == "function" then
+                if (GetMacroIndexByName(FOOD_MACRO_NAME) or 0) > 0 then
+                    return true
+                end
+                if (GetMacroIndexByName(DRINK_MACRO_NAME) or 0) > 0 then
+                    return true
+                end
+            end
+            return false
+        end
+
+        if event == "PLAYER_ENTERING_WORLD" then
+            C_Timer.After(1.0, function()
+                if IsFoodDrinkActive() then
+                    RequestFoodDrinkScan(true)
+                end
+            end)
+            return
+        end
+
+        if event == "BAG_UPDATE_DELAYED" then
+            if IsFoodDrinkActive() then
+                RequestFoodDrinkScan(false)
+            end
+            return
+        end
+
+        if event == "GET_ITEM_INFO_RECEIVED" then
+            local itemID = arg1
+            if itemID and FoodDrink.itemsPending[itemID] then
+                FoodDrink.itemsPending[itemID] = nil
+                -- Force an update after new item info arrives.
+                if IsFoodDrinkActive() then
+                    RequestFoodDrinkScan(true)
+                end
+            end
+            return
+        end
+
+        if event == "ITEM_DATA_LOAD_RESULT" then
+            local itemID, ok = arg1, arg2
+            if ok and itemID and FoodDrink.itemsPending[itemID] then
+                FoodDrink.itemsPending[itemID] = nil
+                if IsFoodDrinkActive() then
+                    RequestFoodDrinkScan(true)
+                end
+            end
+            return
+        end
+
+        if event == "PLAYER_REGEN_ENABLED" then
+            if FoodDrink.needsRewrite then
+                UpdateFoodDrinkMacros(true, false, false)
+            end
+            return
+        end
+
+        if event == "UNIT_MAXHEALTH" then
+            local unit = arg1
+            if unit == "player" and IsFoodDrinkActive() then
+                -- Percent-based foods depend on max health.
+                RequestFoodDrinkScan(true)
+            end
+            return
+        end
+
+        if event == "UNIT_MAXPOWER" then
+            local unit, powerType = arg1, arg2
+            if unit == "player" and (powerType == nil or powerType == "MANA" or powerType == 0) and IsFoodDrinkActive() then
+                RequestFoodDrinkScan(true)
+            end
+            return
+        end
+    end)
+end
+
 ns.Macros = ns.Macros or {}
 ns.Macros.Print = Print
 ns.Macros.InCombat = InCombat
@@ -606,3 +1314,20 @@ ns.Macros.MacroBody_InstanceReset = MacroBody_InstanceReset
 ns.Macros.MacroBody_Rez = MacroBody_Rez
 ns.Macros.MacroBody_RezCombat = MacroBody_RezCombat
 ns.Macros.MacroBody_ScriptErrors = MacroBody_ScriptErrors
+
+-- Food/Drink macros
+ns.Macros.FoodDrink_GetPreferConjured = GetPreferConjured
+ns.Macros.FoodDrink_SetPreferConjured = function(on)
+    SetPreferConjured(on)
+    if (FoodDrink.createdFood or FoodDrink.createdDrink) or ((type(GetMacroIndexByName) == "function") and (((GetMacroIndexByName(FOOD_MACRO_NAME) or 0) > 0) or ((GetMacroIndexByName(DRINK_MACRO_NAME) or 0) > 0))) then
+        RequestFoodDrinkScan(true)
+    end
+end
+ns.Macros.FoodDrink_CreateFoodMacro = function()
+    FoodDrink.createdFood = true
+    local ok, why = UpdateFoodDrinkMacros(true, true, false)
+end
+ns.Macros.FoodDrink_CreateDrinkMacro = function()
+    FoodDrink.createdDrink = true
+    local ok, why = UpdateFoodDrinkMacros(true, false, true)
+end

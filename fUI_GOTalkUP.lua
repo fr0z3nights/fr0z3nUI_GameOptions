@@ -216,8 +216,11 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
 
     -- Safety: only auto-confirm known gossip-ish confirmations.
     -- (Do NOT accept arbitrary popups by default.)
+    --
+    -- Note: Spirit Healer resurrect confirmations can be shown as the "DEATH" or "XP_LOSS" popup
+    -- on some clients/flows, even though they conceptually behave like a gossip confirm.
     local whichStr = tostring(which or "")
-    if whichStr ~= "GOSSIP_CONFIRM" and whichStr ~= "CONFIRM_BINDER" then
+    if whichStr ~= "GOSSIP_CONFIRM" and whichStr ~= "CONFIRM_BINDER" and whichStr ~= "DEATH" and whichStr ~= "XP_LOSS" then
         D("Skip popup (which=" .. whichStr .. ")")
         return
     end
@@ -363,6 +366,23 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
 
     local norm = text:gsub("’", "'"):lower()
 
+    local function IsSpiritHealerResPopupText()
+        -- Conservative match: these phrases are strongly associated with Spirit Healer resurrect confirms.
+        local needles = {
+            "resurrection sickness",
+            "lose experience",
+            "return to your corpse",
+            "find your corpse",
+        }
+        for i = 1, #needles do
+            local n = needles[i]
+            if n and n ~= "" and norm:find(n, 1, true) ~= nil then
+                return true
+            end
+        end
+        return false
+    end
+
     local function containsAll(list)
         if type(list) ~= "table" or #list == 0 then return true end
         for i = 1, #list do
@@ -431,8 +451,20 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         if expectedWhich == whichStr then
             return true
         end
-        -- Back-compat: treat GOSSIP_CONFIRM as "any hearth/bind style confirm".
-        return (expectedWhich == "GOSSIP_CONFIRM" and whichStr == "CONFIRM_BINDER")
+        -- Back-compat: treat GOSSIP_CONFIRM as a generic confirm bucket.
+        if expectedWhich == "GOSSIP_CONFIRM" then
+            if whichStr == "CONFIRM_BINDER" then
+                return true
+            end
+            -- Spirit Healer resurrect confirmation.
+            if whichStr == "DEATH" then
+                return true
+            end
+            if whichStr == "XP_LOSS" then
+                return true
+            end
+        end
+        return false
     end
 
     local function TextMatches(xpop)
@@ -512,6 +544,37 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
     end
 
     if type(xpop) ~= "table" then
+        -- Fallback: some resurrect confirmations can fire without any gossip option selection context.
+        -- Keep this extremely narrow so we don't accept unrelated death/XP popups.
+        local fallbackEnabled = (AutoGossip_Settings and (AutoGossip_Settings.autoAcceptTalkUpConfirmAcc or AutoGossip_Settings.autoAcceptWhitemaneSkipAcc)) and true or false
+        if fallbackEnabled and (whichStr == "DEATH" or whichStr == "XP_LOSS") and IsSpiritHealerResPopupText() then
+            if not (C_Timer and C_Timer.After) then
+                return
+            end
+
+            C_Timer.After(0, function()
+                for i = 1, 4 do
+                    local popup = _G["StaticPopup" .. i]
+                    if popup and popup.IsShown and popup:IsShown() and popup.which == which then
+                        local ok = false
+                        if popup.button1 and popup.button1.Click then
+                            ok = pcall(popup.button1.Click, popup.button1)
+                        elseif StaticPopup_OnClick then
+                            ok = pcall(StaticPopup_OnClick, popup, 1)
+                        end
+                        if ok then
+                            if AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc then
+                                Print("Auto-confirmed talk popup (fallback)")
+                            end
+                            M._lastGossipSelection = nil
+                        end
+                        return
+                    end
+                end
+            end)
+            return
+        end
+
         D("No xpop context")
         return
     end
@@ -525,12 +588,9 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         return
     end
 
-    local expectedWhich = tostring(xpop.which or "")
-    if expectedWhich ~= whichStr then
-        if not (expectedWhich == "GOSSIP_CONFIRM" and whichStr == "CONFIRM_BINDER") then
-            D("Which mismatch: expected=" .. expectedWhich .. ", got=" .. whichStr)
-            return
-        end
+    if not WhichMatches(xpop.which) then
+        D("Which mismatch: expected=" .. tostring(xpop.which or "") .. ", got=" .. whichStr)
+        return
     end
 
     local matched = TextMatches(xpop)

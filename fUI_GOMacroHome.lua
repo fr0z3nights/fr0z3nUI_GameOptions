@@ -12,11 +12,16 @@ end
 
 local HOME_CLICK_BTN_1 = "FGO_HomeTeleport1"
 local HOME_CLICK_BTN_2 = "FGO_HomeTeleport2"
+local PORTAL_CLICK_BTN = "FGO_HMPortalTeleport"
 local SAVED_CLICK_BTN_PREFIX = "FGO_TeleportButton"
 
 local function GetHomeClickMacroBody(which)
     local name = (which == 2) and HOME_CLICK_BTN_2 or HOME_CLICK_BTN_1
     return "/click " .. name
+end
+
+local function GetPortalClickMacroBody()
+    return "/click " .. PORTAL_CLICK_BTN
 end
 
 local function GetSavedTeleportClickMacroBodyById(id)
@@ -32,6 +37,7 @@ local ConfigureAllSavedTeleportButtons
 
 local AttachAttemptTracking
 local CaptureSavedTeleportFromCurrentHouse
+local CapturePortalTeleportFromCurrentHouse
 
 -- Home teleport engine (secure /click buttons + stale GUID retry).
 do
@@ -666,12 +672,68 @@ do
 
     -- Cache warm: GetPlayerOwnedHouses() often populates asynchronously.
     local function GetHomeTeleportSV()
-        _G.AutoGame_CharSettings = _G.AutoGame_CharSettings or {}
-        local cs = _G.AutoGame_CharSettings
-        if type(cs.fgoHomeTeleports) ~= "table" then
-            cs.fgoHomeTeleports = {}
+        local acc = (type(rawget) == "function" and rawget(_G, "AutoGame_Settings")) or _G.AutoGame_Settings
+        if type(acc) ~= "table" then
+            _G.AutoGame_Settings = _G.AutoGame_Settings or {}
+            acc = _G.AutoGame_Settings
         end
-        return cs.fgoHomeTeleports
+        if type(acc.fgoHomeTeleports) ~= "table" then
+            acc.fgoHomeTeleports = {}
+        end
+
+        -- Opportunistic migration: if an alt has old per-character slots,
+        -- copy them into the new account-wide table (only when missing).
+        local cs = (type(rawget) == "function" and rawget(_G, "AutoGame_CharSettings")) or _G.AutoGame_CharSettings
+        local legacy = (type(cs) == "table") and cs.fgoHomeTeleports or nil
+        if type(legacy) == "table" then
+            for which = 1, 2 do
+                local dst = acc.fgoHomeTeleports[which]
+                local src = legacy[which]
+                if type(dst) ~= "table" and type(src) == "table" then
+                    acc.fgoHomeTeleports[which] = {
+                        neighborhoodGUID = src.neighborhoodGUID,
+                        houseGUID = src.houseGUID,
+                        plotID = src.plotID,
+                        neighborhoodName = src.neighborhoodName,
+                    }
+                end
+            end
+        end
+
+        return acc.fgoHomeTeleports
+    end
+
+    local function GetPortalTeleportSV()
+        local acc = (type(rawget) == "function" and rawget(_G, "AutoGame_Settings")) or _G.AutoGame_Settings
+        if type(acc) ~= "table" then
+            _G.AutoGame_Settings = _G.AutoGame_Settings or {}
+            acc = _G.AutoGame_Settings
+        end
+        if type(acc.fgoHmPortalTargets) ~= "table" then
+            acc.fgoHmPortalTargets = {}
+        end
+        return acc.fgoHmPortalTargets
+    end
+
+    local function GetPlayerFactionKey()
+        local f = (type(UnitFactionGroup) == "function") and UnitFactionGroup("player") or nil
+        if f == "Alliance" then
+            return "alliance"
+        end
+        if f == "Horde" then
+            return "horde"
+        end
+        return nil
+    end
+
+    local function GetPortalTargetForPlayer()
+        local key = GetPlayerFactionKey()
+        local sv = GetPortalTeleportSV()
+        local info = (type(sv) == "table" and key) and sv[key] or nil
+        if type(info) ~= "table" then
+            return key, nil
+        end
+        return key, info
     end
 
     local function GetSavedTeleportsSV()
@@ -719,6 +781,57 @@ do
             AttachAttemptTracking(b)
         end
         return b
+    end
+
+    local function EnsurePortalClickButton()
+        if type(CreateFrame) ~= "function" then
+            return nil
+        end
+        local b = _G[PORTAL_CLICK_BTN]
+        if not b then
+            b = CreateFrame("Button", PORTAL_CLICK_BTN, UIParent, "SecureActionButtonTemplate")
+            if b and b.Hide then
+                b:Hide()
+            end
+        end
+        if b and b.SetAttribute then
+            b:SetAttribute("type", "teleporthome")
+        end
+
+        -- Track attempts for stale GUID retry (MHT-style)
+        b._fgoTeleportKind = "portal"
+
+        if AttachAttemptTracking then
+            AttachAttemptTracking(b)
+        end
+        return b
+    end
+
+    local function ConfigurePortalClickButtonForPlayer()
+        if InCombatLockdown and InCombatLockdown() then
+            MarkSavedPendingCombat()
+            return false
+        end
+
+        local b = EnsurePortalClickButton()
+        if not b or not b.SetAttribute then
+            return false
+        end
+
+        local key = GetPlayerFactionKey()
+        local sv = GetPortalTeleportSV()
+        local info = (type(sv) == "table" and key) and sv[key] or nil
+        if type(info) ~= "table" then
+            b:SetAttribute("house-neighborhood-guid", nil)
+            b:SetAttribute("house-guid", nil)
+            b:SetAttribute("house-plot-id", nil)
+            return true
+        end
+
+        b:SetAttribute("house-neighborhood-guid", info.neighborhoodGUID)
+        b:SetAttribute("house-guid", info.houseGUID)
+        b:SetAttribute("house-plot-id", info.plotID)
+        return true
     end
 
     local function ConfigureHomeClickButton(which)
@@ -911,6 +1024,25 @@ do
             return "Saved"
         end
 
+        if attempt.kind == "portal" then
+            local key, p = GetPortalTargetForPlayer()
+            local label = (key == "horde") and "Portal (Horde)" or "Portal (Alliance)"
+            if type(p) == "table" then
+                local pn = tostring(p.plotName or "")
+                local nn = tostring(p.neighborhoodName or "")
+                if pn ~= "" and nn ~= "" then
+                    return label .. ": " .. pn .. " (" .. nn .. ")"
+                end
+                if pn ~= "" then
+                    return label .. ": " .. pn
+                end
+                if nn ~= "" then
+                    return label .. ": " .. nn
+                end
+            end
+            return label
+        end
+
         return nil
     end
 
@@ -987,6 +1119,22 @@ do
                 end
             end
         end
+
+        -- Update portal target (account) that matches neighborhoodGUID+plotID.
+        local key = GetPlayerFactionKey()
+        if key then
+            local psv = GetPortalTeleportSV()
+            local p = psv and psv[key] or nil
+            if type(p) == "table" and p.neighborhoodGUID == info.neighborhoodGUID and p.plotID == info.plotID then
+                if p.houseGUID ~= info.houseGUID then
+                    p.houseGUID = info.houseGUID
+                    if type(info.neighborhoodName) == "string" and info.neighborhoodName ~= "" then
+                        p.neighborhoodName = info.neighborhoodName
+                    end
+                    ConfigurePortalClickButtonForPlayer()
+                end
+            end
+        end
     end
 
     local function OnTeleportError(attempt)
@@ -995,6 +1143,7 @@ do
         end
 
         if attempt.kind == "home" then
+            attempt.didRetry = true
             local which = attempt.which
             local sv = GetHomeTeleportSV()
             local h = sv and sv[which] or nil
@@ -1012,6 +1161,7 @@ do
         end
 
         if attempt.kind == "saved" then
+            attempt.didRetry = true
             local id = attempt.id
             local db = GetSavedTeleportsSV()
             local list = db and db.list
@@ -1032,6 +1182,27 @@ do
                 end
             end
         end
+
+        if attempt.kind == "portal" then
+            attempt.didRetry = true
+            local key = GetPlayerFactionKey()
+            if not key then
+                return
+            end
+            local sv = GetPortalTeleportSV()
+            local p = sv and sv[key] or nil
+            if type(p) ~= "table" or type(p.houseGUID) ~= "string" then
+                return
+            end
+            local newGUID = IncrementHouseGUID(p.houseGUID)
+            if not newGUID then
+                return
+            end
+            p.houseGUID = newGUID
+            ConfigurePortalClickButtonForPlayer()
+            NotifyRetry("Portal ID updated - press again (" .. tostring(teleportAttemptCount) .. "/9)")
+            return
+        end
     end
 
     AttachAttemptTracking = function(btn)
@@ -1051,13 +1222,15 @@ do
                 return
             end
 
-            local attempt = { time = GetTime and GetTime() or 0 }
+            local attempt = { time = GetTime and GetTime() or 0, didRetry = false }
             if self._fgoTeleportKind == "home" then
                 attempt.kind = "home"
                 attempt.which = tonumber(self._fgoTeleportWhich) or 1
             elseif self._fgoTeleportKind == "saved" then
                 attempt.kind = "saved"
                 attempt.id = tonumber(self._fgoTeleportId)
+            elseif self._fgoTeleportKind == "portal" then
+                attempt.kind = "portal"
             end
 
             local key
@@ -1065,6 +1238,8 @@ do
                 key = "home:" .. tostring(tonumber(attempt.which) or 1)
             elseif attempt.kind == "saved" then
                 key = "saved:" .. tostring(tonumber(attempt.id) or "")
+            elseif attempt.kind == "portal" then
+                key = "portal"
             end
 
             -- Reset counters when switching between destinations.
@@ -1079,7 +1254,14 @@ do
             attempt.displayName = DescribeAttempt(attempt)
             lastTeleportAttempt = attempt
 
-            if attempt.displayName then
+            if attempt.kind == "portal" then
+                local _, p = GetPortalTargetForPlayer()
+                if type(p) ~= "table" then
+                    Print("HM Portal target not set. Use: /fgo hm portal set")
+                elseif attempt.displayName then
+                    Print("Teleporting to: " .. tostring(attempt.displayName))
+                end
+            elseif attempt.displayName then
                 Print("Teleporting to: " .. tostring(attempt.displayName))
             end
 
@@ -1089,7 +1271,7 @@ do
                     if lastTeleportAttempt == attemptInfo then
                         lastTeleportAttempt = nil
                         lastTeleportAttemptKey = nil
-                        if teleportAttemptCount > 1 and attemptInfo.displayName then
+                        if teleportAttemptCount > 1 and attemptInfo.didRetry and attemptInfo.displayName then
                             Print("Found ID for: " .. tostring(attemptInfo.displayName) .. ", teleport should now work during this session.")
                         end
                         teleportAttemptCount = 0
@@ -1224,6 +1406,46 @@ do
         return true
     end
 
+    CapturePortalTeleportFromCurrentHouse = function()
+        if InCombatLockdown and InCombatLockdown() then
+            return false, nil, "In combat"
+        end
+        if not (C_Housing and type(C_Housing.GetCurrentHouseInfo) == "function") then
+            return false, nil, "C_Housing.GetCurrentHouseInfo unavailable"
+        end
+        local ok, info = pcall(C_Housing.GetCurrentHouseInfo)
+        if not ok or type(info) ~= "table" then
+            return false, nil, "GetCurrentHouseInfo failed"
+        end
+
+        local neighborhoodGUID = info.neighborhoodGUID
+        local houseGUID = info.houseGUID
+        local plotID = info.plotID
+        if neighborhoodGUID == nil or houseGUID == nil or plotID == nil then
+            return false, nil, "Enter a plot first"
+        end
+
+        local key = GetPlayerFactionKey()
+        if not key then
+            return false, nil, "Unknown faction"
+        end
+
+        local neighborhoodName = tostring(info.neighborhoodName or info["neighborhood"] or "")
+        local plotName = tostring(info.plotName or info["plotName"] or info.ownerName or info["ownerName"] or "")
+
+        local sv = GetPortalTeleportSV()
+        sv[key] = {
+            neighborhoodGUID = neighborhoodGUID,
+            houseGUID = houseGUID,
+            plotID = plotID,
+            neighborhoodName = neighborhoodName,
+            plotName = plotName,
+        }
+
+        ConfigurePortalClickButtonForPlayer()
+        return true, key, "captured"
+    end
+
     CaptureSavedTeleportFromCurrentHouse = function(name)
         if InCombatLockdown and InCombatLockdown() then
             return false, nil, "In combat"
@@ -1305,6 +1527,7 @@ do
             _savedPendingCombat = false
             ConfigureHomeClickButton(1)
             ConfigureHomeClickButton(2)
+            ConfigurePortalClickButtonForPlayer()
             ConfigureAllSavedTeleportButtons()
         end)
 
@@ -1327,11 +1550,13 @@ do
 
             ConfigureHomeClickButton(1)
             ConfigureHomeClickButton(2)
+            ConfigurePortalClickButtonForPlayer()
             ConfigureAllSavedTeleportButtons()
 
             -- Attach stale-retry attempt tracking to all buttons we manage.
             AttachAttemptTracking(_G[HOME_CLICK_BTN_1])
             AttachAttemptTracking(_G[HOME_CLICK_BTN_2])
+            AttachAttemptTracking(_G[PORTAL_CLICK_BTN])
             do
                 local db = GetSavedTeleportsSV()
                 local list = db and db.list
@@ -1361,10 +1586,12 @@ end
 
 ns.Home.Print = Print
 ns.Home.GetHomeClickMacroBody = GetHomeClickMacroBody
+ns.Home.GetPortalClickMacroBody = GetPortalClickMacroBody
 ns.Home.GetSavedTeleportClickMacroBodyById = GetSavedTeleportClickMacroBodyById
 ns.Home.ConfigureSavedTeleportClickButtonById = ConfigureSavedTeleportClickButtonById
 ns.Home.ConfigureAllSavedTeleportButtons = ConfigureAllSavedTeleportButtons
 ns.Home.CaptureSavedTeleportFromCurrentHouse = CaptureSavedTeleportFromCurrentHouse
+ns.Home.CapturePortalTeleportFromCurrentHouse = CapturePortalTeleportFromCurrentHouse
 
 local function Trim(s)
 	s = tostring(s or "")
@@ -1416,28 +1643,81 @@ function ns.Home.HandleHM(sub, subarg)
 		return true
 	end
 
-    -- Convenience: one command that works on both factions.
-    -- Uses Home slot 1 for Alliance characters, slot 2 for Horde characters.
+    -- HM Portal: dedicated, account-wide target (separate from Home1/Home2).
+    -- Use `/fgo hm portal set` while standing in the desired (friend) plot on each faction.
     if sub == "portal" then
-        local faction = (type(UnitFactionGroup) == "function") and UnitFactionGroup("player") or nil
-        local which = (faction == "Horde") and 2 or 1
-        local body = (ns.Home.GetHomeClickMacroBody and ns.Home.GetHomeClickMacroBody(which)) or GetHomeClickMacroBody(which)
+        local arg = Trim(subarg):lower()
+        local body = (ns.Home.GetPortalClickMacroBody and ns.Home.GetPortalClickMacroBody()) or GetPortalClickMacroBody()
 
-        if InCombatLockdown and InCombatLockdown() then
-            print("|cff00ccff[FGO]|r Can't teleport in combat. Use: |cFFFFCC00" .. tostring(body) .. "|r")
+        if arg == "set" or arg == "capture" then
+            local ok, key, mode
+            if ns.Home.CapturePortalTeleportFromCurrentHouse then
+                ok, key, mode = ns.Home.CapturePortalTeleportFromCurrentHouse()
+            else
+                ok, key, mode = false, nil, "Portal capture unavailable"
+            end
+            if not ok then
+                print("|cff00ccff[FGO]|r Unable to capture portal target: " .. tostring(mode or key or ""))
+                return true
+            end
+            print("|cff00ccff[FGO]|r Portal target saved for |cFFFFCC00" .. tostring(key) .. "|r (" .. tostring(mode or "") .. ")")
+            print("|cff00ccff[FGO]|r Macro body: |cFFFFCC00" .. tostring(body) .. "|r")
             return true
         end
 
-        ---@diagnostic disable-next-line: undefined-global
-        if type(RunMacroText) == "function" then
-            ---@diagnostic disable-next-line: undefined-global
-            local ok = pcall(RunMacroText, tostring(body or ""))
-            if ok then
-                return true
-            end
+        if arg == "macro" then
+            print("|cff00ccff[FGO]|r HM Portal macro body: |cFFFFCC00" .. tostring(body) .. "|r")
+            return true
         end
 
-        print("|cff00ccff[FGO]|r Use: |cFFFFCC00" .. tostring(body) .. "|r")
+        if arg == "status" or arg == "debug" then
+            local key, info
+            do
+                local sv = (type(rawget) == "function" and rawget(_G, "AutoGame_Settings")) or _G.AutoGame_Settings
+                local targets = (type(sv) == "table") and sv.fgoHmPortalTargets or nil
+                local f = (type(UnitFactionGroup) == "function") and UnitFactionGroup("player") or nil
+                if f == "Alliance" then
+                    key = "alliance"
+                elseif f == "Horde" then
+                    key = "horde"
+                end
+                info = (type(targets) == "table" and key) and targets[key] or nil
+            end
+
+            print("|cff00ccff[FGO]|r HM Portal status:")
+            print("|cff00ccff[FGO]|r - factionKey=" .. tostring(key))
+            if type(info) ~= "table" then
+                print("|cff00ccff[FGO]|r - savedTarget=<none> (run: /fgo hm portal set)")
+            else
+                print("|cff00ccff[FGO]|r - savedTarget plotID=" .. tostring(info.plotID) .. " neighborhood=" .. tostring(info.neighborhoodName or "") .. " plot=" .. tostring(info.plotName or ""))
+                print("|cff00ccff[FGO]|r - savedTarget ng=" .. tostring(info.neighborhoodGUID) .. " hg=" .. tostring(info.houseGUID))
+            end
+
+            local b = _G and _G["FGO_HMPortalTeleport"] or nil
+            if b and b.GetAttribute then
+                local ng = b:GetAttribute("house-neighborhood-guid")
+                local hg = b:GetAttribute("house-guid")
+                local pid = b:GetAttribute("house-plot-id")
+                print("|cff00ccff[FGO]|r - button attrs plotID=" .. tostring(pid) .. " ng=" .. tostring(ng) .. " hg=" .. tostring(hg))
+            else
+                print("|cff00ccff[FGO]|r - button=<missing> (reload once to create/configure)")
+            end
+            if C_Housing and type(C_Housing.GetVisitCooldownInfo) == "function" then
+                local ok, cooldownInfo = pcall(C_Housing.GetVisitCooldownInfo)
+                if ok and type(cooldownInfo) == "table" then
+                    local remaining = ((tonumber(cooldownInfo.startTime) or 0) + (tonumber(cooldownInfo.duration) or 0)) - ((GetTime and GetTime()) or 0)
+                    print("|cff00ccff[FGO]|r - visitCooldownRemaining=" .. tostring(math.floor(math.max(remaining, 0))))
+                end
+            end
+
+            print("|cff00ccff[FGO]|r - macroBody: |cFFFFCC00" .. tostring(body) .. "|r")
+            return true
+        end
+
+        print("|cff00ccff[FGO]|r HM Portal:")
+        print("|cff00ccff[FGO]|r - Set: |cFFFFCC00/fgo hm portal set|r (stand in the desired plot)")
+        print("|cff00ccff[FGO]|r - Status: |cFFFFCC00/fgo hm portal status|r")
+        print("|cff00ccff[FGO]|r - Macro: |cFFFFCC00" .. tostring(body) .. "|r")
         return true
     end
 

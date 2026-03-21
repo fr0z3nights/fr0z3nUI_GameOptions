@@ -2399,6 +2399,28 @@ function ns.SituateUI_Build(panel)
     pickerFrame:SetBackdropColor(0, 0, 0, 0.85)
     pickerFrame:Hide()
 
+    do
+        local key = "situatePicker"
+        local reg = _G and rawget(_G, "FGO_RegisterPopout")
+        if type(reg) == "function" then
+            reg(key, function()
+                if pickerFrame and pickerFrame.Hide then
+                    pickerFrame:Hide()
+                end
+            end)
+        end
+        local prev = pickerFrame.GetScript and pickerFrame:GetScript("OnShow")
+        pickerFrame:SetScript("OnShow", function(self, ...)
+            local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+            if type(closeAll) == "function" then
+                closeAll(key)
+            end
+            if type(prev) == "function" then
+                prev(self, ...)
+            end
+        end)
+    end
+
     local pickerTitle = pickerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     pickerTitle:SetPoint("TOPLEFT", pickerFrame, "TOPLEFT", 6, -6)
     pickerTitle:SetText("")

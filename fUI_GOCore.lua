@@ -6,11 +6,12 @@ local ADDON = addonName
 
 local PREFIX = "|cff00ccff[FGO]|r "
 
-local LI = (ns and ns.LootIt) or fr0z3nUI_LootIt or {}
+local LI = (type(ns) == "table" and ns.LootIt) or {}
 -- Single-addon model: keep LootIt under the FGO addon namespace.
 -- The global is retained only as a compatibility alias for older modules.
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
+fr0z3nUI_LootIt_HOST = ADDON
 LI.PREFIX = PREFIX
 LI.ADDON = ADDON
 
@@ -48,28 +49,6 @@ do
       handler(event, arg1)
     end
   end)
-end
-
-local function IsAddOnLoadedSafe(name)
-  if type(name) ~= "string" or name == "" then return false end
-  do
-    local api = _G and rawget(_G, "C_AddOns")
-    if type(api) == "table" and type(api.IsAddOnLoaded) == "function" then
-      local ok, r = pcall(api.IsAddOnLoaded, name)
-      if ok then return r == true end
-    end
-  end
-  if type(IsAddOnLoaded) == "function" then
-    local ok, r = pcall(IsAddOnLoaded, name)
-    if ok then return r == true end
-  end
-  return false
-end
-
--- Compatibility guard: if the legacy standalone LootIt addon is loaded, avoid double-init.
-local CORE_OK = not IsAddOnLoadedSafe("fr0z3nUI_LootIt")
-if CORE_OK then
-  fr0z3nUI_LootIt_HOST = ADDON
 end
 
 local function Print(msg)
@@ -381,6 +360,18 @@ local function EnsureDB()
   if DB and DB.other and DB.other.outputChatFrame == nil then
     DB.other.outputChatFrame = DB.outputChatFrame or 1
   end
+  if DB and DB.other and DB.other.hidePlayed == nil then
+    -- UI toggle: when enabled, suppresses /played system output lines.
+    DB.other.hidePlayed = false
+  end
+  if DB and DB.suppress == nil then
+    -- Generic chat suppress list (SV-backed). Used to hide addon/chat spam without editing addons.
+    DB.suppress = { enabled = true, rules = {} }
+  end
+  if DB and type(DB.suppress) == "table" then
+    if DB.suppress.enabled == nil then DB.suppress.enabled = true end
+    if type(DB.suppress.rules) ~= "table" then DB.suppress.rules = {} end
+  end
   if DB and DB.other and type(DB.other.achievement) ~= "table" then
     DB.other.achievement = {}
   end
@@ -391,8 +382,19 @@ local function EnsureDB()
     DB.other.experience.showBonus = true
   end
   if DB and DB.other and type(DB.other.experience) == "table" then
+    if DB.other.experience.questXP == nil then
+      -- Separate toggle (not part of Before/After). When on, hides Accepted/Completed lines and
+      -- appends the Completed quest title to the XP gain output.
+      DB.other.experience.questXP = false
+    end
+
     local pos = tostring(DB.other.experience.xpLabelPos or "after")
     pos = pos:lower():gsub("%s+", "")
+    -- Migration: older experiment used xpLabelPos='quest'. Preserve intent using questXP.
+    if pos == "quest" then
+      DB.other.experience.questXP = true
+      pos = "after"
+    end
     if pos ~= "before" and pos ~= "after" then pos = "after" end
     DB.other.experience.xpLabelPos = pos
   end
@@ -933,6 +935,7 @@ local function BootstrapMailNotifier()
 end
 
 local f = CreateFrame("Frame")
+local _merchantInteractionOpen = false
 f:RegisterEvent("PLAYER_LOGIN")
 f:RegisterEvent("PLAYER_ENTERING_WORLD")
 f:RegisterEvent("PLAYER_GUILD_UPDATE")
@@ -948,6 +951,7 @@ f:RegisterEvent("GUILDBANKFRAME_OPENED")
 f:RegisterEvent("GUILDBANKFRAME_CLOSED")
 f:RegisterEvent("BANKFRAME_OPENED")
 f:RegisterEvent("BANKFRAME_CLOSED")
+f:RegisterEvent("UI_ERROR_MESSAGE")
 f:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
 f:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
 f:RegisterEvent("PLAYER_REGEN_DISABLED")
@@ -955,7 +959,7 @@ f:RegisterEvent("PLAYER_REGEN_ENABLED")
 f:RegisterEvent("LOOT_OPENED")
 f:RegisterEvent("LOOT_CLOSED")
 f:RegisterEvent("LOOT_READY")
-f:SetScript("OnEvent", function(_, event, arg1)
+f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
   EnsureDB()
   if event == "PLAYER_LOGIN" then
     UpdateSeenGuilds("PLAYER_LOGIN")
@@ -1002,6 +1006,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
       tax.OnMoneyMessage(event, arg1)
     end
   elseif event == "MERCHANT_SHOW" then
+    _merchantInteractionOpen = true
     local trade = LI and LI.Trade
     if trade and type(trade.OnMerchantShow) == "function" then
       trade.OnMerchantShow({
@@ -1025,6 +1030,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
       end
     end
   elseif event == "MERCHANT_CLOSED" then
+    _merchantInteractionOpen = false
     local trade = LI and LI.Trade
     if trade and type(trade.OnMerchantClosed) == "function" then
       trade.OnMerchantClosed({
@@ -1050,6 +1056,18 @@ f:SetScript("OnEvent", function(_, event, arg1)
         tax.OnMerchantClosed()
       end
     end
+  elseif event == "UI_ERROR_MESSAGE" then
+    if _merchantInteractionOpen == true then
+      local trade = LI and LI.Trade
+      if trade and type(trade.OnUIErrorMessage) == "function" then
+        trade.OnUIErrorMessage({
+          Print = Print,
+          GetDB = function()
+            return DB
+          end,
+        }, arg1, arg2)
+      end
+    end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" or event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
     local it = (Enum and Enum.PlayerInteractionType) and Enum.PlayerInteractionType or nil
     local isShow = (event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
@@ -1057,6 +1075,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
     local isAccountBanker = (it and it.AccountBanker and arg1 == it.AccountBanker) and true or false
     local isGuildBanker = (it and it.GuildBanker and arg1 == it.GuildBanker) and true or false
     local isMailbox = (it and it.MailInfo and arg1 == it.MailInfo) and true or false
+    local isMerchant = (it and it.Merchant and arg1 == it.Merchant) and true or false
     do
       local tax = LI and LI.Tax
       if tax and tax.OnInteraction then
@@ -1082,6 +1101,37 @@ f:SetScript("OnEvent", function(_, event, arg1)
             BootstrapMailNotifier()
           end
         end
+      end
+    end
+
+    -- Merchant interactions: some clients/UIs prefer the interaction manager events.
+    -- Dedupe against MERCHANT_SHOW/CLOSED so we don't restart the ticker twice.
+    if isMerchant then
+      local trade = LI and LI.Trade
+      if trade and isShow and (not _merchantInteractionOpen) and type(trade.OnMerchantShow) == "function" then
+        _merchantInteractionOpen = true
+        trade.OnMerchantShow({
+          StartMerchantTradeTicker = trade.StartMerchantTradeTicker,
+          StopMerchantTradeTicker = trade.StopMerchantTradeTicker,
+          DelayPrintFlushAll = DelayPrintFlushAll,
+          Print = Print,
+          GetDB = function()
+            return DB
+          end,
+          Tax = LI and LI.Tax,
+        })
+      elseif trade and (not isShow) and _merchantInteractionOpen and type(trade.OnMerchantClosed) == "function" then
+        _merchantInteractionOpen = false
+        trade.OnMerchantClosed({
+          StartMerchantTradeTicker = trade.StartMerchantTradeTicker,
+          StopMerchantTradeTicker = trade.StopMerchantTradeTicker,
+          DelayPrintFlushAll = DelayPrintFlushAll,
+          Print = Print,
+          GetDB = function()
+            return DB
+          end,
+          Tax = LI and LI.Tax,
+        })
       end
     end
     if isBanker then

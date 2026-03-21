@@ -54,22 +54,22 @@ end
 SetZone("Frostfire Ridge, Draenor")
 
     local t = NPC( 87122, "Gargra")
-    t[42881] = { text = "Let's do this!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, type = "", }
+    t[42881] = { text = "Let's do this!", mount = true, type = "", }
 
 SetZone("Gorgrond, Draenor")
 
     local t = NPC( 83837, "Cymre Brightblade")
-    t[42651] = { text = "Let's do battle!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, type = "", }
+    t[42651] = { text = "Let's do battle!", mount = true, type = "", }
 
 SetZone("Nagrand, Draenor")
 
     local t = NPC( 87110, "Tarr the Terrible")
-    t[42882] = { text = "Let's do this!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, type = "", }
+    t[42882] = { text = "Let's do this!", mount = true, type = "", }
 
 SetZone("Shadowmoon Valley, Draenor")
 
     local t = NPC(87124, "Ashlei")
-    t[43294] = { text = "Let's do this!", type = "" }
+    t[43294] = { text = "Let's do this!", mount = true, type = "" }
 
     local t = NPC(79243, "Baros Alexston")
     t[43035] = { text = "We have everything we need. It's time to build the garrison.", type = "" }
@@ -77,7 +77,7 @@ SetZone("Shadowmoon Valley, Draenor")
 SetZone("Talador, Draenor")
 
     local t = NPC(87125, "Taralune")
-    t[42883] = { text = "Let's do this!", type = "" }
+    t[42883] = { text = "Let's do this!", mount = true, type = "" }
 
 SetZone("Spires of Arak, Draenor")
 
@@ -88,7 +88,7 @@ SetZone("Spires of Arak, Draenor")
     t[42904] = { text = "Show me where I can fly.", type = "" }
 
     local t = NPC(87123, "Vesharr")
-    t[43292] = { text = "Lets do battle!", type = "" }
+    t[43292] = { text = "Lets do battle!", mount = true, type = "" }
 
 SetZone("Garrison, Draenor")
 

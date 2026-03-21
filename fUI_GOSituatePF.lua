@@ -1,6 +1,32 @@
 local addonName, ns = ...
 ns = ns or {}
 
+-- Popout manager (initialized early): allow only one popout open at a time.
+-- NOTE: This must exist before other modules load, because many popouts register during file load.
+do
+    if not (_G and rawget(_G, "FGO_RegisterPopout")) then
+        local closers = {}
+
+        _G.FGO_RegisterPopout = function(key, closeFn)
+            if type(key) ~= "string" or key == "" then
+                return
+            end
+            if type(closeFn) ~= "function" then
+                return
+            end
+            closers[key] = closeFn
+        end
+
+        _G.FGO_CloseAllPopouts = function(exceptKey)
+            for key, closeFn in pairs(closers) do
+                if key ~= exceptKey and type(closeFn) == "function" then
+                    pcall(closeFn)
+                end
+            end
+        end
+    end
+end
+
 -- Professions/skill-tier cache (per character)
 -- Used by Talk DB packs to make decisions even when C_TradeSkillUI APIs are not ready during a gossip frame.
 ns.Profs = ns.Profs or {}

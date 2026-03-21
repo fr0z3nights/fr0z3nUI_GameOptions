@@ -524,14 +524,36 @@ SetZone("Westfall, Eastern Kingdoms")
 
 SetZone("Voidstorm, Eastern Kingdoms")
 
-   local t = NPCs({ 235521, }, "Alleria Windrunner")
+   local t = NPCs({ 235521, 235502, 235763, }, "Alleria Windrunner")
    t[132609] = { text = "<Ask Alleria how you can help.>", type = "" }                             -- The Far Far Frontier (86881) Alleria Windrunner (235521)
+   t[132795] = { text = "<Tell Alleria you're ready to claim the Mantle.>", type = "" }            -- The Mantle of Predation (86518) Alleria Windrunner (235502)
+   t[132672] = { text = "<Tell Alleria you're ready to enter Nexus-Point Xenas...>", type = "" }   -- Nexus-Point Xenas: Eclipse (86521) Alleria Windrunner (235763)
 
-   local t = NPCs({ 235607, }, "Decimus")
-   t[132998] = { text = "<Apply Force.>", type = "" }                                            -- Reliable Enemies (86536) Decimus (235607)
+   local t = NPCs({ 235607, 235392, 235653, }, "Decimus")
+   t[135469] = { text = "How did Xal'atath take control of the ethereals?", type = "" }            -- Reliable Enemies (86536) Decimus (235607)
+   t[132757] = { text = "Explain yourself.", type = "" }                                           -- Post Mortem (86544) Decimus (235392)
 
-   local t = NPCs({ 235522, }, "Lothraxion")
+   local t = NPCs({ 241170, }, "Lady Darkglen")
+   t[132555] = { text = "I'll find Hieron. Regroup with the others.", type = "" }                  -- Vanished in the Void (86517) Lady Darkglen (241170)
+
+   local t = NPCs({ 235522, 235725, }, "Lothraxion")
    t[132585] = { text = "Tell Lothraxion you're ready to survey the Voidstorm.>", type = "" }      -- The Far Far Frontier (86881) Lothraxion (235522)
+   t[132756] = { text = "<Ask how Lothraxion is doing.>", type = "" }                              -- Post Mortem (86544) Lothraxion (235725)
+
+   local t = NPCs({ 257042, }, "Research Console")
+   t[137576] = { text = "Commune with the Console.>", type = "" }                                  -- Reaserching the Storm (93970) Research Console (257042)
+
+   local t = NPCs({ 240538, 239349, 238531, }, "Riftblade Maella")
+   t[132752] = { text = "<Ask for his report on the wilds.>", type = "" }                          -- Post-Mortem (86544) Riftblade Maella (240538)
+   t[132535] = { text = "<Hear the scouting report.>", type = "" }                                 -- Edge of the Abyss (86511) Riftblade Maella (239349)
+   t[132554] = { text = "Regroup with Alleria and Arator", type = "" }                             -- Vanished in the Void (86517) Riftblade Maella (238531)
+
+   local t = NPCs({ 239724, 238530, }, "Riftwalker Hieron")
+   t[132751] = { text = "<Ask for his report on the wilds.>", type = "" }                          -- Post-Mortem (86544) Riftwalker Hieron (239724)
+   t[132556] = { text = "Darkglen and Maella are fine.", type = "" }                               -- Vanished in the Void (86517) Riftwalker Hieron (238530)
+
+   local t = NPCs({ 248328, }, "Void Reasercher Anomander")
+   t[138232] = { text = "<Inquire about Anomander's reaserch.>", type = "" }                       -- Domus Penumbra (86510) Void Reasercher Anomander (248328)
 
 SetZone("Zul'Aman, Eastern Kingdoms")
 

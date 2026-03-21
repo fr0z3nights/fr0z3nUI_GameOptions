@@ -202,6 +202,55 @@ local function BuildMacrosPanel(parent)
     btnOptional:SetText("+ Macro")
     btnOptional:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 12, 12)
 
+    -- Food/Drink macros (footer)
+    local btnConjured = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnConjured:SetSize(90, 20)
+    btnConjured:SetText("Conjured")
+
+    local btnFoodMacro = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnFoodMacro:SetSize(BTN_W, BTN_H)
+    btnFoodMacro:SetText("Food")
+
+    local btnDrinkMacro = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnDrinkMacro:SetSize(BTN_W, BTN_H)
+    btnDrinkMacro:SetText("Drink")
+
+    local function UpdateConjuredButtonVisual()
+        local on = (type(M.FoodDrink_GetPreferConjured) == "function") and M.FoodDrink_GetPreferConjured() or false
+        btnConjured:SetText(on and "|cFF00FF00Conjured|r" or "|cFF888888Conjured|r")
+    end
+    UpdateConjuredButtonVisual()
+
+    SetButtonTooltip(btnFoodMacro, function()
+        return "Food\n\nCreate/update the '" .. tostring(M and "FGO Food" or "FGO Food") .. "' macro to use your best bag food."
+    end)
+    SetButtonTooltip(btnDrinkMacro, function()
+        return "Drink\n\nCreate/update the '" .. tostring(M and "FGO Drink" or "FGO Drink") .. "' macro to use your best bag drink."
+    end)
+    SetButtonTooltip(btnConjured, function()
+        local on = (type(M.FoodDrink_GetPreferConjured) == "function") and M.FoodDrink_GetPreferConjured() or false
+        return "Conjured\n\nPrefer conjured food/drinks when picking the best item.\n\nCurrent: " .. (on and "ON" or "OFF")
+    end)
+
+    btnFoodMacro:SetScript("OnClick", function()
+        if type(M.FoodDrink_CreateFoodMacro) == "function" then
+            M.FoodDrink_CreateFoodMacro()
+        end
+    end)
+    btnDrinkMacro:SetScript("OnClick", function()
+        if type(M.FoodDrink_CreateDrinkMacro) == "function" then
+            M.FoodDrink_CreateDrinkMacro()
+        end
+    end)
+    btnConjured:SetScript("OnClick", function()
+        if type(M.FoodDrink_GetPreferConjured) ~= "function" or type(M.FoodDrink_SetPreferConjured) ~= "function" then
+            return
+        end
+        local cur = M.FoodDrink_GetPreferConjured() and true or false
+        M.FoodDrink_SetPreferConjured(not cur)
+        UpdateConjuredButtonVisual()
+    end)
+
     -- Popout anchored OUTSIDE the tab (to the right) so it doesn't overlap the Home column.
     local optPopout = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     optPopout:SetWidth(260)
@@ -847,6 +896,28 @@ local function BuildMacrosPanel(parent)
     hearthPopout:SetBackdropColor(0, 0, 0, 0.85)
     hearthPopout:Hide()
 
+    do
+        local key = "hearth"
+        local reg = _G and rawget(_G, "FGO_RegisterPopout")
+        if type(reg) == "function" then
+            reg(key, function()
+                if hearthPopout and hearthPopout.Hide then
+                    hearthPopout:Hide()
+                end
+            end)
+        end
+        local prev = hearthPopout.GetScript and hearthPopout:GetScript("OnShow")
+        hearthPopout:SetScript("OnShow", function(self, ...)
+            local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+            if type(closeAll) == "function" then
+                closeAll(key)
+            end
+            if type(prev) == "function" then
+                prev(self, ...)
+            end
+        end)
+    end
+
     local popoutClose = CreateFrame("Button", nil, hearthPopout, "UIPanelCloseButton")
     popoutClose:SetPoint("TOPRIGHT", hearthPopout, "TOPRIGHT", -3, -3)
 
@@ -1297,6 +1368,12 @@ local function BuildMacrosPanel(parent)
         btnOptional:ClearAllPoints()
         btnOptional:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 12, bottomY)
 
+        -- Bottom-left: Conjured toggle (next to + Macro)
+        btnConjured:ClearAllPoints()
+        btnConjured:SetPoint("LEFT", btnOptional, "RIGHT", 8, 0)
+        btnConjured:SetPoint("BOTTOM", btnOptional, "BOTTOM", 0, 0)
+        UpdateConjuredButtonVisual()
+
         -- Divider between columns (stop above the hearth location line)
         do
             colSep:ClearAllPoints()
@@ -1335,6 +1412,19 @@ local function BuildMacrosPanel(parent)
             local h1 = PlaceGridInArea(hsButtons, leftAreaX, areaW, yCursor)
             local h2 = PlaceGridInArea(utilButtons, rightAreaX, areaW, yCursor)
             yCursor = yCursor + math.max(h1, h2)
+
+            -- Footer macro creation buttons aligned under the two button columns.
+            do
+                local footerBtnY = bottomY + BTN_H + 8
+                local foodX = leftAreaX + math.floor((areaW - BTN_W) / 2)
+                local drinkX = rightAreaX + math.floor((areaW - BTN_W) / 2)
+
+                btnFoodMacro:ClearAllPoints()
+                btnFoodMacro:SetPoint("BOTTOMLEFT", macroCol, "BOTTOMLEFT", foodX, footerBtnY)
+
+                btnDrinkMacro:ClearAllPoints()
+                btnDrinkMacro:SetPoint("BOTTOMLEFT", macroCol, "BOTTOMLEFT", drinkX, footerBtnY)
+            end
         end
 
         -- Hearth location line: centered just above the credit line
@@ -1431,15 +1521,33 @@ do
     end
 
     local function GetHomeTeleportSV()
-        local cs = _G.AutoGame_CharSettings
-        if type(cs) ~= "table" then
-            return {}
+        local acc = (type(rawget) == "function" and rawget(_G, "AutoGame_Settings")) or _G.AutoGame_Settings
+        if type(acc) ~= "table" then
+            _G.AutoGame_Settings = _G.AutoGame_Settings or {}
+            acc = _G.AutoGame_Settings
         end
-        local sv = cs.fgoHomeTeleports
-        if type(sv) ~= "table" then
-            return {}
+        if type(acc.fgoHomeTeleports) ~= "table" then
+            acc.fgoHomeTeleports = {}
         end
-        return sv
+
+        -- Opportunistic migration from legacy per-character slots.
+        local cs = (type(rawget) == "function" and rawget(_G, "AutoGame_CharSettings")) or _G.AutoGame_CharSettings
+        local legacy = (type(cs) == "table") and cs.fgoHomeTeleports or nil
+        if type(legacy) == "table" then
+            for which = 1, 2 do
+                if type(acc.fgoHomeTeleports[which]) ~= "table" and type(legacy[which]) == "table" then
+                    local src = legacy[which]
+                    acc.fgoHomeTeleports[which] = {
+                        neighborhoodGUID = src.neighborhoodGUID,
+                        houseGUID = src.houseGUID,
+                        plotID = src.plotID,
+                        neighborhoodName = src.neighborhoodName,
+                    }
+                end
+            end
+        end
+
+        return acc.fgoHomeTeleports
     end
 
     local function GetSavedTeleportsDB()
@@ -1731,10 +1839,7 @@ do
             return false
         end
 
-        _G.AutoGame_CharSettings = _G.AutoGame_CharSettings or {}
-        local cs = _G.AutoGame_CharSettings
-        cs.fgoHomeTeleports = cs.fgoHomeTeleports or {}
-        local sv = cs.fgoHomeTeleports
+        local sv = GetHomeTeleportSV()
 
         local neighborhoodName = info.neighborhoodName or info["neighborhood"]
         if type(neighborhoodName) ~= "string" then
@@ -2090,6 +2195,28 @@ do
         })
         popout:SetBackdropColor(0, 0, 0, 0.85)
         popout:Hide()
+
+        do
+            local key = "homeGuests"
+            local reg = _G and rawget(_G, "FGO_RegisterPopout")
+            if type(reg) == "function" then
+                reg(key, function()
+                    if popout and popout.Hide then
+                        popout:Hide()
+                    end
+                end)
+            end
+            local prev = popout.GetScript and popout:GetScript("OnShow")
+            popout:SetScript("OnShow", function(self, ...)
+                local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+                if type(closeAll) == "function" then
+                    closeAll(key)
+                end
+                if type(prev) == "function" then
+                    prev(self, ...)
+                end
+            end)
+        end
 
         local popoutClose = CreateFrame("Button", nil, popout, "UIPanelCloseButton")
         popoutClose:SetPoint("TOPRIGHT", popout, "TOPRIGHT", -3, -3)
@@ -2527,9 +2654,15 @@ do
             btnDStatic:GetFontString():SetTextColor(1, 0.3, 0.3)
             btnDStatic:Hide()
 
+            local btnSStatic = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            btnSStatic:SetSize(26, 24)
+            btnSStatic:SetPoint("RIGHT", btnDStatic, "LEFT", -4, 0)
+            btnSStatic:SetText("S")
+            btnSStatic:Hide()
+
             local btnRStatic = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
             btnRStatic:SetSize(26, 24)
-            btnRStatic:SetPoint("RIGHT", btnDStatic, "LEFT", -4, 0)
+            btnRStatic:SetPoint("RIGHT", btnSStatic, "LEFT", -4, 0)
             btnRStatic:SetText("R")
             btnRStatic:Hide()
 
@@ -2556,6 +2689,7 @@ do
             row._btnDel = btnDel
             row._btnMStatic = btnMStatic
             row._btnRStatic = btnRStatic
+            row._btnSStatic = btnSStatic
             row._btnDStatic = btnDStatic
             row._labelBtn = labelBtn
             savedRows[i] = row
@@ -2575,7 +2709,7 @@ do
                 end
 
                 local macroName = "FGO HM Portal"
-                local macroBody = "/fgo hm portal"
+                local macroBody = (ns.Home and ns.Home.GetPortalClickMacroBody and ns.Home.GetPortalClickMacroBody()) or "/click FGO_HMPortalTeleport"
 
                 do
                     local legacyName = "FAO HM Portal"
@@ -2651,7 +2785,7 @@ do
                 return (idx and idx > 0) and true or false
             end
 
-            local function SetupStaticRow(row, displayText, colorHex, onCreate, runText, deleteName)
+            local function SetupStaticRow(row, displayText, colorHex, onCreate, onStatus, runText, deleteName)
                 row._isFactionRow = true
                 row._indexFS:SetText("")
 
@@ -2661,6 +2795,7 @@ do
 
                 row._btnMStatic:Show()
                 row._btnRStatic:Show()
+                row._btnSStatic:Show()
                 row._btnDStatic:Show()
                 row._labelBtn:Show()
 
@@ -2677,6 +2812,11 @@ do
                 row._labelBtn:SetScript("OnClick", function()
                     onCreate()
                     RefreshSavedList()
+                end)
+                row._btnSStatic:SetScript("OnClick", function()
+                    if type(onStatus) == "function" then
+                        onStatus()
+                    end
                 end)
                 row._btnRStatic:SetScript("OnClick", function()
                     TryRunMacroTextOrChat(runText)
@@ -2695,6 +2835,39 @@ do
 
             do
                 local perCharacter = (ns and ns.Macros and type(ns.Macros.GetMacroPerCharSetting) == "function" and ns.Macros.GetMacroPerCharSetting()) or false
+
+                local function PrintHomeSlotStatus(which, label)
+                    which = tonumber(which)
+                    if not which or (which ~= 1 and which ~= 2) then
+                        return
+                    end
+
+                    local sv = (type(rawget) == "function" and rawget(_G, "AutoGame_Settings")) or _G.AutoGame_Settings
+                    local slots = (type(sv) == "table") and sv.fgoHomeTeleports or nil
+                    local info = (type(slots) == "table") and slots[which] or nil
+
+                    print("|cff00ccff[FGO]|r HM " .. tostring(label or ("Home" .. tostring(which))) .. " status:")
+                    if type(info) ~= "table" then
+                        print("|cff00ccff[FGO]|r - savedTarget=<none>")
+                    else
+                        print("|cff00ccff[FGO]|r - savedTarget plotID=" .. tostring(info.plotID) .. " neighborhood=" .. tostring(info.neighborhoodName or ""))
+                        print("|cff00ccff[FGO]|r - savedTarget ng=" .. tostring(info.neighborhoodGUID) .. " hg=" .. tostring(info.houseGUID))
+                    end
+
+                    local btnName = (which == 2) and "FGO_HomeTeleport2" or "FGO_HomeTeleport1"
+                    local b = _G and _G[btnName] or nil
+                    if b and b.GetAttribute then
+                        local ng = b:GetAttribute("house-neighborhood-guid")
+                        local hg = b:GetAttribute("house-guid")
+                        local pid = b:GetAttribute("house-plot-id")
+                        print("|cff00ccff[FGO]|r - button attrs plotID=" .. tostring(pid) .. " ng=" .. tostring(ng) .. " hg=" .. tostring(hg))
+                    else
+                        print("|cff00ccff[FGO]|r - button=<missing> (reload once to create/configure)")
+                    end
+
+                    local body = (ns and ns.Home and type(ns.Home.GetHomeClickMacroBody) == "function" and ns.Home.GetHomeClickMacroBody(which)) or ((which == 2) and "/click FGO_HomeTeleport2" or "/click FGO_HomeTeleport1")
+                    print("|cff00ccff[FGO]|r - macroBody: |cFFFFCC00" .. tostring(body) .. "|r")
+                end
 
                 shown = shown + 1
                 local rowA = EnsureSavedRow(shown)
@@ -2716,12 +2889,16 @@ do
                             StartBind(createdName)
                         end
                     end,
+                    function()
+                        PrintHomeSlotStatus(1, "HM Alliance")
+                    end,
                     (ns.Home and ns.Home.GetHomeClickMacroBody and ns.Home.GetHomeClickMacroBody(1)) or ("/click FGO_HomeTeleport1"),
                     "FGO HM Alliance"
                 )
 
                 SetTooltip(rowA._btnMStatic, "Creates 'FGO HM Alliance'\nShift-click to bind")
                 SetTooltip(rowA._btnRStatic, "Runs the home teleport macro")
+                SetTooltip(rowA._btnSStatic, "Status (saved target + button attributes)")
                 SetTooltip(rowA._btnDStatic, "Deletes the macro")
                 SetTooltip(rowA._labelBtn, "Create macro")
 
@@ -2745,12 +2922,16 @@ do
                             StartBind(createdName)
                         end
                     end,
+                    function()
+                        PrintHomeSlotStatus(2, "HM Horde")
+                    end,
                     (ns.Home and ns.Home.GetHomeClickMacroBody and ns.Home.GetHomeClickMacroBody(2)) or ("/click FGO_HomeTeleport2"),
                     "FGO HM Horde"
                 )
 
                 SetTooltip(rowH._btnMStatic, "Creates 'FGO HM Horde'\nShift-click to bind")
                 SetTooltip(rowH._btnRStatic, "Runs the home teleport macro")
+                SetTooltip(rowH._btnSStatic, "Status (saved target + button attributes)")
                 SetTooltip(rowH._btnDStatic, "Deletes the macro")
                 SetTooltip(rowH._labelBtn, "Create macro")
 
@@ -2768,17 +2949,58 @@ do
                         end
                         local ok = EnsurePortalMacro(perCharacter)
                         if ok then
-                            -- no bind flow here; macro is a slash macro
+                            -- intentionally no bind flow here
                         end
                     end,
-                    "/fgo hm portal",
+                    function()
+                        if ns and ns.Home and type(ns.Home.HandleHM) == "function" then
+                            ns.Home.HandleHM("portal", "status")
+                        else
+                            ErrorMessage("Portal status unavailable")
+                        end
+                    end,
+                    (ns.Home and ns.Home.GetPortalClickMacroBody and ns.Home.GetPortalClickMacroBody()) or "/click FGO_HMPortalTeleport",
                     "FGO HM Portal"
                 )
 
+                -- Portal row UX:
+                -- - Click label "FGO HM Portal" to capture/set (like `/fgo hm portal set`) and ensure the macro.
+                -- - Click M to only create/update the macro.
+                if rowP and rowP._labelBtn and rowP._btnMStatic then
+                    rowP._labelBtn:SetScript("OnClick", function()
+                        if InCombatLockdown and InCombatLockdown() then
+                            ErrorMessage("Can't set HM Portal in combat")
+                            return
+                        end
+                        if ns and ns.Home and type(ns.Home.CapturePortalTeleportFromCurrentHouse) == "function" then
+                            local ok, key, mode = ns.Home.CapturePortalTeleportFromCurrentHouse()
+                            if not ok then
+                                ErrorMessage("HM Portal set failed: " .. tostring(mode or key or ""))
+                                return
+                            end
+                        else
+                            ErrorMessage("HM Portal set unavailable")
+                            return
+                        end
+                        EnsurePortalMacro(perCharacter)
+                        RefreshSavedList()
+                    end)
+
+                    rowP._btnMStatic:SetScript("OnClick", function()
+                        if InCombatLockdown and InCombatLockdown() then
+                            ErrorMessage("Can't create macros in combat")
+                            return
+                        end
+                        EnsurePortalMacro(perCharacter)
+                        RefreshSavedList()
+                    end)
+                end
+
                 SetTooltip(rowP._btnMStatic, "Creates 'FGO HM Portal'")
-                SetTooltip(rowP._btnRStatic, "Runs /fgo hm portal")
+                SetTooltip(rowP._btnRStatic, "Runs the portal teleport macro")
+                SetTooltip(rowP._btnSStatic, "Status (same as /fgo hm portal status)")
                 SetTooltip(rowP._btnDStatic, "Deletes the macro")
-                SetTooltip(rowP._labelBtn, "Create macro")
+                SetTooltip(rowP._labelBtn, "Set HM Portal target (capture current plot)")
             end
 
             for i = 1, #list do

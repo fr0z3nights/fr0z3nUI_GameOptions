@@ -1,11 +1,10 @@
 local addonName, ns = ...
 if type(ns) ~= "table" then ns = {} end
 
-local LI = (ns and ns.LootIt) or fr0z3nUI_LootIt
-if type(LI) ~= "table" then return end
-
+local LI = (ns and ns.LootIt) or {}
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
+LI.ADDON = LI.ADDON or addonName
 
 LI.Trade = LI.Trade or {}
 
@@ -17,13 +16,47 @@ function LI.Trade.BuildTab_UI(depositPanel)
   local splitGap = 12
   local halfGap = splitGap / 2
 
+  -- Make the right-side list panel ~20% wider than before (60/40 split)
+  -- while keeping everything on the same tab.
+  local LEFT_RATIO = 0.40
+  local MIN_LEFT_W = 260
+  local MIN_RIGHT_W = 260
+
   local leftPanel = CreateFrame("Frame", nil, depositPanel)
   leftPanel:SetPoint("TOPLEFT", depositPanel, "TOPLEFT", 0, 0)
-  leftPanel:SetPoint("BOTTOMRIGHT", depositPanel, "BOTTOM", -halfGap, 0)
+  leftPanel:SetPoint("BOTTOMLEFT", depositPanel, "BOTTOMLEFT", 0, 0)
 
   local rightPanel = CreateFrame("Frame", nil, depositPanel)
-  rightPanel:SetPoint("TOPLEFT", depositPanel, "TOP", halfGap, 0)
   rightPanel:SetPoint("BOTTOMRIGHT", depositPanel, "BOTTOMRIGHT", 0, 0)
+
+  local function Clamp(v, lo, hi)
+    v = tonumber(v) or 0
+    lo = tonumber(lo) or v
+    hi = tonumber(hi) or v
+    if v < lo then return lo end
+    if v > hi then return hi end
+    return v
+  end
+
+  local function UpdatePanelSplit()
+    if not (depositPanel and depositPanel.GetWidth and leftPanel and leftPanel.SetWidth) then return end
+    local w = tonumber(depositPanel:GetWidth() or 0) or 0
+    if w <= 0 then return end
+
+    local maxLeft = w - splitGap - MIN_RIGHT_W
+    local leftW = math.floor((w * LEFT_RATIO) - halfGap)
+    leftW = Clamp(leftW, MIN_LEFT_W, maxLeft)
+    leftPanel:SetWidth(leftW)
+  end
+
+  rightPanel:SetPoint("TOPLEFT", leftPanel, "TOPRIGHT", splitGap, 0)
+  rightPanel:SetPoint("TOPRIGHT", depositPanel, "TOPRIGHT", 0, 0)
+  rightPanel:SetPoint("BOTTOM", depositPanel, "BOTTOM", 0, 0)
+
+  UpdatePanelSplit()
+  if depositPanel and depositPanel.HookScript then
+    depositPanel:HookScript("OnSizeChanged", function() UpdatePanelSplit() end)
+  end
 
   local function Print(msg)
     if LI and type(LI.Print) == "function" then
@@ -44,6 +77,8 @@ function LI.Trade.BuildTab_UI(depositPanel)
     end
     return {}
   end
+
+  local NormalizeBankTarget
 
   local function GetCurrentRealmKey()
     local rn = (type(GetRealmName) == "function") and GetRealmName() or nil
@@ -214,7 +249,7 @@ function LI.Trade.BuildTab_UI(depositPanel)
   reasonLabel:SetText("")
   BumpFont(reasonLabel, 1)
 
-  local BTN_W, BTN_H = 110, 22
+  local BTN_W, BTN_H = 96, 22
   local BTN_GAP = 12
   local ROW_Y = 84
 
@@ -1044,65 +1079,57 @@ function LI.Trade.BuildTab_UI(depositPanel)
       }
     end
 
-    -- Deposit: scope tables depend on selected Target (Bank/Personal/Guild/Warbank).
+    -- Deposit: one shared rules list per scope; Target controls destination + filtering.
     local function NormalizeDepositTarget(t)
       t = tostring(t or "")
       t = t:lower():gsub("%s+", "")
       if t == "either" then t = "bank" end
       if t == "warband" then t = "warbank" end
       if t == "personalbank" then t = "personal" end
+      if t == "guildbank" then t = "guild" end
       if t ~= "bank" and t ~= "personal" and t ~= "guild" and t ~= "warbank" then
         t = "bank"
       end
       return t
     end
 
-    local listTarget = NormalizeDepositTarget(cfg.target)
-    cfg.target = listTarget
+    cfg.target = NormalizeDepositTarget(cfg.target)
 
-    local function EnsureTargetTable(parent, key)
-      parent[key] = (type(parent[key]) == "table") and parent[key] or {}
-      return parent[key]
-    end
+    cfg.itemsAcc = (type(cfg.itemsAcc) == "table") and cfg.itemsAcc or {}
+    cfg.itemsAccDisabled = (type(cfg.itemsAccDisabled) == "table") and cfg.itemsAccDisabled or {}
+    cfg.itemsAccDisableRealm = (type(cfg.itemsAccDisableRealm) == "table") and cfg.itemsAccDisableRealm or {}
+    cfg.itemsRealm = (type(cfg.itemsRealm) == "table") and cfg.itemsRealm or {}
+    cfg.itemsRealmDisabled = (type(cfg.itemsRealmDisabled) == "table") and cfg.itemsRealmDisabled or {}
 
-    cfg.itemsAccByTarget = (type(cfg.itemsAccByTarget) == "table") and cfg.itemsAccByTarget or {}
-    cfg.itemsAccDisabledByTarget = (type(cfg.itemsAccDisabledByTarget) == "table") and cfg.itemsAccDisabledByTarget or {}
-    cfg.itemsAccDisableRealmByTarget = (type(cfg.itemsAccDisableRealmByTarget) == "table") and cfg.itemsAccDisableRealmByTarget or {}
-    cfg.itemsRealmByTarget = (type(cfg.itemsRealmByTarget) == "table") and cfg.itemsRealmByTarget or {}
-    cfg.itemsRealmDisabledByTarget = (type(cfg.itemsRealmDisabledByTarget) == "table") and cfg.itemsRealmDisabledByTarget or {}
-
-    local accTbl = EnsureTargetTable(cfg.itemsAccByTarget, listTarget)
-    local accDisabledTbl = EnsureTargetTable(cfg.itemsAccDisabledByTarget, listTarget)
+    local accTbl = cfg.itemsAcc
+    local accDisabledTbl = cfg.itemsAccDisabled
 
     local realmKey = GetCurrentRealmKey()
     local realmTbl = nil
     local accDisableRealmTbl = nil
     local realmDisabledTbl = nil
     if realmKey and realmKey ~= "" then
-      local tAccDisableRealmAll = EnsureTargetTable(cfg.itemsAccDisableRealmByTarget, listTarget)
-      tAccDisableRealmAll[realmKey] = (type(tAccDisableRealmAll[realmKey]) == "table") and tAccDisableRealmAll[realmKey] or {}
-      accDisableRealmTbl = tAccDisableRealmAll[realmKey]
+      cfg.itemsAccDisableRealm[realmKey] = (type(cfg.itemsAccDisableRealm[realmKey]) == "table") and cfg.itemsAccDisableRealm[realmKey] or {}
+      accDisableRealmTbl = cfg.itemsAccDisableRealm[realmKey]
 
-      local tRealmAll = EnsureTargetTable(cfg.itemsRealmByTarget, listTarget)
-      tRealmAll[realmKey] = (type(tRealmAll[realmKey]) == "table") and tRealmAll[realmKey] or {}
-      realmTbl = tRealmAll[realmKey]
+      cfg.itemsRealm[realmKey] = (type(cfg.itemsRealm[realmKey]) == "table") and cfg.itemsRealm[realmKey] or {}
+      realmTbl = cfg.itemsRealm[realmKey]
 
-      local tRealmDisabledAll = EnsureTargetTable(cfg.itemsRealmDisabledByTarget, listTarget)
-      tRealmDisabledAll[realmKey] = (type(tRealmDisabledAll[realmKey]) == "table") and tRealmDisabledAll[realmKey] or {}
-      realmDisabledTbl = tRealmDisabledAll[realmKey]
+      cfg.itemsRealmDisabled[realmKey] = (type(cfg.itemsRealmDisabled[realmKey]) == "table") and cfg.itemsRealmDisabled[realmKey] or {}
+      realmDisabledTbl = cfg.itemsRealmDisabled[realmKey]
     else
       realmKey = ""
     end
 
-    ch.itemsCharByTarget = (type(ch.itemsCharByTarget) == "table") and ch.itemsCharByTarget or {}
-    ch.itemsCharDisabledByTarget = (type(ch.itemsCharDisabledByTarget) == "table") and ch.itemsCharDisabledByTarget or {}
-    ch.disableAccByTarget = (type(ch.disableAccByTarget) == "table") and ch.disableAccByTarget or {}
-    ch.disableRealmByTarget = (type(ch.disableRealmByTarget) == "table") and ch.disableRealmByTarget or {}
+    ch.itemsChar = (type(ch.itemsChar) == "table") and ch.itemsChar or {}
+    ch.itemsCharDisabled = (type(ch.itemsCharDisabled) == "table") and ch.itemsCharDisabled or {}
+    ch.disableAcc = (type(ch.disableAcc) == "table") and ch.disableAcc or {}
+    ch.disableRealm = (type(ch.disableRealm) == "table") and ch.disableRealm or {}
 
-    local charTbl = EnsureTargetTable(ch.itemsCharByTarget, listTarget)
-    local charDisabledTbl = EnsureTargetTable(ch.itemsCharDisabledByTarget, listTarget)
-    local disableAccTbl = EnsureTargetTable(ch.disableAccByTarget, listTarget)
-    local disableRealmTbl = EnsureTargetTable(ch.disableRealmByTarget, listTarget)
+    local charTbl = ch.itemsChar
+    local charDisabledTbl = ch.itemsCharDisabled
+    local disableAccTbl = ch.disableAcc
+    local disableRealmTbl = ch.disableRealm
 
     return {
       cfg = cfg,
@@ -1181,6 +1208,10 @@ function LI.Trade.BuildTab_UI(depositPanel)
     if UpdateScopeButtons then
       UpdateScopeButtons(nil)
     end
+
+    if depositPanel and type(depositPanel._liTradeRefreshItemsPopout) == "function" then
+      depositPanel._liTradeRefreshItemsPopout()
+    end
   end
 
   -- preserveTarget: optional flag used by Restock to avoid wiping in-progress Target input.
@@ -1242,7 +1273,7 @@ function LI.Trade.BuildTab_UI(depositPanel)
 
     local function HasRule(tbl)
       if mode == "deposit" then
-        return (type(tbl) == "table" and tbl[id] == true) and true or false
+        return (type(tbl) == "table" and tbl[id] ~= nil) and true or false
       end
       return (NormalizeRule(type(tbl) == "table" and tbl[id]) ~= nil)
     end
@@ -1322,6 +1353,13 @@ function LI.Trade.BuildTab_UI(depositPanel)
     if flags.warbound and bankTarget ~= "warbank" then
       stores.cfg.target = "warbank"
       if RefreshBankAndTabButtons then RefreshBankAndTabButtons() end
+
+      if depositPanel and type(depositPanel._liTradeRefreshItemsPopout) == "function" then
+        depositPanel._liTradeRefreshItemsPopout()
+      end
+
+      -- Re-run scope evaluation using the Warbank-backed tables.
+      return UpdateScopeButtons(id, preserveTarget)
     end
 
     local canAdd = true
@@ -1364,7 +1402,11 @@ function LI.Trade.BuildTab_UI(depositPanel)
 
     local function AddRule(tbl)
       if mode == "deposit" then
-        tbl[id] = true
+        local dest = NormalizeBankTarget(stores.cfg.target)
+        if dest ~= "bank" and dest ~= "personal" and dest ~= "guild" and dest ~= "warbank" then
+          dest = "bank"
+        end
+        tbl[id] = dest
         return true
       end
       local n = RequireTargetCount()
@@ -1733,12 +1775,13 @@ function LI.Trade.BuildTab_UI(depositPanel)
     end
   end
 
-  local function NormalizeBankTarget(t)
+  NormalizeBankTarget = function(t)
     t = tostring(t or "")
     t = t:lower():gsub("%s+", "")
     if t == "either" then t = "bank" end
     if t == "warband" then t = "warbank" end
     if t == "personalbank" then t = "personal" end
+    if t == "guildbank" then t = "guild" end
     if t ~= "bank" and t ~= "personal" and t ~= "guild" and t ~= "warbank" then
       t = "bank"
     end
@@ -2100,6 +2143,9 @@ function LI.Trade.BuildTab_UI(depositPanel)
 
     if changed then
       UpdateScopeButtons(id)
+      if depositPanel and type(depositPanel._liTradeRefreshItemsPopout) == "function" then
+        depositPanel._liTradeRefreshItemsPopout()
+      end
     end
   end
 
@@ -2136,6 +2182,10 @@ function LI.Trade.BuildTab_UI(depositPanel)
           targetBox:SetText(prevTargetText)
           if UpdateTargetPlaceholder then pcall(UpdateTargetPlaceholder) end
         end
+      end
+
+      if depositPanel and type(depositPanel._liTradeRefreshItemsPopout) == "function" then
+        depositPanel._liTradeRefreshItemsPopout()
       end
     end
 
@@ -2562,7 +2612,7 @@ function LI.Trade.BuildTab_UI(depositPanel)
       local function HasRule(tbl, id)
         if type(tbl) ~= "table" then return false end
         if GetTradeMode() == "deposit" then
-          return (tbl[id] == true)
+          return (tbl[id] ~= nil)
         end
         return (tbl[id] ~= nil)
       end
@@ -2573,30 +2623,126 @@ function LI.Trade.BuildTab_UI(depositPanel)
 
         local st = GetScopeStores(mode)
 
+        local function GetDepositDest(v)
+          if v == nil then return nil end
+          if v == true or v == 1 then return "bank" end
+          if type(v) == "string" then
+            local s = v:lower():gsub("%s+", "")
+            if s == "either" then s = "bank" end
+            if s == "warband" then s = "warbank" end
+            if s == "personalbank" then s = "personal" end
+            if s == "guildbank" then s = "guild" end
+            if s == "bank" or s == "personal" or s == "guild" or s == "warbank" then
+              return s
+            end
+            return nil
+          end
+          if type(v) == "table" then
+            local d = rawget(v, "dest")
+            return GetDepositDest(d)
+          end
+          return nil
+        end
+
         local ids = {}
         local info = {}
 
-        local function mark(id, scope)
-          id = tonumber(id)
-          if not id or id <= 0 then return end
-          ids[id] = true
-          info[id] = info[id] or { acc = false, realm = false, char = false }
-          info[id][scope] = true
+        local curDest = "bank"
+        if mode == "deposit" then
+          curDest = NormalizeBankTarget(st.cfg.target)
         end
 
-        if type(st.accTbl) == "table" then
-          for id in pairs(st.accTbl) do
-            if HasRule(st.accTbl, id) then mark(id, "acc") end
+        if mode == "deposit" then
+          local function DestMatchesView(ruleDest)
+            if ruleDest == nil then return false end
+            if curDest == "bank" then
+              return ruleDest == "bank"
+            end
+            return (ruleDest == curDest) or (ruleDest == "bank")
           end
-        end
-        if type(st.realmTbl) == "table" then
-          for id in pairs(st.realmTbl) do
-            if HasRule(st.realmTbl, id) then mark(id, "realm") end
+
+          local destByID, srcByID = nil, nil
+          if LI and type(LI.GetEffectiveDepositRuleMap) == "function" then
+            destByID, srcByID = LI.GetEffectiveDepositRuleMap()
           end
-        end
-        if type(st.charTbl) == "table" then
-          for id in pairs(st.charTbl) do
-            if HasRule(st.charTbl, id) then mark(id, "char") end
+
+          local present = {}
+
+          local function MarkPresent(scopeKey, tbl)
+            if type(tbl) ~= "table" then return end
+            for id, v in pairs(tbl) do
+              id = tonumber(id)
+              if id and id > 0 then
+                local d = GetDepositDest(v)
+                if DestMatchesView(d) then
+                  ids[id] = true
+                  present[id] = present[id] or { acc = false, realm = false, char = false }
+                  present[id][scopeKey] = true
+                end
+              end
+            end
+          end
+
+          -- Show disabled rules too: build from raw rule presence in A/R/C tables.
+          MarkPresent("acc", st.accTbl)
+          MarkPresent("realm", st.realmTbl)
+          MarkPresent("char", st.charTbl)
+
+          for id in pairs(ids) do
+            local effScope = nil
+            local effDest = (type(destByID) == "table") and destByID[id] or nil
+            if DestMatchesView(effDest) and type(srcByID) == "table" then
+              effScope = srcByID[id]
+            end
+
+            local p = present[id] or { acc = false, realm = false, char = false }
+            local function L(scope, ch)
+              if not p[scope] then return "-" end
+              if effScope == scope then return ch end
+              return ch:lower()
+            end
+
+            info[id] = {
+              scopeTxt = L("acc", "A") .. L("realm", "R") .. L("char", "C"),
+            }
+          end
+        else
+          local function markScope(id, scope)
+            id = tonumber(id)
+            if not id or id <= 0 then return end
+            ids[id] = true
+            info[id] = info[id] or { acc = false, realm = false, char = false }
+            info[id][scope] = true
+          end
+          if type(st.accTbl) == "table" then
+            for id in pairs(st.accTbl) do
+              if HasRule(st.accTbl, id) then
+                markScope(id, "acc")
+                local accDisabled = (type(st.accDisabledTbl) == "table" and st.accDisabledTbl[id] == true) and true or false
+                local accDisabledOnRealm = (type(st.accDisableRealmTbl) == "table" and st.accDisableRealmTbl[id] == true) and true or false
+                local accDisabledOnChar = (type(st.disableAccTbl) == "table" and st.disableAccTbl[id] == true) and true or false
+                info[id].accDisabled = (accDisabled or accDisabledOnRealm or accDisabledOnChar) and true or false
+              end
+            end
+          end
+          if type(st.realmTbl) == "table" then
+            for id in pairs(st.realmTbl) do
+              if HasRule(st.realmTbl, id) then
+                markScope(id, "realm")
+                local realmDisabled = (type(st.realmDisabledTbl) == "table" and st.realmDisabledTbl[id] == true) and true or false
+                local realmDisabledOnChar = (type(st.disableRealmTbl) == "table" and st.disableRealmTbl[id] == true) and true or false
+                info[id].realmDisabled = (realmDisabled or realmDisabledOnChar) and true or false
+              end
+            end
+          end
+          if type(st.charTbl) == "table" then
+            for id in pairs(st.charTbl) do
+              if HasRule(st.charTbl, id) then
+                markScope(id, "char")
+                local charDisabled = (type(st.charDisabledTbl) == "table" and st.charDisabledTbl[id] == true) and true or false
+                info[id].charDisabled = charDisabled and true or false
+              end
+            end
           end
         end
 
@@ -2769,7 +2915,26 @@ function LI.Trade.BuildTab_UI(depositPanel)
 
           local name = GetItemNameSafe(id) or ("ID " .. tostring(id))
           local flags = info[id] or {}
-          local scopeTxt = (flags.acc and "A" or "-") .. (flags.realm and "R" or "-") .. (flags.char and "C" or "-")
+
+          local function CAR_Letter(present, disabled, letter)
+            if present ~= true then
+              return "|cff777777-|r"
+            end
+            if disabled == true then
+              return "|cffffa500" .. tostring(letter) .. "|r"
+            end
+            return "|cff00ff00" .. tostring(letter) .. "|r"
+          end
+
+          local scopeTxt
+          if isBuy then
+            -- Purchase list: show C/A/R with green (enabled) / orange (disabled).
+            scopeTxt = CAR_Letter(flags.char == true, flags.charDisabled == true, "C") .. " " ..
+              CAR_Letter(flags.acc == true, flags.accDisabled == true, "A") .. " " ..
+              CAR_Letter(flags.realm == true, flags.realmDisabled == true, "R")
+          else
+            scopeTxt = flags.scopeTxt or ((flags.acc and "A" or "-") .. (flags.realm and "R" or "-") .. (flags.char and "C" or "-"))
+          end
           local keepTxt = ""
           if mode == "deposit" then
             local cfg = DepositCfgAcc()
@@ -2817,9 +2982,18 @@ function LI.Trade.BuildTab_UI(depositPanel)
 
             local tuple = (LI and LI.Trade and type(LI.Trade.GetFoodDrinkTupleForItemID) == "function") and LI.Trade.GetFoodDrinkTupleForItemID(id) or nil
             if type(tuple) == "table" and tonumber(tuple.pct) then
-              local pct = tonumber(tuple.pct)
-              row.hp:SetText(tostring(pct) .. "%")
-              row.mp:SetText((tuple.hasMana == true) and (tostring(pct) .. "%") or "-")
+              local hp = (tuple.hasHealth == true) and tonumber(tuple.healthPct) or nil
+              local mp = (tuple.hasMana == true) and tonumber(tuple.manaPct) or nil
+              if hp then
+                row.hp:SetText(tostring(hp) .. "%")
+              else
+                row.hp:SetText("-")
+              end
+              if mp then
+                row.mp:SetText(tostring(mp) .. "%")
+              else
+                row.mp:SetText("-")
+              end
             else
               row.hp:SetText("-")
               row.mp:SetText("-")
@@ -2868,7 +3042,43 @@ function LI.Trade.BuildTab_UI(depositPanel)
       end
 
       depositPanel._liTradeRefreshItemsPopout = function()
-        BuildItemsList()
+        if not (itemPop and itemPop.IsShown and itemPop:IsShown()) then
+          return
+        end
+
+        if depositPanel._liTradeItemsPopoutRefreshPending == true then
+          return
+        end
+        depositPanel._liTradeItemsPopoutRefreshPending = true
+
+        local function Do()
+          depositPanel._liTradeItemsPopoutRefreshPending = false
+          if itemPop and itemPop.IsShown and itemPop:IsShown() then
+            BuildItemsList()
+          end
+        end
+
+        if C_Timer and type(C_Timer.After) == "function" then
+          C_Timer.After(0.05, Do)
+        else
+          Do()
+        end
+      end
+
+      if depositPanel and not depositPanel._liTradeItemCacheEvents then
+        local ev = CreateFrame("Frame")
+        depositPanel._liTradeItemCacheEvents = ev
+
+        if ev.RegisterEvent then
+          pcall(ev.RegisterEvent, ev, "ITEM_DATA_LOAD_RESULT")
+          pcall(ev.RegisterEvent, ev, "GET_ITEM_INFO_RECEIVED")
+        end
+
+        ev:SetScript("OnEvent", function()
+          if depositPanel and type(depositPanel._liTradeRefreshItemsPopout) == "function" then
+            depositPanel._liTradeRefreshItemsPopout()
+          end
+        end)
       end
 
       BuildItemsList()

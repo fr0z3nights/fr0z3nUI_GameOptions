@@ -552,6 +552,7 @@ do
         btn:SetFrameStrata("DIALOG")
         btn:EnableMouse(true)
         btn:SetMovable(true)
+        btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         btn:RegisterForDrag("RightButton")
 
         local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -697,6 +698,28 @@ local function EnsureConfigPopup()
     p:SetFrameStrata("DIALOG")
     p:SetClampedToScreen(true)
     p:Hide()
+
+    do
+        local key = "petWalkCfg"
+        local reg = _G and rawget(_G, "FGO_RegisterPopout")
+        if type(reg) == "function" then
+            reg(key, function()
+                if p and p.Hide then
+                    p:Hide()
+                end
+            end)
+        end
+        local prev = p.GetScript and p:GetScript("OnShow")
+        p:SetScript("OnShow", function(self, ...)
+            local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+            if type(closeAll) == "function" then
+                closeAll(key)
+            end
+            if type(prev) == "function" then
+                prev(self, ...)
+            end
+        end)
+    end
 
     p:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",

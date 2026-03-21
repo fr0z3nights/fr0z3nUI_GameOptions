@@ -2,6 +2,743 @@
 
 Format: `YYMMDD-###` (sanity stamp) — short summary.
 
+# 260321-001
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros (Food): add `/use [combat] item:5512` (Healthstone) as a combat-only first line in the generated `FGO Food` macro.
+- Bumped TOC `## Version` to `2026.03.21.01`.
+
+# 260321-002
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros (Food/Drink): add right-click conjure lines (guarded with `[known:...]`) to generated `FGO Food` and `FGO Drink` macros.
+- Bumped TOC `## Version` to `2026.03.21.02`.
+
+# 260321-003
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros (Food/Drink): generated `FGO Food` / `FGO Drink` now ignore `+ Macro` optional injections (prevents optional `#showtooltip` placeholder from binding to Healthstone instead of food/drink).
+- Bumped TOC `## Version` to `2026.03.21.03`.
+
+# 260321-004
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros (Food/Drink): improve tooltip parsing/ranking (more robust enUS restore patterns, percent handling, continuation fallback) so “best” selection matches real food/drink tooltips more reliably.
+- Bumped TOC `## Version` to `2026.03.21.04`.
+
+# 260321-005
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: do not auto-mount while you are actively eating/drinking (blocks Mount Up when the generic regen aura is present).
+- Bumped TOC `## Version` to `2026.03.21.05`.
+
+# 260321-006
+- Files: `fUI_GOSwitchesMU.lua`, `fUI_GOSwitchesBP.lua`, `fr0z3nUI_GameOptions.toc`
+- Floating buttons: when locked, right-click triggers the “special” action instead of drag.
+	- Mount Up float: right-click runs Mount Special (same behavior as `/mountspecial`).
+	- Pet Walk float: right-click dismisses your currently summoned battle pet.
+- Bumped TOC `## Version` to `2026.03.21.06`.
+
+# 260321-007
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: fix a taint error in the eating/drinking gate on some clients (“secret number” aura spellIDs can’t be compared directly) by stringifying spellID before matching.
+- Bumped TOC `## Version` to `2026.03.21.07`.
+
+# 260321-008
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: fix follow-up taint error (“secret string”) by avoiding all direct spellID comparisons; use `AuraUtil.FindAuraBySpellID` for eating/drinking detection, with a name-only fallback.
+- Bumped TOC `## Version` to `2026.03.21.08`.
+
+# 260321-009
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros (Food/Drink): fix generated `FGO Food` / `FGO Drink` not auto-updating after a `/reload` (auto-update now treats “macro exists” as active, not only the one-session `createdFood/createdDrink` flags).
+- Bumped TOC `## Version` to `2026.03.21.09`.
+
+# 260321-010
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros: avoid no-op rewrites (if the existing macro body already matches, skip `EditMacro` and don’t print a duplicate “Updated macro ...” line).
+- Bumped TOC `## Version` to `2026.03.21.10`.
+
+# 260321-011
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros (Food/Drink): remove success spam (“Created/Updated macro ...”) for the generated `FGO Food` / `FGO Drink` macros; failures still print.
+- Bumped TOC `## Version` to `2026.03.21.11`.
+
+# 260321-012
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros (Food/Drink): silence combat-deferral messages; macro updates still defer in combat and retry after combat automatically.
+- Bumped TOC `## Version` to `2026.03.21.12`.
+
+# 260321-013
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): fix overbuying stacked vendor items by converting unit “need” into the correct `BuyMerchantItem` purchase quantity (uses merchant per-purchase stack size); pending-bought tracking now increments by units bought.
+- Bumped TOC `## Version` to `2026.03.21.13`.
+
+# 260321-014
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): fail closed when a restock rule can’t be classified/grouped yet (no category/use-key) — never fall back to buying each rule item.
+- Trade (Restock): expand food/drink “Use:” parsing so mana-only drinks classify correctly; restock grouping now prefers the highest-tier usable item.
+- Bumped TOC `## Version` to `2026.03.21.14`.
+
+# 260321-015
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): cap each `BuyMerchantItem` call to the item’s real max stack size (e.g., buy in 20s), so vendor “bundle sizes” (like 5) don’t dictate buy chunking.
+- Bumped TOC `## Version` to `2026.03.21.15`.
+
+# 260321-016
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): when multiple tier rules share a restock group, the group target now follows the chosen best-tier item’s configured target (no more taking the max target across the group).
+- Bumped TOC `## Version` to `2026.03.21.16`.
+
+# 260321-017
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): fix under-buying by treating `BuyMerchantItem(idx, quantity)` as item-units on this client; buy calls now request the configured unit amounts (rounded to vendor bundle size) instead of “purchase counts”.
+- Bumped TOC `## Version` to `2026.03.21.17`.
+
+# 260321-018
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): fix mana-user detection so it checks for an actual mana pool (not the current primary power type), preventing paladin specs/forms from incorrectly being treated as “non-mana”.
+- Bumped TOC `## Version` to `2026.03.21.18`.
+
+# 260321-019
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade Debug: merchant debug header now prints `usesMana`, `maxMana`, and `powerType` to make drink gating diagnostics unambiguous.
+- Bumped TOC `## Version` to `2026.03.21.19`.
+
+# 260321-020
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): reduce chat spam by printing the `Buying:` line only once per item per merchant session (instead of once per chunk).
+- Bumped TOC `## Version` to `2026.03.21.20`.
+
+# 260321-021
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): fix “not caching” / false-negative classification by not caching tooltip misses as `false`; if tooltip lines aren’t ready yet, restock now waits and retries.
+- Bumped TOC `## Version` to `2026.03.21.22`.
+
+# 260321-022
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock/UI): fix mana-only drinks being misclassified as restoring health just because the word “health” appeared in the tooltip line; now only parsed “of your health/mana” counts.
+- Bumped TOC `## Version` to `2026.03.21.23`.
+
+# 260321-023
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade UI (Items list): fix Health% column showing a value for mana-only drinks; Health%/Mana% now display only when the tooltip explicitly restores that resource.
+
+# 260321-024
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: eating/drinking gate now only blocks while the active “consuming” aura is present (movement-cancelled, no fixed duration), so Mount Up works again immediately after you finish eating/drinking.
+- Bumped TOC `## Version` to `2026.03.21.25`.
+
+# 260321-025
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: fix regression where eating/drinking could be interrupted by an auto-mount after you stop moving; eating/drinking is now reliably detected again.
+- Mount Up: if Mount Up was armed while you were eating/drinking, it now retries shortly after the consuming aura ends (so you mount after finishing without needing a second trigger).
+- Bumped TOC `## Version` to `2026.03.21.26`.
+
+# 260321-026
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: add a 20-second “finish eating/drinking then mount” timer (cancelled on movement) so mounting still happens after consumption even if the normal 8-second arm window expires.
+- Bumped TOC `## Version` to `2026.03.21.27`.
+
+# 260321-027
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): fix `Buying:` chat line to display the actual bundle-rounded units requested from the vendor (and show `need` when it differs), matching the resulting loot/stack splits.
+- Bumped TOC `## Version` to `2026.03.21.28`.
+
+# 260321-028
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): stop rounding purchases to the merchant item `stackCount`/`quantity` (treat it as the default buy size); restock now attempts to buy the exact needed unit count when possible.
+- Bumped TOC `## Version` to `2026.03.21.29`.
+
+# 260321-029
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade UI: fix a runtime error where `NormalizeBankTarget` was nil in some click paths.
+- Bumped TOC `## Version` to `2026.03.21.30`.
+
+# 260321-030
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootChat (XP): suppress occasional double-prints where the same XP amount appears twice (one line with a source label, followed by a plain XP line).
+- Bumped TOC `## Version` to `2026.03.21.31`.
+- Bumped TOC `## Version` to `2026.03.21.24`.
+
+# 260320-001
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax: prefix bank move chat lines with `[Tax]` so the source is obvious when diagnosing unexpected prints.
+- Bumped TOC `## Version` to `2026.03.20.01`.
+
+# 260320-002
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootChat: fix false-positive “money message” detection for single-letter amount tokens (`g/s/c`) so addon messages like `"8612 guides are loaded"` aren't suppressed/reprinted as `"<player>: 8612"`.
+- Bumped TOC `## Version` to `2026.03.20.02`.
+
+# 260320-003
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax: remove the explicit chat prefix on bank-move prints (restores the original plain `"<player>: <gold>"` style line).
+- Bumped TOC `## Version` to `2026.03.20.03`.
+
+# 260320-004
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax: normalize bank-move chat wording to consistently say `withdrawn from <BankName>` / `deposited to <BankName>` and print a friendly bank label (`Warband Bank` vs `WarBank`).
+- Bumped TOC `## Version` to `2026.03.20.04`.
+
+# 260320-005
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootChat: tighten money detection so status/config lines containing words like `gold=on` aren't rewritten as `"<player>: 1"`, and addon prints containing coin textures mid-line won't lose their trailing text.
+- Bumped TOC `## Version` to `2026.03.20.05`.
+
+# 260320-006
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootChat: fix remaining money false-positive where config/status text like `n=1, gold=on` could still be parsed/rewritten as `"<player>: 1"`.
+- Bumped TOC `## Version` to `2026.03.20.06`.
+
+# 260320-007
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash `/fgo status`: remove the duplicate trailing `version=...` line (Loot status already prints version).
+- Bumped TOC `## Version` to `2026.03.20.07`.
+
+# 260320-008
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Restock): wait for item/merchant cache to be ready before buying, so restock selection/counting doesn’t run with partial tooltip/item-data.
+- Bumped TOC `## Version` to `2026.03.20.08`.
+
+# 260320-009
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade UI (Items list): auto-refresh the items window when rules change and when item cache finishes loading, so names/columns and newly-added items appear without reopening.
+- Bumped TOC `## Version` to `2026.03.20.09`.
+
+# 260320-010
+- Files: `fUI_GOMacros.lua`, `fUI_GOMacroUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros tab: add bottom `Food` / `Drink` buttons to create/update the `FGO Food` and `FGO Drink` macros based on best bag food/drink.
+- Macros tab: add `Conjured` (green/grey) toggle next to `+ Macro` to prefer conjured items when ranking.
+- Bumped TOC `## Version` to `2026.03.20.10`.
+
+# 260319-001
+- Files: `fUI_GOLootUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot tab (Experience): fix compact dropdown sizing so the `Quest` toggle button doesn't get pushed off-screen and appear missing.
+- Bumped TOC `## Version` to `2026.03.19.01`.
+
+# 260319-002
+- Files: `fUI_GOCore.lua`, `fUI_GOLoot*.lua`, `fUI_GOTrade*.lua`, `fUI_GOTax*.lua`, `fUI_GOSwitchesMN.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt embedding: stop binding to a separately-loaded standalone `fr0z3nUI_LootIt` global; always initialize/use the embedded `ns.LootIt` instance so the Loot/Trade/Tax tabs and `/fgo` status can't be hijacked by an old addon folder.
+- Bumped TOC `## Version` to `2026.03.19.02`.
+
+# 260318-001
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): fix the delayed fallback printer so it always includes the quest title (some clients provide `QUEST_COMPLETE` without a `%s` placeholder, which previously caused a generic `"Quest completed"` line).
+- Bumped TOC `## Version` to `2026.03.18.01`.
+
+# 260317-068
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): fix quest completion → XP merge timing by using a consistent `GetTime()`-based timestamp for both system “Quest completed” lines and XP parsing.
+- Experience in Loot (QuestXP): widen the merge window and add a delayed fallback print so a suppressed “Quest completed” line can’t vanish if no XP line arrives.
+
+# 260318-005
+- Files: `fUI_GOTrade.lua`, `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): treat missing merchant item links right after open as a cache-wait state so the merchant ticker doesn't idle-out and require a reopen.
+- Trade UI: Purchase list shows `C A R` scope indicator (Character/Account/Realm) colored green/orange for enabled/disabled; left-side buttons shortened and the list panel widened ~20% while staying on the tab.
+- Bumped TOC `## Version` to `2026.03.18.05`.
+
+# 260318-006
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): resolve merchant item IDs using multiple APIs (not just `GetMerchantItemLink`) for better compatibility with UI replacements; also sync merchant debug output to the same `tradeDebug` toggle so "no purchase" cases print why.
+- Bumped TOC `## Version` to `2026.03.18.06`.
+
+# 260318-007
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): improved debug lines to show which rule is being processed and whether it's waiting on cache vs not sold by the current merchant.
+- Bumped TOC `## Version` to `2026.03.18.07`.
+
+# 260318-008
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): never print a standalone "Quest completed: <title>" fallback line. Quest completion spam remains hidden, and the quest title only appears when it can be appended onto an XP gain line. Also briefly delays unnamed XP output so completions that arrive after the XP event can still attach.
+- Bumped TOC `## Version` to `2026.03.18.08`.
+
+# 260318-009
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): prevent repeated buy attempts for items you already have equipped / Unique(1) by flooring Buy-mode "have" counts using `GetItemCount(..., includeBank=false)`.
+- Bumped TOC `## Version` to `2026.03.18.09`.
+
+# 260318-010
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): avoid restarting the merchant ticker if it's already running (prevents double-start from wiping session tracking and causing immediate repeat-buy attempts before bags update).
+- Bumped TOC `## Version` to `2026.03.18.10`.
+
+# 260318-011
+- Files: `fUI_GOCore.lua`, `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): if a buy attempt triggers the UI error "You can't carry any more", latch that itemID as blocked for the remainder of the merchant session so the ticker stops re-attempting and spamming the popup (common with Unique/max-count items).
+- Bumped TOC `## Version` to `2026.03.18.11`.
+
+# 260318-012
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): XP line quest title now has an extra leading space and is colored white (instead of default chat grey).
+- Bumped TOC `## Version` to `2026.03.18.12`.
+
+# 260318-013
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (Discovery XP): location name now has an extra leading space and is colored light blue (instead of default chat grey).
+- Bumped TOC `## Version` to `2026.03.18.13`.
+
+# 260318-014
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): after buying a non-stackable item where the rule target is 1, block further buys of that item for the rest of the merchant session to prevent an immediate second attempt (and "can't carry any more" popup) during bag/cache lag.
+- Bumped TOC `## Version` to `2026.03.18.14`.
+
+# 260318-004
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): keep the merchant ticker alive while the vendor item list is still populating on first open (treat `GetMerchantNumItems()==0` as a cache-wait state in Buy mode).
+- Bumped TOC `## Version` to `2026.03.18.04`.
+
+# 260318-003
+- Files: `fUI_GOCore.lua`, `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Purchase (Merchant): fix a first-open issue where vendor automation could fail until you reopened the vendor, by not keying the merchant ticker off `MerchantFrame:IsShown()` and by wiring merchant interaction events from the Interaction Manager (with dedupe).
+- Bumped TOC `## Version` to `2026.03.18.03`.
+
+# 260318-002
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): attach the quest title to plain XP gain lines even when the XP parser can't identify the message kind (infer unnamed vs kill from presence of a mob string).
+- Bumped TOC `## Version` to `2026.03.18.02`.
+- Bumped TOC `## Version` to `2026.03.17.68`.
+
+# 260317-069
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): quest accepted/completed suppression no longer depends on LootIt's main enabled toggle (it is an Experience feature).
+- Experience in Loot (QuestXP): add low-noise XP debug lines when quest status is stored/suppressed/fallback-printed.
+- Bumped TOC `## Version` to `2026.03.17.69`.
+
+# 260317-070
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): recognize and suppress the alternate quest completion format `"<Quest Title> completed."` in System messages, so it can merge into the XP line (or fallback-print).
+- Experience in Loot (QuestXP): ensure the System-message filter is installed whenever QuestXP is enabled (even if LootIt main is off).
+- Bumped TOC `## Version` to `2026.03.17.70`.
+
+# 260317-071
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): fix a Lua error introduced in 070 where `MaybePrintXPDebug()` was referenced before being defined (forward declaration).
+- Bumped TOC `## Version` to `2026.03.17.71`.
+
+# 260317-072
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): attach quest completion titles based on XP message kind (unnamed/quest XP) instead of relying on whether the XP parser produced a non-empty `mob` string.
+- Bumped TOC `## Version` to `2026.03.17.72`.
+
+# 260317-073
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Experience in Loot (QuestXP): prevent `QUEST_TURNED_IN` from wiping the stored quest title when `GetTitleForQuestID()` returns nil (cache/timing).
+- Experience in Loot (QuestXP): suppress the generic System line `"Quest completed"` (no title) when a recent titled completion is pending, so the quest name can appear on the XP line instead.
+- Bumped TOC `## Version` to `2026.03.17.73`.
+
+# 260317-064
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit (Personal Bank): add a `PutItemInBank()` fallback after cursor pickup (often still works with the 12.0 bank panel even when Character bank slots aren’t enumerable as container bags).
+- Deposit debug: `/fgo deposit debug` now prints bank UI shown state, selected bank type, and which `C_Bank` deposit functions are present.
+- Bumped TOC `## Version` to `2026.03.17.64`.
+
+# 260317-065
+- Files: `fUI_GOTradeBank.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit (Personal Bank): when `C_Bank` deposit APIs aren’t available, deposit now uses `C_Container.UseContainerItem()` for whole stacks (bank-open right-click behavior) and `SplitPickupContainerItemSafe()` + `PutItemInBank()` for partial stacks.
+- Deposit (Personal Bank): blocked/undepositable items are now skipped instead of aborting the entire deposit run.
+- Bumped TOC `## Version` to `2026.03.17.65`.
+
+# 260317-063
+- Files: `fUI_GOTradeBank.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit (Personal Bank, 12.0+): prefer `C_Bank` deposit APIs (Character bank type + `ItemLocation`) instead of trying to locate “bank bag” container IDs; keeps the old cursor/container placement as a fallback.
+- Bumped TOC `## Version` to `2026.03.17.63`.
+
+# 260317-062
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit (Personal Bank): update deposit mover to work with the new bank panel (Personal Bank behaves like Warbank) by placing into the bank’s container panel instead of relying on legacy `PutItemInBank()`.
+- Deposit: all “scan player bags” loops now only iterate backpack/equipped bags (+ reagent bag) so bank containers aren’t treated as inventory when the bank UI is open.
+- Deposit: Personal Bank failures now print the specific reason (pickup/place/full/blocked).
+- Bumped TOC `## Version` to `2026.03.17.62`.
+
+# 260317-061
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit (UI): destination-filtered Items list now shows rules even when disabled/overridden (so you can re-enable them), and in Personal/Guild/Warbank views it also includes `bank` (auto) rules since those would deposit to that destination when that bank UI is open.
+- Bumped TOC `## Version` to `2026.03.17.61`.
+
+
+# 260317-067
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit (Slash): restore `/fgo deposit <target>` run behavior (e.g. `personal/guild/warbank`) so you can force a specific deposit path for debugging; `/fgo deposit` still auto-selects based on which bank UI is open.
+- Bumped TOC `## Version` to `2026.03.17.67`.
+# 260317-060
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit (UI): the right-side Items list filtering now uses the deposit engine’s effective resolver (same Char/Realm/Acc precedence + disable flags) so the list can’t drift from runtime behavior.
+- Bumped TOC `## Version` to `2026.03.17.60`.
+
+# 260317-059
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit: restore “one deposit list” behavior by storing a destination tag per rule (`bank`/`personal`/`guild`/`warbank`) and computing the effective destination with Char > Realm > Account precedence + disable flags.
+- Deposit: runtime `/fgo deposit` (and `bank` auto) now deposits based on each rule’s stored destination (plus `bank` auto-to-open-bank) and does **not** read the UI destination selector, preventing the old “button overrides deposit” bug.
+- Deposit: `/fgo deposit status|debug` now shows `resolved=` destination when target is `bank` (auto), plus a per-destination effective breakdown in debug.
+- Bumped TOC `## Version` to `2026.03.17.59`.
+
+# 260317-058
+- Files: `fUI_GOTradeBank.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit: when no explicit target is provided, `/fgo deposit` and `/fgo deposit status|debug` now default to the Deposit tab’s saved target (`cfg.target`) instead of always using `bank`.
+- Bumped TOC `## Version` to `2026.03.17.58`.
+
+# 260317-057
+- Files: `fUI_GOTrade.lua`, `fUI_GOTradeBank.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit: add `/fgo deposit status [target]` and `/fgo deposit debug [target]` to print a one-shot report (bank-open detection, normalized target/list, effective rule count, and debug breakdown/sample IDs).
+- Deposit: allow `/fgo deposit <target>` to run with an explicit target (`bank`/`personal`/`guild`/`warbank`).
+- Bumped TOC `## Version` to `2026.03.17.57`.
+
+# 260317-054
+- Files: `fUI_GOMacroUI.lua`, `fr0z3nUI_GameOptions.toc`
+- HM Portal: the UI "FGO HM Portal" Create button now captures/sets the portal target (same as `/fgo hm portal set`) when standing in the desired plot.
+- Bumped TOC `## Version` to `2026.03.17.54`.
+
+# 260317-055
+- Files: `fUI_GOMacroUI.lua`, `fr0z3nUI_GameOptions.toc`
+- HM Portal (UI): clicking the "FGO HM Portal" row label now captures/sets the portal target (like `/fgo hm portal set`); the small `M` button remains macro-only.
+- Bumped TOC `## Version` to `2026.03.17.55`.
+
+# 260317-056
+- Files: `fUI_GOMacroUI.lua`, `fr0z3nUI_GameOptions.toc`
+- HM (UI): add an `S` button on the Alliance/Horde/Portal rows to print status (Portal uses the same output as `/fgo hm portal status`; Home rows print saved target + secure button attributes).
+- Bumped TOC `## Version` to `2026.03.17.56`.
+
+# 260317-053
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: when a Warbound item auto-switches the deposit target to Warbank, immediately refresh/rebind the right-side Items list and scope state so edits apply to Warbank.
+- Trade/Deposit: treat legacy `guildbank` target strings as `guild` (target normalization).
+- Bumped TOC `## Version` to `2026.03.17.53`.
+
+# 260317-042
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: fix debug gating so Trade `Debug` prints can’t be lost to a Lua local-ordering pitfall; add a guaranteed debug line when cycling bank targets so we can confirm the click handler fired + see the before/after target.
+- Bumped TOC `## Version` to `2026.03.17.42`.
+
+# 260317-043
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: when cycling bank targets, force an Items list rebuild via an exposed list-builder fallback (and print which refresh function is being used when Trade `Debug` is enabled).
+- Bumped TOC `## Version` to `2026.03.17.43`.
+
+# 260317-044
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: add entry-trace for the Items list builder and wrap refresh/build calls in `pcall` to surface any errors preventing the list from rebuilding/printing debug output.
+- Bumped TOC `## Version` to `2026.03.17.44`.
+
+# 260317-045
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: wrap the list-count debug block in `pcall` and print any caught errors so we can see why `TradeUI list: ...` isn’t showing.
+- Bumped TOC `## Version` to `2026.03.17.45`.
+
+# 260317-046
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: change the list-count debug line to use safe string concatenation (`tostring`) instead of `string.format`, to avoid any formatting/type issues hiding the output.
+- Bumped TOC `## Version` to `2026.03.17.46`.
+
+# 260317-047
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: reduce debug spam during Items list rebuilds so the important per-target counts line reliably shows in chat.
+- Bumped TOC `## Version` to `2026.03.17.47`.
+
+# 260317-048
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: when cycling bank targets with Trade `Debug` enabled, print the per-scope rule counts for the newly selected target directly (bypasses any Items list UI refresh issues).
+- Bumped TOC `## Version` to `2026.03.17.48`.
+
+# 260317-049
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: merge target-cycle + per-scope counts into a single debug line (avoids chat dropping the “second line” during rapid refresh/rebuild).
+- Bumped TOC `## Version` to `2026.03.17.49`.
+
+# 260317-050
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: fix the combined target-cycle debug line being swallowed by WoW chat due to a literal `|` (escape prefix) in the message.
+- Bumped TOC `## Version` to `2026.03.17.50`.
+
+# 260317-051
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: print target-cycle + per-scope rule counts on the same click/refresh debug line so the numbers can’t be lost as a separate chat message.
+- Bumped TOC `## Version` to `2026.03.17.51`.
+
+# 260317-052
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: emit the cycle+counts debug line via `DEFAULT_CHAT_FRAME:AddMessage` (with `|` escaping) to guarantee it shows even if addon `Print()` routing drops it.
+- Bumped TOC `## Version` to `2026.03.17.52`.
+
+# 260317-040
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: fix empty Personal/Guild/Warbank Items lists when rules existed under legacy target keys (migrates `either`/`personalbank`/`guildbank`/`warband` into `bank`/`personal`/`guild`/`warbank`).
+- Bumped TOC `## Version` to `2026.03.17.40`.
+
+# 260317-041
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: when Trade `Debug` is enabled, the Items list now prints the detected target and rule counts per scope so we can see exactly why a per-target list appears empty.
+- Bumped TOC `## Version` to `2026.03.17.41`.
+
+# 260317-039
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade/Deposit: when selecting a Warbound item auto-switches the deposit target to Warbank, the right-side Items list now switches/refreshes too (and scope edits apply to the Warbank list immediately).
+- Bumped TOC `## Version` to `2026.03.17.39`.
+
+# 260317-036
+- Files: `fUI_GOMacroHome.lua`, `fUI_GOMacroUI.lua`, `fr0z3nUI_GameOptions.toc`
+- HM Alliance/Horde (Home1/Home2): moved the saved destinations to account-wide storage (`AutoGame_Settings.fgoHomeTeleports`) so you don't have to capture per-character.
+- Migration: if legacy per-character slots exist, they are copied into the account table when missing.
+- Bumped TOC `## Version` to `2026.03.17.36`.
+
+# 260317-037
+- Files: `fUI_GOMacroHome.lua`, `fr0z3nUI_GameOptions.toc`
+- HM Portal: added `/fgo hm portal status` debug output (shows saved target + secure button attributes + cooldown) and reduced misleading spam (won't claim "Found ID" unless a stale-GUID retry actually occurred).
+- Bumped TOC `## Version` to `2026.03.17.37`.
+
+# 260317-038
+- Files: `fUI_GOMacroHome.lua`, `fr0z3nUI_GameOptions.toc`
+- Fix: HM Portal no longer errors on click due to a Lua local-scope ordering bug (`GetPlayerFactionKey` being treated as a missing global).
+- Bumped TOC `## Version` to `2026.03.17.38`.
+
+# 260317-035
+- Files: `fUI_GOMacroHome.lua`, `fUI_GOMacroUI.lua`, `fr0z3nUI_GameOptions.toc`
+- HM Portal: redesigned to use a dedicated secure-click button (`/click FGO_HMPortalTeleport`) backed by an account-wide saved target per faction (capture with `/fgo hm portal set` while standing in the desired +Friend plot).
+- Slash: `/fgo hm portal` now prints the macro body + capture instructions (no longer tries to execute secure teleports directly).
+- Bumped TOC `## Version` to `2026.03.17.35`.
+
+# 260317-034
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: `/fgo mountequip` warning text now says “Mount needs Inflatable Mount Shoes”.
+- Bumped TOC `## Version` to `2026.03.17.34`.
+
+# 260317-033
+- Files: `fUI_GOTalkUP.lua`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: added a conservative fallback to auto-confirm Spirit Healer-style resurrect popups when they fire as `DEATH`/`XP_LOSS` without any gossip option selection context (gated by popup text).
+- Bumped TOC `## Version` to `2026.03.17.33`.
+
+# 260317-032
+- Files: `fUI_GOTalkUP.lua`, `fUI_GOTalk01KD.lua`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: Spirit Healer resurrect confirm can fire as `XP_LOSS`; treat it as a gossip-ish confirm so existing `GOSSIP_CONFIRM` rules can match.
+- Talk DB: expanded Spirit Healer confirm-text matching to cover XP-loss phrasing.
+- Bumped TOC `## Version` to `2026.03.17.32`.
+
+# 260317-031
+- Files: `fUI_GOTalkUP.lua`, `fUI_GOTalk01KD.lua`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: allow Spirit Healer resurrect confirmation popups to auto-confirm even when they fire as `DEATH` (no reliable gossip option selection).
+- Talk DB: made the Spirit Healer confirm-text match more tolerant (corpse wording variants).
+- Bumped TOC `## Version` to `2026.03.17.31`.
+
+# 260317-030
+- Files: `README.md`, `fr0z3nUI_GameOptions.toc`
+- Docs: expanded the Loot tab section to cover the “Achievement / Experience / Professions” output controls (Bonus/Quest/XP Label) and the `Alias`/`Info` popouts.
+- Bumped TOC `## Version` to `2026.03.17.30`.
+
+# 260317-029
+- Files: `README.md`, `fr0z3nUI_GameOptions.toc`
+- Docs: rewrote the README into a GUI-first “FGO for Dummies” style guide (ACC vs CHAR, Switches segmented controls/TooltipX, and click-by-click workflows per tab).
+- Bumped TOC `## Version` to `2026.03.17.29`.
+
+# 260317-028
+- Files: `README.md`, `fr0z3nUI_GameOptions.toc`
+- Docs: expanded the README into a proper “what this addon is + how to use it” guide (tab overview + updated `/fgo` command cheat sheet).
+- Bumped TOC `## Version` to `2026.03.17.28`.
+
+# 260317-027
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Fix: resolved a chat-frame hook error (`FormatSelfLine` nil) triggered by direct money receipt prints after adding AddMessage capture logging.
+- Bumped TOC `## Version` to `2026.03.17.27`.
+
+# 260317-026
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: capture debug now logs direct chat-frame `AddMessage` prints (which can bypass normal chat event filters), so `/fgo li capture dump` can see lines like the textureless money “You gained: …” case.
+- Bumped TOC `## Version` to `2026.03.17.26`.
+
+# 260317-025
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: money capture/reprint now recognizes textureless numeric coin lines like `You gained: 7,536 63 26` (gold/silver/copper) so they can be suppressed/reprinted/combined like normal money messages.
+- Bumped TOC `## Version` to `2026.03.17.25`.
+
+# 260317-024
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOSwitchesCT.lua`, `fr0z3nUI_GameOptions.toc`
+- Chromie Time (GUI): bottom-of-window status label is now anchored to the full FGO window width to prevent truncation like `Chromie Ti...`.
+- Chromie Time (floating indicator): reverted the earlier auto-sizing behavior back to the original fixed-size indicator.
+- Bumped TOC `## Version` to `2026.03.17.24`.
+
+# 260317-023
+- Files: `fUI_GOSwitchesCT.lua`, `fr0z3nUI_GameOptions.toc`
+- Chromie indicator: the movable “Chromie Time” indicator frame now auto-sizes its width to the text (prevents truncation like `Chromie Ti...`).
+- Bumped TOC `## Version` to `2026.03.17.23`.
+
+# 260317-022
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- UI: reordered the tab buttons into alphabetical order (visual order only; tab IDs/panels unchanged).
+- Bumped TOC `## Version` to `2026.03.17.22`.
+
+# 260317-021
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax: guild home realm no longer gets stuck as `UNKNOWN` when WoW omits the realm string for same-realm guilds.
+- Bumped TOC `## Version` to `2026.03.17.21`.
+
+# 260317-020
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- UI: renamed the tab label from `LootIt` to `Loot`.
+- Bumped TOC `## Version` to `2026.03.17.20`.
+
+# 260317-019
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOTaleUI.lua`, `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Chromie Time: replaced the old 2-line top-right label with a single-line bottom-center status line on the Switches/Tabard/Tale/Talk/Textures/LootIt/Tax/Trade tabs.
+- Tale UI: shortened `Print`/`Debug` buttons; made the Print threshold input frameless.
+- Tax UI: moved the `Manual` toggle button below `Min Gold`.
+- Bumped TOC `## Version` to `2026.03.17.19`.
+
+# 260317-018
+- Files: `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax UI: moved the guild name line up slightly to add space below it.
+- Bumped TOC `## Version` to `2026.03.17.18`.
+
+# 260317-017
+- Files: `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax: cache the detected guild name + home realm per character once known, and update the cache if it changes.
+- Tax UI: if the home realm is temporarily unknown, reuse the cached home realm for that character (otherwise show `UNKNOWN`).
+- Bumped TOC `## Version` to `2026.03.17.17`.
+
+# 260317-016
+- Files: `fUI_GOTax.lua`, `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax UI: guild name keeps its original large auto-fit sizing; the realm line stays smaller (button-text sized).
+- Tax UI: when the guild home realm can’t be determined, the realm line now shows `UNKNOWN` (no fallback to your current realm).
+- Bumped TOC `## Version` to `2026.03.17.16`.
+
+# 260317-015
+- Files: `fUI_GOTextures.lua`, `fr0z3nUI_GameOptions.toc`
+- Textures: stop printing the “ArtLayer migration already completed …” line on every `/reload` (now only prints when Textures debug is ON).
+- Bumped TOC `## Version` to `2026.03.17.15`.
+
+# 260317-014
+- Files: `fUI_GOSituatePF.lua`, `fr0z3nUI_GameOptions.toc`
+- Popouts: fixed “one popout at a time” by initializing the popout manager early (so modules that register popouts during load are actually registered).
+- Bumped TOC `## Version` to `2026.03.17.14`.
+
+# 260317-013
+- Files: `fUI_GOLootUI.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt Suppress: popout now opens out to the right (Mail-style) instead of hovering over the tab, and uses the cleaner popout backdrop styling.
+- Bumped TOC `## Version` to `2026.03.17.13`.
+
+# 260317-012
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Fix: resolved a login-time chat-hook crash when `IsSecretString` is not defined (suppression helpers now correctly use a local secret-string guard).
+- Bumped TOC `## Version` to `2026.03.17.12`.
+
+# 260317-011
+- Files: `fUI_GOTax.lua`, `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax: guild identity is now keyed by Guild GUID (best-effort migration from legacy `realm::guildName` buckets for the current guild).
+- Tax UI: guild header is now two lines: Guild name + Home realm (both faction-colored).
+- Bumped TOC `## Version` to `2026.03.17.11`.
+
+# 260317-010
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOLootUI.lua`, `fUI_GOTexturesUI.lua`, `fUI_GOCore.lua`, `fUI_GOMacroUI.lua`, `fUI_GOSituateUI.lua`, `fUI_GOSwitchesBP.lua`, `fUI_GOSwitchesCT.lua`, `fUI_GOSwitchesMU.lua`, `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Suppress: moved the `Suppress` button/popout onto the LootIt tab (tab-local parent), while keeping it positioned above the main `Reload UI` button.
+- Popouts: added a small registry so only one popout can be open at a time (opening any popout auto-closes the rest).
+- LootIt: removed the accidental dedicated `ERG` suppression toggle; ERG noise should be handled via the generic Suppress rules list.
+- Bumped TOC `## Version` to `2026.03.17.10`.
+
+# 260317-005
+- Files: `fUI_GOLootUI.lua`, `fUI_GOLootChat.lua`, `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt UI: added a `Played` toggle next to `Debug` (default OFF) that hides `/played` system output lines.
+- Loot Experience: `Quest` mode now also suppresses quest-log removal lines like “The quest X has been removed from your quest log.”
+- Tooltips: updated the `Quest` and `Before/After` (XP label position) tooltips for clarity.
+- Bumped TOC `## Version` to `2026.03.17.05`.
+
+# 260317-006
+- Files: `fUI_GOLootUI.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt UI: moved the LootIt tab contents down so the Enable button no longer overlaps the tab strip.
+- Bumped TOC `## Version` to `2026.03.17.06`.
+
+# 260317-007
+- Files: `fUI_GOLootUI.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt UI: aligned `Debug`/`Played` buttons with the main `Reload UI` button row.
+- Bumped TOC `## Version` to `2026.03.17.07`.
+
+# 260317-008
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Played: fixed suppression for `/played` lines that bypass chat event filters (direct `AddMessage` prints).
+- Bumped TOC `## Version` to `2026.03.17.08`.
+
+# 260317-009
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOLootChat.lua`, `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- Suppress: added a `Suppress` popout button above `Reload UI` with an SV-backed, per-line substring suppress list (toggle/add/delete).
+- Suppress: rules apply to both chat event filters and direct `AddMessage` prints (covers many addon `Print()` spam lines).
+- Bumped TOC `## Version` to `2026.03.17.09`.
+
+# 260317-001
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Experience: suppress the original XP system/combat chat line when the parser can’t match it (prevents duplicate lines when XP_UPDATE fallback prints).
+- Loot Experience: for quest XP, append the most recent turned-in quest title (from `QUEST_TURNED_IN`) when available.
+- Bumped TOC `## Version` to `2026.03.17.01`.
+
+# 260317-002
+- Files: `fUI_GOMacroXCMD.lua`, `fr0z3nUI_GameOptions.toc`
+- Macro-XCMD: stop injecting `/stopmacro [advfly]` (it causes the in-game error “Unknown macro option: advfly”).
+- Bumped TOC `## Version` to `2026.03.17.02`.
+
+# 260317-003
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Experience: suppress and reprint the quest system lines (`Quest accepted:` / `Quest completed:`) when experience rewriting is enabled, so the stock “completed” line doesn’t linger.
+- Bumped TOC `## Version` to `2026.03.17.03`.
+
+# 260317-004
+- Files: `fUI_GOLootUI.lua`, `fUI_GOLootChat.lua`, `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Experience: added a separate `Quest` toggle button (next to `Bonus`) that hides the quest Accepted/Completed system lines.
+- Loot Experience: when `Quest` is ON, only the quest *title* from the Completed line is appended to the XP gain output (e.g. `12345 XP Temple Throwdown`).
+- Bumped TOC `## Version` to `2026.03.17.04`.
+
+# 260316-030
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: fixed `/fgo deposit` being mis-parsed as Macro-CMD mode `/fgo d eposit` (caused by the single-letter mode “glue” parser for `/fgo d <key>`).
+- Bumped TOC `## Version` to `2026.03.16.33`.
+
+
+# 260317-066
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Deposit (Slash): `/fgo deposit` is now the only run-mode depositor; any explicit target word (e.g. `personal/guild/warbank`) is ignored so deposit always follows the currently open bank UI.
+- Deposit (Slash): `/fgo deposit status|debug [target]` still accepts an optional target argument for reporting only.
+- Bumped TOC `## Version` to `2026.03.17.66`.
+# 260316-031
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Experience: pad the XP number block with dim `0`s instead of leading spaces (better alignment in proportional chat fonts).
+- Bumped TOC `## Version` to `2026.03.16.34`.
+
+# 260316-032
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: added direct `/fgo deposit` routing to the hosted LootIt/Trade deposit helper (previously only worked as `/fgo li deposit`).
+- Bumped TOC `## Version` to `2026.03.16.35`.
+
+# 260316-033
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: removed `/fgo li` bloat for common LootIt commands by promoting them to top-level: `/fgo mail ...`, `/fgo alias ...`, `/fgo capture ...`, `/fgo chatdebug ...`, `/fgo delayflush ...`, `/fgo status`.
+- Parser: marked these as known full commands so they won't be split by Macro-CMD mode glue (e.g. `mail` no longer becomes `m ail`).
+- Help: updated `/fgo li ?` output to show the new `/fgo ...` commands (kept `/fgo li on|off|toggle`).
+- Bumped TOC `## Version` to `2026.03.16.36`.
+
+# 260316-034
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Help: changed LootIt help output and `/fgo scope` to prefer `/fgo lootit ...` (kept `/fgo li ...` as a legacy alias).
+- Slash: added `/fgo trade food ...` as an alias for the Trade "food" helper command.
+- Bumped TOC `## Version` to `2026.03.16.37`.
+
+# 260316-026
+- Files: `fUI_GOTalk.lua`, `fr0z3nUI_GameOptions.toc`
+- Gossip rules: support `mount = true` to disable MountUp (Character) silently (equivalent to `/fgo mu soff`) before auto-selecting the matched gossip option.
+- Bumped TOC `## Version` to `2026.03.16.29`.
+
+# 260316-027
+- Files: `fUI_GOTalk.lua`, `fr0z3nUI_GameOptions.toc`
+- Gossip rules: `mount = true` now also dismounts silently before auto-select (safeguarded to avoid dismounting while flying/falling).
+- Bumped TOC `## Version` to `2026.03.16.30`.
+
+# 260316-028
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- MountUp: improved reliability by re-arming a mount attempt after player cast/channel completion and after loot closes (fixes common gather case where MountUp would not re-trigger until you moved).
+- Bumped TOC `## Version` to `2026.03.16.31`.
+
+# 260316-029
+- Files: `fUI_GOTalk06.lua`, `fr0z3nUI_GameOptions.toc`
+- Talk DB (Draenor pet battles): removed `xpop` confirm metadata (no confirm popup), keeping `mount = true` behavior.
+- Bumped TOC `## Version` to `2026.03.16.32`.
+
+# 260316-025
+- Files: `fUI_GOTradeUI.lua`, `fr0z3nUI_GameOptions.toc`
+- UI (Trade): list header now uses mode-specific titles: `Bank Items`/`Personal Items`/`Guild Items`/`Warbank Items`, `Purchase Items`, `Sell Items`.
+- UI (Trade): removed the “Deposit/Buy/Sell … rules: #” subtitle; `Rules: #` is now in the top-right of the list window.
+- UI (Trade): item rows sit directly under the list title; list frame is lifted to avoid overlapping the main `Reload UI` row.
+- UX (Trade): the list refreshes immediately after adding/removing an item rule.
+- Bumped TOC `## Version` to `2026.03.16.28`.
+
 # 260316-014
 - Files: `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
 - Core boundary: moved the main addon event frame + event registrations out of `fr0z3nUI_GameOptions.lua` into `fUI_GOCore.lua` so runtime/event wiring is early; core now delegates to `ns.FGO_OnEvent(...)` implemented in main.

@@ -3,9 +3,10 @@
 local addonName, ns = ...
 if type(ns) ~= "table" then ns = {} end
 
-local LI = (ns and ns.LootIt) or fr0z3nUI_LootIt or {}
+local LI = (ns and ns.LootIt) or {}
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
+LI.ADDON = LI.ADDON or addonName
 
 LI.Tax = LI.Tax or {}
 
@@ -73,7 +74,7 @@ do
     local BTN_GAP = 12
     local GAP_Y = 14
 
-    local GUILDNAME_H = 28
+    local GUILDNAME_H = 46
 
     -- Coin icon sizing/offsets (used for both EditBox and inline textures).
     -- Coin icon sizing/offsets (used for both EditBox and owed display textures).
@@ -171,77 +172,69 @@ do
       return 1, 1, 1
     end
 
-    -- Detected guild name (text box) centered between Scope and Rate.
+    -- Detected guild name (two-line header) centered between Scope and Rate.
     local guildNameRow = CreateFrame("Frame", nil, panel)
     guildNameRow:SetPoint("TOP", scopeBtn, "BOTTOM", 0, 0)
     guildNameRow:SetPoint("BOTTOM", rateEdit, "TOP", 0, 0)
     guildNameRow:SetPoint("LEFT", panel, "LEFT", 0, 0)
     guildNameRow:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
 
-    local guildNamePadTop = math.floor((tonumber(GAP_Y) or 0) / 2)
-    local guildNamePadBottom = (tonumber(GAP_Y) or 0) - guildNamePadTop
-    if guildNamePadTop < 0 then guildNamePadTop = 0 end
-    if guildNamePadBottom < 0 then guildNamePadBottom = 0 end
-
-    local guildNameEdit = CreateFrame("EditBox", nil, guildNameRow, "InputBoxTemplate")
-    guildNameEdit:SetPoint("TOPLEFT", guildNameRow, "TOPLEFT", 0, -guildNamePadTop)
-    guildNameEdit:SetPoint("BOTTOMRIGHT", guildNameRow, "BOTTOMRIGHT", 0, guildNamePadBottom)
-    guildNameEdit:SetAutoFocus(false)
-    guildNameEdit:SetTextInsets(6, 6, 0, 0)
-    guildNameEdit:SetJustifyH("CENTER")
-    if guildNameEdit.SetJustifyV then guildNameEdit:SetJustifyV("MIDDLE") end
-    if guildNameEdit.EnableMouse then guildNameEdit:EnableMouse(false) end
-    if guildNameEdit.SetEnabled then guildNameEdit:SetEnabled(true) end
-
+    local guildNameText = guildNameRow:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    guildNameText:SetPoint("CENTER", guildNameRow, "CENTER", 0, 12)
+    guildNameText:SetJustifyH("CENTER")
+    -- Match the old single-line behavior: keep guild name large and only shrink to fit.
     local guildNameFontPath, _, guildNameFontFlags
-    if guildNameEdit.GetFont then
-      guildNameFontPath, _, guildNameFontFlags = guildNameEdit:GetFont()
+    if guildNameText.GetFont then
+      guildNameFontPath, _, guildNameFontFlags = guildNameText:GetFont()
     end
     if type(guildNameFontPath) ~= "string" or guildNameFontPath == "" then
       guildNameFontPath = "Fonts\\FRIZQT__.TTF"
     end
     local GUILDNAME_FONT_MAX = 30
     local GUILDNAME_FONT_MIN = 10
-    if guildNameEdit.SetFont then
-      guildNameEdit:SetFont(guildNameFontPath, GUILDNAME_FONT_MAX, guildNameFontFlags)
+    if guildNameText.SetFont then
+      guildNameText:SetFont(guildNameFontPath, GUILDNAME_FONT_MAX, guildNameFontFlags)
     end
 
-    local function FitGuildNameToBox()
-      if not (guildNameEdit and guildNameEdit.SetFont and guildNameEdit.GetWidth and guildNameEdit.GetText) then return end
+    local function FitGuildNameToRow()
+      if not (guildNameText and guildNameText.SetFont and guildNameText.GetStringWidth and guildNameText.GetText) then return end
+      if not (guildNameRow and guildNameRow.GetWidth) then return end
 
-      local text = tostring(guildNameEdit:GetText() or "")
+      local text = tostring(guildNameText:GetText() or "")
       if text == "" then
-        guildNameEdit:SetFont(guildNameFontPath, GUILDNAME_FONT_MAX, guildNameFontFlags)
+        guildNameText:SetFont(guildNameFontPath, GUILDNAME_FONT_MAX, guildNameFontFlags)
         return
       end
 
-      local w = tonumber(guildNameEdit:GetWidth() or 0) or 0
-      local insetL, insetR = 6, 6
-      local available = w - insetL - insetR
+      local w = tonumber(guildNameRow:GetWidth() or 0) or 0
+      local available = w - 24
       if available <= 0 then return end
 
       local size = GUILDNAME_FONT_MAX
-      guildNameEdit:SetFont(guildNameFontPath, size, guildNameFontFlags)
-
-      local textW = (guildNameEdit.GetTextWidth and guildNameEdit:GetTextWidth()) or 0
+      guildNameText:SetFont(guildNameFontPath, size, guildNameFontFlags)
+      local textW = (guildNameText.GetStringWidth and guildNameText:GetStringWidth()) or 0
       if type(textW) ~= "number" then textW = 0 end
 
       while size > GUILDNAME_FONT_MIN and textW > available do
         size = size - 1
-        guildNameEdit:SetFont(guildNameFontPath, size, guildNameFontFlags)
-        textW = (guildNameEdit.GetTextWidth and guildNameEdit:GetTextWidth()) or 0
+        guildNameText:SetFont(guildNameFontPath, size, guildNameFontFlags)
+        textW = (guildNameText.GetStringWidth and guildNameText:GetStringWidth()) or 0
         if type(textW) ~= "number" then textW = 0 end
       end
     end
 
-    if guildNameEdit.HookScript then
-      guildNameEdit:HookScript("OnSizeChanged", FitGuildNameToBox)
-      guildNameEdit:HookScript("OnTextChanged", FitGuildNameToBox)
+    if guildNameRow and guildNameRow.HookScript then
+      guildNameRow:HookScript("OnSizeChanged", FitGuildNameToRow)
     end
-    HideEditBoxFrame(guildNameEdit)
+
+    local guildRealmText = guildNameRow:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    guildRealmText:SetPoint("CENTER", guildNameRow, "CENTER", 0, -8)
+    guildRealmText:SetJustifyH("CENTER")
+    -- Realm line: match the small "button" text size.
+    SetFontStringSize(guildRealmText, 16)
 
     local guildNamePH = guildNameRow:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    guildNamePH:SetPoint("CENTER", guildNameEdit, "CENTER", 0, 0)
+    guildNamePH:SetPoint("CENTER", guildNameRow, "CENTER", 0, 0)
     guildNamePH:SetText("NO GUILD")
     guildNamePH:SetTextColor(1, 1, 1, 0.35)
 
@@ -729,7 +722,7 @@ do
     scBtn:SetPoint("BOTTOMLEFT", debugBtn, "BOTTOMRIGHT", BTN_GAP, 0)
 
     manualBtn:ClearAllPoints()
-    manualBtn:SetPoint("BOTTOMLEFT", scBtn, "BOTTOMRIGHT", BTN_GAP, 0)
+    manualBtn:SetPoint("TOP", minEdit, "BOTTOM", 0, -GAP_Y)
 
     panel:HookScript("OnHide", function() end)
 
@@ -739,27 +732,62 @@ do
       if type(db) ~= "table" then return end
       db.tax = (type(db.tax) == "table") and db.tax or {}
 
-      local guildKey, guildName = GetCurrentGuildKeyAndName()
-      if guildNameEdit and guildNameEdit.SetText then
-        if type(guildName) == "string" and guildName ~= "" then
-          guildNameEdit:SetText(string.upper(guildName))
-          if guildNameEdit.SetTextColor then
-            guildNameEdit:SetTextColor(GetGuildNameColor())
-          end
-          guildNamePH:Hide()
-        else
-          guildNameEdit:SetText("")
-          guildNamePH:Show()
-        end
-      end
-
-      FitGuildNameToBox()
-
       local cdb = (env.GetCharDB and env.GetCharDB()) or (LI and type(LI.GetCharDB) == "function" and LI.GetCharDB()) or (_G and rawget(_G, "fr0z3nUI_LootItCharDB"))
       if type(cdb) ~= "table" then cdb = nil end
       cdb = cdb or {}
       cdb.tax = (type(cdb.tax) == "table") and cdb.tax or {}
       local ct = cdb.tax
+      ct._guildCache = (type(ct._guildCache) == "table") and ct._guildCache or {}
+      local cache = ct._guildCache
+
+      local guildKey, guildName, guildRealm = GetCurrentGuildKeyAndName()
+      if type(guildName) == "string" and guildName ~= "" then
+        -- Cache per-character guild identity/display once it is known.
+        do
+          local changed = false
+          if type(guildKey) == "string" and guildKey ~= "" and cache.key ~= guildKey then
+            cache.key = guildKey
+            changed = true
+          end
+          if cache.name ~= guildName then
+            cache.name = guildName
+            changed = true
+          end
+          if type(guildRealm) == "string" and guildRealm ~= "" and cache.realm ~= guildRealm then
+            cache.realm = guildRealm
+            changed = true
+          end
+          if changed then
+            cache.updatedAt = (type(time) == "function") and time() or (cache.updatedAt or 0)
+          end
+        end
+
+        guildNameText:SetText(string.upper(guildName))
+        guildNameText:SetTextColor(GetGuildNameColor())
+        guildNameText:Show()
+
+        FitGuildNameToRow()
+
+        local realmText
+        if type(guildRealm) == "string" and guildRealm ~= "" then
+          realmText = guildRealm
+        elseif type(cache.realm) == "string" and cache.realm ~= "" and cache.name == guildName then
+          realmText = cache.realm
+        else
+          realmText = "UNKNOWN"
+        end
+        guildRealmText:SetText(string.upper(realmText))
+        guildRealmText:SetTextColor(GetGuildNameColor())
+        guildRealmText:Show()
+
+        guildNamePH:Hide()
+      else
+        guildNameText:SetText("")
+        guildRealmText:SetText("")
+        guildNameText:Hide()
+        guildRealmText:Hide()
+        guildNamePH:Show()
+      end
       local scope = tostring(ct.scope or "guild"):lower()
       if scope ~= "guild" and scope ~= "character" then scope = "guild" end
       ct.scope = scope

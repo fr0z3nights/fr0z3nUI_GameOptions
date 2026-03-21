@@ -1,11 +1,10 @@
 local addonName, ns = ...
 if type(ns) ~= "table" then ns = {} end
 
-local LI = (ns and ns.LootIt) or fr0z3nUI_LootIt
-if type(LI) ~= "table" then return end
-
+local LI = (ns and ns.LootIt) or {}
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
+LI.ADDON = LI.ADDON or addonName
 
 local function Print(msg)
   local frame = DEFAULT_CHAT_FRAME

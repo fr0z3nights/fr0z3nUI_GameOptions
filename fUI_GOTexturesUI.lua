@@ -441,6 +441,17 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         mailPopout:SetBackdropColor(0, 0, 0, 0.85)
         mailPopout:Hide()
 
+        do
+            local reg = _G and rawget(_G, "FGO_RegisterPopout")
+            if type(reg) == "function" then
+                reg("mail", function()
+                    if mailPopout and mailPopout.Hide then
+                        mailPopout:Hide()
+                    end
+                end)
+            end
+        end
+
         local titleFS = mailPopout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         titleFS:SetPoint("TOPLEFT", mailPopout, "TOPLEFT", 12, -10)
         titleFS:SetText("Mail Notifier")
@@ -683,6 +694,10 @@ function ns.TexturesUI_Build(frame, panel, helpers)
         end
 
         if wantShow then
+            local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+            if type(closeAll) == "function" then
+                closeAll("mail")
+            end
             if mailPopout and mailPopout.Show then
                 mailPopout:Show()
             end

@@ -74,6 +74,17 @@ SetZone("Orgrimmar, Kalimdor")
    t[134631] = { text = "Are you talking about the Twilight's Blade?", type = "" }
    t[134634] = { text = "Are you talking about the Twilight's Blade?", type = "" }
 
+SetZone("Razorwind Shores, Kalimdor")
+
+    local t = NPC(254687, "Rotha")
+    t[137156] = { text = "I'd like to upgrade my house.", type = "" }
+    t[137155] = { text = "I'd like to upgrade my house.", type = "" }
+    t[137153] = { text = "Let's do this!", type = "" }
+    t[137154] = { text = "I'll be back.", type = "" }
+
+    local t = NPC(6491, "Spirit Healer")
+    t[29005] = { text = "Return me to life.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "If you find your corpse", "If you return to your corpse", "return to your corpse", "lose experience", "resurrection sickness" }, within = 3, }, type = "" }
+
 SetZone("Uldum, Kalimdor")
 
     local t = NPC(162419, "Zidormi")

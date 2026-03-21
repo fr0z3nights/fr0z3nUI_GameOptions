@@ -20,6 +20,32 @@ local function Print(msg)
     end
 end
 
+-- Popout manager: allow only one popout open at a time.
+-- Any popout can register a closer; opening a popout should close the others.
+do
+    if not (_G and rawget(_G, "FGO_RegisterPopout")) then
+        local closers = {}
+
+        _G.FGO_RegisterPopout = function(key, closeFn)
+            if type(key) ~= "string" or key == "" then
+                return
+            end
+            if type(closeFn) ~= "function" then
+                return
+            end
+            closers[key] = closeFn
+        end
+
+        _G.FGO_CloseAllPopouts = function(exceptKey)
+            for key, closeFn in pairs(closers) do
+                if key ~= exceptKey and type(closeFn) == "function" then
+                    pcall(closeFn)
+                end
+            end
+        end
+    end
+end
+
 -- Expose helpers for split-out modules.
 ns.IsSecretString = IsSecretString
 ns.SafeToString = SafeToString
@@ -1630,29 +1656,72 @@ local function CreateOptionsWindow()
     end)
     f._closeBtn = closeBtn
 
-    local chromieLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    chromieLabel:SetPoint("TOPRIGHT", closeBtn, "TOPLEFT", -6, -6)
-    chromieLabel:SetJustifyH("RIGHT")
-    chromieLabel:SetText("")
-    f._chromieLabel = chromieLabel
+    local function NormalizeChromieStatusLine(txt)
+        txt = tostring(txt or "")
+        local a, b = txt:match("^(.-)\\n(.*)$")
+        if a and b then
+            txt = tostring(a):gsub("%s+$", "") .. ": " .. tostring(b):gsub("^%s+", "")
+        end
+        txt = txt:gsub("%s*\\n%s*", " ")
+        txt = txt:gsub("%s%s+", " ")
+        txt = txt:gsub("^%s+", "")
+        txt = txt:gsub("%s+$", "")
+        return txt
+    end
+
+    local function CreateChromieStatusLine(parent)
+        if not (parent and parent.CreateFontString) then
+            return nil
+        end
+        local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        -- Anchor to the full window width so the label doesn't truncate on narrow panels.
+        fs:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 10)
+        fs:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 10)
+        fs:SetJustifyH("CENTER")
+        if fs.SetWordWrap then
+            fs:SetWordWrap(false)
+        end
+        fs:SetText("")
+        fs:Hide()
+        return fs
+    end
+
+    f._chromieStatusLines = f._chromieStatusLines or {}
+    f._chromieStatusLines.switches = f._chromieStatusLines.switches or CreateChromieStatusLine(f.togglesPanel)
+    f._chromieStatusLines.tabard = f._chromieStatusLines.tabard or CreateChromieStatusLine(f.tabardPanel)
+    f._chromieStatusLines.tale = f._chromieStatusLines.tale or CreateChromieStatusLine(f.editPanel)
+    f._chromieStatusLines.talk = f._chromieStatusLines.talk or CreateChromieStatusLine(f.browserPanel)
+    f._chromieStatusLines.textures = f._chromieStatusLines.textures or CreateChromieStatusLine(f.texturesPanel)
+    f._chromieStatusLines.lootit = f._chromieStatusLines.lootit or CreateChromieStatusLine(f.lootItPanel)
+    f._chromieStatusLines.tax = f._chromieStatusLines.tax or CreateChromieStatusLine(f.lootTaxPanel)
+    f._chromieStatusLines.trade = f._chromieStatusLines.trade or CreateChromieStatusLine(f.lootTradePanel)
+
     f.UpdateChromieLabel = function()
-        if f._chromieLabel then
-            local available = IsChromieTimeAvailableToPlayer()
-            f._chromieLabel:SetShown(available and true or false)
-            if available then
-                f._chromieLabel:SetText(GetChromieTimeDisplayText())
-            end
-            if f._chromieLabel.SetTextColor then
-                if available then
-                    f._chromieLabel:SetTextColor(1, 1, 1)
-                else
-                    f._chromieLabel:SetTextColor(0.62, 0.62, 0.62)
+        local available = IsChromieTimeAvailableToPlayer()
+        local line = available and NormalizeChromieStatusLine(GetChromieTimeDisplayText()) or ""
+
+        if type(f._chromieStatusLines) == "table" then
+            for _, fs in pairs(f._chromieStatusLines) do
+                if fs and fs.SetShown and fs.SetText then
+                    fs:SetShown(available and true or false)
+                    if available then
+                        fs:SetText(line)
+                    else
+                        fs:SetText("")
+                    end
+                    if fs.SetTextColor then
+                        if available then
+                            fs:SetTextColor(1, 1, 1)
+                        else
+                            fs:SetTextColor(0.62, 0.62, 0.62)
+                        end
+                    end
                 end
             end
         end
 
         InitSV()
-        if (AutoGossip_UI and AutoGossip_UI.chromieFrameEnabled) and IsChromieTimeAvailableToPlayer() then
+        if (AutoGossip_UI and AutoGossip_UI.chromieFrameEnabled) and available then
             EnsureChromieIndicator()
             UpdateChromieIndicator()
         else
@@ -1691,11 +1760,23 @@ local function CreateOptionsWindow()
         base = base + 20
 
         -- Default layering: left tabs sit in front of right tabs.
+        -- Use the current visual order (alphabetical) when available.
+        local order = rawget(f, "_tabVisualOrder")
+        if type(order) ~= "table" or #order ~= TAB_COUNT then
+            order = {}
+            for i = 1, TAB_COUNT do
+                order[i] = i
+            end
+        end
+
         -- Active tab always gets the top-most frame level.
-        for i = 1, TAB_COUNT do
-            local t = f["tab" .. tostring(i)]
-            if t and t.SetFrameLevel then
-                t:SetFrameLevel(base + (TAB_COUNT - i))
+        for visualIndex = 1, #order do
+            local tabID = tonumber(order[visualIndex])
+            if tabID then
+                local t = f["tab" .. tostring(tabID)]
+                if t and t.SetFrameLevel then
+                    t:SetFrameLevel(base + (TAB_COUNT - visualIndex))
+                end
             end
         end
         local a = tonumber(activeTab)
@@ -1709,7 +1790,7 @@ local function CreateOptionsWindow()
 
     local function SelectTab(self, tabID)
         f.activeTab = tabID
-        -- Tab order: 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tabard, 6 Tale, 7 Talk, 8 Textures, 9 LootIt, 10 Tax, 11 Trade
+        -- Tab IDs (panel mapping): 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tabard, 6 Tale, 7 Talk, 8 Textures, 9 Loot, 10 Tax, 11 Trade
         if f.macrosPanel then f.macrosPanel:SetShown(tabID == 1) end
         if f.macroPanel then f.macroPanel:SetShown(tabID == 2) end
         if f.actionBarPanel then f.actionBarPanel:SetShown(tabID == 3) end
@@ -1831,7 +1912,7 @@ local function CreateOptionsWindow()
 
     local tab9 = CreateFrame("Button", "$parentTab9", f, "UIPanelButtonTemplate")
     tab9:SetID(9)
-    tab9:SetText("LootIt")
+    tab9:SetText("Loot")
     tab9:SetPoint("LEFT", tab8, "RIGHT", TAB_OVERLAP_X, 0)
     tab9:SetScript("OnClick", function(self) f:SelectTab(self:GetID()) end)
     tab9:SetHeight(22)
@@ -1855,6 +1936,50 @@ local function CreateOptionsWindow()
     tab11:SetHeight(22)
     SizeTabToText(tab11, 14, 60)
     f.tab11 = tab11
+
+    -- Visual tab order: alphabetical by label (left-to-right).
+    do
+        local function NormLabel(s)
+            s = tostring(s or "")
+            s = s:gsub("^%s+", ""):gsub("%s+$", "")
+            return s:lower()
+        end
+
+        local tabs = {
+            { id = 1, btn = tab1, label = "Macro" },
+            { id = 2, btn = tab2, label = "Macro CMD" },
+            { id = 3, btn = tab3, label = "Situate" },
+            { id = 4, btn = tab4, label = "Switches" },
+            { id = 5, btn = tab5, label = "Tabard" },
+            { id = 6, btn = tab6, label = "Tale" },
+            { id = 7, btn = tab7, label = "Talk" },
+            { id = 8, btn = tab8, label = "Textures" },
+            { id = 9, btn = tab9, label = "Loot" },
+            { id = 10, btn = tab10, label = "Tax" },
+            { id = 11, btn = tab11, label = "Trade" },
+        }
+
+        table.sort(tabs, function(a, b)
+            return NormLabel(a.label) < NormLabel(b.label)
+        end)
+
+        f._tabVisualOrder = {}
+        for i = 1, #tabs do
+            f._tabVisualOrder[i] = tabs[i].id
+        end
+
+        for i = 1, #tabs do
+            local btn = tabs[i].btn
+            if btn and btn.ClearAllPoints and btn.SetPoint then
+                btn:ClearAllPoints()
+                if i == 1 then
+                    btn:SetPoint("LEFT", title, "RIGHT", 10, 0)
+                else
+                    btn:SetPoint("LEFT", tabs[i - 1].btn, "RIGHT", TAB_OVERLAP_X, 0)
+                end
+            end
+        end
+    end
 
     -- Initialize first tab styling + z-order.
     StyleTab(tab1, true)
@@ -2193,12 +2318,27 @@ local function CreateOptionsWindow()
                     show = not (aliasPopout.IsShown and aliasPopout:IsShown())
                 end
                 if show then
+                    local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+                    if type(closeAll) == "function" then
+                        closeAll("alias")
+                    end
                     aliasPopout:Show()
                     if aliasPanel and aliasPanel.Refresh then
                         aliasPanel:Refresh()
                     end
                 else
                     aliasPopout:Hide()
+                end
+            end
+
+            do
+                local reg = _G and rawget(_G, "FGO_RegisterPopout")
+                if type(reg) == "function" then
+                    reg("alias", function()
+                        if aliasPopout and aliasPopout.Hide then
+                            aliasPopout:Hide()
+                        end
+                    end)
                 end
             end
 
@@ -2231,6 +2371,7 @@ local function CreateOptionsWindow()
                     GetSupportedMessageLines = liEnv.GetSupportedMessageLines,
                     enableModeBtn = enableModeBtn,
                     ToggleAliasPopout = ToggleAliasPopout,
+                    reloadBtn = reloadBtn,
                 })
             end
 
@@ -2716,33 +2857,34 @@ do
                     UIVSafeCall(Print, s)
                 end
 
-                PrintHelpLine("/fgo li - open options")
-                PrintHelpLine("/fgo li on|off|toggle")
-                PrintHelpLine("/fgo li ui|config|options")
-                PrintHelpLine("/fgo li mail on|off|toggle|test")
-                PrintHelpLine("/fgo li mail debug on|off|toggle|status")
-                PrintHelpLine("/fgo li mail model player")
-                PrintHelpLine("/fgo li mail model katy")
-                PrintHelpLine("/fgo li mail model dalaran")
-                PrintHelpLine("/fgo li mail model plagued")
-                PrintHelpLine("/fgo li mail model npc <id>")
-                PrintHelpLine("/fgo li mail model display <id>")
-                PrintHelpLine("/fgo li mail model file <id>")
-                PrintHelpLine("/fgo li alias set [acc|char] <itemID> <text>")
-                PrintHelpLine("/fgo li alias del [acc|char] <itemID>")
-                PrintHelpLine("/fgo li alias list")
-                PrintHelpLine("/fgo li capture on|off|status|dump|clear|max|stacks")
-                PrintHelpLine("/fgo li chatdebug on|off|toggle|status|dump")
-                PrintHelpLine("/fgo li delayflush on|off|toggle|status")
-                PrintHelpLine("/fgo li status")
+                -- Prefer '/fgo lootit ...' (keep '/fgo li ...' as a legacy alias).
+                PrintHelpLine("/fgo lootit on|off|toggle")
+
+                PrintHelpLine("/fgo mail on|off|toggle|test")
+                PrintHelpLine("/fgo mail debug on|off|toggle|status")
+                PrintHelpLine("/fgo mail model player")
+                PrintHelpLine("/fgo mail model katy")
+                PrintHelpLine("/fgo mail model dalaran")
+                PrintHelpLine("/fgo mail model plagued")
+                PrintHelpLine("/fgo mail model npc <id>")
+                PrintHelpLine("/fgo mail model display <id>")
+                PrintHelpLine("/fgo mail model file <id>")
+                PrintHelpLine("/fgo alias set [acc|char] <itemID> <text>")
+                PrintHelpLine("/fgo alias del [acc|char] <itemID>")
+                PrintHelpLine("/fgo alias list")
+                PrintHelpLine("/fgo capture on|off|status|dump|clear|max|stacks")
+                PrintHelpLine("/fgo chatdebug on|off|toggle|status|dump")
+                PrintHelpLine("/fgo delayflush on|off|toggle|status")
+                PrintHelpLine("/fgo status")
                 return
             end
 
             if cmd == "status" then
+                local lootHandledStatus = false
                 do
                     local loot = LI and LI.Loot
                     if loot and type(loot.HandleSlash) == "function" then
-                        loot.HandleSlash("status", "", e)
+                        lootHandledStatus = loot.HandleSlash("status", "", e) and true or false
                     end
                 end
 
@@ -2815,9 +2957,11 @@ do
                     UIVSafeCall(Print, string.format("configUI=%s, tab=%s", shown and "shown" or "hidden", tab))
                 end
 
-                local v = GetLootItVersion()
-                if v then
-                    UIVSafeCall(Print, "version=" .. tostring(v))
+                if not lootHandledStatus then
+                    local v = GetLootItVersion()
+                    if v then
+                        UIVSafeCall(Print, "version=" .. tostring(v))
+                    end
                 end
 
                 return
@@ -2986,8 +3130,9 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo <id>                  - open window + set option id",
                 "/fgo list                  - print current gossip options",
                 "/fgo petbattle             - force-enable pet battle auto-accept",
-                "/fgo li ...                - LootIt (loot chat cleaner) commands",
-                "/fgo lootit ...            - alias for /fgo li",
+                "/fgo deposit               - run bank deposit helper (bank UI must be open)",
+                "/fgo lootit ...            - LootIt (loot chat cleaner) commands",
+                "/fgo li ...                - legacy alias for /fgo lootit",
                 "",
                 "/fgo x <key>               - exclusion macros (MAIN/OTHER based on Characters list)",
                 "/fgo m <key>               - macros (single text)",
@@ -3133,6 +3278,61 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             return
         end
 
+        -- Promote common LootIt-hosted commands to top-level /fgo routes.
+        -- These delegate into the existing LootIt slash handler so behavior stays identical.
+        do
+            local liCmd = cmd
+            if liCmd == "status"
+                or liCmd == "mail"
+                or liCmd == "alias"
+                or liCmd == "capture" or liCmd == "cap"
+                or liCmd == "chatdebug"
+                or liCmd == "delayflush" or liCmd == "delayprint"
+            then
+                local li = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+                local uiv = li and (li.UIV or li.UIV_Impl)
+                if uiv and type(uiv.Handle) == "function" then
+                    uiv.Handle(tostring(liCmd) .. " " .. tostring(rest or ""))
+                else
+                    Print("LootIt module not loaded.")
+                end
+                return
+            end
+        end
+
+        -- Convenience: allow /fgo deposit (bank deposit helper) without requiring '/fgo li deposit'.
+        if cmd == "deposit" then
+            local li = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+            local uiv = li and (li.UIV or li.UIV_Impl)
+            if uiv and type(uiv.Handle) == "function" then
+                uiv.Handle("deposit " .. tostring(rest or ""))
+            else
+                Print("LootIt module not loaded.")
+            end
+            return
+        end
+
+        -- Trade helper namespace:
+        --  /fgo trade          -> existing Macro CMD toggle (Block Trades)
+        --  /fgo trade food ... -> Trade module slash (previously only reachable via /fgo lootit food ...)
+        if cmd == "trade" then
+            local restTrim = (rest or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if restTrim ~= "" then
+                local sub, subarg = restTrim:match("^(%S+)%s*(.-)$")
+                sub = (sub or ""):lower()
+                if sub == "food" then
+                    local li = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
+                    local uiv = li and (li.UIV or li.UIV_Impl)
+                    if uiv and type(uiv.Handle) == "function" then
+                        uiv.Handle("food " .. tostring(subarg or ""))
+                    else
+                        Print("LootIt module not loaded.")
+                    end
+                    return
+                end
+            end
+        end
+
         -- Allow optional space after single-letter mode commands.
         -- Examples:
         --   /fgo mfoo   -> cmd='m', rest='foo'
@@ -3140,6 +3340,19 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         -- Keep existing full commands working (e.g. /fgo chromie, /fgo mouse).
         if cmd and #cmd > 1 then
             local known = {
+                -- LootIt/Trade full command (starts with 'd' but is not Macro-CMD d-mode).
+                ["deposit"] = true,
+
+                -- LootIt hosted commands promoted to top-level /fgo.
+                ["status"] = true,
+                ["mail"] = true,
+                ["alias"] = true,
+                ["capture"] = true,
+                ["cap"] = true,
+                ["chatdebug"] = true,
+                ["delayflush"] = true,
+                ["delayprint"] = true,
+
                 ["m"] = true,
                 ["hm"] = true,
                 ["hs"] = true,
@@ -3508,7 +3721,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             end
             local id = C_MountJournal.GetAppliedMountEquipmentID()
             if not id or tonumber(id) == 0 then
-                local msg = "WARNING: Mount equipment slot is EMPTY!"
+                local msg = "WARNING: Mount needs Inflatable Mount Shoes"
                 if WrapTextInColorCode then
                     msg = WrapTextInColorCode(msg, "ffff8000")
                 end

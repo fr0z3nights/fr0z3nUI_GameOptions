@@ -396,6 +396,33 @@ function ns.Talk.TryAutoSelect(isRetry)
         return (a == "close" or a == "closegossip" or a == "closewindow")
     end
 
+    local function ApplyMountUpSilentOff(ruleEntry)
+        if type(ruleEntry) ~= "table" then
+            return
+        end
+        if ruleEntry.mount ~= true then
+            return
+        end
+
+        -- Dismount first (silent). Safety: don't dismount while flying/falling.
+        if type(IsMounted) == "function" and IsMounted() then
+            local flying = (type(IsFlying) == "function") and (IsFlying() and true or false) or false
+            local falling = (type(IsFalling) == "function") and (IsFalling() and true or false) or false
+            if not flying and not falling and type(Dismount) == "function" then
+                pcall(Dismount)
+            end
+        end
+
+        if type(AutoGossip_CharSettings) ~= "table" then
+            return
+        end
+
+        AutoGossip_CharSettings.mountUpEnabledChar = false
+        if ns and ns.SwitchesMU and type(ns.SwitchesMU.OnSettingsChanged) == "function" then
+            pcall(ns.SwitchesMU.OnSettingsChanged)
+        end
+    end
+
     local function ScheduleFirstRunSelectConfirm(contextNpcID, contextEntriesKey)
         if not (C_Timer and C_Timer.After) then
             return
@@ -857,6 +884,7 @@ function ns.Talk.TryAutoSelect(isRetry)
                         .. ":"
                         .. tostring(bestID)
                 )
+                ApplyMountUpSilentOff(bestEntry)
                 if bestG.kind == "option" then
                     NoteLastGossipSelection(npcID, bestID, bestEntry)
                 end
@@ -980,6 +1008,7 @@ function ns.Talk.TryAutoSelect(isRetry)
                     .. ":"
                     .. tostring(bestID)
             )
+            ApplyMountUpSilentOff(bestEntry)
             if bestG.kind == "option" then
                 NoteLastGossipSelection(npcID, bestID, bestEntry)
             end

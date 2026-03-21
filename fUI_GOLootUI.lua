@@ -2,11 +2,10 @@
 local addonName, ns = ...
 if type(ns) ~= "table" then ns = {} end
 
-local LI = (ns and ns.LootIt) or fr0z3nUI_LootIt
-if type(LI) ~= "table" then return end
-
+local LI = (ns and ns.LootIt) or {}
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
+LI.ADDON = LI.ADDON or addonName
 
 LI.LootTab = LI.LootTab or {}
 
@@ -48,7 +47,8 @@ function LI.LootTab.BuildTab(lootPanel, env)
 
   local hideLootBtn = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
   hideLootBtn:SetSize(60, 20)
-  hideLootBtn:SetPoint("TOPLEFT", lootPanel, "TOPLEFT", 10, -2)
+  -- Keep the top row clear of the tab strip: enableModeBtn is anchored above hideLootBtn.
+  hideLootBtn:SetPoint("TOPLEFT", lootPanel, "TOPLEFT", 10, -30)
 
   if enableModeBtn and enableModeBtn.ClearAllPoints and enableModeBtn.SetPoint then
     enableModeBtn:ClearAllPoints()
@@ -522,6 +522,10 @@ function LI.LootTab.BuildTab(lootPanel, env)
     if not dd then return end
     local w = tonumber(width) or 100
     if UIDropDownMenu_SetWidth then UIDropDownMenu_SetWidth(dd, w) end
+    -- IMPORTANT: UIDropDownMenu_SetWidth does not reliably shrink the actual frame width
+    -- (it mostly sizes textures). If we don't SetWidth here, controls anchored to the
+    -- dropdown's RIGHT can end up far off-screen, making buttons look "missing".
+    if dd.SetWidth then dd:SetWidth(w) end
 
     local ddName = dd.GetName and dd:GetName() or nil
     local left = dd.Left or (ddName and _G and rawget(_G, ddName .. "Left"))
@@ -542,6 +546,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
     if dd.Button then
       dd.Button:ClearAllPoints()
       dd.Button:SetAllPoints(dd)
+      if dd.Button.SetWidth then dd.Button:SetWidth(w) end
       if dd.Button.SetHitRectInsets then
         dd.Button:SetHitRectInsets(0, 0, 0, 0)
       end
@@ -808,6 +813,17 @@ function LI.LootTab.BuildTab(lootPanel, env)
   infoPopout:SetBackdropColor(0, 0, 0, 0.85)
   infoPopout:Hide()
 
+  do
+    local reg = _G and rawget(_G, "FGO_RegisterPopout")
+    if type(reg) == "function" then
+      reg("lootinfo", function()
+        if infoPopout and infoPopout.Hide then
+          infoPopout:Hide()
+        end
+      end)
+    end
+  end
+
   local infoClose = CreateFrame("Button", nil, infoPopout, "UIPanelCloseButton")
   infoClose:SetPoint("TOPRIGHT", infoPopout, "TOPRIGHT", -3, -3)
   infoClose:SetScript("OnClick", function() infoPopout:Hide() end)
@@ -909,6 +925,10 @@ function LI.LootTab.BuildTab(lootPanel, env)
     if infoPopout and infoPopout.IsShown and infoPopout:IsShown() then
       infoPopout:Hide()
     else
+      local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+      if type(closeAll) == "function" then
+        closeAll("lootinfo")
+      end
       RefreshSupportedList()
       infoPopout:Show()
     end
@@ -919,6 +939,12 @@ function LI.LootTab.BuildTab(lootPanel, env)
     local EnsureDB = env.EnsureDB or function() end
     local GetDB = env.GetDB or function() return _G and rawget(_G, "fr0z3nUI_LootItDB") end
     local ApplyFilters = env.ApplyFilters or function() end
+
+    local reloadBtn = env.reloadBtn
+    if not reloadBtn then
+      local f = _G and rawget(_G, "AutoGossipOptions")
+      reloadBtn = f and f._reloadBtn
+    end
 
     local function SetToggleText(btn, label, on)
       if not (btn and btn._fs and btn._fs.SetText and btn._fs.SetTextColor) then return end
@@ -1148,10 +1174,54 @@ function LI.LootTab.BuildTab(lootPanel, env)
       SetToggleText(xpBonusBtn, "Bonus", DB.other.experience.showBonus == true)
     end)
 
+    local xpQuestBtn = CreateTextToggleButton(bottomRow, 60, 20)
+    xpQuestBtn:SetPoint("LEFT", xpBonusBtn, "RIGHT", 2, 0)
+    xpQuestBtn:SetScript("OnEnter", function(self)
+      local gt = _G and rawget(_G, "GameTooltip")
+      if not (gt and gt.SetOwner and gt.SetText) then return end
+      gt:SetOwner(self, "ANCHOR_RIGHT")
+      gt:SetText("Quest")
+      if gt.AddLine then
+        gt:AddLine("Hides Quest system messages.", 1, 1, 1, true)
+        gt:AddLine("Only reprints completed with XP", 0.75, 0.75, 0.75, true)
+      end
+      if gt.Show then gt:Show() end
+    end)
+    xpQuestBtn:SetScript("OnLeave", function()
+      local gt = _G and rawget(_G, "GameTooltip")
+      if gt and gt.Hide then gt:Hide() end
+    end)
+    xpQuestBtn:SetScript("OnClick", function()
+      EnsureDB()
+      local DB = GetDB()
+      if not DB then return end
+      DB.other = (type(DB.other) == "table") and DB.other or {}
+      DB.other.experience = (type(DB.other.experience) == "table") and DB.other.experience or {}
+      if DB.other.experience.questXP == nil then DB.other.experience.questXP = false end
+      DB.other.experience.questXP = not (DB.other.experience.questXP == true)
+      SetToggleText(xpQuestBtn, "Quest", DB.other.experience.questXP == true)
+      ApplyFilters()
+    end)
+
     local xpPosBtn = CreateFrame("Button", nil, bottomRow)
     xpPosBtn:SetSize(62, 20)
     -- Keep this fixed so shifting Bonus doesn't move it.
-    xpPosBtn:SetPoint("LEFT", xpOutputDD, "RIGHT", 60, -2)
+    xpPosBtn:SetPoint("LEFT", xpQuestBtn, "RIGHT", 2, 0)
+
+    xpPosBtn:SetScript("OnEnter", function(self)
+      local gt = _G and rawget(_G, "GameTooltip")
+      if not (gt and gt.SetOwner and gt.SetText) then return end
+      gt:SetOwner(self, "ANCHOR_RIGHT")
+      gt:SetText("XP Label")
+      if gt.AddLine then
+        gt:AddLine("Toggles whether 'XP' prints Before or After the number.", 1, 1, 1, true)
+      end
+      if gt.Show then gt:Show() end
+    end)
+    xpPosBtn:SetScript("OnLeave", function()
+      local gt = _G and rawget(_G, "GameTooltip")
+      if gt and gt.Hide then gt:Hide() end
+    end)
 
     local xpPosHL = xpPosBtn:CreateTexture(nil, "HIGHLIGHT")
     xpPosHL:SetColorTexture(1, 1, 1, 0.06)
@@ -1227,7 +1297,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
     -- Match Tax tab Debug sizing/feel (short button)
     xpDebugBtn:SetSize(68, 20)
     -- True bottom of the LootIt tab (avoid covering the main Reload UI button on the frame).
-    xpDebugBtn:SetPoint("BOTTOMLEFT", lootPanel, "BOTTOMLEFT", 0, 0)
+    xpDebugBtn:SetPoint("BOTTOMLEFT", lootPanel, "BOTTOMLEFT", 0, 4)
     xpDebugBtn._fs = (xpDebugBtn.GetFontString and xpDebugBtn:GetFontString()) or nil
     if not xpDebugBtn._fs then
       local fs = xpDebugBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1246,6 +1316,296 @@ function LI.LootTab.BuildTab(lootPanel, env)
       if not DB then return end
       DB.debugCapture = not (DB.debugCapture == true)
       SetXPDebugState(DB)
+    end)
+
+    local xpPlayedBtn = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
+    xpPlayedBtn:SetSize(68, 20)
+    xpPlayedBtn:SetPoint("LEFT", xpDebugBtn, "RIGHT", 2, 0)
+    xpPlayedBtn._fs = (xpPlayedBtn.GetFontString and xpPlayedBtn:GetFontString()) or nil
+    if not xpPlayedBtn._fs then
+      local fs = xpPlayedBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      fs:SetPoint("CENTER", xpPlayedBtn, "CENTER", 0, 0)
+      xpPlayedBtn._fs = fs
+    end
+
+    local function SetPlayedState(DB)
+      local on = (DB and DB.other and DB.other.hidePlayed) == true
+      SetToggleText(xpPlayedBtn, "Played", on)
+    end
+
+    xpPlayedBtn:SetScript("OnClick", function()
+      EnsureDB()
+      local DB = GetDB()
+      if not DB then return end
+      DB.other = (type(DB.other) == "table") and DB.other or {}
+      DB.other.hidePlayed = not (DB.other.hidePlayed == true)
+      SetPlayedState(DB)
+      ApplyFilters()
+    end)
+
+    xpPlayedBtn:SetScript("OnEnter", function(self)
+      local gt = _G and rawget(_G, "GameTooltip")
+      if not (gt and gt.SetOwner and gt.SetText) then return end
+      gt:SetOwner(self, "ANCHOR_RIGHT")
+      gt:SetText("Played")
+      if gt.AddLine then
+        gt:AddLine("Hides /played output lines.", 1, 1, 1, true)
+      end
+      if gt.Show then gt:Show() end
+    end)
+    xpPlayedBtn:SetScript("OnLeave", function()
+      local gt = _G and rawget(_G, "GameTooltip")
+      if gt and gt.Hide then gt:Hide() end
+    end)
+
+    -- Suppress popout (SV-backed substring rules)
+    local suppressBtn = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
+    suppressBtn:SetSize(90, 22)
+    if reloadBtn and suppressBtn.SetPoint then
+      suppressBtn:SetPoint("BOTTOMRIGHT", reloadBtn, "TOPRIGHT", 0, 6)
+    else
+      suppressBtn:SetPoint("BOTTOMRIGHT", lootPanel, "BOTTOMRIGHT", -10, 4)
+    end
+    suppressBtn:SetFrameLevel((lootPanel.GetFrameLevel and lootPanel:GetFrameLevel() or 0) + 60)
+    suppressBtn:SetText("Suppress")
+
+    local suppressPopout
+    local function EnsureSuppressDB(DB)
+      DB.suppress = (type(DB.suppress) == "table") and DB.suppress or { enabled = true, rules = {} }
+      if DB.suppress.enabled == nil then DB.suppress.enabled = true end
+      if type(DB.suppress.rules) ~= "table" then DB.suppress.rules = {} end
+    end
+
+    local function EnsureSuppressPopoutBuilt()
+      if suppressPopout then
+        return suppressPopout
+      end
+
+      -- Mail/Info-style popout: opens beside the main window (not over the tab).
+      suppressPopout = CreateFrame("Frame", nil, lootPanel, "BackdropTemplate")
+      suppressPopout:SetSize(480, 400)
+      suppressPopout:ClearAllPoints()
+      suppressPopout:SetPoint("TOPLEFT", lootPanel, "TOPRIGHT", 10, 0)
+      if suppressPopout.SetFrameStrata then suppressPopout:SetFrameStrata("DIALOG") end
+      suppressPopout:SetFrameLevel((lootPanel.GetFrameLevel and lootPanel:GetFrameLevel() or 0) + 80)
+      if suppressPopout.SetClampedToScreen then suppressPopout:SetClampedToScreen(true) end
+      suppressPopout:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        tile = true,
+        tileSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+      })
+      suppressPopout:SetBackdropColor(0, 0, 0, 0.85)
+      suppressPopout:Hide()
+
+      local close = CreateFrame("Button", nil, suppressPopout, "UIPanelCloseButton")
+      close:SetPoint("TOPRIGHT", suppressPopout, "TOPRIGHT", -6, -6)
+      close:SetScript("OnClick", function() if suppressPopout and suppressPopout.Hide then suppressPopout:Hide() end end)
+
+      local title = suppressPopout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      title:SetPoint("TOPLEFT", suppressPopout, "TOPLEFT", 12, -10)
+      title:SetText("Suppress")
+      title:SetTextColor(1, 0.82, 0, 1)
+
+      local enableCB = CreateFrame("CheckButton", nil, suppressPopout, "UICheckButtonTemplate")
+      enableCB:SetPoint("TOPLEFT", title, "BOTTOMLEFT", -4, -6)
+      if enableCB.Text and enableCB.Text.SetText then
+        enableCB.Text:SetText("Enable")
+      end
+
+      local input = CreateFrame("EditBox", nil, suppressPopout, "InputBoxTemplate")
+      input:SetSize(260, 20)
+      input:SetAutoFocus(false)
+      input:SetPoint("TOPLEFT", enableCB, "BOTTOMLEFT", 8, -10)
+      input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+      input:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+
+      local addBtn = CreateFrame("Button", nil, suppressPopout, "UIPanelButtonTemplate")
+      addBtn:SetSize(60, 20)
+      addBtn:SetPoint("LEFT", input, "RIGHT", 6, 0)
+      addBtn:SetText("Add")
+
+      local hint = suppressPopout:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+      hint:SetPoint("TOPLEFT", input, "BOTTOMLEFT", 2, -6)
+      hint:SetText("Substring match (case-insensitive).")
+
+      local listHeader = suppressPopout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      listHeader:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
+      listHeader:SetText("Rules")
+
+      local rows = {}
+      local MAX_ROWS = 10
+      for i = 1, MAX_ROWS do
+        local row = CreateFrame("Frame", nil, suppressPopout)
+        row:SetSize(396, 20)
+        if i == 1 then
+          row:SetPoint("TOPLEFT", listHeader, "BOTTOMLEFT", 0, -6)
+        else
+          row:SetPoint("TOPLEFT", rows[i - 1], "BOTTOMLEFT", 0, -4)
+        end
+
+        local onBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        onBtn:SetSize(44, 20)
+        onBtn:SetPoint("LEFT", row, "LEFT", 0, 0)
+        onBtn:SetText("On")
+
+        local delBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        delBtn:SetSize(20, 20)
+        delBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        delBtn:SetText("X")
+
+        local txt = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        txt:SetPoint("LEFT", onBtn, "RIGHT", 6, 0)
+        txt:SetPoint("RIGHT", delBtn, "LEFT", -6, 0)
+        txt:SetJustifyH("LEFT")
+        txt:SetText("")
+
+        row._onBtn = onBtn
+        row._delBtn = delBtn
+        row._txt = txt
+        rows[i] = row
+      end
+
+      local more = suppressPopout:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+      more:SetPoint("TOPLEFT", rows[MAX_ROWS], "BOTTOMLEFT", 0, -6)
+      more:SetText("")
+
+      local function RefreshSuppressUI()
+        EnsureDB()
+        local DB = GetDB()
+        if type(DB) ~= "table" then
+          enableCB:SetChecked(false)
+          input:SetText("")
+          for i = 1, MAX_ROWS do rows[i]:Hide() end
+          more:SetText("LootIt DB unavailable.")
+          return
+        end
+        EnsureSuppressDB(DB)
+
+        enableCB:SetChecked(DB.suppress.enabled ~= false)
+        local rules = DB.suppress.rules
+        local n = #rules
+
+        for i = 1, MAX_ROWS do
+          local row = rows[i]
+          local r = rules[i]
+          if type(r) == "table" and type(r.text) == "string" and r.text ~= "" then
+            row:Show()
+            local on = (r.enabled ~= false)
+            row._onBtn:SetText(on and "On" or "Off")
+            row._txt:SetText(r.text)
+            row._onBtn:SetScript("OnClick", function()
+              r.enabled = not (r.enabled ~= false)
+              RefreshSuppressUI()
+              ApplyFilters()
+            end)
+            row._delBtn:SetScript("OnClick", function()
+              table.remove(rules, i)
+              RefreshSuppressUI()
+              ApplyFilters()
+            end)
+          else
+            row:Hide()
+          end
+        end
+
+        if n > MAX_ROWS then
+          more:SetText(string.format("(%d more...)", n - MAX_ROWS))
+        else
+          more:SetText("")
+        end
+      end
+
+      enableCB:SetScript("OnClick", function(self)
+        EnsureDB()
+        local DB = GetDB()
+        if type(DB) ~= "table" then
+          self:SetChecked(false)
+          return
+        end
+        EnsureSuppressDB(DB)
+        DB.suppress.enabled = (self:GetChecked() == true)
+        RefreshSuppressUI()
+        ApplyFilters()
+      end)
+
+      addBtn:SetScript("OnClick", function()
+        EnsureDB()
+        local DB = GetDB()
+        if type(DB) ~= "table" then return end
+        EnsureSuppressDB(DB)
+
+        local t = tostring(input:GetText() or "")
+        t = t:gsub("^%s+", ""):gsub("%s+$", "")
+        if t == "" then return end
+
+        table.insert(DB.suppress.rules, { enabled = true, text = t })
+        input:SetText("")
+        RefreshSuppressUI()
+        ApplyFilters()
+      end)
+
+      suppressPopout._liRefresh = RefreshSuppressUI
+      suppressPopout:SetScript("OnShow", function()
+        if suppressPopout and type(suppressPopout._liRefresh) == "function" then
+          suppressPopout._liRefresh()
+        end
+      end)
+
+      do
+        local reg = _G and rawget(_G, "FGO_RegisterPopout")
+        if type(reg) == "function" then
+          reg("suppress", function()
+            if suppressPopout and suppressPopout.Hide then
+              suppressPopout:Hide()
+            end
+          end)
+        end
+      end
+
+      _G.FGO_IsSuppressPopoutOpen = function()
+        return (suppressPopout and suppressPopout.IsShown and suppressPopout:IsShown()) and true or false
+      end
+
+      _G.FGO_ToggleSuppressPopout = function(show)
+        EnsureSuppressPopoutBuilt()
+        local wantShow = show
+        if wantShow == nil then
+          wantShow = not (_G.FGO_IsSuppressPopoutOpen and _G.FGO_IsSuppressPopoutOpen())
+        end
+        if wantShow then
+          local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+          if type(closeAll) == "function" then
+            closeAll("suppress")
+          end
+          if suppressPopout and suppressPopout.Show then
+            suppressPopout:Show()
+          end
+        else
+          if suppressPopout and suppressPopout.Hide then
+            suppressPopout:Hide()
+          end
+        end
+      end
+
+      return suppressPopout
+    end
+
+    suppressBtn:SetScript("OnClick", function()
+      if type(_G.FGO_ToggleSuppressPopout) == "function" then
+        _G.FGO_ToggleSuppressPopout(nil)
+      else
+        EnsureSuppressPopoutBuilt()
+        if suppressPopout and suppressPopout.IsShown and suppressPopout:IsShown() then
+          suppressPopout:Hide()
+        elseif suppressPopout and suppressPopout.Show then
+          local closeAll = _G and rawget(_G, "FGO_CloseAllPopouts")
+          if type(closeAll) == "function" then
+            closeAll("suppress")
+          end
+          suppressPopout:Show()
+        end
+      end
     end)
 
     local function RefreshOtherButtons(DB)
@@ -1268,6 +1628,9 @@ function LI.LootTab.BuildTab(lootPanel, env)
 
       if DB.other.experience.showBonus == nil then DB.other.experience.showBonus = true end
       SetToggleText(xpBonusBtn, "Bonus", DB.other.experience.showBonus == true)
+
+      if DB.other.experience.questXP == nil then DB.other.experience.questXP = false end
+      SetToggleText(xpQuestBtn, "Quest", DB.other.experience.questXP == true)
       RefreshXPPosButton(DB)
 
       local outP = DB.other.profession.outputChatFrame
@@ -1275,6 +1638,8 @@ function LI.LootTab.BuildTab(lootPanel, env)
       SetDropDownSelection(profOutputDD, outP or 1)
 
       SetXPDebugState(DB)
+      if DB.other.hidePlayed == nil then DB.other.hidePlayed = false end
+      SetPlayedState(DB)
     end
 
     lootPanel._refreshOtherButtons = RefreshOtherButtons

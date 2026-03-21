@@ -76,10 +76,12 @@ local function TryMigrateFromArtLayer()
     if db and db.migratedFromArtLayer then
         if not _fgoTexturesMigrationNotified then
             _fgoTexturesMigrationNotified = true
-            local wCount, oCount = 0, 0
-            for _ in pairs((db.widgets or {})) do wCount = wCount + 1 end
-            for _ in pairs((db.overrides or {})) do oCount = oCount + 1 end
-            Print(string.format("Textures: ArtLayer migration already completed (widgets=%d overrides=%d).", wCount, oCount))
+            if db.debug == true then
+                local wCount, oCount = 0, 0
+                for _ in pairs((db.widgets or {})) do wCount = wCount + 1 end
+                for _ in pairs((db.overrides or {})) do oCount = oCount + 1 end
+                Print(string.format("Textures: ArtLayer migration already completed (widgets=%d overrides=%d).", wCount, oCount))
+            end
         end
         return false
     end

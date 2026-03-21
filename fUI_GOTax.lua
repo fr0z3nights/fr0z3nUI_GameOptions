@@ -3,9 +3,10 @@
 local addonName, ns = ...
 if type(ns) ~= "table" then ns = {} end
 
-local LI = (ns and ns.LootIt) or fr0z3nUI_LootIt or {}
+local LI = (ns and ns.LootIt) or {}
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
+LI.ADDON = LI.ADDON or addonName
 
 LI.Tax = LI.Tax or {}
 
@@ -43,14 +44,35 @@ do
     if type(GetGuildInfo) ~= "function" then
       return nil, nil
     end
-    local ok, guildName = pcall(GetGuildInfo, "player")
+    local ok, guildName, _, _, homeRealm = pcall(GetGuildInfo, "player")
     guildName = ok and guildName or nil
+    homeRealm = ok and homeRealm or nil
     if type(guildName) ~= "string" or guildName == "" then
       return nil, nil
     end
+
+    local guildGUID
+    if type(C_GuildInfo) == "table" and type(C_GuildInfo.GetGuildGUID) == "function" then
+      local okGuid, guid = pcall(C_GuildInfo.GetGuildGUID)
+      guildGUID = okGuid and guid or nil
+    end
+
     local realm = (type(GetRealmName) == "function") and GetRealmName() or nil
     realm = (type(realm) == "string" and realm ~= "") and realm or ""
-    return realm .. "::" .. guildName, guildName
+    local homeRealmStr = (type(homeRealm) == "string" and homeRealm ~= "") and homeRealm or nil
+
+    -- WoW commonly omits the realm string when it matches your current realm.
+    -- In that case, treat it as same-realm rather than "unknown".
+    if not homeRealmStr and realm ~= "" then
+      homeRealmStr = realm
+    end
+
+    if type(guildGUID) == "string" and guildGUID ~= "" then
+      return guildGUID, guildName, homeRealmStr
+    end
+
+    -- Fallback for older clients / edge cases.
+    return realm .. "::" .. guildName, guildName, homeRealmStr
   end
 
   local function Clamp(v, mn, mx)
@@ -182,6 +204,98 @@ do
     t.guilds = (type(t.guilds) == "table") and t.guilds or {}
     t.guilds[guildKey] = (type(t.guilds[guildKey]) == "table") and t.guilds[guildKey] or {}
     local g = t.guilds[guildKey]
+
+    -- Best-effort migration: legacy realm::guildName keys into new GUID-based key.
+    -- Only runs when the current guild key is GUID-like (i.e. not the legacy format).
+    if next(g) == nil and not string.find(guildKey, "::", 1, true) then
+      local curKey, curName, curHomeRealm = GetCurrentGuildKeyAndName()
+      if curKey == guildKey and type(curName) == "string" and curName ~= "" then
+        local realmNow = (type(GetRealmName) == "function") and GetRealmName() or nil
+        realmNow = (type(realmNow) == "string" and realmNow ~= "") and realmNow or ""
+        local homeRealm = (type(curHomeRealm) == "string" and curHomeRealm ~= "") and curHomeRealm or nil
+
+        local legacyKeyNow = realmNow .. "::" .. curName
+        local legacyKeyHome = homeRealm and (homeRealm .. "::" .. curName) or nil
+
+        local function ShallowCopyTable(src)
+          if type(src) ~= "table" then return nil end
+          local out = {}
+          for k, v in pairs(src) do
+            out[k] = v
+          end
+          return out
+        end
+
+        local function AddNumberField(dst, key, val)
+          if type(dst) ~= "table" then return end
+          local add = math.floor(tonumber(val) or 0)
+          if add == 0 then return end
+          dst[key] = math.floor(tonumber(dst[key]) or 0) + add
+        end
+
+        local function MergeLegacyBucket(srcKey)
+          local src = t.guilds and t.guilds[srcKey]
+          if type(src) ~= "table" or next(src) == nil then return false end
+
+          -- Settings (pick the most permissive / highest-rate). 
+          local srcRate = Clamp(src.rate, 0, 100) or 0
+          local dstRate = Clamp(g.rate, 0, 100) or 0
+          if srcRate > dstRate then g.rate = srcRate end
+
+          if src.quiet == true then g.quiet = true end
+          if src.bankPrintEnabled ~= nil and g.bankPrintEnabled == nil then g.bankPrintEnabled = (src.bankPrintEnabled == true) end
+          if src.manualBankMovesEnabled ~= nil and g.manualBankMovesEnabled == nil then g.manualBankMovesEnabled = (src.manualBankMovesEnabled == true) end
+          if type(src.owedScope) == "string" and (g.owedScope == nil or g.owedScope == "") then g.owedScope = src.owedScope end
+          if src.autoPayOnGuildBankOpen ~= nil and g.autoPayOnGuildBankOpen == nil then g.autoPayOnGuildBankOpen = (src.autoPayOnGuildBankOpen == true) end
+
+          if type(src.sources) == "table" then
+            g.sources = (type(g.sources) == "table") and g.sources or {}
+            if src.sources.vendor ~= false then g.sources.vendor = true end
+            if src.sources.questLoot ~= false then g.sources.questLoot = true end
+            if src.sources.systemMoney == true then g.sources.systemMoney = true end
+            if src.sources.mail ~= false then g.sources.mail = true end
+          end
+
+          -- Balances (sum).
+          AddNumberField(g, "due", src.due)
+          AddNumberField(g, "paidToDate", src.paidToDate)
+          AddNumberField(g, "dueTax", src.dueTax)
+          AddNumberField(g, "dueBorrowed", src.dueBorrowed)
+          AddNumberField(g, "borrowedLastTS", src.borrowedLastTS)
+
+          if type(src.sharedBal) == "table" then
+            g.sharedBal = (type(g.sharedBal) == "table") and g.sharedBal or {}
+            AddNumberField(g.sharedBal, "due", src.sharedBal.due)
+            AddNumberField(g.sharedBal, "paidToDate", src.sharedBal.paidToDate)
+            AddNumberField(g.sharedBal, "dueTax", src.sharedBal.dueTax)
+            AddNumberField(g.sharedBal, "dueBorrowed", src.sharedBal.dueBorrowed)
+            AddNumberField(g.sharedBal, "borrowedLastTS", src.sharedBal.borrowedLastTS)
+          end
+
+          -- Copy any remaining fields only if missing (shallow).
+          for k, v in pairs(src) do
+            if g[k] == nil then
+              if type(v) == "table" then
+                g[k] = ShallowCopyTable(v)
+              else
+                g[k] = v
+              end
+            end
+          end
+
+          return true
+        end
+
+        if legacyKeyHome and legacyKeyHome ~= guildKey then
+          local migratedHome = MergeLegacyBucket(legacyKeyHome)
+          if migratedHome and t.guilds then t.guilds[legacyKeyHome] = nil end
+        end
+        if legacyKeyNow ~= guildKey then
+          local migratedNow = MergeLegacyBucket(legacyKeyNow)
+          if migratedNow and t.guilds then t.guilds[legacyKeyNow] = nil end
+        end
+      end
+    end
 
     -- One-time best-effort migration from legacy account-wide tax into the first guild bucket.
     -- This avoids "losing" settings after the Guild-scope refactor.
@@ -503,7 +617,48 @@ do
     if not (cfg.bankPrintEnabled == true) then return end
     copper = math.floor(tonumber(copper) or 0)
     if copper <= 0 then return end
-    Print(GetClassColoredPlayerName() .. " " .. FormatGoldOnly(copper) .. " " .. tostring(direction or "") .. " " .. tostring(bank or ""))
+
+    local function NormalizeBankLabel(bankName)
+      local raw = tostring(bankName or "")
+      raw = raw:gsub("^%s+", ""):gsub("%s+$", "")
+      local key = raw:lower():gsub("%s+", "")
+      if key == "guildbank" or key == "guild" then
+        return "Guild Bank", "guild"
+      end
+      if key == "warbank" or key == "warbandbank" or key == "warband" then
+        return "Warband Bank", "warbank"
+      end
+      if key == "" then
+        return "Bank", "bank"
+      end
+      return raw, key
+    end
+
+    local function NormalizeDirection(dir)
+      local s = tostring(dir or "")
+      local k = s:lower():gsub("%s+", "")
+      if k:find("withdraw", 1, true) then
+        return "withdrawn from"
+      end
+      if k:find("deposit", 1, true) then
+        return "deposited to"
+      end
+      return s
+    end
+
+    local bankLabel, bankKey = NormalizeBankLabel(bank)
+    direction = NormalizeDirection(direction)
+
+    -- Safety: only print while the relevant frame is actually open.
+    if bankKey == "guild" then
+      local f = _G and rawget(_G, "GuildBankFrame")
+      if not (f and f.IsShown and f:IsShown()) then return end
+    elseif bankKey == "warbank" or bankKey == "bank" then
+      local f = _G and rawget(_G, "BankFrame")
+      if not (f and f.IsShown and f:IsShown()) then return end
+    end
+
+    Print(GetClassColoredPlayerName() .. " " .. FormatGoldOnly(copper) .. " " .. tostring(direction or "") .. " " .. bankLabel)
   end
 
   local function PushPendingDelta(queue, delta)
@@ -978,6 +1133,14 @@ do
     end
 
     EnsureTaxDB()
+
+    -- Reset any stale "open" state that could cause login-time PLAYER_MONEY to be treated as a bank move.
+    state.guildBankOpen = false
+    state.warbankOpen = false
+    state._manualPrevMoney = nil
+    state._manualPrevMoneyWar = nil
+    state._pendingGuildDeltas = nil
+    state._pendingWarbankDeltas = nil
   end
 
   function Tax.OnMerchantShow()
@@ -1286,6 +1449,24 @@ do
 
   function Tax.OnPlayerMoney()
     local money = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+
+    -- Safety: if our state claims a bank is open but the UI isn't actually shown, clear it.
+    if state.guildBankOpen == true then
+      local f = _G and rawget(_G, "GuildBankFrame")
+      if not (f and f.IsShown and f:IsShown()) then
+        state.guildBankOpen = false
+        state._manualPrevMoney = nil
+        state._pendingGuildDeltas = nil
+      end
+    end
+    if state.warbankOpen == true then
+      local f = _G and rawget(_G, "BankFrame")
+      if not (f and f.IsShown and f:IsShown()) then
+        state.warbankOpen = false
+        state._manualPrevMoneyWar = nil
+        state._pendingWarbankDeltas = nil
+      end
+    end
 
     -- Guild bank manual moves.
     if state.guildBankOpen == true and state._manualPrevMoney ~= nil then
