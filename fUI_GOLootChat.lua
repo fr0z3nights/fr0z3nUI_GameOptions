@@ -3111,8 +3111,65 @@ local function OnAchievementChat(_, _, msg, author, ...)
     name = "Character"
   end
 
+  local function ClassColorName(nameText, guid)
+    nameText = tostring(nameText or "")
+    if nameText == "" then
+      return nameText
+    end
+
+    local classFile = nil
+    if type(guid) == "string" and type(GetPlayerInfoByGUID) == "function" then
+      local ok, _, class = pcall(GetPlayerInfoByGUID, guid)
+      if ok and type(class) == "string" and class ~= "" then
+        classFile = class
+      end
+    end
+
+    if not classFile and type(UnitClass) == "function" and type(UnitGUID) == "function" then
+      local pg = UnitGUID("player")
+      if pg and pg == guid then
+        local _, cls = UnitClass("player")
+        if type(cls) == "string" and cls ~= "" then
+          classFile = cls
+        end
+      end
+    end
+
+    local hex = nil
+    if classFile and C_ClassColor and type(C_ClassColor.GetClassColor) == "function" then
+      local c = C_ClassColor.GetClassColor(classFile)
+      if c and type(c.GenerateHexColor) == "function" then
+        hex = "ff" .. tostring(c:GenerateHexColor())
+      end
+    end
+    if not hex and classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile] then
+      local c = RAID_CLASS_COLORS[classFile]
+      if c and c.r and c.g and c.b then
+        hex = string.format("ff%02x%02x%02x", math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5))
+      end
+    end
+
+    if not hex then
+      return nameText
+    end
+
+    if WrapTextInColorCode then
+      return WrapTextInColorCode(nameText, hex)
+    end
+    return "|c" .. hex .. nameText .. "|r"
+  end
+
+  -- Chat message events include GUID in a fixed position; do not assume it is the last arg.
+  -- CHAT_MSG_* payload (after msg, author): languageName, channelName, author2, specialFlags,
+  -- zoneChannelID, channelIndex, channelBaseName, unused, lineID, guid, ...
+  local guid = select(10, ...)
+  if type(guid) ~= "string" or not guid:find("^Player%-") then
+    guid = nil
+  end
+  local coloredName = ClassColorName(name, guid)
+
   local displayLink = StripDisplayedLinkBrackets(link)
-  local out = string.format("%s: earned %s!", name, displayLink)
+  local out = string.format("%s: earned %s!", coloredName, displayLink)
 
   local outFrame = (DB.other and DB.other.achievement and DB.other.achievement.outputChatFrame)
     or (DB.other and DB.other.outputChatFrame)
@@ -3351,11 +3408,18 @@ local _xpPendingNoMatchTS
 local _xpPendingNoMatchMsg
 local _xpPendingNoMatchCleanMsg
 local _xpPendingNoMatchEvent
+local _xpPendingNoMatchToken
+local _xpPendingNoMatchGuessXP
+local _xpPendingNoMatchLiteSig
+local _xpPendingNoMatchUseTimer
 local _xpChatLastSig
 local _xpChatLastTS
 local _xpChatLastLiteSig
 local _xpChatLastLiteTS
-local _xpChatLastLiteHadMob
+local _xpChatLastLiteHadInfo
+
+local _xpChatPendingPreferredLiteSig
+local _xpChatPendingPreferredUntilTS
 
 local function GetExperienceOutputFrame()
   return (DB and DB.other and DB.other.experience and DB.other.experience.outputChatFrame)
@@ -3392,9 +3456,12 @@ MaybePrintXPDebug = function(line)
   if not XPDebugEnabled() then return end
   if not IsNonEmptyPublicString(line) then return end
 
-  -- Keep this low-noise: one line per second max.
+  -- Debug bursts (quest turn-ins can fire multiple XP-related events instantly).
+  -- Default: allow a few lines per second.
+  -- If debugCaptureStacks is enabled, do not throttle.
   local now = SafeNow()
-  if _xpDbgLastTS and (now - _xpDbgLastTS) < 1.0 then
+  local noThrottle = (DB and DB.debugCaptureStacks) == true
+  if (not noThrottle) and _xpDbgLastTS and (now - _xpDbgLastTS) < 0.12 then
     return
   end
   _xpDbgLastTS = now
@@ -3481,6 +3548,28 @@ local function CleanXPMsg(s)
   return s
 end
 
+local function GuessXPFromXPishLine(cleanMsg)
+  if type(cleanMsg) ~= "string" or cleanMsg == "" then return nil end
+
+  local t = cleanMsg
+  local low = t:lower()
+  if not (low:find("experience", 1, true) or low:find(" exp", 1, true) or low:find("discovered", 1, true)) then
+    return nil
+  end
+
+  -- Try common quest/system variants first.
+  local n = low:match("^experience gained:%s*([%d,%.%s'%\194\160]+)")
+    or low:match("experience gained:%s*([%d,%.%s'%\194\160]+)")
+    or low:match("you gain%s+([%d,%.%s'%\194\160]+)%s+experience")
+    or low:match("([%d,%.%s'%\194\160]+)%s+experience")
+
+  local xp = n and ParseNumberFromChat(n) or nil
+  if xp and xp > 0 then
+    return xp
+  end
+  return nil
+end
+
 local _xpQuestLastTS
 local _xpQuestLastTitle
 local _xpQuestLastXP
@@ -3554,6 +3643,7 @@ end
 
 local _xpQuestDelayedToken = 0
 local _xpQuestDelayed = {}
+local _xpQuestDelayedByLite = {}
 
 do
   if type(CreateFrame) == "function" then
@@ -3583,9 +3673,10 @@ local function OnExperienceChat(_, eventName, msg, ...)
 
   local ev = (type(eventName) == "string" and eventName ~= "") and eventName or "CHAT_MSG_COMBAT_XP_GAIN"
 
-  -- CHAT_MSG_SYSTEM can contain lots of unrelated lines. Only attempt parse when the line
-  -- looks XP-related (keeps debug and capture usable).
-  if ev == "CHAT_MSG_SYSTEM" then
+  -- CHAT_MSG_SYSTEM / CHAT_MSG_COMBAT_MISC_INFO can contain lots of unrelated lines.
+  -- Only attempt parse when the line looks XP-related (keeps debug and avoids suppressing
+  -- unrelated misc system lines).
+  if ev == "CHAT_MSG_SYSTEM" or ev == "CHAT_MSG_COMBAT_MISC_INFO" then
     local low = msg:lower()
     if not (low:find("experience", 1, true) or low:find(" exp", 1, true) or low:find("discovered", 1, true)) then
       return false
@@ -3600,6 +3691,146 @@ local function OnExperienceChat(_, eventName, msg, ...)
     _xpPendingNoMatchMsg = msg
     _xpPendingNoMatchCleanMsg = CleanXPMsg(msg)
     _xpPendingNoMatchEvent = ev
+
+    -- Special handling for quest turn-ins: some clients emit *two* Blizzard XP messages
+    -- (one system-side, one combat/chat-side). If the system-side line doesn't parse,
+    -- the old XP_UPDATE fallback can race and print a second line before our other-source
+    -- output (especially when we delay briefly to attach the quest title).
+    --
+    -- For system no-match XP lines, schedule our own very short fallback print that:
+    --  - cancels itself if we already printed (or have a delayed print pending) for the same XP
+    --  - prevents XP_UPDATE from printing in the meantime
+    do
+      _xpPendingNoMatchGuessXP = nil
+      _xpPendingNoMatchLiteSig = nil
+      _xpPendingNoMatchUseTimer = nil
+
+      if ev == "CHAT_MSG_SYSTEM" then
+        local guessXP = GuessXPFromXPishLine(_xpPendingNoMatchCleanMsg)
+        if guessXP and guessXP > 0 and type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+          local lite = tostring(guessXP) .. "|0"
+          _xpPendingNoMatchGuessXP = guessXP
+          _xpPendingNoMatchLiteSig = lite
+          _xpPendingNoMatchUseTimer = true
+
+          -- Prefer the upcoming formatted (quest-title) output over a plain duplicate
+          -- from the other Blizzard XP source while we wait.
+          _xpChatPendingPreferredLiteSig = lite
+          _xpChatPendingPreferredUntilTS = SafeNow() + 0.45
+
+          MaybePrintXPDebug(string.format(
+            "no-match(system) guessXP=%d lite=%s preferUntil=+0.45 msg='%s'",
+            guessXP, lite, ShortXPMsg(_xpPendingNoMatchCleanMsg)
+          ))
+
+          _xpPendingNoMatchToken = (_xpPendingNoMatchToken or 0) + 1
+          local token = _xpPendingNoMatchToken
+
+          MaybePrintXPDebug(string.format("no-match-timer scheduled token=%d xp=%d lite=%s", token, guessXP, lite))
+
+          C_Timer.After(0.30, function()
+            -- Only act if this is still the latest pending no-match.
+            if token ~= _xpPendingNoMatchToken then return end
+
+            local now2 = SafeNow()
+            if not (_xpPendingNoMatchTS and (now2 - _xpPendingNoMatchTS) < 1.0) then return end
+            EnsureRefs()
+            if not (DB and DB.other and DB.other.experience and DB.other.experience.enabled) then return end
+
+            local xp2 = _xpPendingNoMatchGuessXP
+            if not xp2 or xp2 <= 0 then return end
+            local lite2 = tostring(xp2) .. "|0"
+
+            -- If we already printed this XP, or have an informative delayed print pending, don't emit.
+            if _xpRecentPrintedTS and (now2 - _xpRecentPrintedTS) < 0.90 and _xpRecentPrintedDelta == xp2 then
+              MaybePrintXPDebug(string.format("no-match-timer cancel: recentPrinted xp=%d", xp2))
+              _xpPendingNoMatchTS = nil
+              _xpPendingNoMatchMsg = nil
+              _xpPendingNoMatchCleanMsg = nil
+              _xpPendingNoMatchEvent = nil
+              _xpPendingNoMatchGuessXP = nil
+              _xpPendingNoMatchLiteSig = nil
+              _xpPendingNoMatchUseTimer = nil
+              return
+            end
+            do
+              local pendingToken = _xpQuestDelayedByLite and _xpQuestDelayedByLite[lite2]
+              if pendingToken and _xpQuestDelayed and _xpQuestDelayed[pendingToken] then
+                MaybePrintXPDebug(string.format("no-match-timer cancel: pendingQuestDelayed xp=%d lite=%s", xp2, lite2))
+                _xpPendingNoMatchTS = nil
+                _xpPendingNoMatchMsg = nil
+                _xpPendingNoMatchCleanMsg = nil
+                _xpPendingNoMatchEvent = nil
+                _xpPendingNoMatchGuessXP = nil
+                _xpPendingNoMatchLiteSig = nil
+                _xpPendingNoMatchUseTimer = nil
+                return
+              end
+            end
+            if _xpChatPendingPreferredLiteSig == lite2 and _xpChatPendingPreferredUntilTS and now2 <= _xpChatPendingPreferredUntilTS then
+              MaybePrintXPDebug(string.format("no-match-timer cancel: pendingPreferred xp=%d lite=%s", xp2, lite2))
+              _xpPendingNoMatchTS = nil
+              _xpPendingNoMatchMsg = nil
+              _xpPendingNoMatchCleanMsg = nil
+              _xpPendingNoMatchEvent = nil
+              _xpPendingNoMatchGuessXP = nil
+              _xpPendingNoMatchLiteSig = nil
+              _xpPendingNoMatchUseTimer = nil
+              return
+            end
+            if _xpChatLastLiteSig == lite2 and _xpChatLastLiteTS and (now2 - _xpChatLastLiteTS) < 0.50 and _xpChatLastLiteHadInfo == true then
+              MaybePrintXPDebug(string.format("no-match-timer cancel: lastLiteHadInfo xp=%d lite=%s", xp2, lite2))
+              _xpPendingNoMatchTS = nil
+              _xpPendingNoMatchMsg = nil
+              _xpPendingNoMatchCleanMsg = nil
+              _xpPendingNoMatchEvent = nil
+              _xpPendingNoMatchGuessXP = nil
+              _xpPendingNoMatchLiteSig = nil
+              _xpPendingNoMatchUseTimer = nil
+              return
+            end
+
+            -- Emit a single fallback line (formatted) and try to attach quest title if available.
+            local hcc, gcc, close = ColorCodes()
+            local xpPos = GetXPLabelPos()
+            local outText = FormatXPMainChunk(xp2, xpPos, hcc, gcc, close)
+            if QuestXPEnabled() then
+              local qTitle = GetRecentQuestTitleForXP(xp2)
+              if IsNonEmptyPublicString(qTitle) then
+                outText = outText .. "  |cffffffff" .. qTitle .. close
+                _xpQuestLastTS = nil
+                _xpQuestLastTitle = nil
+                _xpQuestLastXP = nil
+              end
+            end
+
+            local out = FormatSelfLine(outText)
+            local outFrame = GetExperienceOutputFrame()
+            PrintToChatFrame(out, outFrame)
+            _xpRecentPrintedTS = now2
+            _xpRecentPrintedDelta = xp2
+
+            MaybePrintXPDebug(string.format("out(no-match-timer)->%s %s", tostring(outFrame), tostring(out)))
+            LootChat.CaptureChatOut("CHAT_MSG_SYSTEM", out, {
+              handled = true,
+              xp = xp2,
+              xpNoMatch = true,
+              xpNoMatchTimer = true,
+              outFrame = outFrame,
+            })
+
+            _xpPendingNoMatchTS = nil
+            _xpPendingNoMatchMsg = nil
+            _xpPendingNoMatchCleanMsg = nil
+            _xpPendingNoMatchEvent = nil
+            _xpPendingNoMatchGuessXP = nil
+            _xpPendingNoMatchLiteSig = nil
+            _xpPendingNoMatchUseTimer = nil
+          end)
+        end
+      end
+    end
+
     LootChat.CaptureChatOut(ev, "(xp) no-match", { handled = false, xpNoMatch = true })
     MaybePrintXPDebug(string.format("no-match (event=%s) msg='%s'", tostring(ev), ShortXPMsg(msg)))
 
@@ -3619,6 +3850,8 @@ local function OnExperienceChat(_, eventName, msg, ...)
 
   local hcc, gcc, close = ColorCodes()
   local xpPos = GetXPLabelPos()
+
+  local attachedQuestTitle = false
 
   -- Main XP number in green; literal "XP" (and bonus marker/chunk) in gold.
   local outText = FormatXPMainChunk(xp, xpPos, hcc, gcc, close)
@@ -3654,6 +3887,7 @@ local function OnExperienceChat(_, eventName, msg, ...)
       local qTitle = GetRecentQuestTitleForXP(xp)
       if IsNonEmptyPublicString(qTitle) then
         outText = outText .. "  |cffffffff" .. qTitle .. close
+        attachedQuestTitle = true
         _xpQuestLastTS = nil
         _xpQuestLastTitle = nil
         _xpQuestLastXP = nil
@@ -3674,6 +3908,25 @@ local function OnExperienceChat(_, eventName, msg, ...)
             _xpChatLastTS = now
           end
 
+          local liteSig = tostring(xp or 0) .. "|" .. tostring(rested or 0)
+          do
+            -- If a delayed print is already pending for this exact XP amount, don't queue another.
+            -- This is the common case when two Blizzard XP sources fire for the same quest turn-in.
+            local pendingToken = _xpQuestDelayedByLite and _xpQuestDelayedByLite[liteSig]
+            if pendingToken and _xpQuestDelayed and _xpQuestDelayed[pendingToken] then
+              MaybePrintXPDebug(string.format("dedup-delayed (event=%s) sig=%s", tostring(ev), liteSig))
+              LootChat.CaptureChatOut(ev, "(xp) suppressed", {
+                handled = true,
+                xp = xp,
+                rested = rested,
+                mob = mob,
+                xpDelayed = true,
+                suppressedPendingDelayed = true,
+              })
+              return true
+            end
+          end
+
           local outFrame = (DB.other and DB.other.experience and DB.other.experience.outputChatFrame)
             or (DB.other and DB.other.outputChatFrame)
             or (DB and DB.outputChatFrame)
@@ -3689,20 +3942,41 @@ local function OnExperienceChat(_, eventName, msg, ...)
             outFrame = outFrame,
             ev = ev,
           }
+          _xpQuestDelayedByLite[liteSig] = token
+
+          do
+            -- While we wait briefly for a quest title to arrive, suppress a plain duplicate
+            -- XP line from the other source (same xp/rested) to avoid double prints.
+            _xpChatPendingPreferredLiteSig = liteSig
+            _xpChatPendingPreferredUntilTS = SafeNow() + 0.30
+          end
 
           C_Timer.After(0.25, function()
             local entry = _xpQuestDelayed and _xpQuestDelayed[token]
             if not entry then return end
             _xpQuestDelayed[token] = nil
 
+            do
+              local lite = tostring(entry.xp or 0) .. "|" .. tostring(entry.rested or 0)
+              if _xpQuestDelayedByLite and _xpQuestDelayedByLite[lite] == token then
+                _xpQuestDelayedByLite[lite] = nil
+              end
+            end
+
+            -- Clear pending suppression window now that we're about to emit.
+            _xpChatPendingPreferredLiteSig = nil
+            _xpChatPendingPreferredUntilTS = nil
+
             EnsureRefs()
             if not (DB and DB.other and DB.other.experience and DB.other.experience.enabled) then return end
 
             local finalText = entry.baseOutText
+            local delayedAttachedQuestTitle = false
             if QuestXPEnabled() then
               local t = GetRecentQuestTitleForXP(entry.xp)
               if IsNonEmptyPublicString(t) then
                 finalText = finalText .. "  |cffffffff" .. t .. close
+                delayedAttachedQuestTitle = true
                 _xpQuestLastTS = nil
                 _xpQuestLastTitle = nil
                 _xpQuestLastXP = nil
@@ -3715,6 +3989,14 @@ local function OnExperienceChat(_, eventName, msg, ...)
               local now = SafeNow()
               _xpRecentPrintedTS = now
               _xpRecentPrintedDelta = entry.xp
+
+              -- Mark this as the most recent "lite" XP variant. If it carried extra info
+              -- (mob label or quest title), we can suppress a plain duplicate that follows.
+              local lite = tostring(entry.xp or 0) .. "|" .. tostring(entry.rested or 0)
+              local hasInfo = IsNonEmptyPublicString(entry.mob) or delayedAttachedQuestTitle
+              _xpChatLastLiteSig = lite
+              _xpChatLastLiteTS = now
+              _xpChatLastLiteHadInfo = hasInfo and true or false
             end
             MaybePrintXPDebug(string.format("out(delayed)->%s %s", tostring(entry.outFrame), tostring(out)))
             LootChat.CaptureChatOut(entry.ev or "CHAT_MSG_COMBAT_XP_GAIN", out, {
@@ -3727,7 +4009,7 @@ local function OnExperienceChat(_, eventName, msg, ...)
             })
           end)
 
-          MaybePrintXPDebug("xp delayed (quest-title-wait)")
+          MaybePrintXPDebug(string.format("xp delayed (quest-title-wait) xp=%d lite=%s event=%s", tonumber(xp) or 0, tostring(liteSig), tostring(ev)))
           LootChat.CaptureChatOut(ev, "(xp) delayed", { handled = true, xp = xp, rested = rested, mob = mob, xpDelayed = true })
           return true
         end
@@ -3749,18 +4031,36 @@ local function OnExperienceChat(_, eventName, msg, ...)
     -- Prefer the more informative line; suppress the plain one if the XP amount matches.
     do
       local lite = tostring(xp or 0) .. "|" .. tostring(rested or 0)
-      local hasMob = IsNonEmptyPublicString(mob)
-      if (not hasMob) and _xpChatLastLiteSig == lite and _xpChatLastLiteTS and (now - _xpChatLastLiteTS) < 0.40 and _xpChatLastLiteHadMob == true then
+      local hasInfo = IsNonEmptyPublicString(mob) or attachedQuestTitle
+
+      if (not hasInfo) and _xpChatPendingPreferredLiteSig == lite and _xpChatPendingPreferredUntilTS and now <= _xpChatPendingPreferredUntilTS then
+        MaybePrintXPDebug(string.format("dedup-pending (event=%s) sig=%s", tostring(ev), lite))
+        return true
+      end
+
+      if (not hasInfo) and _xpChatLastLiteSig == lite and _xpChatLastLiteTS and (now - _xpChatLastLiteTS) < 0.40 and _xpChatLastLiteHadInfo == true then
         MaybePrintXPDebug(string.format("dedup-lite (event=%s) sig=%s", tostring(ev), lite))
         return true
       end
       _xpChatLastLiteSig = lite
       _xpChatLastLiteTS = now
-      _xpChatLastLiteHadMob = hasMob and true or false
+      _xpChatLastLiteHadInfo = hasInfo and true or false
     end
 
     _xpChatLastSig = sig
     _xpChatLastTS = now
+  end
+
+  -- If we have a pending delayed print for this same XP amount, cancel it now.
+  -- This prevents the pattern: first source schedules delayed -> second source prints immediately -> delayed prints again.
+  do
+    local lite = tostring(xp or 0) .. "|" .. tostring(rested or 0)
+    local pendingToken = _xpQuestDelayedByLite and _xpQuestDelayedByLite[lite]
+    if pendingToken and _xpQuestDelayed and _xpQuestDelayed[pendingToken] then
+      _xpQuestDelayed[pendingToken] = nil
+      _xpQuestDelayedByLite[lite] = nil
+      MaybePrintXPDebug(string.format("cancel-delayed (event=%s) sig=%s", tostring(ev), lite))
+    end
   end
 
   local out = FormatSelfLine(outText)
@@ -3821,6 +4121,34 @@ function LootChat.OnPlayerXPUpdate()
   if not delta or delta <= 0 then
     local now = SafeNow()
     if _xpPendingNoMatchTS and (now - _xpPendingNoMatchTS) < 1.0 then
+      -- If we're handling a system XP no-match via the short timer fallback,
+      -- do NOT print the raw pending message here (that raw message is exactly
+      -- the duplicate you see as "Experience gained: ...").
+      if _xpPendingNoMatchUseTimer == true then
+        MaybePrintXPDebug("xpupdate(drop raw no-match; timer mode)")
+        return
+      end
+
+      -- If we already printed a real XP line for this same gain, do NOT print the
+      -- stored raw no-match message (this is the quest turn-in duplication case).
+      do
+        local clean = _xpPendingNoMatchCleanMsg or CleanXPMsg(_xpPendingNoMatchMsg)
+        local guessXP = GuessXPFromXPishLine(clean)
+        if guessXP and guessXP > 0 and _xpRecentPrintedTS and (now - _xpRecentPrintedTS) < 0.90 and _xpRecentPrintedDelta == guessXP then
+          -- Invalidate any pending timer callback as well.
+          _xpPendingNoMatchToken = (_xpPendingNoMatchToken or 0) + 1
+          _xpPendingNoMatchTS = nil
+          _xpPendingNoMatchMsg = nil
+          _xpPendingNoMatchCleanMsg = nil
+          _xpPendingNoMatchEvent = nil
+          _xpPendingNoMatchGuessXP = nil
+          _xpPendingNoMatchLiteSig = nil
+          _xpPendingNoMatchUseTimer = nil
+          MaybePrintXPDebug(string.format("drop(no-match-msg already-printed) xp=%d", guessXP))
+          return
+        end
+      end
+
       local msg = _xpPendingNoMatchCleanMsg or CleanXPMsg(_xpPendingNoMatchMsg)
       local ev = _xpPendingNoMatchEvent or "CHAT_MSG_COMBAT_XP_GAIN"
       _xpPendingNoMatchTS = nil
@@ -3848,6 +4176,12 @@ function LootChat.OnPlayerXPUpdate()
   end
 
   local now = SafeNow()
+
+  -- If we have a pending no-match system XP line that is being handled by the short
+  -- timer fallback, do not also print via XP_UPDATE (prevents double prints on quest turn-ins).
+  if _xpPendingNoMatchUseTimer == true and _xpPendingNoMatchTS and (now - _xpPendingNoMatchTS) < 1.0 then
+    return
+  end
 
   -- Suppress duplicates when we already printed from the chat filter.
   if _xpRecentPrintedTS and (now - _xpRecentPrintedTS) < 0.75 and _xpRecentPrintedDelta == delta then

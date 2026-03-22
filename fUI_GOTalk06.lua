@@ -17,83 +17,89 @@ local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
 
-local function NPC(npcID, npcName)
-	ns.db.rules[npcID] = ns.db.rules[npcID] or {}
-	ns.db.rules[npcID].__meta = { zone = CURRENT_ZONE, npc = npcName }
-	return ns.db.rules[npcID]
+
+
+
+
+local function NPC(npcName, npcIDs)
+	-- Preferred layout:
+	--   local t = NPC("Name", 123)
+	--   local t = NPC("Name", { 111, 222 })
+	--
+	-- Back-compat still accepted:
+	--   local t = NPC(123, "Name")
+	if (type(npcName) == "number" and type(npcIDs) == "string") or (type(npcName) == "table" and type(npcIDs) == "string") then
+		npcName, npcIDs = npcIDs, npcName
+	end
+
+	if type(npcIDs) ~= "table" then
+		npcIDs = { npcIDs }
+	end
+
+	local targets = {}
+	for _, id in ipairs(npcIDs) do
+		ns.db.rules[id] = ns.db.rules[id] or {}
+		ns.db.rules[id].__meta = { zone = CURRENT_ZONE, npc = npcName }
+		targets[#targets + 1] = ns.db.rules[id]
+	end
+
+	if #targets == 1 then
+		return targets[1]
+	end
+
+	return setmetatable({}, {
+		__index = function(_, key)
+			local t = targets[1]
+			return t and t[key]
+		end,
+		__newindex = function(_, key, value)
+			for _, t in ipairs(targets) do
+				t[key] = value
+			end
+		end,
+	})
 end
-
--- Convenience helper: write one set of option rules to multiple NPC IDs.
--- Example:
--- local t = NPCs({111, 222}, "Same NPC")
--- t[12345] = { text = "...", type = "" }
-local function NPCs(npcIDs, npcName)
-    if type(npcIDs) ~= "table" then
-        npcIDs = { npcIDs }
-    end
-
-    local targets = {}
-    for _, id in ipairs(npcIDs) do
-        targets[#targets + 1] = NPC(id, npcName)
-    end
-
-    return setmetatable({}, {
-        __index = function(_, key)
-            local t = targets[1]
-            return t and t[key]
-        end,
-        __newindex = function(_, key, value)
-            for _, t in ipairs(targets) do
-                t[key] = value
-            end
-        end,
-    })
-end
-
-
-SetZone("Frostfire Ridge, Draenor")
-
-    local t = NPC( 87122, "Gargra")
+    local t = NPC("Gargra", 87122)
     t[42881] = { text = "Let's do this!", mount = true, type = "", }
 
 SetZone("Gorgrond, Draenor")
 
-    local t = NPC( 83837, "Cymre Brightblade")
+    local t = NPC("Cymre Brightblade", 83837)
     t[42651] = { text = "Let's do battle!", mount = true, type = "", }
 
 SetZone("Nagrand, Draenor")
 
-    local t = NPC( 87110, "Tarr the Terrible")
+    local t = NPC("Tarr the Terrible", 87110)
     t[42882] = { text = "Let's do this!", mount = true, type = "", }
 
 SetZone("Shadowmoon Valley, Draenor")
 
-    local t = NPC(87124, "Ashlei")
+    local t = NPC("Ashlei", 87124)
     t[43294] = { text = "Let's do this!", mount = true, type = "" }
 
-    local t = NPC(79243, "Baros Alexston")
+    local t = NPC("Baros Alexston", 79243)
     t[43035] = { text = "We have everything we need. It's time to build the garrison.", type = "" }
 
 SetZone("Talador, Draenor")
 
-    local t = NPC(87125, "Taralune")
+    local t = NPC("Taralune", 87125)
     t[42883] = { text = "Let's do this!", mount = true, type = "" }
 
 SetZone("Spires of Arak, Draenor")
 
-    local t = NPC(86386, "Kuro'ak <Innkeeper>")
+    local t = NPC("Kuro'ak <Innkeeper>", 86386)
     t[43234] = { text = "Let me browse your goods.", type = "" }
 
-    local t = NPC(84498, "Skytalon Meshaal")
+    local t = NPC("Skytalon Meshaal", 84498)
     t[42904] = { text = "Show me where I can fly.", type = "" }
 
-    local t = NPC(87123, "Vesharr")
+    local t = NPC("Vesharr", 87123)
     t[43292] = { text = "Lets do battle!", mount = true, type = "" }
 
 SetZone("Garrison, Draenor")
 
     -- System/helper entry (not tied to real gossip). Used as a toggle in the Talk tab.
     -- NOTE: This uses a fake NPC ID so it will never match real gossip.
-    local t = NPC(-32000, "Garrison Mission Table")
+    local t = NPC("Garrison Mission Table", -32000)
     t[1] = { text = "Auto-start first mission (tutorial quest)", type = "" }
 

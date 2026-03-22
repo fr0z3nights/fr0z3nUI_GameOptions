@@ -17,24 +17,34 @@ local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
 
-local function NPC(npcID, npcName)
-	ns.db.rules[npcID] = ns.db.rules[npcID] or {}
-	ns.db.rules[npcID].__meta = { zone = CURRENT_ZONE, npc = npcName }
-	return ns.db.rules[npcID]
-end
 
--- Convenience helper: write one set of option rules to multiple NPC IDs.
--- Example:
--- local t = NPCs({111, 222}, "Same NPC")
--- t[12345] = { text = "...", type = "" }
-local function NPCs(npcIDs, npcName)
+
+
+
+local function NPC(npcName, npcIDs)
+	-- Preferred layout:
+	--   local t = NPC("Name", 123)
+	--   local t = NPC("Name", { 111, 222 })
+	--
+	-- Back-compat still accepted:
+	--   local t = NPC(123, "Name")
+	if (type(npcName) == "number" and type(npcIDs) == "string") or (type(npcName) == "table" and type(npcIDs) == "string") then
+		npcName, npcIDs = npcIDs, npcName
+	end
+
 	if type(npcIDs) ~= "table" then
 		npcIDs = { npcIDs }
 	end
 
 	local targets = {}
 	for _, id in ipairs(npcIDs) do
-		targets[#targets + 1] = NPC(id, npcName)
+		ns.db.rules[id] = ns.db.rules[id] or {}
+		ns.db.rules[id].__meta = { zone = CURRENT_ZONE, npc = npcName }
+		targets[#targets + 1] = ns.db.rules[id]
+	end
+
+	if #targets == 1 then
+		return targets[1]
 	end
 
 	return setmetatable({}, {
@@ -49,12 +59,9 @@ local function NPCs(npcIDs, npcName)
 		end,
 	})
 end
-
--- DRAGON ISLES
-
 SetZone("The Forbidden Reach, Dragon Isles")
 
-    local t = NPCs({ 184165, 182610, 182611, }, "Zone NPCs")
+    local t = NPC("Zone NPCs", { 184165, 182610, 182611, })
     t[51921] = { text = "Come with me. I will get you to safety.", type = "" }	-- Halp! (65071)		Little Ko (184165)
     t[51849] = { text = "Come with me. I will get you to safety.", type = "" }	-- Final Orders (65100)	Scalecommander Viridia (182610)
     t[51850] = { text = "<Relay what Nozdormu told you.>", type = "" }			-- Final Orders (65100)	Scalecommander Sarkareth (182611)

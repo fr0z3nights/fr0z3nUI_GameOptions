@@ -3130,6 +3130,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo <id>                  - open window + set option id",
                 "/fgo list                  - print current gossip options",
                 "/fgo petbattle             - force-enable pet battle auto-accept",
+                "/fgo yum                   - force-update FGO Food/Drink macros",
+                "/fgo yump                  - yum + print status",
                 "/fgo deposit               - run bank deposit helper (bank UI must be open)",
                 "/fgo lootit ...            - LootIt (loot chat cleaner) commands",
                 "/fgo li ...                - legacy alias for /fgo lootit",
@@ -3263,6 +3265,36 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 ns.Textures.HandleSlash(rest)
             else
                 Print("Textures module not loaded.")
+            end
+            return
+        end
+
+        if cmd == "yum" then
+            local m = ns and ns.Macros
+            if m and type(m.FoodDrink_ForceUpdate) == "function" then
+                -- Silent by design.
+                m.FoodDrink_ForceUpdate()
+            end
+            return
+        end
+
+        if cmd == "yump" then
+            local m = ns and ns.Macros
+            if m and type(m.FoodDrink_ForceUpdate) == "function" then
+                local ok, why = m.FoodDrink_ForceUpdate()
+                if ok then
+                    Print("Yum: updated FGO Food/Drink")
+                else
+                    if why == "in-combat" then
+                        Print("Yum: deferred (combat)")
+                    elseif why == "no food/drink candidate" then
+                        Print("Yum: no valid food/drink found in bags yet")
+                    else
+                        Print("Yum failed: " .. tostring(why))
+                    end
+                end
+            else
+                Print("Macros module not loaded.")
             end
             return
         end
@@ -4127,6 +4159,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     Print("/fgo <id>      - open window + set option id")
     Print("/fgo list      - print current gossip options")
     Print("/fgo petbattle - force-enable pet battle auto-accept")
+    Print("/fgo yum       - force-update FGO Food/Drink macros")
+    Print("/fgo yump      - yum + print status")
     Print("/fgo x ...     - exclusion macros (old /fgo m behavior)")
     Print("/fgo m ...     - macros (no character boxes)")
     Print("/fgo c ...     - faction macros (Both + Alliance/Horde)")

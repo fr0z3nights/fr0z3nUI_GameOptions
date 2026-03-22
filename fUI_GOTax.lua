@@ -417,6 +417,10 @@ do
     if g.warBankEB == nil then g.warBankEB = false end
     g.warBankEB = (g.warBankEB == true)
 
+    -- Guild Bank: Everything-But-Min toggle (scope-scoped).
+    if g.guildBankEB == nil then g.guildBankEB = false end
+    g.guildBankEB = (g.guildBankEB == true)
+
     -- Scope-scoped safety/borrowing controls.
     if g.minGold == nil then g.minGold = 0 end
     g.minGold = Clamp(g.minGold, 0, 9999999) or 0
@@ -468,6 +472,9 @@ do
 
     if cfg.warBankEB == nil then cfg.warBankEB = false end
     cfg.warBankEB = (cfg.warBankEB == true)
+
+    if cfg.guildBankEB == nil then cfg.guildBankEB = false end
+    cfg.guildBankEB = (cfg.guildBankEB == true)
 
     -- Scope-scoped safety/borrowing controls live on the active cfg.
     -- Migrate legacy per-character fields (ct.minGold/ct.allowWithdraw) into cfg if present.
@@ -876,12 +883,29 @@ do
     end
 
     local function DoDeposit()
+      local ebEnabled = (cfg.guildBankEB == true)
       local dueTax = math.floor(tonumber(bal.dueTax) or 0)
       local dueBorrowed = math.floor(tonumber(bal.dueBorrowed) or 0)
       if dueTax < 0 then dueTax = 0 end
       if dueBorrowed < 0 then dueBorrowed = 0 end
       local due = dueTax + dueBorrowed
-      if due <= 0 then return end
+      if due <= 0 and not ebEnabled then return end
+
+      -- XS: only pay excess above MinGold + (Guild Owed + WarBank Owed).
+      local warDue = 0
+      do
+        local ct = EnsureCharTaxDB()
+        local wb = ct and ct.warBal
+        if type(wb) == "table" then
+          local wTax = math.floor(tonumber(wb.dueTax) or 0)
+          local wBorrow = math.floor(tonumber(wb.dueBorrowed) or 0)
+          if wTax < 0 then wTax = 0 end
+          if wBorrow < 0 then wBorrow = 0 end
+          warDue = wTax + wBorrow
+          if warDue < 0 then warDue = 0 end
+        end
+      end
+      local totalOwed = due + warDue
 
       local okCan, why = CanDeposit()
       if not okCan then
@@ -896,7 +920,17 @@ do
       end
       if available < 0 then available = 0 end
 
-      local toPay = due
+      local toPay
+      if ebEnabled then
+        local extra = available - totalOwed
+        if extra < 0 then extra = 0 end
+        toPay = due + extra
+      else
+        toPay = due
+        if toPay > available then
+          toPay = available
+        end
+      end
       if toPay > available then
         toPay = available
       end
@@ -913,9 +947,12 @@ do
         PushPendingDelta(state._pendingGuildDeltas, -toPay)
         local ok = pcall(DepositGuildBankMoney, toPay)
         if ok then
-          local payTax = toPay
+          local payToDue = toPay
+          if payToDue > due then payToDue = due end
+
+          local payTax = payToDue
           if payTax > dueTax then payTax = dueTax end
-          local remain = toPay - payTax
+          local remain = payToDue - payTax
           local payBorrowed = remain
           if payBorrowed > dueBorrowed then payBorrowed = dueBorrowed end
 
@@ -977,7 +1014,7 @@ do
   end
 
   local function TryPayWarbank(isAuto)
-    local _, cfg = GetActiveScopeCfgAndBal()
+    local _, cfg, bal = GetActiveScopeCfgAndBal()
     if type(cfg) ~= "table" then return end
     if not (cfg.warBankEnabled == true) then return end
 
@@ -1042,6 +1079,18 @@ do
       local due = dueTax + dueBorrowed
       if due <= 0 and not ebEnabled then return end
 
+      -- XS: only pay excess above MinGold + (Guild Owed + WarBank Owed).
+      local guildDue = 0
+      if type(bal) == "table" then
+        local gTax = math.floor(tonumber(bal.dueTax) or 0)
+        local gBorrow = math.floor(tonumber(bal.dueBorrowed) or 0)
+        if gTax < 0 then gTax = 0 end
+        if gBorrow < 0 then gBorrow = 0 end
+        guildDue = gTax + gBorrow
+        if guildDue < 0 then guildDue = 0 end
+      end
+      local totalOwed = guildDue + due
+
       if not CanDeposit() then
         RequestUIRefresh()
         return
@@ -1056,12 +1105,17 @@ do
 
       local toPay
       if ebEnabled then
-        toPay = available
+        local extra = available - totalOwed
+        if extra < 0 then extra = 0 end
+        toPay = due + extra
       else
         toPay = due
         if toPay > available then
           toPay = available
         end
+      end
+      if toPay > available then
+        toPay = available
       end
       toPay = math.floor(tonumber(toPay) or 0)
       if toPay <= 0 then

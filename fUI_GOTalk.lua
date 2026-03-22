@@ -1281,9 +1281,9 @@ function ns.Talk.PrintDebugOptionsOnShow(skipOptionLines)
     end
 
     if npcID then
-        PrintPrefixed(string.format("%d: %s", npcID, npcName))
+        PrintPrefixed(string.format("%s (%d)", npcName, npcID))
     else
-        PrintPrefixed(string.format("?: %s", npcName))
+        PrintPrefixed(string.format("%s (?)", npcName))
     end
 
     -- When Print-on-show is enabled, avoid printing a second OID list.

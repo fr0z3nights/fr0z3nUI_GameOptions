@@ -17,95 +17,102 @@ local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
 
-local function NPC(npcID, npcName)
-	ns.db.rules[npcID] = ns.db.rules[npcID] or {}
-	ns.db.rules[npcID].__meta = { zone = CURRENT_ZONE, npc = npcName }
-	return ns.db.rules[npcID]
+
+
+
+
+local function NPC(npcName, npcIDs)
+	-- Preferred layout:
+	--   local t = NPC("Name", 123)
+	--   local t = NPC("Name", { 111, 222 })
+	--
+	-- Back-compat still accepted:
+	--   local t = NPC(123, "Name")
+	if (type(npcName) == "number" and type(npcIDs) == "string") or (type(npcName) == "table" and type(npcIDs) == "string") then
+		npcName, npcIDs = npcIDs, npcName
+	end
+
+	if type(npcIDs) ~= "table" then
+		npcIDs = { npcIDs }
+	end
+
+	local targets = {}
+	for _, id in ipairs(npcIDs) do
+		ns.db.rules[id] = ns.db.rules[id] or {}
+		ns.db.rules[id].__meta = { zone = CURRENT_ZONE, npc = npcName }
+		targets[#targets + 1] = ns.db.rules[id]
+	end
+
+	if #targets == 1 then
+		return targets[1]
+	end
+
+	return setmetatable({}, {
+		__index = function(_, key)
+			local t = targets[1]
+			return t and t[key]
+		end,
+		__newindex = function(_, key, value)
+			for _, t in ipairs(targets) do
+				t[key] = value
+			end
+		end,
+	})
 end
-
--- Convenience helper: write one set of option rules to multiple NPC IDs.
--- Example:
--- local t = NPCs({111, 222}, "Same NPC")
--- t[12345] = { text = "...", type = "" }
-local function NPCs(npcIDs, npcName)
-    if type(npcIDs) ~= "table" then
-        npcIDs = { npcIDs }
-    end
-
-    local targets = {}
-    for _, id in ipairs(npcIDs) do
-        targets[#targets + 1] = NPC(id, npcName)
-    end
-
-    return setmetatable({}, {
-        __index = function(_, key)
-            local t = targets[1]
-            return t and t[key]
-        end,
-        __newindex = function(_, key, value)
-            for _, t in ipairs(targets) do
-                t[key] = value
-            end
-        end,
-    })
-end
-
--- PANDARIA
-
 SetZone("Dread Wastes, Pandaria")
 
-    local t = NPC( 63501, "Kik'tik")
+    local t = NPC("Kik'tik", 63501)
     t[40933] = { text = "I need to travel somewhere.", type = "", }
 
-    local t = NPC( 68462, "Flowing Pandaren Spirit")
+    local t = NPC("Flowing Pandaren Spirit", 68462)
     t[41935] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, type = "", }
 
-    local t = NPC( 66739, "Wastewalker Shu")
+    local t = NPC("Wastewalker Shu", 66739)
     t[41822] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, type = "", }
 
 SetZone("Jade Forest, Pandaria")
 
-    local t = NPC( 66730, "Hyuna")
+    local t = NPC("Hyuna", 66730)
     t[41814] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it!" }, within = 3, }, type = "", }
 
-    local t = NPC( 68464, "Whispering Pandaren Spirit")
+    local t = NPC("Whispering Pandaren Spirit", 68464)
     t[41953] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, type = "", }
 
 SetZone("Krasarang Wilds, Pandaria")
 
-    local t = NPC( 66733, "Mo'ruk")
+    local t = NPC("Mo'ruk", 66733)
     t[41816] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, type = "", }
 
 SetZone("Kun-Lai Summit, Pandaria")
 
-    local t = NPC(176655, "Anthea")
+    local t = NPC("Anthea", 176655)
     t[52501] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "let's rumble", }, within = 3, }, type = "", }
 
-    local t = NPC( 66738, "Courageous Yon")
+    local t = NPC("Courageous Yon", 66738)
     t[41820] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance!" }, within = 3, }, type = "", }
 
-    local t = NPC( 62871, "Puli the Even Handed <Innkeeper>")
+    local t = NPC("Puli the Even Handed <Innkeeper>", 62871)
     t[37168] = { text = "Let me browse your goods.", type = "", }
 
-    local t = NPC( 68465, "Thundering Pandaren Spirit")
+    local t = NPC("Thundering Pandaren Spirit", 68465)
     t[41955] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "prepare yourself" }, within = 3, }, type = "", }
 
 SetZone("Townlong Steppes, Pandaria")
 
-    local t = NPC( 68463, "Burning Pandaren Spirit")
+    local t = NPC("Burning Pandaren Spirit", 68463)
     t[41951] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "prepare yourself" }, within = 3, }, type = "", }
 
-    local t = NPC( 66918, "Seeker Zusshi")
+    local t = NPC("Seeker Zusshi", 66918)
     t[41155] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance!" }, within = 3, }, type = "", }
 
 SetZone("Vale of Eternal Blossoms, Pandaria")
 
-    local t = NPC( 66741, "Aki the Chosen")
+    local t = NPC("Aki the Chosen", 66741)
     t[41824] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You're going down!" }, within = 3, }, type = "", }
 
 SetZone("Valley of the Four Winds, Pandaria")
 
-    local t = NPC( 66734, "Farmer Nishi")
+    local t = NPC("Farmer Nishi", 66734)
     t[41818] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, type = "", }
 
 

@@ -19,72 +19,79 @@ local function SetZone(zone)
     CURRENT_ZONE = zone
 end
 
-local function NPC(npcID, npcName)
-    ns.db.rules[npcID] = ns.db.rules[npcID] or {}
-    ns.db.rules[npcID].__meta = { zone = CURRENT_ZONE, npc = npcName }
-    return ns.db.rules[npcID]
+
+
+
+
+local function NPC(npcName, npcIDs)
+	-- Preferred layout:
+	--   local t = NPC("Name", 123)
+	--   local t = NPC("Name", { 111, 222 })
+	--
+	-- Back-compat still accepted:
+	--   local t = NPC(123, "Name")
+	if (type(npcName) == "number" and type(npcIDs) == "string") or (type(npcName) == "table" and type(npcIDs) == "string") then
+		npcName, npcIDs = npcIDs, npcName
+	end
+
+	if type(npcIDs) ~= "table" then
+		npcIDs = { npcIDs }
+	end
+
+	local targets = {}
+	for _, id in ipairs(npcIDs) do
+		ns.db.rules[id] = ns.db.rules[id] or {}
+		ns.db.rules[id].__meta = { zone = CURRENT_ZONE, npc = npcName }
+		targets[#targets + 1] = ns.db.rules[id]
+	end
+
+	if #targets == 1 then
+		return targets[1]
+	end
+
+	return setmetatable({}, {
+		__index = function(_, key)
+			local t = targets[1]
+			return t and t[key]
+		end,
+		__newindex = function(_, key, value)
+			for _, t in ipairs(targets) do
+				t[key] = value
+			end
+		end,
+	})
 end
-
--- Convenience helper: write one set of option rules to multiple NPC IDs.
--- Example:
--- local t = NPCs({111, 222}, "Same NPC")
--- t[12345] = { text = "...", type = "" }
-local function NPCs(npcIDs, npcName)
-    if type(npcIDs) ~= "table" then
-        npcIDs = { npcIDs }
-    end
-
-    local targets = {}
-    for _, id in ipairs(npcIDs) do
-        targets[#targets + 1] = NPC(id, npcName)
-    end
-
-    return setmetatable({}, {
-        __index = function(_, key)
-            local t = targets[1]
-            return t and t[key]
-        end,
-        __newindex = function(_, key, value)
-            for _, t in ipairs(targets) do
-                t[key] = value
-            end
-        end,
-    })
-end
-
--- KHAZ ALGAR
-
 SetZone("Dornogal, Khaz Algar")
 
-    local t = NPC(206017, "Brann Bronzebeard")
+    local t = NPC("Brann Bronzebeard", 206017)
     t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r", type = "" }
     t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r", type = "" }
 
-    local t = NPC(227675, "Delver's Guide")
+    local t = NPC("Delver's Guide", 227675)
     t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
 
-    local t = NPC(212370, "Ronesh")
+    local t = NPC("Ronesh", 212370)
     t[121503] = { text = "I want to browse your goods.", type = "" }
 
 
 SetZone("Hallowfall, Khaz Algar")
 
-    local t = NPC(220293, "Aliya Hillhelm")
+    local t = NPC("Aliya Hillhelm", 220293)
     t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this.", type = "" }
 
-    local t = NPC(220354, "Chef Dinaire")
+    local t = NPC("Chef Dinaire", 220354)
     t[121539] = { text = "(Delve) I love scavenger hunts AND treasure. I'm in!", type = "" }
     t[121541] = { text = "(Delve) Go get the treasure while I handle whatever is about to attack us.", type = "" }
 
-    local t = NPC(220585, "Lamplighter Havrik Chayvn")
+    local t = NPC("Lamplighter Havrik Chayvn", 220585)
     t[121408] = { text = "(Delve) I'll go deeper in and stop the nerubian ritual.", type = "" }
 
-    local t = NPC(248927, "Zah'ran")
+    local t = NPC("Zah'ran", 248927)
     t[135013] = { text = "Show me.", type = "" }
 
 SetZone("Azj-Kahet, Khaz Algar")
 
-    local t = NPC(220462, "Weaver's Instructions")
+    local t = NPC("Weaver's Instructions", 220462)
     t[121566] = { text = "(Delve) <Close the scroll and take the Weaver's web grappling hook.>", type = "" }
 
 

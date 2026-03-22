@@ -1134,24 +1134,42 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
         return false, "in-combat"
     end
 
-    local bestFood = PickBestFromBags("food")
-    local bestDrink = PickBestFromBags("drink")
+    local bestFood = tonumber(PickBestFromBags("food")) or 0
+    local bestDrink = tonumber(PickBestFromBags("drink")) or 0
 
-    if allowCreateFood or FoodDrink.createdFood or (GetMacroIndexByName(FOOD_MACRO_NAME) or 0) > 0 then
-        if forceRewrite or bestFood ~= FoodDrink.lastFoodID or (GetMacroIndexByName(FOOD_MACRO_NAME) or 0) == 0 then
-            FoodDrink.lastFoodID = bestFood
-            CreateOrUpdateNamedMacro_NoOptional(FOOD_MACRO_NAME, BuildUseItemMacroBody(bestFood, true, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+    local foodIdx = (GetMacroIndexByName(FOOD_MACRO_NAME) or 0)
+    local drinkIdx = (GetMacroIndexByName(DRINK_MACRO_NAME) or 0)
+
+    local blocked = false
+
+    if allowCreateFood or FoodDrink.createdFood or foodIdx > 0 then
+        if forceRewrite or bestFood ~= (tonumber(FoodDrink.lastFoodID) or 0) or foodIdx == 0 then
+            if bestFood > 0 then
+                FoodDrink.lastFoodID = bestFood
+                CreateOrUpdateNamedMacro_NoOptional(FOOD_MACRO_NAME, BuildUseItemMacroBody(bestFood, true, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+            else
+                -- Never overwrite an existing macro with the placeholder body.
+                -- Defer until bags/tooltips are ready and we can pick a real item.
+                blocked = true
+            end
         end
     end
 
-    if allowCreateDrink or FoodDrink.createdDrink or (GetMacroIndexByName(DRINK_MACRO_NAME) or 0) > 0 then
-        if forceRewrite or bestDrink ~= FoodDrink.lastDrinkID or (GetMacroIndexByName(DRINK_MACRO_NAME) or 0) == 0 then
-            FoodDrink.lastDrinkID = bestDrink
-            CreateOrUpdateNamedMacro_NoOptional(DRINK_MACRO_NAME, BuildUseItemMacroBody(bestDrink, false, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+    if allowCreateDrink or FoodDrink.createdDrink or drinkIdx > 0 then
+        if forceRewrite or bestDrink ~= (tonumber(FoodDrink.lastDrinkID) or 0) or drinkIdx == 0 then
+            if bestDrink > 0 then
+                FoodDrink.lastDrinkID = bestDrink
+                CreateOrUpdateNamedMacro_NoOptional(DRINK_MACRO_NAME, BuildUseItemMacroBody(bestDrink, false, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+            else
+                blocked = true
+            end
         end
     end
 
-    FoodDrink.needsRewrite = false
+    FoodDrink.needsRewrite = blocked
+    if blocked then
+        return false, "no food/drink candidate"
+    end
     return true
 end
 
@@ -1330,4 +1348,11 @@ end
 ns.Macros.FoodDrink_CreateDrinkMacro = function()
     FoodDrink.createdDrink = true
     local ok, why = UpdateFoodDrinkMacros(true, false, true)
+end
+
+ns.Macros.FoodDrink_ForceUpdate = function()
+    -- Explicit user action: allow create if missing.
+    FoodDrink.createdFood = true
+    FoodDrink.createdDrink = true
+    return UpdateFoodDrinkMacros(true, true, true)
 end

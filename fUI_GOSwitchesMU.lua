@@ -39,6 +39,48 @@ local function GetDelay()
     return d
 end
 
+local function IsDelayUsedForReapRetry()
+    InitSV()
+    return (AutoGossip_Settings and AutoGossip_Settings.mountUpDelayUseReapAcc) and true or false
+end
+
+local function IsDelayUsedForCastRetry()
+    InitSV()
+    return (AutoGossip_Settings and AutoGossip_Settings.mountUpDelayUseCastAcc) and true or false
+end
+
+local function IsDelayUsedForLootRetry()
+    InitSV()
+    return (AutoGossip_Settings and AutoGossip_Settings.mountUpDelayUseLootAcc) and true or false
+end
+
+local GATHER_SPELL_IDS = {
+    -- Gathering / harvesting (retail/common IDs)
+    [2366] = true, -- Herbalism
+    [2575] = true, -- Mining
+    [8613] = true, -- Skinning
+    [7620] = true, -- Fishing
+}
+
+local function IsGatherSpellID(spellID)
+    spellID = tonumber(spellID)
+    if type(spellID) ~= "number" then
+        return false
+    end
+    return (GATHER_SPELL_IDS[spellID] and true or false)
+end
+
+local function GetRetryDelayForCast(spellID)
+    if IsGatherSpellID(spellID) then
+        return IsDelayUsedForReapRetry() and GetDelay() or 0.20
+    end
+    return IsDelayUsedForCastRetry() and GetDelay() or 0.20
+end
+
+local function GetRetryDelayForLoot()
+    return IsDelayUsedForLootRetry() and GetDelay() or 0.20
+end
+
 local function NormalizePreferredSituation(situation)
     situation = tostring(situation or ""):lower()
     if situation == "flying" then
@@ -1197,6 +1239,30 @@ end
 
 do
     local btn
+    local lastLabelUpdateAt = 0
+    local movingTicker
+
+    local function CanMountHereNow()
+        if not IsEnabled() then
+            return false
+        end
+
+        if not (C_MountJournal and type(C_MountJournal.GetMountIDs) == "function" and type(C_MountJournal.SummonByID) == "function") then
+            return false
+        end
+
+        -- Area-only indicator (logic):
+        -- Indoors is a pure location restriction.
+        if IsIndoors and IsIndoors() then
+            return false
+        end
+
+        -- If we can't find any usable mount right now, treat it as a no-mount area.
+        -- (Note: this is still best-effort; WoW doesn't expose a perfect "mount allowed here" API.)
+        local pick = PickMount()
+        return (type(pick) == "number" and pick > 0) and true or false
+
+    end
 
     local function Tooltip_ApplyFontDelta(tt, delta, stashKey)
         if not (tt and tt.GetName and tt.NumLines) then
@@ -1283,19 +1349,64 @@ do
     end
 
     local function GetStateColor()
+        InitSV()
         -- Red: account disabled (Button 1)
         if not (AutoGossip_Settings and AutoGossip_Settings.mountUpEnabledAcc and true or false) then
             return "ffff0000", "acc-off"
         end
         -- Green: char enabled (Button 2)
         if (AutoGossip_CharSettings and AutoGossip_CharSettings.mountUpEnabledChar and true or false) then
-            return "ff00ff00", "char-on"
+            if CanMountHereNow() then
+                return "ff00ff00", "char-on"
+            end
+            -- Grey: enabled but this location blocks mounting (indoors/vehicle/taxi/etc)
+            return "ff808080", "blocked"
         end
         -- Orange: char disabled (Button 2)
         return "ffff8000", "char-off"
     end
 
-    local function UpdateLabel()
+    local UpdateLabel
+
+    local function UpdateLabelThrottled(force)
+        if not (btn and btn._label and btn._label.SetText) then
+            return
+        end
+        if btn.IsShown and not btn:IsShown() then
+            return
+        end
+
+        local now = (type(GetTime) == "function" and (GetTime() or 0)) or 0
+        if not force then
+            local delta = now - (tonumber(lastLabelUpdateAt) or 0)
+            if delta < 0.20 then
+                return
+            end
+        end
+        lastLabelUpdateAt = now
+        UpdateLabel()
+    end
+
+    local function StopMovingTicker()
+        if movingTicker and movingTicker.Cancel then
+            movingTicker:Cancel()
+        end
+        movingTicker = nil
+    end
+
+    local function StartMovingTicker()
+        StopMovingTicker()
+        if not (C_Timer and C_Timer.NewTicker) then
+            return
+        end
+        -- While moving, poll at a low rate so grey/green can flip
+        -- as you cross into/out of mount-allowed space.
+        movingTicker = C_Timer.NewTicker(0.25, function()
+            UpdateLabelThrottled(false)
+        end)
+    end
+
+    UpdateLabel = function()
         if not (btn and btn._label and btn._label.SetText) then
             return
         end
@@ -1437,7 +1548,7 @@ do
             if b and b.Show then
                 ApplySavedPosition(b)
                 ApplyTextSize()
-                UpdateLabel()
+                UpdateLabelThrottled(true)
                 b:Show()
             end
         else
@@ -1447,15 +1558,43 @@ do
         end
     end
 
-    local function OnEvent(_, event)
+    local function OnEvent(_, event, ...)
         if event == "PLAYER_LOGIN" or event == "VARIABLES_LOADED" then
             MU.UpdateMountUpFloatButton()
+            UpdateLabelThrottled(true)
+            if IsMoving and IsMoving() then
+                StartMovingTicker()
+            else
+                StopMovingTicker()
+            end
+            return
         end
+
+        if event == "PLAYER_STARTED_MOVING" then
+            StartMovingTicker()
+        elseif event == "PLAYER_STOPPED_MOVING" then
+            StopMovingTicker()
+            UpdateLabelThrottled(true)
+            return
+        end
+
+        UpdateLabelThrottled(false)
     end
 
     local f = _G.CreateFrame("Frame")
     f:RegisterEvent("PLAYER_LOGIN")
     f:RegisterEvent("VARIABLES_LOADED")
+
+    -- State refresh events (label only; does not mount)
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+    f:RegisterEvent("ZONE_CHANGED_INDOORS")
+    f:RegisterEvent("PLAYER_CONTROL_GAINED")
+    f:RegisterEvent("PLAYER_CONTROL_LOST")
+    f:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+    f:RegisterEvent("PLAYER_STARTED_MOVING")
+    f:RegisterEvent("PLAYER_STOPPED_MOVING")
+
     f:SetScript("OnEvent", OnEvent)
 end
 
@@ -1927,20 +2066,34 @@ local function EnsureConfigPopup()
     p.boxAquatic = boxAquatic
 
     local delayLabel = p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    delayLabel:SetJustifyH("RIGHT")
+    delayLabel:SetJustifyH("LEFT")
     delayLabel:SetText("Delay")
     p.delayLabel = delayLabel
 
     local delayBox = MakeBorderlessHoverBox(p, 60, 18)
-    delayBox:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -12, 12)
     p.delayBox = delayBox
-
-    delayLabel:SetPoint("RIGHT", delayBox, "LEFT", -8, 0)
 
     local osdRow = CreateFrame("Frame", nil, p)
     osdRow:SetSize(SPLIT_W, SPLIT_H)
     osdRow:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 12, 12)
     p.osdRow = osdRow
+
+    -- Delay row (above OSD/Lock)
+    local delayRowY = 12 + SPLIT_H + 6
+    delayLabel:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 12, delayRowY)
+    delayBox:SetPoint("BOTTOMRIGHT", p, "BOTTOMLEFT", (12 + SPLIT_W), delayRowY)
+
+    local reapBtn = CreateTextToggleButton(p, 44, 18)
+    reapBtn:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", (12 + SPLIT_W + 6), delayRowY)
+    p.reapBtn = reapBtn
+
+    local castBtn = CreateTextToggleButton(p, 44, 18)
+    castBtn:SetPoint("LEFT", reapBtn, "RIGHT", 6, 0)
+    p.castBtn = castBtn
+
+    local lootBtn = CreateTextToggleButton(p, 44, 18)
+    lootBtn:SetPoint("LEFT", castBtn, "RIGHT", 6, 0)
+    p.lootBtn = lootBtn
 
     local splitOSDLock = CreateFrame("Button", nil, osdRow, "UIPanelButtonTemplate")
     splitOSDLock:SetSize(SPLIT_W, SPLIT_H)
@@ -1967,8 +2120,43 @@ local function EnsureConfigPopup()
     p.xyBtn = xyBtn
 
     local dbgBtn = CreateTextToggleButton(p, 34, 18)
-    dbgBtn:SetPoint("RIGHT", delayLabel, "LEFT", -10, 0)
     p.dbgBtn = dbgBtn
+
+    local function IsReapDelayEnabled()
+        return IsDelayUsedForReapRetry()
+    end
+
+    local function IsCastDelayEnabled()
+        return IsDelayUsedForCastRetry()
+    end
+
+    local function IsLootDelayEnabled()
+        return IsDelayUsedForLootRetry()
+    end
+
+    local function SetReapDelayEnabled(v)
+        InitSV()
+        if type(AutoGossip_Settings) ~= "table" then
+            return
+        end
+        AutoGossip_Settings.mountUpDelayUseReapAcc = (v and true or false)
+    end
+
+    local function SetCastDelayEnabled(v)
+        InitSV()
+        if type(AutoGossip_Settings) ~= "table" then
+            return
+        end
+        AutoGossip_Settings.mountUpDelayUseCastAcc = (v and true or false)
+    end
+
+    local function SetLootDelayEnabled(v)
+        InitSV()
+        if type(AutoGossip_Settings) ~= "table" then
+            return
+        end
+        AutoGossip_Settings.mountUpDelayUseLootAcc = (v and true or false)
+    end
 
     local function IsDebugEnabled()
         InitSV()
@@ -1988,6 +2176,40 @@ local function EnsureConfigPopup()
             return
         end
         print("|cff00ccff[FGO]|r MU DBG: " .. tostring(msg))
+    end
+
+    local function InstallDelayToggle(btn, label, tooltipTitle, tooltipBody, isOnFn, setOnFn)
+        if not (btn and btn.RegisterForClicks and btn.SetScript) then
+            return
+        end
+        btn:RegisterForClicks("LeftButtonUp")
+        btn:SetScript("OnClick", function()
+            local on = not (isOnFn() and true or false)
+            setOnFn(on)
+            if p and p.RefreshFromSV then
+                p:RefreshFromSV()
+            end
+            MU.OnSettingsChanged()
+        end)
+        btn:SetScript("OnEnter", function(self)
+            if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then
+                return
+            end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tooltipTitle)
+            if type(tooltipBody) == "string" and tooltipBody ~= "" then
+                GameTooltip:AddLine(tooltipBody, 1, 1, 1, true)
+            end
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function()
+            if GameTooltip and GameTooltip.Hide then
+                GameTooltip:Hide()
+            end
+        end)
+        if btn._fs and btn._fs.SetText then
+            btn._fs:SetText(label)
+        end
     end
 
     local function DebugDumpButtonsState()
@@ -2175,6 +2397,16 @@ local function EnsureConfigPopup()
         SetSegGreenGreyFS(fsOSD, "OSD", floatOn)
         SetSegGreenGreyFS(fsLock, "Lock", locked)
 
+        if reapBtn and reapBtn._fs then
+            SetSegGreenGreyFS(reapBtn._fs, "Reap", IsReapDelayEnabled())
+        end
+        if castBtn and castBtn._fs then
+            SetSegGreenGreyFS(castBtn._fs, "Cast", IsCastDelayEnabled())
+        end
+        if lootBtn and lootBtn._fs then
+            SetSegGreenGreyFS(lootBtn._fs, "Loot", IsLootDelayEnabled())
+        end
+
         if sizeBox and sizeBox.eb then
             sizeBox.eb:SetText(string.format("%02d", math.floor(size + 0.5)))
         end
@@ -2229,6 +2461,9 @@ local function EnsureConfigPopup()
         end
     end)
 
+    -- Keep DBG on the OSD/Lock row (it should not move with Delay).
+    dbgBtn:SetPoint("LEFT", xyBtn, "RIGHT", 6, 0)
+
     dbgBtn:RegisterForClicks("LeftButtonUp")
     dbgBtn:SetScript("OnClick", function()
         local on = not IsDebugEnabled()
@@ -2255,6 +2490,33 @@ local function EnsureConfigPopup()
             GameTooltip:Hide()
         end
     end)
+
+    InstallDelayToggle(
+        reapBtn,
+        "Reap",
+        "Reap (Gather)",
+        "When enabled, gathering casts (Mining/Herbalism/Skinning/Fishing) use your Delay instead of a quick 0.2s retry.",
+        IsReapDelayEnabled,
+        SetReapDelayEnabled
+    )
+
+    InstallDelayToggle(
+        castBtn,
+        "Cast",
+        "Cast",
+        "When enabled, the post-cast retry uses your Delay instead of a quick 0.2s retry.",
+        IsCastDelayEnabled,
+        SetCastDelayEnabled
+    )
+
+    InstallDelayToggle(
+        lootBtn,
+        "Loot",
+        "Loot",
+        "When enabled, the post-loot-close retry uses your Delay instead of a quick 0.2s retry.",
+        IsLootDelayEnabled,
+        SetLootDelayEnabled
+    )
 
     local function SetScopeFromClick(scope, mouseButton)
         InitSV()
@@ -2433,7 +2695,7 @@ local function EnsureConfigPopup()
             self:SetCursorPosition(#t)
         end
     end)
-    delayBox.eb:SetScript("OnEditFocusLost", function(self)
+    local function ApplyDelayFromEditBox(self)
         InitSV()
         local t = SanitizeNumberDot(self:GetText())
         local n = tonumber(t)
@@ -2445,6 +2707,17 @@ local function EnsureConfigPopup()
         AutoGossip_Settings.mountUpDelayAcc = n
         DelaySetDisplayInactive()
         MU.OnSettingsChanged()
+    end
+
+    delayBox.eb:SetScript("OnEditFocusLost", function(self)
+        ApplyDelayFromEditBox(self)
+    end)
+
+    delayBox.eb:SetScript("OnEnterPressed", function(self)
+        ApplyDelayFromEditBox(self)
+        if self and self.ClearFocus then
+            self:ClearFocus()
+        end
     end)
 
     p:SetScript("OnShow", function()
@@ -2604,7 +2877,7 @@ do
         end
 
         if event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_SUCCEEDED" then
-            local unit = ...
+            local unit, _, spellID = ...
             if unit ~= "player" then
                 return
             end
@@ -2612,7 +2885,7 @@ do
             -- If we recently tried/armed MountUp (e.g. stop-moving fired while gathering),
             -- re-attempt shortly after the cast/channel completes.
             if IsWithinArmWindow(8.0) and not IsMoving() then
-                ScheduleMount(event, 0.20)
+                ScheduleMount(event, GetRetryDelayForCast(spellID))
             end
             return
         end
@@ -2620,7 +2893,7 @@ do
         if event == "LOOT_CLOSED" then
             -- Common after gathering: cast ends -> loot -> close; allow a quick retry.
             if IsWithinArmWindow(8.0) and not IsMoving() then
-                ScheduleMount(event, 0.20)
+                ScheduleMount(event, GetRetryDelayForLoot())
             end
             return
         end

@@ -2,6 +2,139 @@
 
 Format: `YYMMDD-###` (sanity stamp) — short summary.
 
+# 260322-025
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up (Config): pressing Enter in the Delay box now applies/commits the value (same as clicking away).
+- Bumped TOC `## Version` to `2026.03.22.25`.
+
+# 260322-026
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up (Config): aligned the Delay label/input to the same left/right edges as the OSD/Lock button row.
+- Bumped TOC `## Version` to `2026.03.22.26`.
+
+# 260322-024
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up (Config): corrected layout so Reap/Cast/Loot toggles sit next to the Delay box (after it), and `DBG` stays on the OSD/Lock row.
+- Bumped TOC `## Version` to `2026.03.22.24`.
+
+# 260322-023
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up (Config): moved Delay control above the OSD/Lock row.
+- Mount Up (Config): added Reap (Gather) / Cast / Loot toggles to choose whether those retry paths use your configured Delay (otherwise they keep the quick ~0.2s retry).
+- Bumped TOC `## Version` to `2026.03.22.23`.
+
+# 260322-022
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot (Achievement): fix GUID extraction so class-colored names work again (GUID is not the last chat event arg).
+- Bumped TOC `## Version` to `2026.03.22.22`.
+
+# 260322-021
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- XP debug: make quest turn-in/two-source behavior diagnosable (logs inferred XP + liteSig, timer scheduling, and explicit cancel/suppress reasons when the LootIt tab Debug toggle is on).
+- Bumped TOC `## Version` to `2026.03.22.21`.
+
+# 260322-020
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Experience (quest turn-ins): if the system-side XP line is handled by the no-match timer fallback, the XP_UPDATE “no-delta” path no longer prints the raw stored message (prevents the raw `Experience gained: ...` line from appearing first).
+- Bumped TOC `## Version` to `2026.03.22.20`.
+
+# 260322-019
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Experience (quest turn-ins): prevent the stored raw `Experience gained: ...` no-match line from printing via XP_UPDATE when the formatted XP line already printed (fixes the remaining two-source duplicate).
+- Loot Experience: only treat `CHAT_MSG_COMBAT_MISC_INFO` lines as XP when they look XP-related (avoids swallowing unrelated misc lines).
+- Bumped TOC `## Version` to `2026.03.22.19`.
+
+# 260322-018
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- XP debug: reduce the “1 line/sec” throttle so quest turn-in bursts show the follow-up XP-source debug lines (still gated by the LootIt tab Debug toggle; unthrottled if Capture stacks is enabled).
+- Bumped TOC `## Version` to `2026.03.22.18`.
+
+# 260322-017
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Experience (quest turn-ins): prevent duplicate XP prints when Blizzard fires both a system XP line and a combat/chat XP line by replacing the XP_UPDATE “no-match” fallback with a short timer fallback (cancels itself if the other source prints / quest-title delayed print is pending).
+- Bumped TOC `## Version` to `2026.03.22.17`.
+
+# 260322-015
+- Files: `fUI_GOTax.lua`, `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax tab: added a Guild Bank `XS` button (mirrors WarBank `XS`) opposite the Min Gold box; toggles “pay excess” to the Guild Bank.
+- Bumped TOC `## Version` to `2026.03.22.15`.
+
+# 260322-016
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax tab: both `XS` buttons now treat “excess” as anything above `Min Gold + (Guild Owed + WarBank Owed)` (prevents one bank’s XS from eating money needed to pay the other bank’s owed).
+- Bumped TOC `## Version` to `2026.03.22.16`.
+
+# 260322-014
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up float: while moving, the label now updates periodically so grey/green reflects the current area in real time (useful for knowing when to stop to mount).
+- Bumped TOC `## Version` to `2026.03.22.14`.
+
+# 260322-013
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up float: revert grey-state back to logic-only “area” detection (indoors + no usable mount found); removed the UI error-message latch approach.
+- Bumped TOC `## Version` to `2026.03.22.13`.
+
+# 260322-012
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up float: grey state is a true no-mount-area indicator (set by the actual “can’t mount here” error). It no longer clears just because you started moving; it clears once you’re actually mountable again.
+- Bumped TOC `## Version` to `2026.03.22.12`.
+
+# 260322-011
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up float: if it turns grey due to a no-mount-area error, it clears as soon as you start moving away (and otherwise expires quickly), so it doesn’t stay grey until a successful mount.
+- Bumped TOC `## Version` to `2026.03.22.11`.
+
+# 260322-010
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up float: grey state now means “this area doesn’t allow mounting” (no usable mount can be picked), so it’s obvious why Mount Up won’t fire.
+- Bumped TOC `## Version` to `2026.03.22.10`.
+
+# 260322-009
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up float: grey state is now *indoors-only* (pure location restriction), not other “can’t mount” states.
+- Bumped TOC `## Version` to `2026.03.22.09`.
+
+# 260322-008
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up float: label turns grey when Mount Up is enabled but your current location blocks mounting (e.g. indoors / taxi / vehicle / pet battle).
+- Bumped TOC `## Version` to `2026.03.22.08`.
+
+# 260322-007
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Experience: when the same XP amount arrives from both sources in a tight window, suppress the plain XP reprint and keep the more-informative variant (quest-title/appended line, or a labeled line).
+- Bumped TOC `## Version` to `2026.03.22.07`.
+
+# 260322-001
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Macros (Food/Drink): prevent auto-updater from overwriting `FGO Food` / `FGO Drink` with the `#showtooltip` placeholder when no valid best item can be chosen yet (defers until a real candidate exists).
+- Bumped TOC `## Version` to `2026.03.22.01`.
+
+# 260322-002
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: add `/fgo yum` to force-create/update the generated `FGO Food` and `FGO Drink` macros immediately.
+- Bumped TOC `## Version` to `2026.03.22.02`.
+
+# 260322-003
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: make `/fgo yum` fully silent (no chat prints).
+- Bumped TOC `## Version` to `2026.03.22.03`.
+
+# 260322-004
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: add `/fgo yump` (yum + print) for a one-off forced update with status output.
+- Bumped TOC `## Version` to `2026.03.22.04`.
+
+# 260322-005
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot (Achievement): class-color the character name in the custom achievement output line (uses GUID->class when available).
+- Bumped TOC `## Version` to `2026.03.22.05`.
+
+# 260322-006
+- Files: `fUI_GOLootChat.lua`, `fUI_GOTalk.lua`, `fUI_GOTalk01EK.lua`, `fUI_GOTalk01KD.lua`, `fUI_GOTalk02.lua`, `fUI_GOTalk03.lua`, `fUI_GOTalk04.lua`, `fUI_GOTalk05.lua`, `fUI_GOTalk06.lua`, `fUI_GOTalk07.lua`, `fUI_GOTalk08KT.lua`, `fUI_GOTalk08ZL.lua`, `fUI_GOTalk09.lua`, `fUI_GOTalk10.lua`, `fUI_GOTalk11.lua`, `fUI_GOTalk12.lua`, `fUI_GOTalkEV.lua`, `fr0z3nUI_GameOptions.toc`
+- Talk (DB authoring): unify NPC helpers to a single `NPC("Name", idOrTable)` call style (multi-ID supported via table), and make pack layout/name headers name-first.
+- Talk (debug): print NPC as `Name (ID)` instead of `ID: Name`.
+- Bumped TOC `## Version` to `2026.03.22.06`.
+
 # 260321-001
 - Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
 - Macros (Food): add `/use [combat] item:5512` (Healthstone) as a combat-only first line in the generated `FGO Food` macro.

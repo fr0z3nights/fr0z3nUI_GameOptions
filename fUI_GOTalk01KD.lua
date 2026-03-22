@@ -19,75 +19,82 @@ local function SetZone(zone)
     CURRENT_ZONE = zone
 end
 
-local function NPC(npcID, npcName)
-    ns.db.rules[npcID] = ns.db.rules[npcID] or {}
-    ns.db.rules[npcID].__meta = { zone = CURRENT_ZONE, npc = npcName }
-    return ns.db.rules[npcID]
+
+
+
+
+local function NPC(npcName, npcIDs)
+	-- Preferred layout:
+	--   local t = NPC("Name", 123)
+	--   local t = NPC("Name", { 111, 222 })
+	--
+	-- Back-compat still accepted:
+	--   local t = NPC(123, "Name")
+	if (type(npcName) == "number" and type(npcIDs) == "string") or (type(npcName) == "table" and type(npcIDs) == "string") then
+		npcName, npcIDs = npcIDs, npcName
+	end
+
+	if type(npcIDs) ~= "table" then
+		npcIDs = { npcIDs }
+	end
+
+	local targets = {}
+	for _, id in ipairs(npcIDs) do
+		ns.db.rules[id] = ns.db.rules[id] or {}
+		ns.db.rules[id].__meta = { zone = CURRENT_ZONE, npc = npcName }
+		targets[#targets + 1] = ns.db.rules[id]
+	end
+
+	if #targets == 1 then
+		return targets[1]
+	end
+
+	return setmetatable({}, {
+		__index = function(_, key)
+			local t = targets[1]
+			return t and t[key]
+		end,
+		__newindex = function(_, key, value)
+			for _, t in ipairs(targets) do
+				t[key] = value
+			end
+		end,
+	})
 end
-
--- Convenience helper: write one set of option rules to multiple NPC IDs.
--- Example:
--- local t = NPCs({111, 222}, "Same NPC")
--- t[12345] = { text = "...", type = "" }
-local function NPCs(npcIDs, npcName)
-    if type(npcIDs) ~= "table" then
-        npcIDs = { npcIDs }
-    end
-
-    local targets = {}
-    for _, id in ipairs(npcIDs) do
-        targets[#targets + 1] = NPC(id, npcName)
-    end
-
-    return setmetatable({}, {
-        __index = function(_, key)
-            local t = targets[1]
-            return t and t[key]
-        end,
-        __newindex = function(_, key, value)
-            for _, t in ipairs(targets) do
-                t[key] = value
-            end
-        end,
-    })
-end
-
--- KALIMDOR
-
 SetZone("The Barrens, Kalimdor")
 
-    local t = NPC( 115286, "Crysa")
+    local t = NPC("Crysa", 115286)
     t[47298] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, type = "", }
 
 SetZone("Darkshore, Kalimdor")
 
     -- Zidormi
-    local t = NPC(141489, "Zidormi")
+    local t = NPC("Zidormi", 141489)
     t[49022] = { text = "Can you show me what Darkshore was like before the battle?", type = "" }
 
 SetZone("Orgrimmar, Kalimdor")
 
-   local t = NPC(241677, "Image of Lady Liadrin")
+   local t = NPC("Image of Lady Liadrin", 241677)
    t[133523] = { text = "Please summon me to the Isle of Quel'Danas.", type = "" }
 
-   local t = NPCs({ 246157, 248174 }, "Suspicious Citizen")
+   local t = NPC("Suspicious Citizen", { 246157, 248174 })
    t[134631] = { text = "Are you talking about the Twilight's Blade?", type = "" }
    t[134634] = { text = "Are you talking about the Twilight's Blade?", type = "" }
 
 SetZone("Razorwind Shores, Kalimdor")
 
-    local t = NPC(254687, "Rotha")
+    local t = NPC("Rotha", 254687)
     t[137156] = { text = "I'd like to upgrade my house.", type = "" }
     t[137155] = { text = "I'd like to upgrade my house.", type = "" }
     t[137153] = { text = "Let's do this!", type = "" }
     t[137154] = { text = "I'll be back.", type = "" }
 
-    local t = NPC(6491, "Spirit Healer")
+    local t = NPC("Spirit Healer", 6491)
     t[29005] = { text = "Return me to life.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "If you find your corpse", "If you return to your corpse", "return to your corpse", "lose experience", "resurrection sickness" }, within = 3, }, type = "" }
 
 SetZone("Uldum, Kalimdor")
 
-    local t = NPC(162419, "Zidormi")
+    local t = NPC("Zidormi", 162419)
     t[51282] = { text = "Can you show me what Uldum was like during the time of the Cataclysm?", type = "" }
 
 
