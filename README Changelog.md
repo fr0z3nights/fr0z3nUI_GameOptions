@@ -43,6 +43,11 @@ Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stay
 - Mail notifier bootstrap: suppress a LuaLS false-positive on `C_Timer.NewTicker(interval, Tick, maxTries)` (WoW API supports the 3rd arg).
 - Bumped TOC `## Version` to `2026.03.28.15`.
 
+# 260328-016
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: improve eating/drinking detection so pending mounts are reliably blocked when Food & Drink starts (spellID-based cast/channel check + aura filter fallbacks).
+- Bumped TOC `## Version` to `2026.03.28.16`.
+
 # 260328-001
 - Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
 - Click popout: use `ns.ClickAlias_*` APIs for list/save/delete to avoid SavedVariables table mismatch edge cases.

@@ -701,42 +701,70 @@ local function IsCastingOrChanneling()
     return false
 end
 
+local EAT_DRINK_IDS = {
+    430, 431, 432, 433, -- legacy Food/Drink/Food&Drink
+    167152, -- Conjured Refreshment
+    452389, -- observed newer Food & Drink
+    -- Expansion/patch-specific restoration auras
+    1291946, 1269916, -- Food & Drink (variants)
+    1291849, -- Food
+    1269919, 1291954, -- Drink (variants)
+    1291858, -- Mage food / conjured
+    1277461, 1291831, -- Restoring Mana (specific)
+    1291952, -- Restoring Health (specific)
+    1291955, -- Tea consumption
+}
+
+local EAT_DRINK_IDSET = {}
+for _, id in ipairs(EAT_DRINK_IDS) do
+    EAT_DRINK_IDSET[id] = true
+end
+
+local EAT_DRINK_AURA_FILTERS = { "HELPFUL", "HELPFUL|PLAYER" }
+
 local function IsEatingOrDrinking()
     -- NOTE: Some aura fields (including spellId/name) can be returned as restricted
     -- "secret" values. Direct comparisons (even after lowercasing) can taint and
     -- explode. So we ONLY use Blizzard helpers to do matching.
 
-    local ids = {
-        430, 431, 432, 433, -- legacy Food/Drink/Food&Drink
-        167152, -- Conjured Refreshment
-        452389, -- observed newer Food & Drink
-        -- Expansion/patch-specific restoration auras
-        1291946, 1269916, -- Food & Drink (variants)
-        1291849, -- Food
-        1269919, 1291954, -- Drink (variants)
-        1291858, -- Mage food / conjured
-        1277461, 1291831, -- Restoring Mana (specific)
-        1291952, -- Restoring Health (specific)
-        1291955, -- Tea consumption
-    }
+    -- Some clients don't reliably surface the aura immediately, but the cast/channel
+    -- spell ID can be available right away.
+    do
+        local spellID
+        if UnitChannelInfo then
+            local _, _, _, _, _, _, _, id = UnitChannelInfo("player")
+            spellID = id
+        end
+        if type(spellID) ~= "number" and UnitCastingInfo then
+            local _, _, _, _, _, _, _, _, id = UnitCastingInfo("player")
+            spellID = id
+        end
+        if type(spellID) == "number" and EAT_DRINK_IDSET[spellID] then
+            return true
+        end
+    end
 
     if AuraUtil and type(AuraUtil.FindAuraBySpellID) == "function" then
-        for _, id in ipairs(ids) do
-            local ok, found = pcall(AuraUtil.FindAuraBySpellID, id, "player", "HELPFUL")
-            if ok and found then
-                return true
+        for _, id in ipairs(EAT_DRINK_IDS) do
+            for _, filter in ipairs(EAT_DRINK_AURA_FILTERS) do
+                local ok, found = pcall(AuraUtil.FindAuraBySpellID, id, "player", filter)
+                if ok and found then
+                    return true
+                end
             end
         end
     end
 
     -- Secondary: name-based search using localized spell names.
     if AuraUtil and type(AuraUtil.FindAuraByName) == "function" and type(GetSpellInfo) == "function" then
-        for _, id in ipairs(ids) do
+        for _, id in ipairs(EAT_DRINK_IDS) do
             local ok, name = pcall(GetSpellInfo, id)
             if ok and type(name) == "string" and name ~= "" then
-                local ok2, found = pcall(AuraUtil.FindAuraByName, name, "player", "HELPFUL")
-                if ok2 and found then
-                    return true
+                for _, filter in ipairs(EAT_DRINK_AURA_FILTERS) do
+                    local ok2, found = pcall(AuraUtil.FindAuraByName, name, "player", filter)
+                    if ok2 and found then
+                        return true
+                    end
                 end
             end
         end
