@@ -37,6 +37,12 @@ Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stay
 - Click aliases: fix a load-order bug where seed/merge logic could call `TrimSafe()` before it was defined (nil crash when adding/arming after clearing aliases).
 - Bumped TOC `## Version` to `2026.03.28.14`.
 
+# 260328-015
+- Files: `fUI_GOMacroHearth.lua`, `fUI_GOSwitchesMN.lua`, `fr0z3nUI_GameOptions.toc`
+- Macro Hearth: call `C_Item.GetItemCount` with the full argument set for better client/stub compatibility.
+- Mail notifier bootstrap: suppress a LuaLS false-positive on `C_Timer.NewTicker(interval, Tick, maxTries)` (WoW API supports the 3rd arg).
+- Bumped TOC `## Version` to `2026.03.28.15`.
+
 # 260328-001
 - Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
 - Click popout: use `ns.ClickAlias_*` APIs for list/save/delete to avoid SavedVariables table mismatch edge cases.

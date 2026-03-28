@@ -348,6 +348,7 @@ LI.Mail = LI.Mail or {}
 
     Tick()
     C_Timer.After(0.75, Tick)
+    ---@diagnostic disable-next-line: redundant-parameter
     Mail._bootstrapTicker = C_Timer.NewTicker(interval, Tick, maxTries)
   end
 

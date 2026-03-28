@@ -88,7 +88,7 @@ do
         itemID = tonumber(itemID)
         if not itemID then return 0 end
         if C_Item and C_Item.GetItemCount then
-            return tonumber(C_Item.GetItemCount(itemID, true, false)) or 0
+            return tonumber(C_Item.GetItemCount(itemID, true, false, false, false)) or 0
         end
         if GetItemCount then
             return tonumber(GetItemCount(itemID, true)) or 0
