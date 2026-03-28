@@ -21,11 +21,20 @@ end
 
 local function GetSettings()
     InitSV()
-    local s = rawget(_G, "AutoGame_Settings") or rawget(_G, "AutoGossip_Settings")
+    local s = rawget(_G, "AutoGame_Settings")
     if type(s) ~= "table" then
         return nil
     end
     return s
+end
+
+local function GetAcc()
+    InitSV()
+    local a = rawget(_G, "AutoGame_Acc")
+    if type(a) ~= "table" then
+        return nil
+    end
+    return a
 end
 
 local function EnsureCommandsArray()
@@ -1364,6 +1373,501 @@ local function EnsureEntryImpl(mode, key)
 
     cmds[#cmds + 1] = entry
     return entry, #cmds
+end
+
+-- ============================================================
+-- Click aliases: /click <shorthand> -> clicks a proxy button which
+-- then clicks the real button name (original).
+-- ============================================================
+
+local function TrimSafe(s)
+    if type(s) ~= "string" then
+        return ""
+    end
+    return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function IsValidButtonName(name)
+    name = TrimSafe(name)
+    if name == "" then
+        return false
+    end
+    -- WoW global frame names are typically alnum/underscore; be conservative.
+    if name:find("[^%w_]") then
+        return false
+    end
+    return true
+end
+
+local function EnsureClickAliasesTable()
+    InitSV()
+    local a = GetAcc()
+    if type(a) ~= "table" then
+        return nil
+    end
+    if type(a.clickAliasesAcc) ~= "table" then
+        a.clickAliasesAcc = {}
+    end
+
+    -- Back-compat: older experiments may have stored values as strings
+    -- (key=shorthandLower, value=originalName). Normalize to table form.
+    for k, v in pairs(a.clickAliasesAcc) do
+        if type(k) == "string" and type(v) == "string" then
+            local sh = k
+            local orig = v
+            a.clickAliasesAcc[k] = { shorthand = sh, original = orig, enabled = true }
+        elseif type(k) == "string" and type(v) == "table" then
+            if type(v.original) == "string" and type(v.shorthand) ~= "string" then
+                v.shorthand = v.shorthand or k
+            end
+            if v.enabled == nil then
+                v.enabled = true
+            end
+        end
+    end
+
+    return a.clickAliasesAcc
+end
+
+local function GetSeedClickAliasMap()
+    local out = {}
+    if type(ns) ~= "table" or type(ns.ClickAlias_DB) ~= "table" then
+        return out
+    end
+
+    for i = 1, #ns.ClickAlias_DB do
+        local e = ns.ClickAlias_DB[i]
+        local sh = TrimSafe(e and e.shorthand)
+        local orig = TrimSafe(e and e.original)
+        if IsValidButtonName(sh) and IsValidButtonName(orig) then
+            out[sh:lower()] = { shorthand = sh, original = orig }
+        end
+    end
+    return out
+end
+
+local function GetClickAliasEffective(lower)
+    lower = TrimSafe(lower):lower()
+    local t = EnsureClickAliasesTable()
+    local sv = (type(t) == "table") and t[lower] or nil
+    local seed = GetSeedClickAliasMap()[lower]
+
+    local shorthand = nil
+    local original = nil
+    local enabled = true
+    local seeded = seed ~= nil
+
+    if type(sv) == "string" then
+        shorthand = lower
+        original = sv
+        enabled = true
+    elseif type(sv) == "table" then
+        shorthand = (type(sv.shorthand) == "string" and sv.shorthand ~= "") and sv.shorthand or lower
+        original = sv.original
+        if sv.enabled == false then
+            enabled = false
+        end
+    end
+
+    if not (type(original) == "string" and original ~= "") then
+        if seed then
+            shorthand = seed.shorthand
+            original = seed.original
+        end
+    end
+
+    if shorthand == nil or shorthand == "" then
+        shorthand = seed and seed.shorthand or lower
+    end
+
+    if type(original) ~= "string" or original == "" then
+        return nil
+    end
+
+    return {
+        shorthand = shorthand,
+        original = original,
+        enabled = enabled,
+        seeded = seeded,
+    }
+end
+
+local function EnsureProxyButton(shorthand)
+    shorthand = TrimSafe(shorthand)
+    if shorthand == "" then
+        return nil, "Missing shorthand"
+    end
+    if not IsValidButtonName(shorthand) then
+        return nil, "Invalid shorthand"
+    end
+    if InCombatLockdown and InCombatLockdown() then
+        return nil, "In combat"
+    end
+
+    local existing = rawget(_G, shorthand)
+    if existing then
+        if type(existing) == "table" and type(existing.GetObjectType) == "function" then
+            return existing
+        end
+        -- A global with this name exists, but it's not a frame/button.
+        return nil, "Name in use"
+    end
+
+    local btn = CreateFrame("Button", shorthand, UIParent, "SecureActionButtonTemplate")
+    btn:Hide()
+    return btn
+end
+
+function ns.ClickAlias_Upsert(shorthand, original)
+    local s = TrimSafe(shorthand)
+    local o = TrimSafe(original)
+
+    if not IsValidButtonName(s) then
+        return false, "Invalid shorthand"
+    end
+    if not IsValidButtonName(o) then
+        return false, "Invalid original"
+    end
+
+    local t = EnsureClickAliasesTable()
+    if type(t) ~= "table" then
+        return false, "Settings not loaded"
+    end
+    local lower = s:lower()
+    local prev = t[lower]
+    if type(prev) == "table" then
+        prev.shorthand = s
+        prev.original = o
+        if prev.enabled == nil then prev.enabled = true end
+        t[lower] = prev
+    else
+        t[lower] = { shorthand = s, original = o, enabled = true }
+    end
+
+    return true
+end
+
+function ns.ClickAlias_Remove(shorthand)
+    local s = TrimSafe(shorthand)
+    if s == "" then
+        return false
+    end
+
+    -- Seeded aliases are not removable (they can be disabled instead).
+    local lower = s:lower()
+    if GetSeedClickAliasMap()[lower] ~= nil then
+        return false, "Seeded"
+    end
+
+    local t = EnsureClickAliasesTable()
+    if type(t) ~= "table" then
+        return false
+    end
+    t[lower] = nil
+    return true
+end
+
+function ns.ClickAlias_List()
+    local t = EnsureClickAliasesTable()
+    if type(t) ~= "table" then
+        t = {}
+    end
+
+    local seedMap = GetSeedClickAliasMap()
+    local out = {}
+
+    -- Always include seeded aliases.
+    for lower, seed in pairs(seedMap) do
+        local eff = GetClickAliasEffective(lower)
+        if eff then
+            out[#out + 1] = {
+                shorthand = eff.shorthand,
+                original = eff.original,
+                enabled = eff.enabled,
+                seeded = true,
+            }
+        else
+            out[#out + 1] = {
+                shorthand = seed.shorthand,
+                original = seed.original,
+                enabled = true,
+                seeded = true,
+            }
+        end
+    end
+
+    -- Include user-defined aliases that are not seeded.
+    for k, v in pairs(t) do
+        if type(k) == "string" and seedMap[k] == nil then
+            local eff = GetClickAliasEffective(k)
+            if eff then
+                out[#out + 1] = {
+                    shorthand = eff.shorthand,
+                    original = eff.original,
+                    enabled = eff.enabled,
+                    seeded = false,
+                }
+            end
+        end
+    end
+
+    table.sort(out, function(a, b)
+        return tostring(a.shorthand):lower() < tostring(b.shorthand):lower()
+    end)
+    return out
+end
+
+function ns.ClickAlias_Arm(shorthand)
+    local s = TrimSafe(shorthand)
+    if not IsValidButtonName(s) then
+        return false, "Invalid shorthand"
+    end
+
+    local eff = GetClickAliasEffective(s)
+    if not eff then
+        return false, "Alias missing"
+    end
+
+    if eff.enabled == false then
+        return false, "Disabled"
+    end
+
+    local original = eff.original
+    if not IsValidButtonName(original) then
+        return false, "Original invalid"
+    end
+
+    local target = rawget(_G, original)
+    if not target then
+        return false, "Target missing"
+    end
+
+    local btn, why = EnsureProxyButton(s)
+    if not btn then
+        return false, why
+    end
+
+    -- Secure click-through: click original button by name.
+    btn:SetAttribute("type", "click")
+    btn:SetAttribute("clickbutton", target)
+    btn:SetAttribute("_fgoClickAliasOriginal", original)
+    return true
+end
+
+local function DisarmProxyButton(shorthand)
+    shorthand = TrimSafe(shorthand)
+    if not IsValidButtonName(shorthand) then
+        return false, "Invalid shorthand"
+    end
+    if InCombatLockdown and InCombatLockdown() then
+        return false, "In combat"
+    end
+
+    local existing = rawget(_G, shorthand)
+    if not (existing and type(existing) == "table" and type(existing.SetAttribute) == "function") then
+        return true
+    end
+
+    existing:SetAttribute("type", nil)
+    existing:SetAttribute("clickbutton", nil)
+    existing:SetAttribute("_fgoClickAliasOriginal", nil)
+    return true
+end
+
+function ns.ClickAlias_SetEnabled(shorthand, enabled)
+    local s = TrimSafe(shorthand)
+    if not IsValidButtonName(s) then
+        return false, "Invalid shorthand"
+    end
+
+    local lower = s:lower()
+    local seed = GetSeedClickAliasMap()[lower]
+    local t = EnsureClickAliasesTable()
+    if type(t) ~= "table" then
+        return false, "Settings not loaded"
+    end
+
+    local v = t[lower]
+    if type(v) == "string" then
+        v = { shorthand = s, original = v, enabled = true }
+    elseif type(v) ~= "table" then
+        if seed then
+            v = { shorthand = seed.shorthand, original = seed.original, enabled = true }
+        else
+            return false, "Alias missing"
+        end
+    end
+
+    v.shorthand = (type(v.shorthand) == "string" and v.shorthand ~= "") and v.shorthand or (seed and seed.shorthand) or s
+    v.original = (type(v.original) == "string" and v.original ~= "") and v.original or (seed and seed.original) or ""
+    v.enabled = enabled and true or false
+    t[lower] = v
+
+    if v.enabled == false then
+        return DisarmProxyButton(v.shorthand)
+    end
+
+    -- When enabling, try to arm immediately if possible. If the target isn't
+    -- available yet, keep enabled=true and rely on later auto-arm retries.
+    local ok, why = ns.ClickAlias_Arm(v.shorthand)
+    if ok then
+        return true
+    end
+    return false, why
+end
+
+function ns.ClickAlias_Debug(shorthand)
+    local s = TrimSafe(shorthand)
+    local out = {
+        shorthand = s,
+        shorthandLower = type(s) == "string" and s:lower() or "",
+        inCombat = (InCombatLockdown and InCombatLockdown()) and true or false,
+        hasAcc = (type(GetAcc()) == "table") and true or false,
+        aliasesCount = 0,
+        entryType = nil,
+        entryFound = false,
+        original = nil,
+        originalValid = false,
+        targetExists = false,
+        targetType = nil,
+        proxyNameInUse = false,
+        enabled = nil,
+        seeded = nil,
+    }
+
+    local a = GetAcc()
+    if type(a) == "table" and type(a.clickAliasesAcc) == "table" then
+        for _ in pairs(a.clickAliasesAcc) do out.aliasesCount = out.aliasesCount + 1 end
+    end
+
+    -- Proxy name in use (non-frame global).
+    if out.shorthandLower ~= "" then
+        local existing = rawget(_G, s)
+        if existing and not (type(existing) == "table" and type(existing.GetObjectType) == "function") then
+            out.proxyNameInUse = true
+        end
+    end
+
+    if out.shorthandLower ~= "" then
+        local eff = GetClickAliasEffective(out.shorthandLower)
+        if eff then
+            out.entryFound = true
+            out.entryType = "effective"
+            out.original = eff.original
+            out.enabled = eff.enabled
+            out.seeded = eff.seeded
+        end
+    end
+
+    out.originalValid = IsValidButtonName(out.original)
+    if out.originalValid then
+        local target = rawget(_G, out.original)
+        out.targetExists = target ~= nil
+        out.targetType = type(target)
+    end
+
+    return out
+end
+
+function ns.ClickAlias_ArmAll()
+    local t = EnsureClickAliasesTable()
+    if InCombatLockdown and InCombatLockdown() then
+        return false, "In combat"
+    end
+    local armed = 0
+    local list = ns.ClickAlias_List()
+    for i = 1, #list do
+        local e = list[i]
+        if e and e.enabled ~= false and type(e.shorthand) == "string" then
+            local ok = select(1, ns.ClickAlias_Arm(e.shorthand))
+            if ok then armed = armed + 1 end
+        end
+    end
+    return true, armed
+end
+
+local function GetClickAliasAutoArmEnabled()
+    InitSV()
+    local a = GetAcc()
+    if type(a) ~= "table" then
+        return true
+    end
+    if type(a.clickAliasAutoArmAcc) ~= "boolean" then
+        a.clickAliasAutoArmAcc = true
+    end
+    return a.clickAliasAutoArmAcc
+end
+
+function ns.ClickAlias_SetAutoArmEnabled(enabled)
+    InitSV()
+    local a = GetAcc()
+    if type(a) ~= "table" then
+        return
+    end
+    a.clickAliasAutoArmAcc = (enabled and true) or false
+end
+
+function ns.ClickAlias_GetAutoArmEnabled()
+    return GetClickAliasAutoArmEnabled()
+end
+
+function ns.ClickAlias_AutoArmIfEnabled()
+    if not GetClickAliasAutoArmEnabled() then
+        return false, "Disabled"
+    end
+    return ns.ClickAlias_ArmAll()
+end
+
+-- Click aliases: some addons (e.g., auction house helpers) create their buttons only
+-- when specific windows are opened. Retry auto-arming on common "UI became available"
+-- events so aliases start working as soon as the target globals exist.
+do
+    local lastAutoArmAt = 0
+    local pending = false
+
+    local function ThrottledAutoArm(reason)
+        if pending then
+            return
+        end
+        if not (ns and type(ns.ClickAlias_AutoArmIfEnabled) == "function") then
+            return
+        end
+        if not GetClickAliasAutoArmEnabled() then
+            return
+        end
+        if InCombatLockdown and InCombatLockdown() then
+            return
+        end
+
+        local now = (GetTime and GetTime()) or 0
+        if (now - (lastAutoArmAt or 0)) < 0.50 then
+            return
+        end
+        lastAutoArmAt = now
+        pending = true
+
+        -- Small delay: give the target UI a moment to create its globals.
+        C_Timer.After(0.20, function()
+            pending = false
+            if InCombatLockdown and InCombatLockdown() then
+                return
+            end
+            pcall(ns.ClickAlias_AutoArmIfEnabled)
+        end)
+    end
+
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("ADDON_LOADED")
+    f:RegisterEvent("AUCTION_HOUSE_SHOW")
+    f:RegisterEvent("MERCHANT_SHOW")
+    f:RegisterEvent("BANKFRAME_OPENED")
+    f:RegisterEvent("GUILDBANKFRAME_OPENED")
+    f:RegisterEvent("TRADE_SKILL_SHOW")
+    f:RegisterEvent("TRADE_SHOW")
+
+    f:SetScript("OnEvent", function(_, event)
+        ThrottledAutoArm(event)
+    end)
 end
 
 function ns.MacroXCMD_EnsureEntry(mode, key)

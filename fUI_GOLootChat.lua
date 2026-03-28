@@ -3135,16 +3135,35 @@ local function OnAchievementChat(_, _, msg, author, ...)
       end
     end
 
+    -- Prefer the game's class-color helpers.
+    -- NOTE: ColorMixin:GenerateHexColor() may return either RRGGBB or AARRGGBB depending on client;
+    -- do NOT blindly prefix "ff" or you'll end up with extra trailing digits showing in chat.
+    if classFile and C_ClassColor and type(C_ClassColor.GetClassColor) == "function" then
+      local c = C_ClassColor.GetClassColor(classFile)
+      if c and type(c.WrapTextInColorCode) == "function" then
+        return c:WrapTextInColorCode(nameText)
+      end
+    end
+
     local hex = nil
     if classFile and C_ClassColor and type(C_ClassColor.GetClassColor) == "function" then
       local c = C_ClassColor.GetClassColor(classFile)
       if c and type(c.GenerateHexColor) == "function" then
-        hex = "ff" .. tostring(c:GenerateHexColor())
+        local raw = tostring(c:GenerateHexColor() or "")
+        raw = raw:gsub("[^0-9a-fA-F]", "")
+        if #raw == 6 then
+          hex = "ff" .. raw
+        elseif #raw == 8 then
+          hex = raw
+        end
       end
     end
+
     if not hex and classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile] then
       local c = RAID_CLASS_COLORS[classFile]
-      if c and c.r and c.g and c.b then
+      if type(c.colorStr) == "string" and c.colorStr ~= "" then
+        hex = c.colorStr
+      elseif c and c.r and c.g and c.b then
         hex = string.format("ff%02x%02x%02x", math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5))
       end
     end
@@ -3166,10 +3185,11 @@ local function OnAchievementChat(_, _, msg, author, ...)
   if type(guid) ~= "string" or not guid:find("^Player%-") then
     guid = nil
   end
-  local coloredName = ClassColorName(name, guid)
+  -- Color the "Name:" prefix as a unit so the ':' matches the name color.
+  local coloredPrefix = ClassColorName(name .. ":", guid)
 
   local displayLink = StripDisplayedLinkBrackets(link)
-  local out = string.format("%s: earned %s!", coloredName, displayLink)
+  local out = string.format("%s earned %s!", coloredPrefix, displayLink)
 
   local outFrame = (DB.other and DB.other.achievement and DB.other.achievement.outputChatFrame)
     or (DB.other and DB.other.outputChatFrame)

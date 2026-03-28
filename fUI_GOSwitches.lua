@@ -218,6 +218,241 @@ do
     f:SetScript("OnEvent", OnEvent)
 end
 
+-- ============================================================================
+-- Action: ActionButtonUseKeyDown (3-state)
+-- ============================================================================
+
+do
+    local function InitSV()
+        if ns and type(ns._InitSV) == "function" then
+            ns._InitSV()
+        end
+    end
+
+    local function GetAcc()
+        InitSV()
+        return rawget(_G, "AutoGame_Settings") or rawget(_G, "AutoGossip_Settings")
+    end
+
+    local function GetChar()
+        InitSV()
+        return rawget(_G, "AutoGame_CharSettings") or rawget(_G, "AutoGossip_CharSettings")
+    end
+
+    local function Normalize()
+        local acc = GetAcc()
+        local ch = GetChar()
+        if type(acc) ~= "table" or type(ch) ~= "table" then
+            return
+        end
+        if type(acc.actionKeyDownAcc) ~= "boolean" then
+            acc.actionKeyDownAcc = false
+        end
+        if type(ch.actionKeyDownMode) ~= "string" then
+            ch.actionKeyDownMode = "acc"
+        end
+    end
+
+    function ns.GetActionUseKeyDownState()
+        Normalize()
+        local acc = GetAcc()
+        local ch = GetChar()
+        if type(acc) ~= "table" or type(ch) ~= "table" then
+            return "off"
+        end
+        if acc.actionKeyDownAcc then
+            return "acc"
+        end
+        if ch.actionKeyDownMode == "on" then
+            return "char"
+        end
+        return "off"
+    end
+
+    local function SetCVarSafe(name, value)
+        if _G.C_CVar and _G.C_CVar.SetCVar then
+            _G.C_CVar.SetCVar(name, value)
+            return true
+        end
+        if _G.SetCVar then
+            _G.SetCVar(name, value)
+            return true
+        end
+        return false
+    end
+
+    function ns.ApplyActionUseKeyDownSetting()
+        local state = ns.GetActionUseKeyDownState()
+        local want = (state == "acc" or state == "char") and 1 or 0
+        SetCVarSafe("ActionButtonUseKeyDown", want)
+    end
+
+    function ns.SetActionUseKeyDownState(state)
+        Normalize()
+        local acc = GetAcc()
+        local ch = GetChar()
+        if type(acc) ~= "table" or type(ch) ~= "table" then
+            return
+        end
+
+        if state == "acc" then
+            acc.actionKeyDownAcc = true
+            ch.actionKeyDownMode = "acc"
+        elseif state == "char" then
+            acc.actionKeyDownAcc = false
+            ch.actionKeyDownMode = "on"
+        else
+            acc.actionKeyDownAcc = false
+            ch.actionKeyDownMode = "acc"
+        end
+
+        ns.ApplyActionUseKeyDownSetting()
+    end
+
+    local function OnEvent(_, event, arg1)
+        if event == "ADDON_LOADED" and arg1 == addonName then
+            Normalize()
+            return
+        end
+        if event == "PLAYER_LOGIN" or event == "VARIABLES_LOADED" then
+            ns.ApplyActionUseKeyDownSetting()
+        end
+    end
+
+    local f = _G.CreateFrame("Frame")
+    f:RegisterEvent("ADDON_LOADED")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:RegisterEvent("VARIABLES_LOADED")
+    f:SetScript("OnEvent", OnEvent)
+end
+
+-- ============================================================================
+-- NPC Name: nameplateShowFriendlyNPCs (3-state)
+-- ============================================================================
+
+do
+    local function InitSV()
+        if ns and type(ns._InitSV) == "function" then
+            ns._InitSV()
+        end
+    end
+
+    local function GetAcc()
+        InitSV()
+        return rawget(_G, "AutoGame_Settings") or rawget(_G, "AutoGossip_Settings")
+    end
+
+    local function GetChar()
+        InitSV()
+        return rawget(_G, "AutoGame_CharSettings") or rawget(_G, "AutoGossip_CharSettings")
+    end
+
+    local function Normalize()
+        local acc = GetAcc()
+        local ch = GetChar()
+        if type(acc) ~= "table" or type(ch) ~= "table" then
+            return
+        end
+        if type(acc.npcNameplatesAcc) ~= "boolean" then
+            acc.npcNameplatesAcc = false
+        end
+        if type(ch.npcNameplatesMode) ~= "string" then
+            ch.npcNameplatesMode = "acc"
+        end
+    end
+
+    function ns.GetFriendlyNPCNameplatesSafe()
+        if _G.C_CVar and _G.C_CVar.GetCVarBool then
+            local ok, v = pcall(_G.C_CVar.GetCVarBool, "nameplateShowFriendlyNPCs")
+            if ok then return v and true or false end
+        end
+        if _G.GetCVarBool then
+            local ok, v = pcall(_G.GetCVarBool, "nameplateShowFriendlyNPCs")
+            if ok then return v and true or false end
+        end
+        if _G.GetCVar then
+            local ok, v = pcall(_G.GetCVar, "nameplateShowFriendlyNPCs")
+            if ok and v ~= nil then
+                v = tostring(v)
+                return (v == "1" or v:lower() == "true")
+            end
+        end
+        return nil
+    end
+
+    function ns.GetNPCNameplatesState()
+        Normalize()
+        local acc = GetAcc()
+        local ch = GetChar()
+        if type(acc) ~= "table" or type(ch) ~= "table" then
+            return "off"
+        end
+        if acc.npcNameplatesAcc then
+            return "acc"
+        end
+        if ch.npcNameplatesMode == "on" then
+            return "char"
+        end
+        return "off"
+    end
+
+    local function SetCVarSafe(name, value)
+        if _G.C_CVar and _G.C_CVar.SetCVar then
+            _G.C_CVar.SetCVar(name, value)
+            return true
+        end
+        if _G.SetCVar then
+            _G.SetCVar(name, value)
+            return true
+        end
+        return false
+    end
+
+    function ns.ApplyNPCNameplatesSetting()
+        local state = ns.GetNPCNameplatesState()
+        local want = (state == "acc" or state == "char") and 1 or 0
+        SetCVarSafe("nameplateShowFriendlyNPCs", want)
+    end
+
+    function ns.SetNPCNameplatesState(state)
+        Normalize()
+        local acc = GetAcc()
+        local ch = GetChar()
+        if type(acc) ~= "table" or type(ch) ~= "table" then
+            return
+        end
+
+        if state == "acc" then
+            acc.npcNameplatesAcc = true
+            ch.npcNameplatesMode = "acc"
+        elseif state == "char" then
+            acc.npcNameplatesAcc = false
+            ch.npcNameplatesMode = "on"
+        else
+            acc.npcNameplatesAcc = false
+            ch.npcNameplatesMode = "acc"
+        end
+
+        ns.ApplyNPCNameplatesSetting()
+    end
+
+    local function OnEvent(_, event, arg1)
+        if event == "ADDON_LOADED" and arg1 == addonName then
+            Normalize()
+            return
+        end
+        if event == "PLAYER_LOGIN" or event == "VARIABLES_LOADED" then
+            ns.ApplyNPCNameplatesSetting()
+        end
+    end
+
+    local f = _G.CreateFrame("Frame")
+    f:RegisterEvent("ADDON_LOADED")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:RegisterEvent("VARIABLES_LOADED")
+    f:SetScript("OnEvent", OnEvent)
+end
+
 -- Switches module
 -- Consolidates:
 -- - fr0z3nUI_GameOptionsTutorial.lua

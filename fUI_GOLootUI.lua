@@ -1418,7 +1418,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
       input:SetAutoFocus(false)
       input:SetPoint("TOPLEFT", enableCB, "BOTTOMLEFT", 8, -10)
       input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-      input:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+      -- OnEnterPressed is wired after addBtn is created, so it can reuse the same add logic.
 
       local addBtn = CreateFrame("Button", nil, suppressPopout, "UIPanelButtonTemplate")
       addBtn:SetSize(60, 20)
@@ -1433,15 +1433,43 @@ function LI.LootTab.BuildTab(lootPanel, env)
       listHeader:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
       listHeader:SetText("Rules")
 
+      -- Scrollable rule list (mousewheel-enabled, no visible scrollbar)
+      local listWidth = 396
+      local rowHeight = 20
+      local rowGap = 4
+      local listHeight = (rowHeight * 10) + (rowGap * 9)
+
+      local listScroll = CreateFrame("ScrollFrame", nil, suppressPopout, "UIPanelScrollFrameTemplate")
+      listScroll:SetPoint("TOPLEFT", listHeader, "BOTTOMLEFT", -2, -6)
+      listScroll:SetSize(listWidth + 24, listHeight + 6)
+      if listScroll.ScrollBar and listScroll.ScrollBar.Hide then
+        listScroll.ScrollBar:Hide()
+        listScroll.ScrollBar.Show = function() end
+      end
+      listScroll:EnableMouseWheel(true)
+
+      local listChild = CreateFrame("Frame", nil, listScroll)
+      listChild:SetSize(listWidth, listHeight)
+      listScroll:SetScrollChild(listChild)
+
+      listScroll:SetScript("OnMouseWheel", function(self, delta)
+        local current = self:GetVerticalScroll() or 0
+        local maxScroll = self:GetVerticalScrollRange() or 0
+        local newScroll = current - (delta * (rowHeight + rowGap) * 2)
+        if newScroll < 0 then newScroll = 0 end
+        if newScroll > maxScroll then newScroll = maxScroll end
+        self:SetVerticalScroll(newScroll)
+      end)
+
       local rows = {}
-      local MAX_ROWS = 10
+      local MAX_ROWS = 50
       for i = 1, MAX_ROWS do
-        local row = CreateFrame("Frame", nil, suppressPopout)
-        row:SetSize(396, 20)
+        local row = CreateFrame("Frame", nil, listChild)
+        row:SetSize(listWidth, rowHeight)
         if i == 1 then
-          row:SetPoint("TOPLEFT", listHeader, "BOTTOMLEFT", 0, -6)
+          row:SetPoint("TOPLEFT", listChild, "TOPLEFT", 0, 0)
         else
-          row:SetPoint("TOPLEFT", rows[i - 1], "BOTTOMLEFT", 0, -4)
+          row:SetPoint("TOPLEFT", rows[i - 1], "BOTTOMLEFT", 0, -rowGap)
         end
 
         local onBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
@@ -1467,7 +1495,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
       end
 
       local more = suppressPopout:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-      more:SetPoint("TOPLEFT", rows[MAX_ROWS], "BOTTOMLEFT", 0, -6)
+      more:SetPoint("TOPLEFT", listScroll, "BOTTOMLEFT", 2, -6)
       more:SetText("")
 
       local function RefreshSuppressUI()
@@ -1509,8 +1537,18 @@ function LI.LootTab.BuildTab(lootPanel, env)
           end
         end
 
+        local childHeight = 0
+        if n <= 0 then
+          childHeight = listHeight
+        else
+          childHeight = (n * rowHeight) + ((n - 1) * rowGap)
+          if childHeight < listHeight then childHeight = listHeight end
+        end
+        listChild:SetHeight(childHeight)
+        if listScroll.SetVerticalScroll then listScroll:SetVerticalScroll(0) end
+
         if n > MAX_ROWS then
-          more:SetText(string.format("(%d more...)", n - MAX_ROWS))
+          more:SetText(string.format("(%d more; list capped at %d)", n - MAX_ROWS, MAX_ROWS))
         else
           more:SetText("")
         end
@@ -1543,6 +1581,13 @@ function LI.LootTab.BuildTab(lootPanel, env)
         input:SetText("")
         RefreshSuppressUI()
         ApplyFilters()
+      end)
+
+      input:SetScript("OnEnterPressed", function(self)
+        if addBtn and addBtn.Click then
+          addBtn:Click()
+        end
+        self:ClearFocus()
       end)
 
       suppressPopout._liRefresh = RefreshSuppressUI

@@ -10,6 +10,11 @@ end
 
 ns.Talk = ns.Talk or {}
 
+-- Forward-declare helpers used by EnsureEngineInitialized() hooks.
+-- Without this, Lua closures would resolve to nil globals at runtime.
+local GetCurrentNpcID
+local GetDbNpcTable
+
 function ns.Talk.EnsureEngineInitialized()
     -- These are legacy globals used by the gossip engine + event wiring.
     -- First-run (fresh login) can hit nil timestamps; force sane defaults.
@@ -17,6 +22,45 @@ function ns.Talk.EnsureEngineInitialized()
     lastAutoSelectAt = tonumber(lastAutoSelectAt) or 0
     if firstAutoSelectSinceLogin == nil then
         firstAutoSelectSinceLogin = true
+    end
+
+    -- Hook manual gossip selection so rule hints (entry.print) can fire even when
+    -- the user clicks the option (not only when the auto-selector chooses it).
+    if not ns.Talk._didHookSelectOption then
+        ns.Talk._didHookSelectOption = true
+
+        if hooksecurefunc and C_GossipInfo and type(C_GossipInfo.SelectOption) == "function" then
+            hooksecurefunc(C_GossipInfo, "SelectOption", function(optionID)
+                if optionID == nil then
+                    return
+                end
+                local npcID = GetCurrentNpcID()
+                if not npcID then
+                    return
+                end
+
+                local npcTable = GetDbNpcTable(npcID)
+                if type(npcTable) ~= "table" then
+                    return
+                end
+
+                local LookupRuleEntry = ns and ns.LookupRuleEntry
+                if type(LookupRuleEntry) ~= "function" then
+                    return
+                end
+                local entry = LookupRuleEntry(npcTable, optionID)
+                if entry == nil then
+                    return
+                end
+
+                if ns and ns.TalkUP and type(ns.TalkUP.SetLastGossipSelection) == "function" then
+                    pcall(ns.TalkUP.SetLastGossipSelection, npcID, optionID, entry)
+                end
+                if ns and ns.TalkUP and type(ns.TalkUP.MaybePrintRuleHint) == "function" then
+                    pcall(ns.TalkUP.MaybePrintRuleHint, npcID, optionID, entry)
+                end
+            end)
+        end
     end
 
 end
@@ -45,7 +89,7 @@ local function PrintPrefixed(msg)
     end
 end
 
-local function GetCurrentNpcID()
+GetCurrentNpcID = function()
     if ns and type(ns.GetCurrentNpcID) == "function" then
         return ns.GetCurrentNpcID()
     end
@@ -68,7 +112,7 @@ local function CloseGossipWindow()
     end
 end
 
-local function GetDbNpcTable(npcID)
+GetDbNpcTable = function(npcID)
     local rules = ns and ns.db and ns.db.rules
     if type(rules) ~= "table" then
         return nil
@@ -232,6 +276,11 @@ function ns.Talk.TryAutoSelect(isRetry)
         -- to the specific gossip option we just selected.
         if ns and ns.TalkUP and type(ns.TalkUP.SetLastGossipSelection) == "function" then
             pcall(ns.TalkUP.SetLastGossipSelection, selectedNpcID, selectedOptionID, entry)
+
+            -- Optional per-rule hint printing (e.g. training reminders).
+            if type(ns.TalkUP.MaybePrintRuleHint) == "function" then
+                pcall(ns.TalkUP.MaybePrintRuleHint, selectedNpcID, selectedOptionID, entry)
+            end
             return
         end
         ns = (type(ns) == "table") and ns or {}

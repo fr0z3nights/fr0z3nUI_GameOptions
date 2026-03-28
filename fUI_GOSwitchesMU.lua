@@ -54,6 +54,22 @@ local function IsDelayUsedForLootRetry()
     return (AutoGossip_Settings and AutoGossip_Settings.mountUpDelayUseLootAcc) and true or false
 end
 
+local function IsForceGroundEnabled()
+    InitSV()
+    if type(AutoGossip_CharSettings) ~= "table" then
+        return false
+    end
+    return (AutoGossip_CharSettings.mountUpForceGroundChar and true or false)
+end
+
+local function SetForceGroundEnabled(v)
+    InitSV()
+    if type(AutoGossip_CharSettings) ~= "table" then
+        return
+    end
+    AutoGossip_CharSettings.mountUpForceGroundChar = (v and true or false)
+end
+
 local GATHER_SPELL_IDS = {
     -- Gathering / harvesting (retail/common IDs)
     [2366] = true, -- Herbalism
@@ -686,40 +702,41 @@ local function IsCastingOrChanneling()
 end
 
 local function IsEatingOrDrinking()
-    -- Prefer spellID checks to avoid localized name dependencies.
-    -- Some clients return restricted/"secret" aura spellIDs; comparing those values can taint.
-    -- To avoid that, delegate spellID matching to Blizzard helpers (no direct comparisons).
-    local EAT_1 = 433 -- "Food"
-    local DRINK_1 = 430 -- "Drink"
-    local EATDRINK_1 = 431 -- "Food & Drink" (observed on some clients)
-    local EATDRINK_2 = 432 -- fallback for older variants
+    -- NOTE: Some aura fields (including spellId/name) can be returned as restricted
+    -- "secret" values. Direct comparisons (even after lowercasing) can taint and
+    -- explode. So we ONLY use Blizzard helpers to do matching.
+
+    local ids = {
+        430, 431, 432, 433, -- legacy Food/Drink/Food&Drink
+        167152, -- Conjured Refreshment
+        452389, -- observed newer Food & Drink
+        -- Expansion/patch-specific restoration auras
+        1291946, 1269916, -- Food & Drink (variants)
+        1291849, -- Food
+        1269919, 1291954, -- Drink (variants)
+        1291858, -- Mage food / conjured
+        1277461, 1291831, -- Restoring Mana (specific)
+        1291952, -- Restoring Health (specific)
+        1291955, -- Tea consumption
+    }
 
     if AuraUtil and type(AuraUtil.FindAuraBySpellID) == "function" then
-        local ok, found = pcall(AuraUtil.FindAuraBySpellID, EAT_1, "player", "HELPFUL")
-        if ok and found then return true end
-        ok, found = pcall(AuraUtil.FindAuraBySpellID, DRINK_1, "player", "HELPFUL")
-        if ok and found then return true end
-        ok, found = pcall(AuraUtil.FindAuraBySpellID, EATDRINK_1, "player", "HELPFUL")
-        if ok and found then return true end
-        ok, found = pcall(AuraUtil.FindAuraBySpellID, EATDRINK_2, "player", "HELPFUL")
-        if ok and found then return true end
+        for _, id in ipairs(ids) do
+            local ok, found = pcall(AuraUtil.FindAuraBySpellID, id, "player", "HELPFUL")
+            if ok and found then
+                return true
+            end
+        end
     end
 
-    -- Fallback: name matching only (less ideal for localization, but avoids spellID taint).
-    if C_UnitAuras and C_UnitAuras.GetBuffDataByIndex then
-        for i = 1, 40 do
-            local data = C_UnitAuras.GetBuffDataByIndex("player", i)
-            if not data then
-                break
-            end
-
-            local name = type(data) == "table" and data.name or nil
-            if type(name) == "string" then
-                local ok, n = pcall(string.lower, name)
-                if ok and type(n) == "string" then
-                    if n == "food" or n == "drink" or n == "food & drink" or n == "food and drink" then
-                        return true
-                    end
+    -- Secondary: name-based search using localized spell names.
+    if AuraUtil and type(AuraUtil.FindAuraByName) == "function" and type(GetSpellInfo) == "function" then
+        for _, id in ipairs(ids) do
+            local ok, name = pcall(GetSpellInfo, id)
+            if ok and type(name) == "string" and name ~= "" then
+                local ok2, found = pcall(AuraUtil.FindAuraByName, name, "player", "HELPFUL")
+                if ok2 and found then
+                    return true
                 end
             end
         end
@@ -884,6 +901,11 @@ local function GetDesiredType()
         return "aquatic"
     end
 
+    -- Ground override: never choose a flying mount in flyable zones.
+    if IsForceGroundEnabled() then
+        return "ground"
+    end
+
     local flyableArea = (IsAdvancedFlyableArea and IsAdvancedFlyableArea()) or (IsFlyableArea and IsFlyableArea())
     if flyableArea then
         return "flying"
@@ -936,6 +958,8 @@ local function PickMount()
 
     InitSV()
 
+    local forceGround = IsForceGroundEnabled()
+
     local function PickForDesired(desired)
         local function IsNamedTypeAllowed(named)
             if named == desired then
@@ -953,7 +977,7 @@ local function PickMount()
             local ok2, _, _, _, _, mountTypeID = pcall(C_MountJournal.GetMountInfoExtraByID, preferredID)
             if ok2 then
                 local named = GetNamedMountType(mountTypeID)
-                if IsNamedTypeAllowed(named) or (desired == "ground" and named == "flying") then
+                if IsNamedTypeAllowed(named) or ((not forceGround) and desired == "ground" and named == "flying") then
                     return preferredID
                 end
             end
@@ -1161,6 +1185,19 @@ local pendingTimer
 local lastArmAt = 0
 local lastArmReason
 
+local RECUPERATE_SPELL_ID = 1231411
+local recuperateBlockUntil = 0
+
+local function GetRecuperateBlockRemaining()
+    if type(GetTime) ~= "function" then
+        return 0
+    end
+    local now = GetTime() or 0
+    local rem = (tonumber(recuperateBlockUntil) or 0) - now
+    if rem < 0 then rem = 0 end
+    return rem
+end
+
 local function ArmWindow(reason)
     if type(GetTime) ~= "function" then
         lastArmAt = 0
@@ -1204,6 +1241,14 @@ local function ScheduleMount(reason, delay)
     end
     if delay < 0 then
         delay = 0
+    end
+
+    -- If Recuperate was just cast, don't mount until it has had time to apply.
+    do
+        local rem = GetRecuperateBlockRemaining()
+        if rem > 0 and rem > delay then
+            delay = rem
+        end
     end
 
     CancelPending()
@@ -2122,6 +2167,10 @@ local function EnsureConfigPopup()
     local dbgBtn = CreateTextToggleButton(p, 34, 18)
     p.dbgBtn = dbgBtn
 
+    local groundOnlyBtn = CreateTextToggleButton(p, 60, 18)
+    groundOnlyBtn:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -12, 12)
+    p.groundOnlyBtn = groundOnlyBtn
+
     local function IsReapDelayEnabled()
         return IsDelayUsedForReapRetry()
     end
@@ -2407,6 +2456,10 @@ local function EnsureConfigPopup()
             SetSegGreenGreyFS(lootBtn._fs, "Loot", IsLootDelayEnabled())
         end
 
+        if groundOnlyBtn and groundOnlyBtn._fs then
+            SetSegGreenGreyFS(groundOnlyBtn._fs, "Ground", IsForceGroundEnabled())
+        end
+
         if sizeBox and sizeBox.eb then
             sizeBox.eb:SetText(string.format("%02d", math.floor(size + 0.5)))
         end
@@ -2486,6 +2539,29 @@ local function EnsureConfigPopup()
         GameTooltip:Show()
     end)
     dbgBtn:SetScript("OnLeave", function()
+        if GameTooltip and GameTooltip.Hide then
+            GameTooltip:Hide()
+        end
+    end)
+
+    groundOnlyBtn:RegisterForClicks("LeftButtonUp")
+    groundOnlyBtn:SetScript("OnClick", function()
+        SetForceGroundEnabled(not IsForceGroundEnabled())
+        RefreshFromSV()
+        if MU and MU.OnSettingsChanged then
+            MU.OnSettingsChanged()
+        end
+    end)
+    groundOnlyBtn:SetScript("OnEnter", function(self)
+        if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then
+            return
+        end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Ground")
+        GameTooltip:AddLine("When enabled, Mount Up will never use flying mounts, even in flyable zones.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    groundOnlyBtn:SetScript("OnLeave", function()
         if GameTooltip and GameTooltip.Hide then
             GameTooltip:Hide()
         end
@@ -2879,6 +2955,22 @@ do
         if event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_SUCCEEDED" then
             local unit, _, spellID = ...
             if unit ~= "player" then
+                return
+            end
+
+            if event == "UNIT_SPELLCAST_SUCCEEDED" and tonumber(spellID) == RECUPERATE_SPELL_ID then
+                if type(GetTime) == "function" then
+                    recuperateBlockUntil = (GetTime() or 0) + 10.0
+                else
+                    recuperateBlockUntil = 0
+                end
+
+                -- If a mount was already queued (e.g. stop-moving), push it out.
+                if not IsMoving() then
+                    ScheduleMount("recuperate", 10.0)
+                else
+                    CancelPending()
+                end
                 return
             end
 

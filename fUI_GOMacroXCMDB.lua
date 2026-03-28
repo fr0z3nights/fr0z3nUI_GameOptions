@@ -68,6 +68,11 @@ Add("d", "fish", [[
 /console Sound_MasterVolume 1
 ]])
 
+Add("d", "logout", [[
+/console Sound_MasterVolume 0.5
+/console Sound_EnableMusic 1
+]])
+
 -- Convenience macros (d-mode)
 Add("d", "exit", [[
 /console Sound_MasterVolume 0.5
@@ -188,4 +193,35 @@ Add("d", "exit", [[
 "Name",
 })
 
+-- ============================================================================
+-- Click aliases (seed list)
+-- These are NOT Macro CMD entries.
+-- The Click popout uses them as: /click <shorthand> -> (proxy clicks) <original>.
+--
+-- Notes:
+-- - Seeds are only imported if your saved Click alias list is empty.
+-- - Keep names to letters/numbers/underscore (global frame name rules).
+-- - "original" should be the real button/global frame name.
+-- ============================================================================
 
+ns.ClickAlias_DB = ns.ClickAlias_DB or {}
+
+local function AddClickAlias(shorthand, original)
+    ns.ClickAlias_DB[#ns.ClickAlias_DB + 1] = {
+        shorthand = tostring(shorthand or ""),
+        original = tostring(original or ""),
+    }
+end
+
+-- Examples (uncomment and customize):
+AddClickAlias("tdBPS",    "tdBattlePetScriptAutoButton")
+AddClickAlias("TSCan",    "TSMCancelAuctionBtn")
+AddClickAlias("TSVen",    "TSMVendoringSellAllButton")
+AddClickAlias("TSBuy",    "TSMShoppingBuyoutBtn")
+AddClickAlias("TSnip",    "TSMSniperBtn")
+AddClickAlias("TSCrft",   "TSMCraftingBtn")
+AddClickAlias("TSAuc",    "TSMAuctioningBtn")
+AddClickAlias("TSDel",    "TSMDestroyBtn")
+AddClickAlias("TSBid",    "TSMBidBuyConfirmBtn")
+AddClickAlias("TFTB",     "TradeFrameTradeButton")
+AddClickAlias("ERG",      "rcButton")

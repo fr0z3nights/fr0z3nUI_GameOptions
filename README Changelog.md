@@ -2,6 +2,287 @@
 
 Format: `YYMMDD-###` (sanity stamp) — short summary.
 
+Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
+
+# 260328-009
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: when bag slots or item tooltip data aren't ready at login, the updater now schedules a few automatic retries instead of getting stuck until `/reload`.
+- `/fgo yump`: message now distinguishes "bags not ready" / "item data pending" from a true "no food/drink found" case.
+- Bumped TOC `## Version` to `2026.03.28.09`.
+
+# 260328-010
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: after a successful Add/Update, the Shorthand/Original boxes are now cleared and edit-mode is exited, preventing accidental rename/overwrite when adding the next alias.
+- Bumped TOC `## Version` to `2026.03.28.10`.
+
+# 260328-011
+- Files: `fUI_GOMacroXCMDB.lua`, `fUI_GOMacroXCMD.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: add a seed section (`ns.ClickAlias_DB`) so you can keep a curated alias list in the repo.
+- Click aliases: seeds are imported only when your saved alias table is empty (won't overwrite existing aliases).
+- Bumped TOC `## Version` to `2026.03.28.11`.
+
+# 260328-012
+- Files: `fUI_GOMacroXCMD.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: improve auto-arm for lazily-created addon buttons by retrying when common UI windows open (auction house, merchant, tradeskill, bank) and when other addons load.
+- Bumped TOC `## Version` to `2026.03.28.12`.
+
+# 260328-013
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: Click popout list now always includes the DB seed entries (even if SavedVariables is empty).
+- Click aliases: seed entries can be edited but not deleted; per-row toggle is now On/Off (enabled/disabled) instead of a one-shot Arm.
+- Bumped TOC `## Version` to `2026.03.28.13`.
+
+# 260328-014
+- Files: `fUI_GOMacroXCMD.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: fix a load-order bug where seed/merge logic could call `TrimSafe()` before it was defined (nil crash when adding/arming after clearing aliases).
+- Bumped TOC `## Version` to `2026.03.28.14`.
+
+# 260328-001
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: use `ns.ClickAlias_*` APIs for list/save/delete to avoid SavedVariables table mismatch edge cases.
+- Click popout: hint line appends a compact status suffix (`vX | acc=N`) on open to verify the loaded build and detected alias count.
+- Bumped TOC `## Version` to `2026.03.28.01`.
+
+# 260328-002
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: add a `Debug` button that opens a copy-friendly debug window and also prints the same report to chat.
+- Debug report includes: version, combat state, auto-arm state, alias counts (SV + runtime list), last save/arm outcome, and per-alias global/proxy checks.
+- Bumped TOC `## Version` to `2026.03.28.02`.
+
+# 260328-003
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: fix a bug where `clickAliasesAcc` was being wiped if it was a normal key/value map (this caused Save then Arm to fail with "Alias missing").
+- Click Debug: show the proxy `clickbutton` target name when available.
+- Bumped TOC `## Version` to `2026.03.28.03`.
+
+# 260328-004
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click Debug: change `Debug` to a persistent on/off toggle; when ON it auto-opens/refreshes the debug window and prints the report after Save/Arm actions and when opening the popout.
+- Stored under `AutoGame_UI.clickAliasDebugAcc`.
+- Bumped TOC `## Version` to `2026.03.28.04`.
+
+# 260328-005
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click Debug: fix a Lua scoping issue where handlers called a nil global `EnsureDebugFrame` (debug window now opens reliably).
+- Bumped TOC `## Version` to `2026.03.28.05`.
+
+# 260328-006
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click Debug: improve version detection so the header shows the actual TOC version (fallback to `C_AddOns.GetAddOnMetadata`).
+- Bumped TOC `## Version` to `2026.03.28.06`.
+
+# 260328-007
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click Debug: add index-based metadata lookup fallback (`GetAddOnMetadata(i, ...)`) for clients that return nil when queried by addon name.
+- Bumped TOC `## Version` to `2026.03.28.07`.
+
+# 260328-008
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click Debug: stop auto-printing the full report to chat on every refresh; now it prints only on explicit `Refresh` and automatically only when an action fails.
+- Click popout: simplify "Saved" hint text when Debug is OFF.
+- Bumped TOC `## Version` to `2026.03.28.08`.
+
+# 260327-006
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: accept/migrate legacy `clickAliasesAcc` formats (string values) so the list populates and Arm finds mappings.
+- Bumped TOC `## Version` to `2026.03.27.06`.
+
+# 260327-005
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: migrate storage from `AutoGame_Settings` to `AutoGame_Acc` so aliases persist reliably and the Click list reflects saved entries immediately.
+- Click aliases: auto-arm toggle storage also moved to `AutoGame_Acc` for consistency.
+- Bumped TOC `## Version` to `2026.03.27.05`.
+
+# 260327-004
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: fix a UI runtime error (local `Trim` used before definition) that prevented the Click popout from working.
+- Click aliases: stop auto-creating `AutoGame_Settings` when missing; missing SV now prompts reload instead of saving into a throwaway table.
+- Bumped TOC `## Version` to `2026.03.27.04`.
+
+# 260327-003
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click aliases: stop auto-creating `AutoGame_Settings` when missing; missing SV now shows "Settings not loaded (reload)" instead of saving into a throwaway table.
+- Bumped TOC `## Version` to `2026.03.27.03`.
+
+# 260327-002
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: fix alias persistence by always using/creating `AutoGame_Settings` (avoid writing into a throwaway/nil settings table).
+- Click popout: show an explicit empty-state label ("No aliases") and ensure rows are explicitly shown when present.
+- Click popout: hint line now reports `Saved... (N)` count after Add to help diagnose stale load situations.
+- Bumped TOC `## Version` to `2026.03.27.02`.
+
+# 260327-001
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Macro CMD: add a new `Click` popout to manage `/click` shorthands (`Shorthand` -> `Original`).
+- Click popout: scrollable list (mousewheel; scrollbar hidden) and Enter-to-add.
+- Runtime: creates secure proxy buttons out of combat so `/click <shorthand>` clicks the original button.
+- Bumped TOC `## Version` to `2026.03.27.01`.
+
+# 260326-002
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: treat Food & Drink aura spellID `452389` as eating/drinking (blocks auto-mount).
+- Bumped TOC `## Version` to `2026.03.26.02`.
+
+# 260326-003
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: expanded eating/drinking aura spellIDs and added a generic helpful-aura fallback scan to reduce future ID chasing.
+- Bumped TOC `## Version` to `2026.03.26.03`.
+
+# 260326-004
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: tightened fallback scan to only consider short (≤20s) cancelable auras.
+- Bumped TOC `## Version` to `2026.03.26.04`.
+
+# 260326-005
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: removed generic aura-scan fallback to avoid false positives (now spellID/name list only).
+- Bumped TOC `## Version` to `2026.03.26.05`.
+
+# 260326-006
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: disabled hardcoded food/drink spellID list; now blocks mounting when a player buff matches the consumption aura properties (duration `20s`, and physical school when exposed by the client).
+- Bumped TOC `## Version` to `2026.03.26.06`.
+
+# 260326-007
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: fix `/fgo help` and make `/fgo list` case-insensitive so they don't fall through to Macro CMD (`/fgo d ...`).
+- Bumped TOC `## Version` to `2026.03.26.07`.
+
+# 260326-008
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: changed “Prefer Conjured” to a tie-breaker so conjured items don't override clearly better regen (e.g., Chocolate Lava Cake beating mana bun when higher rate).
+- Bumped TOC `## Version` to `2026.03.26.08`.
+
+# 260326-009
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: reverted “Prefer Conjured” to absolute priority (conjured overrides non-conjured again).
+- Bumped TOC `## Version` to `2026.03.26.09`.
+
+# 260326-010
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: fix percent-based “% Mana” parsing for non-mana classes/specs by using the player's active power type (and a non-zero fallback) instead of assuming mana powerType `0`.
+- Bumped TOC `## Version` to `2026.03.26.10`.
+
+# 260326-011
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: fix taint from comparing aura `duration` (secret number) by removing aura-property scanning; reverted to safe `AuraUtil.FindAuraBySpellID/Name` matching.
+- Bumped TOC `## Version` to `2026.03.26.11`.
+
+# 260326-001
+- Files: `fUI_GOLootUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot Suppress popout: rules list is now mousewheel-scrollable (scrollbar hidden).
+- Loot Suppress popout: pressing Enter in the input box adds the rule.
+- Bumped TOC `## Version` to `2026.03.26.01`.
+
+# 260325-009
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: fix eating/drinking detection so consumption reliably blocks mounting again (uses localized spell names + multiple aura detection paths).
+- Bumped TOC `## Version` to `2026.03.25.09`.
+
+# 260325-010
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: conjured food/drink "Refreshment" (spellID `167152`) now blocks mounting.
+- Bumped TOC `## Version` to `2026.03.25.10`.
+
+# 260325-011
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: fix a taint error comparing aura spellIDs ("secret number" values); eating/drinking detection no longer compares aura-provided `spellId` values.
+- Bumped TOC `## Version` to `2026.03.25.11`.
+
+# 260325-012
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: fix a taint error comparing aura names ("secret string" values); eating/drinking detection now only uses `AuraUtil.FindAuraBySpellID/Name` (no aura-field comparisons).
+- Bumped TOC `## Version` to `2026.03.25.12`.
+
+# 260325-008
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up (Config): add a bottom-right `Ground` toggle that prevents using flying mounts even in flyable zones.
+- Mount Up (Slash): add `/fgo mu gon` and `/fgo mu goff`.
+- Bumped TOC `## Version` to `2026.03.25.08`.
+
+# 260325-007
+- Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: add a 10s delay after casting Recuperate (spellID `1231411`) before Mount Up is allowed to fire.
+- Bumped TOC `## Version` to `2026.03.25.07`.
+
+# 260325-006
+- Files: `fUI_GOMacroXCMDB.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Macro CMD (seeds): revert `fish`, `exit`, `logout` defaults to only the intended `/fgo <cmd>` behavior (“What it does” in README), not the full suggested multi-line macro layouts.
+- Bumped TOC `## Version` to `2026.03.25.06`.
+
+# 260325-005
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOMacroXCMDB.lua`, `README Macros.md`, `fr0z3nUI_GameOptions.toc`
+- Slash: back-compat restore for legacy README commands like `/fgo cloot`, `/fgo cmouse`, `/fgo ctrade`, etc. They no longer get mis-parsed as Macro CMD `c` mode.
+- Macro CMD (seeds): update `fish` and `exit` defaults to match the documented macro bodies, and add a default `logout` Macro CMD seed.
+- Docs: add “Alt:” lines for modern command names (`/fgo loot`, `/fgo mouse`, `/fgo script`, etc.).
+- Bumped TOC `## Version` to `2026.03.25.05`.
+
+# 260325-004
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: fix `/fgo cscript` being mis-parsed as Macro CMD `c` mode (`/fgo c script`). It now acts as a back-compat alias of `/fgo script`.
+- Slash: `/fgo script` now prefers running the editable Macro CMD `script` entry when present, but falls back to directly toggling `ScriptErrors` when the Macro CMD entry doesn’t exist.
+- Bumped TOC `## Version` to `2026.03.25.04`.
+
+# 260325-001
+- Files: `fUI_GOTalkUP.lua`, `fr0z3nUI_GameOptions.toc`
+- Talk: Midnight Cooking hint no longer trusts cached `known=false`; it re-checks `KnowsCookingMidnight()` when the cache isn’t `true`, so the “missing” warning stops immediately after training.
+- Bumped TOC `## Version` to `2026.03.25.01`.
+
+# 260325-002
+- Files: `fUI_GOSituatePF.lua`, `fr0z3nUI_GameOptions.toc`
+- Professions: fix Midnight Cooking detection returning a stale/incorrect `known=false` after training; detection now avoids treating “0 skill” as “missing” and can identify Midnight Cooking by skill-line name when enumerating trade-skill lines.
+- Bumped TOC `## Version` to `2026.03.25.02`.
+
+# 260325-003
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot (Achievement): fix rewritten achievement output so the `Name:` colon inherits the class color (colon is now included in the colored name prefix).
+- Bumped TOC `## Version` to `2026.03.25.03`.
+
+# 260324-008
+- Files: `fUI_GOTalkUP.lua`, `fr0z3nUI_GameOptions.toc`
+- Talk: Midnight Cooking trainer hint now prints in the orange warning style, with text `SKILL:  Midnight Cooking Missing`.
+- Bumped TOC `## Version` to `2026.03.24.08`.
+
+# 260324-007
+- Files: `fUI_GOTalk.lua`, `fr0z3nUI_GameOptions.toc`
+- Talk: fix a runtime error where the manual `C_GossipInfo.SelectOption` hook called nil globals (`GetCurrentNpcID` / `GetDbNpcTable`) due to Lua local scoping; helpers are now forward-declared so the closure captures the correct locals.
+- Bumped TOC `## Version` to `2026.03.24.07`.
+
+# 260324-006
+- Files: `fUI_GOSituatePF.lua`, `fr0z3nUI_GameOptions.toc`
+- Professions: Midnight Cooking detection no longer trusts a stale cached `known=true`; it will self-correct back to `false` when the authoritative skill-line enumeration proves it’s not learned.
+- Bumped TOC `## Version` to `2026.03.24.06`.
+
+# 260324-005
+- Files: `fUI_GOSituatePF.lua`, `fUI_GOTalkUP.lua`, `fr0z3nUI_GameOptions.toc`
+- Professions: fix false-positive “Midnight Cooking is known” detection (category presence is not proof of learning).
+- Talk (Debug): Midnight Cooking/Fishing hints now log `Hint ...: knows=...` when `debugAcc` is enabled.
+- Bumped TOC `## Version` to `2026.03.24.05`.
+
+# 260324-004
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalkUP.lua`, `fr0z3nUI_GameOptions.toc`
+- Talk: `print = ...` hints now also fire when you manually click a gossip option (hooked `C_GossipInfo.SelectOption`).
+- Talk (Debug): selecting Midnight Cooking/Fishing options now dumps the live gossip OID list to chat to help fix rule ID mismatches.
+- Bumped TOC `## Version` to `2026.03.24.04`.
+
+# 260324-003
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalkUP.lua`, `fr0z3nUI_GameOptions.toc`
+- Talk: `print = ...` hints on gossip rules now actually print when an option is auto-selected (e.g. trainer reminders like “Train Midnight Cooking”).
+- Talk: Midnight Cooking/Fishing hints do a targeted profession-tier refresh if the cache is still unknown.
+- Bumped TOC `## Version` to `2026.03.24.03`.
+
+# 260324-002
+- Files: `fUI_GOSwitches.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Switches/UI: compacted Queue Accept area into two rows under Mail (PopUp / PopDbg / Reload, then Action / NPC Name / Tutorial).
+- Switches/UI: Reload toggle now uses a real text-size input box (instead of click-right-third cycling).
+- Switches: added 3-state CVars for `ActionButtonUseKeyDown` (Action) and `nameplateShowFriendlyNPCs` (NPC Name): OFF ACC / ON ACC / ON CHAR.
+- Bumped TOC `## Version` to `2026.03.24.02`.
+
+# 260324-001
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- Loot (Achievement): fix class-colored sender name formatting when `C_ClassColor:GenerateHexColor()` returns `AARRGGBB` (prevents stray `c9` prefix and wrong orange tint; restores correct class colors).
+- Bumped TOC `## Version` to `2026.03.24.01`.
+
 # 260322-025
 - Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
 - Mount Up (Config): pressing Enter in the Delay box now applies/commits the value (same as clicking away).

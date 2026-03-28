@@ -13,11 +13,48 @@ end
 
 local function GetSettings()
     InitSV()
-    local s = rawget(_G, "AutoGame_Settings") or rawget(_G, "AutoGossip_Settings")
+    local s = rawget(_G, "AutoGame_Settings")
     if type(s) ~= "table" then
         return nil
     end
     return s
+end
+
+local function GetAcc()
+    InitSV()
+    local a = rawget(_G, "AutoGame_Acc")
+    if type(a) ~= "table" then
+        return nil
+    end
+    return a
+end
+
+local function GetUI()
+    InitSV()
+    local u = rawget(_G, "AutoGame_UI")
+    if type(u) ~= "table" then
+        return nil
+    end
+    return u
+end
+
+local function GetClickDebugEnabled()
+    local u = GetUI()
+    if type(u) ~= "table" then
+        return false
+    end
+    if type(u.clickAliasDebugAcc) ~= "boolean" then
+        u.clickAliasDebugAcc = false
+    end
+    return u.clickAliasDebugAcc
+end
+
+local function SetClickDebugEnabled(enabled)
+    local u = GetUI()
+    if type(u) ~= "table" then
+        return
+    end
+    u.clickAliasDebugAcc = (enabled and true) or false
 end
 
 local function EnsureCommandsArray()
@@ -51,6 +88,100 @@ local function NormalizeMode(mode)
     return "d"
 end
 
+local function Trim(s)
+    if type(s) ~= "string" then
+        return ""
+    end
+    return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function IsValidButtonName(name)
+    name = Trim(tostring(name or ""))
+    if name == "" then
+        return false
+    end
+    if name:find("[^%w_]") then
+        return false
+    end
+    return true
+end
+
+local function GetAddonVersionString()
+    local v = nil
+    local name = addonName
+    if type(name) ~= "string" or name == "" then
+        name = "fr0z3nUI_GameOptions"
+    end
+
+    if type(GetAddOnMetadata) == "function" then
+        local ok, r = pcall(GetAddOnMetadata, name, "Version")
+        if ok and type(r) == "string" and r ~= "" then
+            v = r
+        end
+    end
+
+    if not v and C_AddOns and type(C_AddOns.GetAddOnMetadata) == "function" then
+        local ok, r = pcall(C_AddOns.GetAddOnMetadata, name, "Version")
+        if ok and type(r) == "string" and r ~= "" then
+            v = r
+        end
+    end
+
+    -- Some clients behave better with index-based metadata.
+    if not v and type(GetNumAddOns) == "function" and type(GetAddOnInfo) == "function" then
+        local n = GetNumAddOns()
+        for i = 1, n do
+            local addName = GetAddOnInfo(i)
+            if addName == name then
+                if type(GetAddOnMetadata) == "function" then
+                    local ok, r = pcall(GetAddOnMetadata, i, "Version")
+                    if ok and type(r) == "string" and r ~= "" then
+                        v = r
+                        break
+                    end
+                end
+                if not v and C_AddOns and type(C_AddOns.GetAddOnMetadata) == "function" then
+                    local ok, r = pcall(C_AddOns.GetAddOnMetadata, i, "Version")
+                    if ok and type(r) == "string" and r ~= "" then
+                        v = r
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    -- Final fallback: try known folder name even if ... was unexpected.
+    if not v and name ~= "fr0z3nUI_GameOptions" then
+        local fallback = "fr0z3nUI_GameOptions"
+        if type(GetAddOnMetadata) == "function" then
+            local ok, r = pcall(GetAddOnMetadata, fallback, "Version")
+            if ok and type(r) == "string" and r ~= "" then
+                v = r
+            end
+        end
+        if not v and C_AddOns and type(C_AddOns.GetAddOnMetadata) == "function" then
+            local ok, r = pcall(C_AddOns.GetAddOnMetadata, fallback, "Version")
+            if ok and type(r) == "string" and r ~= "" then
+                v = r
+            end
+        end
+    end
+
+    return v or "?"
+end
+
+local function CountKeys(t)
+    if type(t) ~= "table" then
+        return 0
+    end
+    local n = 0
+    for _ in pairs(t) do
+        n = n + 1
+    end
+    return n
+end
+
 local function EnsureMode()
     InitSV()
     local s = GetSettings()
@@ -71,13 +202,6 @@ local function GetEntryMode(entry)
         return "x"
     end
     return NormalizeMode(m)
-end
-
-local function Trim(s)
-    if type(s) ~= "string" then
-        return ""
-    end
-    return (s:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
 local function HideFauxScrollBarAndEnableWheel(sf, rowHeight)
@@ -1724,6 +1848,745 @@ function ns.MacroXCMDUI_Build(panel)
     local function RefreshButtons()
         -- Delete removed by request.
     end
+
+    -- ============================================================
+    -- Click aliases popout (Macro CMD tab) — clone of Loot Suppress UX
+    -- ============================================================
+    local clickBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    clickBtn:SetSize(70, 20)
+    clickBtn:SetText("Click")
+
+    -- Anchor next to the window's Reload UI button (like other bottom-row actions).
+    local root = (panel and panel.GetParent and panel:GetParent()) or nil
+    local reloadBtn = root and rawget(root, "_reloadBtn") or nil
+    if reloadBtn and reloadBtn.GetObjectType then
+        clickBtn:SetPoint("RIGHT", reloadBtn, "LEFT", -8, 0)
+        clickBtn:SetPoint("BOTTOM", reloadBtn, "BOTTOM", 0, 0)
+    else
+        clickBtn:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -112, 12)
+    end
+
+    -- Mail/Info-style popout: opens beside the main window (not over the tab).
+    local clickPop = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+    clickPop:SetSize(480, 400)
+    clickPop:ClearAllPoints()
+    clickPop:SetPoint("TOPLEFT", panel, "TOPRIGHT", 10, 0)
+    if clickPop.SetFrameStrata then clickPop:SetFrameStrata("DIALOG") end
+    clickPop:SetFrameLevel((panel.GetFrameLevel and panel:GetFrameLevel() or 0) + 80)
+    if clickPop.SetClampedToScreen then clickPop:SetClampedToScreen(true) end
+    clickPop:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        tile = true,
+        tileSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    clickPop:SetBackdropColor(0, 0, 0, 0.85)
+    clickPop:Hide()
+
+    local clickClose = CreateFrame("Button", nil, clickPop, "UIPanelCloseButton")
+    clickClose:SetPoint("TOPRIGHT", clickPop, "TOPRIGHT", -6, -6)
+
+    local clickTitle = clickPop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    clickTitle:SetPoint("TOPLEFT", clickPop, "TOPLEFT", 12, -10)
+    clickTitle:SetText("Click")
+    clickTitle:SetTextColor(1, 0.82, 0, 1)
+
+    local enableCB = CreateFrame("CheckButton", nil, clickPop, "UICheckButtonTemplate")
+    enableCB:SetPoint("TOPLEFT", clickTitle, "BOTTOMLEFT", -4, -6)
+    if enableCB.Text and enableCB.Text.SetText then
+        enableCB.Text:SetText("Auto-arm")
+    end
+
+    local armNowBtn = CreateFrame("Button", nil, clickPop, "UIPanelButtonTemplate")
+    armNowBtn:SetSize(72, 20)
+    armNowBtn:SetPoint("LEFT", enableCB, "RIGHT", 8, 0)
+    armNowBtn:SetText("Arm Now")
+
+    local debugCB = CreateFrame("CheckButton", nil, clickPop, "UICheckButtonTemplate")
+    debugCB:SetPoint("LEFT", armNowBtn, "RIGHT", 8, 0)
+    if debugCB.Text and debugCB.Text.SetText then
+        debugCB.Text:SetText("Debug")
+    end
+
+    local shBox = CreateFrame("EditBox", nil, clickPop, "InputBoxTemplate")
+    shBox:SetSize(140, 20)
+    shBox:SetPoint("TOPLEFT", enableCB, "BOTTOMLEFT", 12, -10)
+    shBox:SetAutoFocus(false)
+    shBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+    local orBox = CreateFrame("EditBox", nil, clickPop, "InputBoxTemplate")
+    orBox:SetSize(240, 20)
+    orBox:SetPoint("LEFT", shBox, "RIGHT", 6, 0)
+    orBox:SetAutoFocus(false)
+    orBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+    local function MakeEditBoxBorderless(editBox)
+        if not editBox then return end
+        if editBox.Left and editBox.Left.Hide then editBox.Left:Hide() end
+        if editBox.Middle and editBox.Middle.Hide then editBox.Middle:Hide() end
+        if editBox.Right and editBox.Right.Hide then editBox.Right:Hide() end
+        if editBox.SetTextInsets then
+            editBox:SetTextInsets(6, 6, 2, 2)
+        end
+    end
+
+    local function AttachGhostText(editBox, text)
+        if not (editBox and editBox.CreateFontString) then
+            return
+        end
+        local ghost = editBox:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        ghost:SetText(tostring(text or ""))
+        ghost:SetJustifyH("LEFT")
+        ghost:SetPoint("LEFT", editBox, "LEFT", 6, 0)
+
+        local function Update()
+            local hasText = (tostring(editBox:GetText() or "") ~= "")
+            if editBox.HasFocus and editBox:HasFocus() then
+                ghost:Hide()
+            else
+                ghost:SetShown(not hasText)
+            end
+        end
+        editBox:HookScript("OnTextChanged", Update)
+        editBox:HookScript("OnEditFocusGained", Update)
+        editBox:HookScript("OnEditFocusLost", Update)
+        Update()
+        editBox._fgoGhost = ghost
+    end
+
+    MakeEditBoxBorderless(shBox)
+    MakeEditBoxBorderless(orBox)
+    AttachGhostText(shBox, "Shorthand")
+    AttachGhostText(orBox, "Original")
+
+    local addAliasBtn = CreateFrame("Button", nil, clickPop, "UIPanelButtonTemplate")
+    addAliasBtn:SetSize(60, 20)
+    addAliasBtn:SetPoint("LEFT", orBox, "RIGHT", 6, 0)
+    addAliasBtn:SetText("Add")
+
+    local hint = clickPop:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    hint:SetPoint("TOPLEFT", shBox, "BOTTOMLEFT", 2, -6)
+    hint:SetText("/click shorthand → original button name")
+
+    local listHeader = clickPop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    listHeader:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
+    listHeader:SetText("Aliases")
+
+    local listWidth = 396
+    local rowHeight = 20
+    local rowGap = 4
+    local listHeight = (rowHeight * 10) + (rowGap * 9)
+
+    local listScroll = CreateFrame("ScrollFrame", nil, clickPop, "UIPanelScrollFrameTemplate")
+    listScroll:SetPoint("TOPLEFT", listHeader, "BOTTOMLEFT", -2, -6)
+    listScroll:SetSize(listWidth + 24, listHeight + 6)
+    if listScroll.ScrollBar and listScroll.ScrollBar.Hide then
+        listScroll.ScrollBar:Hide()
+        listScroll.ScrollBar.Show = function() end
+    end
+    listScroll:EnableMouseWheel(true)
+
+    local listChild = CreateFrame("Frame", nil, listScroll)
+    listChild:SetSize(listWidth, listHeight)
+    listScroll:SetScrollChild(listChild)
+
+    local aliasEmpty = clickPop:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    aliasEmpty:SetPoint("CENTER", listScroll, "CENTER", -10, 0)
+    aliasEmpty:SetText("No aliases")
+    aliasEmpty:Hide()
+
+    listScroll:SetScript("OnMouseWheel", function(self, delta)
+        local current = self:GetVerticalScroll() or 0
+        local maxScroll = self:GetVerticalScrollRange() or 0
+        local newScroll = current - (delta * (rowHeight + rowGap) * 2)
+        if newScroll < 0 then newScroll = 0 end
+        if newScroll > maxScroll then newScroll = maxScroll end
+        self:SetVerticalScroll(newScroll)
+    end)
+
+    local aliasRows = {}
+    local editingShorthand
+    local editingSeeded = false
+
+    local clickDebug = { lastAction = nil, shorthand = nil, original = nil, ok = nil, why = nil }
+
+    -- Forward declarations so early handlers capture locals (not globals).
+    local debugFrame
+    local debugEdit
+    local EnsureDebugFrame
+
+    local function ClearAliasFields()
+        editingShorthand = nil
+        editingSeeded = false
+        shBox:SetText("")
+        orBox:SetText("")
+        if shBox.ClearFocus then shBox:ClearFocus() end
+        if orBox.ClearFocus then orBox:ClearFocus() end
+    end
+
+    local function RebuildAliasList()
+        local entries = {}
+
+        if ns and type(ns.ClickAlias_List) == "function" then
+            local ok, r = pcall(ns.ClickAlias_List)
+            if ok and type(r) == "table" then
+                entries = r
+            end
+        end
+
+        if #entries == 0 then
+            local a = GetAcc()
+            if type(a) ~= "table" then
+                hint:SetText("Settings not loaded (reload)")
+            end
+            local t = a and a.clickAliasesAcc
+            if type(t) == "table" then
+                for k, v in pairs(t) do
+                    if type(v) == "string" and type(k) == "string" then
+                        entries[#entries + 1] = { shorthand = k, original = v }
+                    elseif type(v) == "table" and type(v.original) == "string" then
+                        local sh = (type(v.shorthand) == "string" and v.shorthand ~= "") and v.shorthand or (type(k) == "string" and k or "")
+                        if sh ~= "" then
+                            entries[#entries + 1] = { shorthand = sh, original = v.original }
+                        end
+                    end
+                end
+                table.sort(entries, function(a, b)
+                    return tostring(a.shorthand):lower() < tostring(b.shorthand):lower()
+                end)
+            end
+        end
+
+        aliasEmpty:SetShown(#entries == 0)
+
+        for i = 1, #entries do
+            local row = aliasRows[i]
+            if not row then
+                row = CreateFrame("Frame", nil, listChild)
+                row:SetSize(listWidth, rowHeight)
+                if i == 1 then
+                    row:SetPoint("TOPLEFT", listChild, "TOPLEFT", 0, 0)
+                else
+                    row:SetPoint("TOPLEFT", aliasRows[i - 1], "BOTTOMLEFT", 0, -rowGap)
+                end
+
+                row.bg = row:CreateTexture(nil, "BACKGROUND")
+                row.bg:SetAllPoints(row)
+                row.bg:SetColorTexture(1, 1, 1, 0.04)
+                row.bg:Hide()
+
+                row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+                row.text:SetPoint("LEFT", row, "LEFT", 50, 0)
+                row.text:SetPoint("RIGHT", row, "RIGHT", -26, 0)
+                row.text:SetJustifyH("LEFT")
+
+                row.del = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+                row.del:SetSize(20, 20)
+                row.del:SetText("X")
+                row.del:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+
+                row.arm = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+                row.arm:SetSize(44, 20)
+                row.arm:SetText("Arm")
+                row.arm:SetPoint("LEFT", row, "LEFT", 0, 0)
+
+                aliasRows[i] = row
+            end
+
+            local e = entries[i]
+            local sh = tostring(e.shorthand or "")
+            local orig = tostring(e.original or "")
+            local seeded = (e.seeded == true)
+            local enabled = (e.enabled ~= false)
+            row._fgoShorthand = sh
+            row._fgoOriginal = orig
+            row._fgoSeeded = seeded
+            row._fgoEnabled = enabled
+            row.text:SetText(sh .. "  ->  " .. orig)
+
+            local zebra = (i % 2) == 0
+            row.bg:SetShown(zebra)
+
+            row:EnableMouse(true)
+            row:SetScript("OnMouseDown", function()
+                editingShorthand = sh
+                editingSeeded = seeded
+                shBox:SetText(sh)
+                orBox:SetText(orig)
+                if seeded then
+                    hint:SetText("Seed entry: edit original then Add")
+                else
+                    hint:SetText("Edit then Add to update")
+                end
+            end)
+
+            row.del:SetScript("OnClick", function()
+                if row._fgoSeeded then
+                    hint:SetText("Can't delete (seed)")
+                    return
+                end
+                if ns and type(ns.ClickAlias_Remove) == "function" then
+                    ns.ClickAlias_Remove(sh)
+                else
+                    local a = GetAcc()
+                    if a and type(a.clickAliasesAcc) == "table" then
+                        a.clickAliasesAcc[tostring(sh or ""):lower()] = nil
+                    else
+                        hint:SetText("Settings not loaded (reload)")
+                    end
+                end
+                if editingShorthand and editingShorthand:lower() == sh:lower() then
+                    ClearAliasFields()
+                end
+                hint:SetText("Deleted")
+                RebuildAliasList()
+            end)
+
+            row.arm:SetText(enabled and "On" or "Off")
+            row.arm:SetScript("OnClick", function()
+                if ns and type(ns.ClickAlias_SetEnabled) == "function" then
+                    local want = not (row._fgoEnabled == true)
+                    local ok, why = ns.ClickAlias_SetEnabled(sh, want)
+                    clickDebug.lastAction = want and "Enable" or "Disable"
+                    clickDebug.shorthand = sh
+                    clickDebug.original = orig
+                    clickDebug.ok = ok
+                    clickDebug.why = why
+                    if want then
+                        hint:SetText(ok and "Enabled" or tostring(why or "Enabled (not armed yet)"))
+                    else
+                        hint:SetText(ok and "Disabled" or tostring(why or "Can't disable"))
+                    end
+                    RebuildAliasList()
+
+                    if GetClickDebugEnabled() then
+                        EnsureDebugFrame()
+                        debugFrame:Show()
+                        if debugFrame._fgoRefresh then
+                            debugFrame._fgoRefresh(ok ~= true)
+                        end
+                    end
+                elseif ns and type(ns.ClickAlias_Arm) == "function" then
+                    -- Back-compat fallback: keep behavior as Arm.
+                    local ok, why = ns.ClickAlias_Arm(sh)
+                    if ok then
+                        hint:SetText("Armed")
+                    else
+                        hint:SetText(tostring(why or "Can't arm"))
+                    end
+                end
+            end)
+
+            -- Seeded aliases are not removable.
+            row.del:SetShown(not seeded)
+            if seeded then
+                row.text:SetPoint("RIGHT", row, "RIGHT", -26, 0)
+            end
+
+            row:Show()
+        end
+
+        for i = #entries + 1, #aliasRows do
+            if aliasRows[i] then
+                aliasRows[i]:Hide()
+                aliasRows[i]:SetScript("OnMouseDown", nil)
+            end
+        end
+
+        local n = #entries
+        local childHeight = 0
+        if n <= 0 then
+            childHeight = listHeight
+        else
+            childHeight = (n * rowHeight) + ((n - 1) * rowGap)
+            if childHeight < listHeight then childHeight = listHeight end
+        end
+        listChild:SetHeight(childHeight)
+        if listScroll.SetVerticalScroll then listScroll:SetVerticalScroll(0) end
+    end
+
+    local function UpsertAliasFromFields()
+        hint:SetText("")
+        local prevEditing = editingShorthand
+        local sh = Trim(shBox:GetText() or "")
+        local orig = Trim(orBox:GetText() or "")
+
+        if editingSeeded and prevEditing and prevEditing ~= "" then
+            -- Seed entries are editable but not renamable in UI.
+            sh = prevEditing
+            shBox:SetText(sh)
+        end
+
+        if not IsValidButtonName(sh) then
+            hint:SetText("Bad shorthand")
+            return
+        end
+        if not IsValidButtonName(orig) then
+            hint:SetText("Bad original")
+            return
+        end
+
+        local okSave, whySave = true, nil
+        if ns and type(ns.ClickAlias_Upsert) == "function" then
+            okSave, whySave = ns.ClickAlias_Upsert(sh, orig)
+        else
+            local a = GetAcc()
+            if not a then
+                hint:SetText("Settings not loaded (reload)")
+                return
+            end
+            if type(a.clickAliasesAcc) ~= "table" then
+                a.clickAliasesAcc = {}
+            end
+            a.clickAliasesAcc[sh:lower()] = { shorthand = sh, original = orig }
+        end
+
+        if not okSave then
+            hint:SetText(tostring(whySave or "Can't save"))
+            clickDebug.lastAction = "Save"
+            clickDebug.shorthand = sh
+            clickDebug.original = orig
+            clickDebug.ok = false
+            clickDebug.why = whySave
+            return
+        end
+
+        -- Remove old key if it was renamed.
+        if (not editingSeeded) and prevEditing and prevEditing ~= "" and prevEditing:lower() ~= sh:lower() then
+            if ns and type(ns.ClickAlias_Remove) == "function" then
+                ns.ClickAlias_Remove(prevEditing)
+            else
+                local a = GetAcc()
+                if a and type(a.clickAliasesAcc) == "table" then
+                    a.clickAliasesAcc[tostring(prevEditing or ""):lower()] = nil
+                end
+            end
+        end
+
+        -- Debug: confirm list sees the new entry immediately.
+        local count = "?"
+        do
+            if ns and type(ns.ClickAlias_List) == "function" then
+                local ok, r = pcall(ns.ClickAlias_List)
+                if ok and type(r) == "table" then
+                    count = tostring(#r)
+                end
+            end
+            if count == "?" then
+                local a = GetAcc()
+                local t = a and a.clickAliasesAcc
+                if type(t) == "table" then
+                    local n = 0
+                    for _ in pairs(t) do n = n + 1 end
+                    count = tostring(n)
+                end
+            end
+        end
+
+        -- Attempt to arm immediately (out of combat only).
+        if ns and type(ns.ClickAlias_Arm) == "function" then
+            local okArm, whyArm = ns.ClickAlias_Arm(sh)
+            clickDebug.lastAction = "Save+Arm"
+            clickDebug.shorthand = sh
+            clickDebug.original = orig
+            clickDebug.ok = okArm
+            clickDebug.why = whyArm
+            if okArm then
+                if GetClickDebugEnabled() then
+                    hint:SetText("Saved + Armed (" .. count .. ")")
+                else
+                    hint:SetText("Saved + Armed")
+                end
+            else
+                if GetClickDebugEnabled() then
+                    hint:SetText("Saved (" .. tostring(whyArm or "not armed") .. ") (" .. count .. ")")
+                else
+                    hint:SetText("Saved (" .. tostring(whyArm or "not armed") .. ")")
+                end
+            end
+
+            if GetClickDebugEnabled() then
+                EnsureDebugFrame()
+                debugFrame:Show()
+                if debugFrame._fgoRefresh then
+                    debugFrame._fgoRefresh(okArm ~= true)
+                end
+            end
+        else
+            if GetClickDebugEnabled() then
+                hint:SetText("Saved (" .. count .. ")")
+            else
+                hint:SetText("Saved")
+            end
+        end
+
+        RebuildAliasList()
+        ClearAliasFields()
+    end
+
+    local function RefreshAutoArmUI()
+        if ns and type(ns.ClickAlias_GetAutoArmEnabled) == "function" then
+            enableCB:SetChecked(ns.ClickAlias_GetAutoArmEnabled() ~= false)
+        else
+            enableCB:SetChecked(true)
+        end
+    end
+
+    local function BuildClickDebugReport()
+        local lines = {}
+
+        local ver = GetAddonVersionString()
+        local combat = (InCombatLockdown and InCombatLockdown()) and "YES" or "NO"
+
+        local autoArm = "?"
+        if ns and type(ns.ClickAlias_GetAutoArmEnabled) == "function" then
+            local ok, r = pcall(ns.ClickAlias_GetAutoArmEnabled)
+            if ok then
+                autoArm = r and "ON" or "OFF"
+            end
+        end
+
+        local a = GetAcc()
+        local accOk = type(a) == "table" and "YES" or "NO"
+        local accAliases = a and a.clickAliasesAcc
+
+        lines[#lines + 1] = "[FGO Click Debug] v" .. tostring(ver)
+        lines[#lines + 1] = "InCombatLockdown=" .. combat .. "  AutoArm=" .. tostring(autoArm)
+        lines[#lines + 1] = "AutoGame_Acc loaded=" .. tostring(accOk) .. "  clickAliasesAcc type=" .. tostring(type(accAliases)) .. "  keys=" .. tostring(CountKeys(accAliases))
+
+        local runtimeList = nil
+        if ns and type(ns.ClickAlias_List) == "function" then
+            local ok, r = pcall(ns.ClickAlias_List)
+            if ok and type(r) == "table" then
+                runtimeList = r
+            else
+                runtimeList = {}
+            end
+        end
+        if runtimeList then
+            lines[#lines + 1] = "ns.ClickAlias_List() entries=" .. tostring(#runtimeList)
+        else
+            lines[#lines + 1] = "ns.ClickAlias_List() not available"
+        end
+
+        if clickDebug.lastAction then
+            lines[#lines + 1] = "LastAction=" .. tostring(clickDebug.lastAction) .. "  sh=" .. tostring(clickDebug.shorthand) .. "  orig=" .. tostring(clickDebug.original) .. "  ok=" .. tostring(clickDebug.ok) .. "  why=" .. tostring(clickDebug.why)
+        end
+
+        local function AddAliasLine(sh, orig)
+            local origObj = (type(orig) == "string") and rawget(_G, orig) or nil
+            local proxyObj = (type(sh) == "string") and rawget(_G, sh) or nil
+            local origType = origObj and type(origObj) or "nil"
+            local proxyType = proxyObj and type(proxyObj) or "nil"
+
+            local attr = ""
+            if proxyObj and type(proxyObj) == "table" and type(proxyObj.GetAttribute) == "function" then
+                local ok, clickbutton = pcall(proxyObj.GetAttribute, proxyObj, "clickbutton")
+                if ok then
+                    local cb = clickbutton
+                    if type(cb) == "table" and type(cb.GetName) == "function" then
+                        local okn, nm = pcall(cb.GetName, cb)
+                        if okn and type(nm) == "string" and nm ~= "" then
+                            attr = " clickbutton=" .. nm
+                        else
+                            attr = " clickbutton=" .. tostring(cb)
+                        end
+                    else
+                        attr = " clickbutton=" .. tostring(cb)
+                    end
+                end
+            end
+
+            lines[#lines + 1] = "- " .. tostring(sh) .. " -> " .. tostring(orig) .. " | origGlobal=" .. origType .. " proxyGlobal=" .. proxyType .. attr
+        end
+
+        if runtimeList and #runtimeList > 0 then
+            lines[#lines + 1] = "Aliases (runtime):"
+            for i = 1, #runtimeList do
+                local e = runtimeList[i]
+                AddAliasLine(e and e.shorthand, e and e.original)
+            end
+        elseif type(accAliases) == "table" and next(accAliases) ~= nil then
+            lines[#lines + 1] = "Aliases (raw SV):"
+            for k, v in pairs(accAliases) do
+                if type(v) == "string" then
+                    AddAliasLine(k, v)
+                elseif type(v) == "table" then
+                    AddAliasLine(v.shorthand or k, v.original)
+                else
+                    lines[#lines + 1] = "- " .. tostring(k) .. " = (" .. tostring(type(v)) .. ")"
+                end
+            end
+        else
+            lines[#lines + 1] = "Aliases: (none)"
+        end
+
+        return table.concat(lines, "\n")
+    end
+
+    EnsureDebugFrame = function()
+        if debugFrame then
+            return
+        end
+
+        debugFrame = CreateFrame("Frame", nil, clickPop, "BasicFrameTemplateWithInset")
+        debugFrame:SetSize(480, 240)
+        debugFrame:SetPoint("TOPLEFT", clickPop, "BOTTOMLEFT", 0, -10)
+        if debugFrame.SetFrameStrata then debugFrame:SetFrameStrata("DIALOG") end
+        debugFrame:Hide()
+
+        local title = debugFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOPLEFT", debugFrame, "TOPLEFT", 12, -8)
+        title:SetText("Click Debug")
+
+        local close = CreateFrame("Button", nil, debugFrame, "UIPanelButtonTemplate")
+        close:SetSize(60, 20)
+        close:SetPoint("TOPRIGHT", debugFrame, "TOPRIGHT", -12, -6)
+        close:SetText("Close")
+        close:SetScript("OnClick", function() debugFrame:Hide() end)
+
+        local refresh = CreateFrame("Button", nil, debugFrame, "UIPanelButtonTemplate")
+        refresh:SetSize(70, 20)
+        refresh:SetPoint("TOPRIGHT", close, "TOPLEFT", -6, 0)
+        refresh:SetText("Refresh")
+
+        local scroll = CreateFrame("ScrollFrame", nil, debugFrame, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", debugFrame, "TOPLEFT", 12, -30)
+        scroll:SetPoint("BOTTOMRIGHT", debugFrame, "BOTTOMRIGHT", -30, 12)
+        if scroll.ScrollBar and scroll.ScrollBar.Hide then
+            scroll.ScrollBar:Hide()
+            scroll.ScrollBar.Show = function() end
+        end
+
+        debugEdit = CreateFrame("EditBox", nil, scroll)
+        debugEdit:SetMultiLine(true)
+        debugEdit:SetAutoFocus(false)
+        debugEdit:SetFontObject(ChatFontNormal)
+        debugEdit:SetWidth(420)
+        debugEdit:SetText("")
+        debugEdit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+        scroll:SetScrollChild(debugEdit)
+
+        local function RefreshDebugText(printToChat)
+            local report = BuildClickDebugReport()
+            debugEdit:SetText(report)
+            if debugEdit.HighlightText then
+                debugEdit:HighlightText(0, 0)
+                debugEdit:HighlightText()
+            end
+
+            if printToChat then
+                for line in tostring(report):gmatch("[^\n]+") do
+                    print(line)
+                end
+            end
+        end
+
+        refresh:SetScript("OnClick", function() RefreshDebugText(true) end)
+        debugFrame._fgoRefresh = RefreshDebugText
+    end
+
+    enableCB:SetScript("OnClick", function(self)
+        local on = self:GetChecked() and true or false
+        if ns and type(ns.ClickAlias_SetAutoArmEnabled) == "function" then
+            ns.ClickAlias_SetAutoArmEnabled(on)
+        end
+        if on and ns and type(ns.ClickAlias_AutoArmIfEnabled) == "function" then
+            local ok, why = ns.ClickAlias_AutoArmIfEnabled()
+            hint:SetText(ok and "Auto-arm enabled" or tostring(why or "Can't auto-arm"))
+        else
+            hint:SetText("Auto-arm disabled")
+        end
+    end)
+
+    armNowBtn:SetScript("OnClick", function()
+        if ns and type(ns.ClickAlias_ArmAll) == "function" then
+            local ok, why = ns.ClickAlias_ArmAll()
+            clickDebug.lastAction = "ArmAll"
+            clickDebug.shorthand = nil
+            clickDebug.original = nil
+            clickDebug.ok = ok
+            clickDebug.why = why
+            if ok then
+                hint:SetText("Armed")
+            else
+                hint:SetText(tostring(why or "Can't arm"))
+            end
+
+            if GetClickDebugEnabled() then
+                EnsureDebugFrame()
+                debugFrame:Show()
+                if debugFrame._fgoRefresh then
+                    debugFrame._fgoRefresh(ok ~= true)
+                end
+            end
+        end
+    end)
+
+    debugCB:SetChecked(GetClickDebugEnabled())
+    debugCB:SetScript("OnClick", function(self)
+        local on = self:GetChecked() and true or false
+        SetClickDebugEnabled(on)
+        if on then
+            EnsureDebugFrame()
+            debugFrame:Show()
+            if debugFrame._fgoRefresh then
+                debugFrame._fgoRefresh(false)
+            end
+            hint:SetText("Debug enabled")
+        else
+            if debugFrame then
+                debugFrame:Hide()
+            end
+            hint:SetText("Debug disabled")
+        end
+    end)
+
+    addAliasBtn:SetScript("OnClick", UpsertAliasFromFields)
+    shBox:SetScript("OnEnterPressed", function() UpsertAliasFromFields() end)
+    orBox:SetScript("OnEnterPressed", function() UpsertAliasFromFields() end)
+
+    clickClose:SetScript("OnClick", function()
+        clickPop:Hide()
+    end)
+
+    clickBtn:SetScript("OnClick", function()
+        if clickPop:IsShown() then
+            clickPop:Hide()
+            return
+        end
+        clickPop:Show()
+        RefreshAutoArmUI()
+        debugCB:SetChecked(GetClickDebugEnabled())
+        local base = "/click shorthand → original button name"
+        hint:SetText(base)
+        RebuildAliasList()
+
+        -- If nothing else wrote to the hint, append a compact status suffix so
+        -- we can confirm which build is loaded and how many aliases are detected.
+        local current = hint.GetText and hint:GetText() or ""
+        if current == base then
+            local ver = GetAddonVersionString()
+            local accN = 0
+            do
+                local a = GetAcc()
+                local t = a and a.clickAliasesAcc
+                if type(t) == "table" then
+                    for _ in pairs(t) do accN = accN + 1 end
+                end
+            end
+            hint:SetText(base .. " | v" .. ver .. " | acc=" .. tostring(accN))
+        end
+
+        if GetClickDebugEnabled() then
+            EnsureDebugFrame()
+            debugFrame:Show()
+            if debugFrame._fgoRefresh then
+                debugFrame._fgoRefresh(false)
+            end
+        end
+    end)
 
     local RefreshList
 

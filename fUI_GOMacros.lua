@@ -642,6 +642,9 @@ end
 
 local FOOD_DRINK_SCAN_COOLDOWN_SEC = 1.0
 local FOOD_DRINK_SCAN_MIN_DELAY_SEC = 0.10
+local FOOD_DRINK_RETRY_MAX_ATTEMPTS = 8
+local FOOD_DRINK_RETRY_INITIAL_DELAY_SEC = 0.50
+local FOOD_DRINK_RETRY_MAX_DELAY_SEC = 3.00
 
 local FOOD_MACRO_NAME = "FGO Food"
 local DRINK_MACRO_NAME = "FGO Drink"
@@ -698,7 +701,32 @@ local FoodDrink = {
     createdDrink = false,
     lastFoodID = 0,
     lastDrinkID = 0,
+
+    lastBagScan = { anySlots = false, anyItems = false, at = 0 },
+    retryAttempts = 0,
+    retryTimerArmed = false,
 }
+
+local function IsFoodDrinkActive()
+    if FoodDrink.createdFood or FoodDrink.createdDrink then
+        return true
+    end
+    if type(GetMacroIndexByName) == "function" then
+        if (GetMacroIndexByName(FOOD_MACRO_NAME) or 0) > 0 then
+            return true
+        end
+        if (GetMacroIndexByName(DRINK_MACRO_NAME) or 0) > 0 then
+            return true
+        end
+    end
+    return false
+end
+
+local function HasPendingItemData()
+    return next(FoodDrink.itemsPending) ~= nil
+end
+
+local ScheduleFoodDrinkRetry
 
 local function StrNum(s)
     if not s then return 0 end
@@ -864,7 +892,31 @@ local function ParseFoodDrinkRates(itemID)
     end
 
     local hpMax = UnitHealthMax("player") or 0
-    local mpMax = UnitPowerMax("player", 0) or 0
+
+    -- Percent-based tooltips can say "100% Mana" even on classes/specs that don't use mana.
+    -- Using powerType=0 would yield mpMax=0 and cause those items to be ignored.
+    -- Prefer the player's active power type max; fall back to any non-zero power max.
+    local mpMax = 0
+    do
+        local pt = nil
+        if UnitPowerType then
+            local ok, p = pcall(UnitPowerType, "player")
+            if ok then
+                pt = p
+            end
+        end
+        if UnitPowerMax and pt ~= nil then
+            mpMax = UnitPowerMax("player", pt) or 0
+        end
+        if mpMax <= 0 and UnitPowerMax then
+            for p = 0, 10 do
+                local v = UnitPowerMax("player", p) or 0
+                if v and v > mpMax then
+                    mpMax = v
+                end
+            end
+        end
+    end
     local kwHealth = tostring(_G.HEALTH or "health"):lower()
     local kwMana = tostring(_G.MANA or "mana"):lower()
 
@@ -1019,7 +1071,13 @@ local function ParseFoodDrinkRates(itemID)
     -- If we got nothing useful and the tooltip is effectively empty, treat as pending item data.
     if st.hRate <= 0 and st.mRate <= 0 then
         local joined = table.concat(lines, " "):lower()
-        local looksEmpty = (#joined <= 8) or (not joined:find("%d") and not joined:find("%%") and not joined:find(kwHealth, 1, true) and not joined:find(kwMana, 1, true))
+        -- At login, consumable tooltips are sometimes missing restore lines (only name/req lines).
+        -- If we don't see any restore signal, request item data and retry later.
+        local hasRestoreSignal = (joined:find("%%", 1, true) ~= nil)
+            or (joined:find("restores", 1, true) ~= nil)
+            or (joined:find(kwHealth, 1, true) ~= nil)
+            or (joined:find(kwMana, 1, true) ~= nil)
+        local looksEmpty = (#joined <= 8) or (not hasRestoreSignal)
         if looksEmpty then
             C_Item.RequestLoadItemDataByID(itemID)
             FoodDrink.itemsPending[itemID] = true
@@ -1074,10 +1132,14 @@ local function PickBestFromBags(kind)
 
     for bag = 0, GetHighestPlayerBagIndex() do
         local n = C_Container and C_Container.GetContainerNumSlots and (C_Container.GetContainerNumSlots(bag) or 0) or 0
+        if n and n > 0 then
+            FoodDrink.lastBagScan.anySlots = true
+        end
         for slot = 1, n do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             local id = info and info.itemID
             if id then
+                FoodDrink.lastBagScan.anyItems = true
                 local qty = (GetItemCount and GetItemCount(id, false)) or 0
                 if qty and qty > 0 then
                     local e = ClassifyFoodDrink(id)
@@ -1086,6 +1148,7 @@ local function PickBestFromBags(kind)
                         if rate and rate > 0 then
                             local score = rate
                             if preferConjured and e.conjured then
+                                -- Absolute priority when enabled.
                                 score = score + 1e12
                             end
                             if score > bestScore or (score == bestScore and id < bestID) then
@@ -1134,6 +1197,10 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
         return false, "in-combat"
     end
 
+    FoodDrink.lastBagScan.anySlots = false
+    FoodDrink.lastBagScan.anyItems = false
+    FoodDrink.lastBagScan.at = GetTime()
+
     local bestFood = tonumber(PickBestFromBags("food")) or 0
     local bestDrink = tonumber(PickBestFromBags("drink")) or 0
 
@@ -1168,8 +1235,21 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
 
     FoodDrink.needsRewrite = blocked
     if blocked then
+        if not FoodDrink.lastBagScan.anySlots then
+            ScheduleFoodDrinkRetry("bags not ready")
+            return false, "bags not ready"
+        end
+        if HasPendingItemData() then
+            ScheduleFoodDrinkRetry("item data pending")
+            return false, "item data pending"
+        end
+        FoodDrink.retryAttempts = 0
+        FoodDrink.retryTimerArmed = false
         return false, "no food/drink candidate"
     end
+
+    FoodDrink.retryAttempts = 0
+    FoodDrink.retryTimerArmed = false
     return true
 end
 
@@ -1209,6 +1289,26 @@ local function RequestFoodDrinkScan(forceRewrite)
     end
 end
 
+ScheduleFoodDrinkRetry = function(_)
+    if FoodDrink.retryTimerArmed then return end
+    if (FoodDrink.retryAttempts or 0) >= FOOD_DRINK_RETRY_MAX_ATTEMPTS then return end
+    if not IsFoodDrinkActive() then return end
+
+    FoodDrink.retryAttempts = (FoodDrink.retryAttempts or 0) + 1
+    FoodDrink.retryTimerArmed = true
+
+    local delay = FOOD_DRINK_RETRY_INITIAL_DELAY_SEC * (FoodDrink.retryAttempts or 1)
+    if delay > FOOD_DRINK_RETRY_MAX_DELAY_SEC then
+        delay = FOOD_DRINK_RETRY_MAX_DELAY_SEC
+    end
+
+    C_Timer.After(delay, function()
+        FoodDrink.retryTimerArmed = false
+        if not IsFoodDrinkActive() then return end
+        RequestFoodDrinkScan(true)
+    end)
+end
+
 do
     local f = CreateFrame("Frame")
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -1220,21 +1320,6 @@ do
     f:RegisterEvent("UNIT_MAXPOWER")
 
     f:SetScript("OnEvent", function(_, event, arg1, arg2)
-        local function IsFoodDrinkActive()
-            if FoodDrink.createdFood or FoodDrink.createdDrink then
-                return true
-            end
-            if type(GetMacroIndexByName) == "function" then
-                if (GetMacroIndexByName(FOOD_MACRO_NAME) or 0) > 0 then
-                    return true
-                end
-                if (GetMacroIndexByName(DRINK_MACRO_NAME) or 0) > 0 then
-                    return true
-                end
-            end
-            return false
-        end
-
         if event == "PLAYER_ENTERING_WORLD" then
             C_Timer.After(1.0, function()
                 if IsFoodDrinkActive() then

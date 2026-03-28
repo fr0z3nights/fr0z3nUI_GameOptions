@@ -617,14 +617,7 @@ InitSV = function()
                     mains = {},
                     mainText = "",
                     otherText = [[/console Sound_MasterVolume 0.5
-/console Sound_EnableMusic 1
-/zygor hide
-/cancelaura safari hat
-/dejunk destroy
-/stopmacro [flying]
-/dugi automountoff
-/dismount
-/logout]],
+/console Sound_EnableMusic 1]],
                 }
             end
         end
@@ -3287,8 +3280,12 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 else
                     if why == "in-combat" then
                         Print("Yum: deferred (combat)")
+                    elseif why == "bags not ready" then
+                        Print("Yum: bags not ready yet (login) — retrying")
+                    elseif why == "item data pending" then
+                        Print("Yum: item data not ready yet — retrying")
                     elseif why == "no food/drink candidate" then
-                        Print("Yum: no valid food/drink found in bags yet")
+                        Print("Yum: no valid food/drink found in bags")
                     else
                         Print("Yum failed: " .. tostring(why))
                     end
@@ -3395,6 +3392,19 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 ["mkmacro"] = true,
                 ["script"] = true,
                 ["scripterrors"] = true,
+                -- Back-compat: historical macro docs used /fgo cscript.
+                -- Treat this as a full command so it doesn't get glued into c-mode.
+                ["cscript"] = true,
+                ["cscripterrors"] = true,
+                ["cloot"] = true,
+                ["cmouse"] = true,
+                ["ctrade"] = true,
+                ["cfriend"] = true,
+                ["cbars"] = true,
+                ["cbagrev"] = true,
+                ["ctoken"] = true,
+                ["csetup"] = true,
+                ["cfish"] = true,
                 ["sharpen"] = true,
                 ["whispin"] = true,
                 ["mountequip"] = true,
@@ -3423,6 +3433,30 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                         cmd = first
                     end
                 end
+            end
+        end
+
+        -- Back-compat aliases (avoid Macro CMD mode-glue parsing).
+        do
+            local map = {
+                -- Legacy README-style commands (old seeds used a leading 'c').
+                cscript = "script",
+                cscripterrors = "scripterrors",
+                cloot = "loot",
+                cmouse = "mouse",
+                ctrade = "trade",
+                cfriend = "friend",
+                cbars = "bars",
+                cbagrev = "bagrev",
+                ctoken = "token",
+                csetup = "setup",
+                cfish = "fish",
+            }
+            local to = map[cmd]
+            if to then
+                cmd = to
+                -- Keep fallback behavior consistent (it uses the full msg string).
+                msg = cmd .. ((rest and rest ~= "") and (" " .. rest) or "")
             end
         end
 
@@ -3793,8 +3827,13 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 Print("|cff00ccffMount Up|r " .. status)
             end
 
+            local function MU_PrintGround()
+                local on = (AutoGossip_CharSettings.mountUpForceGroundChar and true or false)
+                Print("|cff00ccffMount Up|r Ground: " .. (on and "ON" or "OFF"))
+            end
+
             if sub == "" then
-                Print("Usage: /fgo mu acc|on|son|off|soff|sw|types|mounted|preferred")
+                Print("Usage: /fgo mu acc|on|son|off|soff|sw|gon|goff|types|mounted|preferred")
                 return
             end
 
@@ -3851,7 +3890,21 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 return
             end
 
-            Print("Usage: /fgo mu acc|on|son|off|soff|sw|types|mounted|preferred")
+            if sub == "gon" then
+                AutoGossip_CharSettings.mountUpForceGroundChar = true
+                MU_PrintGround()
+                MU_SettingsChanged()
+                return
+            end
+
+            if sub == "goff" then
+                AutoGossip_CharSettings.mountUpForceGroundChar = false
+                MU_PrintGround()
+                MU_SettingsChanged()
+                return
+            end
+
+            Print("Usage: /fgo mu acc|on|son|off|soff|sw|gon|goff|types|mounted|preferred")
             return
         end
 
@@ -3953,10 +4006,12 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         end
 
         if cmd == "scripterrors" or cmd == "script" then
-            -- Keep /fgo script working, but route through Macro CMD so it stays editable.
-            if ns and ns.MacroXCMD_HandleSlashMode then
-                ns.MacroXCMD_HandleSlashMode("d", "script")
-                return
+            -- Prefer Macro CMD so it stays editable, but fall back to a direct CVar
+            -- toggle if the Macro CMD entry doesn't exist.
+            if ns then
+                if type(ns.MacroXCMD_RunAuto) == "function" and ns.MacroXCMD_RunAuto("script") then
+                    return
+                end
             end
             ToggleCVar("ScriptErrors", "ScriptErrors")
             return
@@ -4126,7 +4181,40 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         end
     end
 
-    if msg:lower() == "petbattle" then
+    local msgLower = msg:lower()
+
+    if msgLower == "?" or msgLower == "help" then
+        Print("/fgo           - open/toggle window")
+        Print("/fgo <id>      - open window + set option id")
+        Print("/fgo list      - print current gossip options")
+        Print("/fgo petbattle - force-enable pet battle auto-accept")
+        Print("/fgo yum       - force-update FGO Food/Drink macros")
+        Print("/fgo yump      - yum + print status")
+        Print("/fgo x ...     - exclusion macros (old /fgo m behavior)")
+        Print("/fgo m ...     - macros (no character boxes)")
+        Print("/fgo c ...     - faction macros (Both + Alliance/Horde)")
+        Print("/fgo d ...     - other macros (everything not in x/m/c)")
+        Print("/fgo hm ...    - housing macros (see 'Home' tab)")
+        Print("/fgo hs ...    - hearth status helper (used by 'Macros' tab macros)")
+        Print("/fgo script    - toggle ScriptErrors (used by 'Macros' tab macros)")
+        Print("/fgo scope     - show all /fgo commands (copy/edit)")
+        Print("/fgo loot      - toggle Auto Loot")
+        Print("/fgo mouse     - toggle Loot Under Mouse")
+        Print("/fgo clickmove - toggle Click2Move")
+        Print("/fgo mountequip - warn if mount equipment slot empty")
+        Print("/fgo mu ...    - Mount Up (auto mount) controls")
+        Print("/fgo vault     - toggle Great Vault window")
+        Print("/fgo trade     - toggle Block Trades")
+        Print("/fgo friend    - toggle Friendly Names")
+        Print("/fgo bars      - toggle ActionBar Lock")
+        Print("/fgo bagrev    - toggle Bag Sort Reverse")
+        Print("/fgo sharpen   - toggle always sharpen")
+        Print("/fgo whispin   - set whispers to inline")
+        Print("/fgo token     - print WoW Token price")
+        return
+    end
+
+    if msgLower == "petbattle" then
         -- Force-enable pet battle "Prepare yourself!" auto-accept (macro-friendly; no prints).
         InitSV()
         AutoGossip_Settings.autoAcceptPetPrepareAcc = true
@@ -4138,7 +4226,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         ToggleUI(n)
         return
     end
-    if msg == "list" then
+    if msgLower == "list" then
         PrintCurrentOptions(false)
         return
     end
@@ -4211,6 +4299,11 @@ function ns.FGO_OnEvent(event, arg1)
         if ns and type(ns.MacroXCMD_ArmAllClickButtons) == "function" then
             pcall(ns.MacroXCMD_ArmAllClickButtons)
         end
+
+        -- Click aliases: auto-arm proxy buttons (optional; out of combat only).
+        if ns and type(ns.ClickAlias_AutoArmIfEnabled) == "function" then
+            pcall(ns.ClickAlias_AutoArmIfEnabled)
+        end
         local talkUP = ns and ns.TalkUP or nil
         if talkUP and type(talkUP.Setup) == "function" then
             talkUP.Setup()
@@ -4249,6 +4342,11 @@ function ns.FGO_OnEvent(event, arg1)
         -- Macro CMD: arm per-character secure /click buttons once we have full player context.
         if ns and type(ns.MacroXCMD_ArmAllClickButtons) == "function" then
             pcall(ns.MacroXCMD_ArmAllClickButtons)
+        end
+
+        -- Click aliases: auto-arm proxy buttons (optional; out of combat only).
+        if ns and type(ns.ClickAlias_AutoArmIfEnabled) == "function" then
+            pcall(ns.ClickAlias_AutoArmIfEnabled)
         end
         if AutoGossipOptions and AutoGossipOptions.UpdateChromieLabel then
             AutoGossipOptions.UpdateChromieLabel()
@@ -4299,6 +4397,11 @@ function ns.FGO_OnEvent(event, arg1)
         -- Macro CMD: if secure button arming was blocked in combat, retry now.
         if ns and type(ns.MacroXCMD_ArmAllClickButtons) == "function" then
             pcall(ns.MacroXCMD_ArmAllClickButtons)
+        end
+
+        -- Click aliases: if proxy button arming was blocked in combat, retry now.
+        if ns and type(ns.ClickAlias_AutoArmIfEnabled) == "function" then
+            pcall(ns.ClickAlias_AutoArmIfEnabled)
         end
         local QA = GetSwitchesQA()
         if QA and QA.OnPlayerRegenEnabled then

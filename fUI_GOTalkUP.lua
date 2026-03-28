@@ -174,26 +174,60 @@ local function MaybePrintRuleHint(npcID, optionID, entry)
     end
 
     if hintKey == "MidnightFishing" then
-        local knows = GetCachedTier(2159)
-        if knows == nil then
-            return
+        local dbg = AutoGossip_Settings and AutoGossip_Settings.debugAcc
+        if dbg and ns and ns.Talk and type(ns.Talk.PrintDebugOptionsOnShow) == "function" then
+            -- Debug helper: dump live option IDs/text so mismatches can be fixed.
+            ns.Talk.PrintDebugOptionsOnShow()
         end
+
+        local knows = GetCachedTier(2159)
+        if knows == nil and ns and ns.Profs and type(ns.Profs.KnowsFishingClassicOrMidnight) == "function" then
+            knows = ns.Profs.KnowsFishingClassicOrMidnight()
+        end
+
+        if dbg then
+            Print("Hint MidnightFishing: knows=" .. tostring(knows))
+        end
+
         if knows == true then
             return
         end
-        Print("Train Midnight Fishing")
+        if knows == false then
+            Print("Train Midnight Fishing")
+        end
         return
     end
 
     if hintKey == "MidnightCooking" then
-        local knows = GetCachedTier(2156)
-        if knows == nil then
-            return
+        local dbg = AutoGossip_Settings and AutoGossip_Settings.debugAcc
+        if dbg and ns and ns.Talk and type(ns.Talk.PrintDebugOptionsOnShow) == "function" then
+            -- Debug helper: dump live option IDs/text so mismatches can be fixed.
+            ns.Talk.PrintDebugOptionsOnShow()
         end
+
+        local knows = GetCachedTier(2156)
+        if ns and ns.Profs and type(ns.Profs.KnowsCookingMidnight) == "function" then
+            -- Do NOT trust cached=false here: if the player just trained, we want to
+            -- immediately re-check and flip the cache to true.
+            if knows ~= true then
+                knows = ns.Profs.KnowsCookingMidnight()
+            end
+        end
+
+        if dbg then
+            Print("Hint MidnightCooking: knows=" .. tostring(knows))
+        end
+
         if knows == true then
             return
         end
-        Print("Train Midnight Cooking")
+        if knows == false then
+            local msg = "SKILL:  Midnight Cooking Missing"
+            if type(WrapTextInColorCode) == "function" then
+                msg = WrapTextInColorCode(msg, "ffff8000")
+            end
+            Print(msg)
+        end
         return
     end
 
@@ -202,6 +236,9 @@ local function MaybePrintRuleHint(npcID, optionID, entry)
         Print(hintKey)
     end
 end
+
+-- Public hook for the gossip auto-selector.
+M.MaybePrintRuleHint = MaybePrintRuleHint
 
 
 local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dialogText)

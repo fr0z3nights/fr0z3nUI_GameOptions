@@ -419,7 +419,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[133293] = { text = "Train me in Mining", type = "", prio = -5 }
 
    local t = NPC("Ceera <Banker>", 239664)
-   t[132676] = { text = "Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Ceera (239664)
+   t[132676] = { text = "H Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Ceera (239664)
+   t[134013] = { text = "A The Alliance will be staying here temporarily.", type = "", prio = 9 }  -- Paved in Ash (86735) Ceera (239664)
    t[132677] = { text = "I would like to check my deposit box.", type = "", prio = -10 }
 
    local t = NPC("Commander Venei Lightblood", { 248630, })
@@ -434,8 +435,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[135052] = { text = "Hail the victories of the Vanguard and Sin'dorei you have seen so far.", type = "" }  -- Deepening Shadows (91854) Doomsayer (248826)
 
    local t = NPC("Drathen", 253468)
-   t.__meta.stopIfQuestAvailable = 92869  -- Fishy Dis-pondencies: block auto-selecting options until quest is accepted
-   t.__meta.stopIfQuestTurnIn = 92869     -- Fishy Dis-pondencies: block auto-selecting options while ready to turn in
+   t.__meta.stopIfQuestAvailable = 92869                                                                       -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestTurnIn = 92869                                                                          -- First NPCID, Stops Gossip until quest is accepted
    t[136540] = { text = "Train me.", type = "" }
 
    local t = NPC("Gaari", { 247647, })
@@ -479,7 +480,12 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[133545] = { text = "We killed Aradis and freed the people he too from Murder Row.", type = "" }           -- What We're Owed (89208) Magister Dawnblaze (241490)
 
    local t = NPC("Magistrix Narinth", 239673)
-   t[132678] = { text = "Lor'themar has has allowed us to stay in the city...", type = "", prio = 10 }  -- Paved in Ash (86735) Magistrix Narinth (239673)
+   t[132678] = { text = "H Lor'themar has has allowed us to stay in the city...", type = "", prio = 10 }       -- Paved in Ash (86735) Magistrix Narinth (239673)
+   t[134011] = { text = "A The Alliance will be staying longer than expected.", type = "", prio = 10 }         -- Paved in Ash (86735) Magistrix Narinth (239673)
+
+   local t = NPC("Magistrix Nizara", 240940)
+   t[134014] = { text = "A The Alliance will be staying longer than expected.", type = "", prio = 10 }         -- Paved in Ash (86735) Magistrix Nizara (240940)
+   t[132845] = { text = "Let me browse your goods.", type = "", prio = -10 }                                   -- Quartermaster Magistrix Nizara (240940)
 
    local t = NPC("Miss Len'dali", { 244471, })
    t[133938] = { text = [[My employer sent me to purchase some "special" reagents]], type = "" }               -- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
@@ -491,7 +497,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[135112] = { text = "<Explain the events of the Sunwell.>", type = "" }                                    -- Deepening Shadows (91854) Sin'dorei Vendor (249174)
 
    local t = NPC("Skymaster Skyles", 239639)
-   t[132674] = { text = "Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Skymaster Skyles (239639)
+   t[132674] = { text = "H Lor'themar has requested that we be allowed...", type = "", prio = 10 }  -- Paved in Ash (86735) Skymaster Skyles (239639)
+   t[134010] = { text = "A The Alliance will be staying here temporarily...", type = "", prio = 9 }  -- Paved in Ash (86735) Skymaster Skyles (239639)
    t[132675] = { text = "Show me where I can fly.", type = "", prio = -10 }
 
    local t = NPC("Tarelin", { 244474, })
@@ -561,13 +568,32 @@ SetZone("Voidstorm, Eastern Kingdoms")
    t[132795] = { text = "<Tell Alleria you're ready to claim the Mantle.>", type = "" }            -- The Mantle of Predation (86518) Alleria Windrunner (235502)
    t[132672] = { text = "<Tell Alleria you're ready to enter Nexus-Point Xenas...>", type = "" }   -- Nexus-Point Xenas: Eclipse (86521) Alleria Windrunner (235763)
 
-   local t = NPC("Decimus", { 235607, 235392, 235653, 243276, })
+   local t = NPC("Ancient Tablet", { 616667, 616704, 616705, })
+   t[138319] = { text = "<Ask Alayshen what he thinks.>", type = "" }                              -- Buried in the Dark (92946) Ancient Tablet (616667)
+   t[138332] = { text = "<Ask Alayshen what he thinks.>", type = "" }                              -- Buried in the Dark (92946) Ancient Tablet (616704)
+   t[138333] = { text = "<Ask Alayshen what he thinks.>", type = "" }                              -- Buried in the Dark (92946) Ancient Tablet (616705)
+
+   local t = NPC("Decimus", { 235607, 235392, 235653, 243276, 248583, 244948, })
+   t[132998] = { text = "<Apply force.>", type = "" }                                              -- Reliable Enemies (86536) Decimus (235607)
    t[135469] = { text = "How did Xal'atath take control of the ethereals?", type = "" }            -- Reliable Enemies (86536) Decimus (235607)
    t[132757] = { text = "Explain yourself.", type = "" }                                           -- Post Mortem (86544) Decimus (235392)
    t[132673] = { text = "Shut it down!", type = "" }                                               -- Nexus-Point Xenas: Eclipse (86521) Decimus (235653)
+   t[134880] = { text = "I am ready to begin!", type = "" }                                        -- Artifice of Agression (90915) Decimus (248583)
+   t[135125] = { text = "<Tell Decimus your favorite food is ripe, fresh fruit.>", type = "" }     -- Warmth for the Soul (90920) Decimus (248583)
+   t[135136] = { text = "<Tell Decimus you fear spiders.>", type = "" }                            -- Warmth for the Soul (90920) Decimus (248583)
+   t[135131] = { text = "<Tell Decimus you regret all the lives you could not save.>", type = "" } -- Warmth for the Soul (90920) Decimus (248583)
+
+   local t = NPC("Fidoficus", { 246791, })
+   t[134827] = { text = "<Feed the delicious snack to Fidoficus.>", type = "" }                   -- Belly of the Beast (91380) Fidoficus (246791)
 
    local t = NPC("High Exarch Turalyon", { 239810, })
    t[138593] = { text = "Let's move on. <Skip.>", type = "" }                                      -- Nothing Stands Forever (88706) High Exarch Turalyon (239810)
+
+   local t = NPC("Hospitus", { 235701, })
+   t[135474] = { text = "What do you have for sale?", type = "" }                                  -- Innkeeper Hospitus (235701)
+
+   local t = NPC("Kifaan", { 244499, })
+   t[136789] = { text = "<Hand Kifaan the Interrogated Data to interpret.>", type = "" }           -- Fits of Lucidity (90844) Kifaan (244499)
 
    local t = NPC("Lady Darkglen", { 241170, })
    t[132555] = { text = "I'll find Hieron. Regroup with the others.", type = "" }                  -- Vanished in the Void (86517) Lady Darkglen (241170)
@@ -576,8 +602,14 @@ SetZone("Voidstorm, Eastern Kingdoms")
    t[132585] = { text = "Tell Lothraxion you're ready to survey the Voidstorm.>", type = "" }      -- The Far Far Frontier (86881) Lothraxion (235522)
    t[132756] = { text = "<Ask how Lothraxion is doing.>", type = "" }                              -- Post Mortem (86544) Lothraxion (235725)
 
+   local t = NPC("Matrean Dawnfall", { 236908, })
+   t[132965] = { text = "<Urge Matrean to give up his search and return ...>", type = "" }        -- Violent Conclusions (88708) Matrean Dawnfall (236908)
+
    local t = NPC("Magister Umbric", { 239828, })
    t[133258] = { text = "Scrying platform?", type = "" }                                           -- Clarity of Purpose (88697) Magister Umbric (239828)
+
+   local t = NPC("Ravenia", { 246727, })
+   t[134864] = { text = "I slew the Den-Gorger while Fidoficus cowered in fear.", type = "" }      -- Mighty and Superior (91382) Ravenia (246727)
 
    local t = NPC("Research Console", { 257042, })
    t[137576] = { text = "Commune with the Console.>", type = "" }                                  -- Reaserching the Storm (93970) Research Console (257042)
@@ -592,7 +624,8 @@ SetZone("Voidstorm, Eastern Kingdoms")
    t[132556] = { text = "Darkglen and Maella are fine.", type = "" }                               -- Vanished in the Void (86517) Riftwalker Hieron (238530)
 
    local t = NPC("Void Reasercher Anomander", { 248328, })
-   t[138232] = { text = "<Inquire about Anomander's reaserch.>", type = "" }                       -- Domus Penumbra (86510) Void Reasercher Anomander (248328)
+   t[138232] = { text = "<Inquire about Anomander's reaserch.>", type = "", prio = 10 }            -- Domus Penumbra (86510) Void Reasercher Anomander (248328)
+   t[138438] = { text = "Can I see the Renown items you have for sale?", type = "", prio = -10 }   -- Quartermaster Void Reasercher Anomander (248328)
 
 SetZone("Zul'Aman, Eastern Kingdoms")
 
@@ -602,8 +635,15 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    local t = NPC("Assistant Grgl-Grgl", { 250292, })
    t[137485] = { text = "King Mrgl-Mrgl is safe at the top of the temple.", type = "" }            -- Following Suit (92166) Assistant Grgl-Grgl (250292)
 
+   local t = NPC("Chel the Chip", { 241928, })
+   t.__meta.stopIfQuestAvailable = { 91932, 89507, }                                               -- First NPCID, Stops Gossip until quest is accepted
+   t[134905] = { text = "Let me browse your goods.", type = "" }                                   -- Vendor Chel the Chip (241928)
+
    local t = NPC("Daki", { 253604, })
    t[136586] = { text = "Head to Mixer Jamanga, He is making an anti-venom.", type = "" }          -- Validating the Venom (91405) Daki (253604)
+
+   local t = NPC("Dundun", { 251601, })
+   t[135092] = { text = "<Learn the ways of Abundance.", type = "" }                               -- The Abundant Awakening (91932) Dundun (251601)
 
    local t = NPC("Eagletender Rhyd", { 254842, })
    t[137198] = { text = "<Deliver the supplies.>", type = "" }                                     -- Shrine, Sealed, Delivered (93433) Eagletender Rhyd (254842)
@@ -634,7 +674,8 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    t[137968] = { text = "Let's have a tea party.", type = "", close = true }                       -- Temple and a Teapot (93181) Kanza (258363)
 
    local t = NPC("Kel'vujo", { 253999, })
-   t[137663] = { text = "Good luck fighting with your legs frozen to the ground.", type = "" }     -- Amani Honor (93096) Kel'vujo (253999)
+   t[137663] = { text = "HN Good luck fighting with your legs frozen to the ground.", type = "" }  -- Amani Honor (93096) Kel'vujo (253999)
+   t[137655] = { text = "DH I may be \"blind,\" but I see you intend to betray me.", type = "" }   -- Amani Honor (93096) Kel'vujo (253999)
 
    local t = NPC("Kovu", { 257807, })
    t[137451] = { text = "<Tell Kovu to demonstrate his combat...>", type = "" }                    -- Got No Rhythm (93048) Kovu (257807)
@@ -676,8 +717,8 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    t[137188] = { text = "<Tell Ri'kari you're ready...>", type = "" }                              -- The Final Exam (93051)   Ri'kari (255907)
 
    local t = NPC("Shim'dak", { 253037, })
-   t[39623] = { text = "Train Me.", type = "", prio = 0 }  -- Cooking Trainer  Shim'dak (253037)
-   t[39624] = { text = "Let me browse your goods.", type = "", prio = 5, print = "MidnightCooking" } -- Cooking Trainer  Shim'dak (253037)
+   t[39623] = { text = "Train Me.", type = "", prio = 0 }                                          -- Cooking Trainer  Shim'dak (253037)
+   t[39624] = { text = "Let me browse your ...", type = "", prio = 5, print = "MidnightCooking" }  -- Cooking Trainer  Shim'dak (253037)
 
    local t = NPC("Tak'lejo", { 244562, })
    t[135286] = { text = "Where are the shamans?", type = "" }                                      -- Left in the Shadows (86652)   Tak'lejo (244562)

@@ -12,6 +12,8 @@ Current flow:
 
 /fgo vault
 
+What it does:
+
 /run C_AddOns.LoadAddOn("Blizzard_WeeklyRewards");
 /run if WeeklyRewardsFrame:IsShown() then WeeklyRewardsFrame:Hide() else WeeklyRewardsFrame:Show() end
 
@@ -19,23 +21,31 @@ Current flow:
 
 /fgo mountequip
 
+What it does:
+
 /run if not C_MountJournal.GetAppliedMountEquipmentID() then print(WrapTextInColorCode("WARNING: Mount equipment slot is EMPTY!", "ffff8000")) end
 
 #### #### #### #### #### #### #### 
 
-/fgo cloot
+/fgo loot
+
+What it does:
 
 /run local k,v = "autoLootDefault" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Auto Loot " .. (v == "1" and "Disabled" or "Enabled"))
 
 #### #### #### #### #### #### #### 
 
-/fgo cscript
+/fgo script
+
+What it does:
 
 /run local k,v = "ScriptErrors" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("ScriptErrors " .. (v == "1" and "Disabled" or "Enabled"))
 
 #### #### #### #### #### #### #### 
 
-/fgo cmouse
+/fgo mouse
+
+What it does:
 
 /run local k,v = "lootUnderMouse" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Loot Under Mouse " .. (v == "1" and "Disabled" or "Enabled"))
 
@@ -43,29 +53,39 @@ Current flow:
 
 /fgo clickmove
 
+What it does:
+
 /run local k,v = "autointeract" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Click2Move " .. (v == "1" and "Disabled" or "Enabled"))
 
 #### #### #### #### #### #### #### 
 
-/fgo ctrade
+/fgo trade
+
+What it does:
 
 /run local k,v = "blockTrades" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Block Trades " .. (v == "1" and "Disabled" or "Enabled"))
 
 #### #### #### #### #### #### #### 
 
-/fgo cfriend
+/fgo friend
+
+What it does:
 
 /run local k,v = "UnitNameFriendlyPlayerName" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Friendly Names " .. (v == "1" and "Disabled" or "Enabled"))
 
 #### #### #### #### #### #### #### 
 
-/fgo cbars
+/fgo bars
+
+What it does:
 
 /run local k,v = "lockActionBars" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("ActionBar Lock " .. (v == "1" and "Disabled" or "Enabled"))
 
 #### #### #### #### #### #### #### 
 
-/fgo cbagrev
+/fgo bagrev
+
+What it does:
 
 /run local k,v = "reverseCleanupBags" v = C_CVar.GetCVar(k) C_CVar.SetCVar(k, 1 - v) print("Bag Sort Reverse " .. (v == "1" and "Disabled" or "Enabled"))
 
@@ -73,23 +93,31 @@ Current flow:
 
 /fgo sharpen
 
+What it does:
+
 /run local o = GetCVarBool("ResampleAlwaysSharpen"); SetCVar("ResampleAlwaysSharpen", not o); print("Sharper " .. (o and "Off" or "On"))
 
 #### #### #### #### #### #### #### 
 
 /fgo whispin
 
+What it does:
+
 /run SetCVar("whisperMode", "inline")
 
 #### #### #### #### #### #### #### 
 
-/fgo ctoken
+/fgo token
+
+What it does:
 
 /run C_WowTokenPublic.UpdateMarketPrice(); C_Timer.After(2,function () print("WoW Token: ") print(GetMoneyString(    C_WowTokenPublic.GetCurrentMarketPrice())) end);
 
 #### #### #### #### #### #### #### 
 
-/fgo csetup
+/fgo setup
+
+What it does:
 
 /console autoLootDefault 1
 /console deselectOnClick 1
@@ -101,26 +129,46 @@ Current flow:
 
 #### #### #### #### #### #### #### #### #### #### 
 
-/fgo cfish
+/fgo fish
 
-/dugi automountoff
+What it does:
+
 /console autoLootDefault 1
 /console Sound_EnableMusic 0
 /console Sound_MasterVolume 1
+
+Suggested macro
+
+/fgo fish
 /dismount [noflying, mounted]
 /leavevehicle [canexitvehicle,noflying]
+/cast Fishing
+
+Alternate macro
+
+/fgo fish
+/fgo mu soff
+/dismount [noflying, mounted]
+/leavevehicle [canexitvehicle,noflying]
+/cast Fishing
 
 #### #### #### #### #### #### #### #### #### #### 
 
 /fgo logout
 
+What it does:
+
 /console Sound_MasterVolume 0.5
 /console Sound_EnableMusic 1
-/zygor hide
-/cancelaura safari hat
-/dejunk destroy
+
+Suggested Macro Layout
+
 /stopmacro [flying]
-/dugi automountoff
+/fgo logout
+/fgo mu soff
+/cancelaura safari hat
+/zygor hide
+/dejunk destroy
 /dismount
 /logout
 
@@ -128,16 +176,21 @@ Current flow:
 
 /fgo exit
 
+What it does:
+
 /console Sound_MasterVolume 0.5
 /console Sound_EnableMusic 1
-/zygor hide
-/cancelaura safari hat
-/dejunk destroy
-/stopmacro [flying]
-/dugi automountoff
-/dismount
-/exit
 
+Suggested Macro:
+
+/stopmacro [flying]
+/fgo exit
+/fgo mu soff
+/cancelaura safari hat
+/zygor hide
+/dejunk destroy
+/dismount
+/logout
 
 # HEARTH Macro
 

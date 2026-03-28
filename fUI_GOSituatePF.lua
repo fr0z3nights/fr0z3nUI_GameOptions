@@ -536,27 +536,66 @@ end
 function Profs.KnowsCookingMidnight()
     local cache = EnsureCache()
     local cached = cache[2156]
-    if cached == true then
-        return true
-    end
+    -- NOTE: Do NOT blindly trust cached=true for Midnight Cooking.
+    -- Older builds could set this true via a false-positive probe; always allow
+    -- authoritative checks below to override it back to false.
 
     local sawEnumeratedLines = false
     local enumSaysKnown = nil
 
-    -- Most authoritative check: if the TradeSkill system can enumerate known profession
-    -- lines, we can definitively say whether the player knows Midnight Cooking.
+    local function IsMidnightCookingName(s)
+        if type(s) ~= "string" then
+            return false
+        end
+        if (issecretvalue and issecretvalue(s)) or (ns and type(ns.IsSecretString) == "function" and ns.IsSecretString(s)) then
+            return false
+        end
+        s = s:lower()
+        return s:find("midnight", 1, true) and s:find("cooking", 1, true)
+    end
+
+    local function TradeSkillLineLooksLikeMidnightCooking(skillLineID)
+        skillLineID = tonumber(skillLineID)
+        if not skillLineID then
+            return false
+        end
+        -- Known hard ID (keep as a fast path), but don't *only* rely on it.
+        if skillLineID == 2908 then
+            return true
+        end
+        if C_TradeSkillUI and type(C_TradeSkillUI.GetTradeSkillLineInfoByID) == "function" then
+            local ok, info = pcall(C_TradeSkillUI.GetTradeSkillLineInfoByID, skillLineID)
+            if ok and type(info) == "table" then
+                if IsMidnightCookingName(info.name) then
+                    return true
+                end
+            end
+        end
+        if C_TradeSkillUI and type(C_TradeSkillUI.GetProfessionInfoBySkillLineID) == "function" then
+            local ok, info = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, skillLineID)
+            if ok and type(info) == "table" then
+                if IsMidnightCookingName(info.professionName) or IsMidnightCookingName(info.name) then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    -- Strong positive check: if the TradeSkill system can enumerate known profession
+    -- lines, we can mark Midnight Cooking as known.
     if C_TradeSkillUI and type(C_TradeSkillUI.GetAllProfessionTradeSkillLines) == "function" then
         local ok, lines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
         if ok and type(lines) == "table" then
             sawEnumeratedLines = true
             enumSaysKnown = false
             for _, skillLineID in ipairs(lines) do
-                if tonumber(skillLineID) == 2908 then
+                if TradeSkillLineLooksLikeMidnightCooking(skillLineID) then
                     enumSaysKnown = true
                     break
                 end
             end
-            if enumSaysKnown then
+            if enumSaysKnown == true then
                 cache[2156] = true
                 if type(time) == "function" then
                     AutoGossip_CharSettings.knownSkillTiersAt = time()
@@ -566,40 +605,43 @@ function Profs.KnowsCookingMidnight()
         end
     end
 
-    -- Optional direct probe by skillLineID (if Blizzard provides it in this build).
+    -- If we have a cached value and no authoritative override, keep it.
+    if cached == true then
+        return true
+    end
+
+    -- Direct probe (strong positive when maxSkillLevel is non-zero).
+    -- NOTE: Do not treat a missing/zero table as a definitive negative.
+    local probeHadResult = false
+    local probeSaysKnown = nil
     if C_TradeSkillUI and type(C_TradeSkillUI.GetProfessionInfoBySkillLineID) == "function" then
         local ok, info = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, 2908)
-        if ok and type(info) == "table" then
-            cache[2156] = true
-            if type(time) == "function" then
-                AutoGossip_CharSettings.knownSkillTiersAt = time()
+        if ok then
+            probeHadResult = true
+            if type(info) == "table" then
+                local lvl = tonumber(info.skillLevel)
+                local maxLvl = tonumber(info.maxSkillLevel)
+                if (type(maxLvl) == "number" and maxLvl > 0) or (type(lvl) == "number" and lvl > 0) then
+                    probeSaysKnown = true
+                else
+                    probeSaysKnown = false
+                end
+            else
+                probeSaysKnown = false
             end
-            return true
         end
     end
 
-    -- Presence-based check: if the Professions UI can resolve the Midnight Cooking category at all,
-    -- treat it as known regardless of current skill level.
-    if C_TradeSkillUI and type(C_TradeSkillUI.GetCategoryInfo) == "function" then
-        local okMid, midCat = pcall(C_TradeSkillUI.GetCategoryInfo, 2156)
-        if okMid and type(midCat) == "table" then
-            cache[2156] = true
-            if type(time) == "function" then
-                AutoGossip_CharSettings.knownSkillTiersAt = time()
-            end
-            return true
+    if probeSaysKnown == true then
+        cache[2156] = true
+        if type(time) == "function" then
+            AutoGossip_CharSettings.knownSkillTiersAt = time()
         end
+        return true
     end
 
     -- Only return definitive "not known" when we have an authoritative negative (enumerated lines)
     -- or other strong evidence; otherwise keep tri-state nil so gossip rules don't misfire.
-    if sawEnumeratedLines and enumSaysKnown == false then
-        cache[2156] = false
-        if type(time) == "function" then
-            AutoGossip_CharSettings.knownSkillTiersAt = time()
-        end
-        return false
-    end
 
     -- Fallback: try to detect by known professions list (more reliable than C_TradeSkillUI
     -- during early frames, and also fixes the "cached false" case right after learning).
@@ -668,16 +710,13 @@ function Profs.KnowsCookingMidnight()
         end
     end
 
-    -- Try a targeted refresh (may still be nil if APIs not ready).
-    Profs.RefreshKnownSkillTiers({ 2156, 72 })
-    local v = cache[2156]
-    if v == true then
-        return true
-    end
-
-    -- Only return definitive "not known" if we also have evidence that Cooking is known.
-    -- (Avoid treating "0" levels as authoritative when APIs are half-ready.)
-    if v == false and cache[72] == true then
+    -- Conservative negative: only return false when we have a *strong* signal that
+    -- Midnight Cooking is missing (and not just "0 skill" / half-ready APIs).
+    if sawEnumeratedLines and enumSaysKnown == false and probeHadResult and probeSaysKnown == false then
+        cache[2156] = false
+        if type(time) == "function" then
+            AutoGossip_CharSettings.knownSkillTiersAt = time()
+        end
         return false
     end
 

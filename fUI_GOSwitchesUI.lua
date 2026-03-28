@@ -74,6 +74,10 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     local RIGHT_X = math.floor((BTN_W / 2) + COL_GAP + 0.5)
     local LEFT_X = -RIGHT_X
 
+    local SEG_GAP = 2
+    local SEG_W = math.floor((BTN_W - (SEG_GAP * 2)) / 3)
+    local SEG_W3 = BTN_W - (SEG_W * 2) - (SEG_GAP * 2)
+
     local function SetAcc2StateText(btn, label, enabled)
         if enabled then
             btn:SetText(label .. ": |cff00ccffON ACC|r")
@@ -82,41 +86,42 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         end
     end
 
-    -- Tutorials
-    local btnTutorial = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnTutorial:SetSize(BTN_W, BTN_H)
-    btnTutorial:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
-    if frame then
-        frame.btnTutorial = btnTutorial
+    local function SetGreenGrey(btn, label, enabled)
+        if enabled then
+            btn:SetText("|cff00ff00" .. label .. "|r")
+        else
+            btn:SetText("|cff888888" .. label .. "|r")
+        end
     end
 
-    local function UpdateTutorialButton()
-        InitSV()
-        local enabled = (AutoGossip_Settings and AutoGossip_Settings.tutorialEnabledAcc) and true or false
-        SetAcc2StateText(btnTutorial, "Tutorials", enabled)
+    local function SetTriState(btn, label, state)
+        -- Spec: Green / Orange / Grey = Off Acc / On Acc / On Char
+        if state == "acc" then
+            btn:SetText("|cffff9900" .. label .. "|r")
+        elseif state == "char" then
+            btn:SetText("|cff888888" .. label .. "|r")
+        else
+            btn:SetText("|cff00ff00" .. label .. "|r")
+        end
     end
 
-    btnTutorial:SetScript("OnClick", function()
-        InitSV()
-        AutoGossip_Settings.tutorialEnabledAcc = not (AutoGossip_Settings.tutorialEnabledAcc and true or false)
-        AutoGossip_Settings.tutorialOffAcc = not AutoGossip_Settings.tutorialEnabledAcc
-        if ns and ns.ApplyTutorialSetting then
-            ns.ApplyTutorialSetting(true)
+    local function MakeNumericBox(parent, width, height)
+        local eb = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+        eb:SetSize(width, height)
+        eb:SetAutoFocus(false)
+        eb:SetJustifyH("CENTER")
+        eb:SetTextInsets(1, 1, 0, 0)
+        if eb.SetNumeric then
+            eb:SetNumeric(true)
         end
-        UpdateTutorialButton()
-    end)
-    btnTutorial:SetScript("OnEnter", function()
-        if GameTooltip then
-            GameTooltip:SetOwner(btnTutorial, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Tutorials")
-            GameTooltip:AddLine("ON ACC: attempts to keep tutorials enabled.", 1, 1, 1, true)
-            GameTooltip:AddLine("OFF ACC: applies HideTutorial logic.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end
-    end)
-    btnTutorial:SetScript("OnLeave", function()
-        if GameTooltip then GameTooltip:Hide() end
-    end)
+
+        -- Borderless: hide the default InputBoxTemplate textures.
+        if eb.Left and eb.Left.Hide then eb.Left:Hide() end
+        if eb.Middle and eb.Middle.Hide then eb.Middle:Hide() end
+        if eb.Right and eb.Right.Hide then eb.Right:Hide() end
+
+        return eb
+    end
 
     -- Tooltip Border
     local btnBorder = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
@@ -160,7 +165,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     -- Queue Accept
     local btnQueueAccept = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnQueueAccept:SetSize(BTN_W, BTN_H)
-    btnQueueAccept:SetPoint("TOP", btnTutorial, "BOTTOM", 0, -GAP_Y)
+    btnQueueAccept:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
     if frame then
         frame.btnQueueAccept = btnQueueAccept
     end
@@ -213,87 +218,317 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         if GameTooltip then GameTooltip:Hide() end
     end)
 
-    -- Pet Popup Debug
-    local btnPetPopupDebug = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnPetPopupDebug:SetSize(BTN_W, BTN_H)
-    btnPetPopupDebug:SetPoint("TOP", btnQueueAccept, "BOTTOM", 0, -GAP_Y)
+    -- Row: PopUp / PopDbg / Reload (below Queue Accept)
+    local popupRow = CreateFrame("Frame", nil, panel)
+    popupRow:SetSize(BTN_W, BTN_H)
+    popupRow:SetPoint("TOP", btnQueueAccept, "BOTTOM", 0, -GAP_Y)
     if frame then
-        frame.btnPetPopupDebug = btnPetPopupDebug
+        frame.popupRow = popupRow
     end
 
-    local function UpdatePetPopupDebugButton()
-        InitSV()
-        local on = (AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc) and true or false
-        SetAcc2StateText(btnPetPopupDebug, "Pet Popup Debug", on)
-    end
-
-    btnPetPopupDebug:SetScript("OnClick", function()
-        InitSV()
-        AutoGossip_Settings.debugPetPopupsAcc = not (AutoGossip_Settings.debugPetPopupsAcc and true or false)
-        UpdatePetPopupDebugButton()
-    end)
-    btnPetPopupDebug:SetScript("OnEnter", function()
-        if GameTooltip then
-            GameTooltip:SetOwner(btnPetPopupDebug, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Pet Popup Debug")
-            GameTooltip:AddLine("ON ACC: log StaticPopup dialogs (name/text/args) so you can identify what is firing.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end
-    end)
-    btnPetPopupDebug:SetScript("OnLeave", function()
-        if GameTooltip then GameTooltip:Hide() end
-    end)
-
-    -- Pet Prepare Accept
-    local btnPetPrepareAccept = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnPetPrepareAccept:SetSize(BTN_W, BTN_H)
-    btnPetPrepareAccept:SetPoint("TOP", btnPetPopupDebug, "BOTTOM", 0, -GAP_Y)
+    local btnPopUp = CreateFrame("Button", nil, popupRow, "UIPanelButtonTemplate")
+    btnPopUp:SetSize(SEG_W, BTN_H)
+    btnPopUp:SetPoint("LEFT", popupRow, "LEFT", 0, 0)
     if frame then
-        frame.btnPetPrepareAccept = btnPetPrepareAccept
+        frame.btnPopUp = btnPopUp
     end
 
-    local function SetYellowGreyAccText(btn, label, enabled)
-        if enabled then
-            btn:SetText(label .. ": |cffffff00ON ACC|r")
-        else
-            btn:SetText(label .. ": |cff888888OFF ACC|r")
+    local btnPopDbg = CreateFrame("Button", nil, popupRow, "UIPanelButtonTemplate")
+    btnPopDbg:SetSize(SEG_W, BTN_H)
+    btnPopDbg:SetPoint("LEFT", btnPopUp, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnPopDbg = btnPopDbg
+    end
+
+    local btnReload = CreateFrame("Button", nil, popupRow, "UIPanelButtonTemplate")
+    btnReload:SetSize(SEG_W3, BTN_H)
+    btnReload:SetPoint("LEFT", btnPopDbg, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnReload = btnReload
+    end
+
+    local ebReloadSize = MakeNumericBox(popupRow, 22, BTN_H)
+    ebReloadSize:SetPoint("LEFT", btnReload, "RIGHT", 2, 0)
+    if frame then
+        frame.ebReloadSize = ebReloadSize
+    end
+
+    local function UpdatePopUpRow()
+        InitSV()
+        local popOn = (AutoGossip_Settings and AutoGossip_Settings.autoAcceptPetPrepareAcc) and true or false
+        local dbgOn = (AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc) and true or false
+        local reloadOn = (AutoGossip_UI and AutoGossip_UI.reloadFloatEnabled) and true or false
+        local size = (AutoGossip_UI and tonumber(AutoGossip_UI.reloadFloatTextSize)) or 12
+
+        SetGreenGrey(btnPopUp, "PopUp", popOn)
+        SetGreenGrey(btnPopDbg, "PopDbg", dbgOn)
+        SetGreenGrey(btnReload, "Reload", reloadOn)
+        if ebReloadSize and ebReloadSize.SetText then
+            ebReloadSize:SetText(tostring(math.floor((tonumber(size) or 12) + 0.5)))
         end
     end
 
-    local function UpdatePetPrepareAcceptButton()
-        InitSV()
-        local on = (AutoGossip_Settings and AutoGossip_Settings.autoAcceptPetPrepareAcc) and true or false
-        SetYellowGreyAccText(btnPetPrepareAccept, "Pet Battle", on)
-    end
-
-    btnPetPrepareAccept:SetScript("OnClick", function()
+    btnPopUp:SetScript("OnClick", function()
         InitSV()
         AutoGossip_Settings.autoAcceptPetPrepareAcc = not (AutoGossip_Settings.autoAcceptPetPrepareAcc and true or false)
-        UpdatePetPrepareAcceptButton()
+        UpdatePopUpRow()
     end)
-    btnPetPrepareAccept:SetScript("OnEnter", function()
+    btnPopUp:SetScript("OnEnter", function()
         if GameTooltip then
-            GameTooltip:SetOwner(btnPetPrepareAccept, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Pet Battle")
-            GameTooltip:AddLine("Auto-accept the pet battle confirmation (GOSSIP_CONFIRM) popup when starting pet battles (e.g. 'Prepare yourself!', 'Let's rumble!').", 1, 1, 1, true)
+            GameTooltip:SetOwner(btnPopUp, "ANCHOR_RIGHT")
+            GameTooltip:SetText("PopUp")
+            GameTooltip:AddLine("Green: auto-accept the pet battle confirmation popup.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: do nothing.", 1, 1, 1, true)
             GameTooltip:AddLine("Macro: /fgo petbattle (forces ON; no prints).", 1, 1, 1, true)
             GameTooltip:Show()
         end
     end)
-    btnPetPrepareAccept:SetScript("OnLeave", function()
-        if GameTooltip then GameTooltip:Hide() end
+    btnPopUp:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnPopDbg:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_Settings.debugPetPopupsAcc = not (AutoGossip_Settings.debugPetPopupsAcc and true or false)
+        UpdatePopUpRow()
     end)
+    btnPopDbg:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(btnPopDbg, "ANCHOR_RIGHT")
+            GameTooltip:SetText("PopDbg")
+            GameTooltip:AddLine("Green: log StaticPopup dialogs (name/text/args).", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    btnPopDbg:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnReload:RegisterForClicks("LeftButtonUp")
+    btnReload:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_UI.reloadFloatEnabled = not (AutoGossip_UI.reloadFloatEnabled and true or false)
+        UpdatePopUpRow()
+        if UpdateReloadFloatButton then
+            UpdateReloadFloatButton()
+        elseif EnsureReloadFloatButton then
+            EnsureReloadFloatButton()
+        end
+    end)
+    btnReload:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(btnReload, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Reload")
+            GameTooltip:AddLine("Green: show the floating Reload UI button.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: hide it.", 1, 1, 1, true)
+            GameTooltip:AddLine("Text size: edit the box to the right.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    btnReload:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    ebReloadSize:SetScript("OnEnterPressed", function(self)
+        InitSV()
+        local v = tonumber(self:GetText())
+        if not v then
+            self:ClearFocus()
+            UpdatePopUpRow()
+            return
+        end
+        if v < 8 then v = 8 end
+        if v > 24 then v = 24 end
+        AutoGossip_UI.reloadFloatTextSize = v
+        self:ClearFocus()
+        UpdatePopUpRow()
+        if UpdateReloadFloatButton then
+            UpdateReloadFloatButton()
+        elseif EnsureReloadFloatButton then
+            EnsureReloadFloatButton()
+        end
+    end)
+    ebReloadSize:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+        UpdatePopUpRow()
+    end)
+
+    -- Row: Action / NPC Name / Tutorial (below popup line)
+    local actionRow = CreateFrame("Frame", nil, panel)
+    actionRow:SetSize(BTN_W, BTN_H)
+    actionRow:SetPoint("TOP", popupRow, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.actionRow = actionRow
+    end
+
+    local btnAction = CreateFrame("Button", nil, actionRow, "UIPanelButtonTemplate")
+    btnAction:SetSize(SEG_W, BTN_H)
+    btnAction:SetPoint("LEFT", actionRow, "LEFT", 0, 0)
+    if frame then
+        frame.btnAction = btnAction
+    end
+
+    local btnNPCName = CreateFrame("Button", nil, actionRow, "UIPanelButtonTemplate")
+    btnNPCName:SetSize(SEG_W, BTN_H)
+    btnNPCName:SetPoint("LEFT", btnAction, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnNPCName = btnNPCName
+    end
+
+    local btnTutorial = CreateFrame("Button", nil, actionRow, "UIPanelButtonTemplate")
+    btnTutorial:SetSize(SEG_W, BTN_H)
+    btnTutorial:SetPoint("LEFT", btnNPCName, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnTutorial = btnTutorial
+    end
+
+    local function GetActionState()
+        if ns and ns.GetActionUseKeyDownState then
+            return ns.GetActionUseKeyDownState()
+        end
+        return "off"
+    end
+
+    local function GetNPCNameState()
+        if ns and ns.GetNPCNameplatesState then
+            return ns.GetNPCNameplatesState()
+        end
+        return "off"
+    end
+
+    local function UpdateActionRow()
+        InitSV()
+        SetTriState(btnAction, "Action", GetActionState())
+        SetTriState(btnNPCName, "NPC Name", GetNPCNameState())
+
+        local hideTutorials = not ((AutoGossip_Settings and AutoGossip_Settings.tutorialEnabledAcc) and true or false)
+        SetGreenGrey(btnTutorial, "Tutorial", hideTutorials)
+    end
+
+    local function Tooltip_RefreshIfOwnedBy(btn, buildFn)
+        if not (GameTooltip and GameTooltip.GetOwner and GameTooltip.IsShown) then
+            return
+        end
+        if GameTooltip:GetOwner() ~= btn then
+            return
+        end
+        if not GameTooltip:IsShown() then
+            return
+        end
+        if type(buildFn) == "function" then
+            buildFn()
+        end
+    end
+
+    local function ShowActionTooltip()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnAction, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Action")
+        GameTooltip:AddLine("Green: OFF ACC", 1, 1, 1, true)
+        GameTooltip:AddLine("Orange: ON ACC", 1, 1, 1, true)
+        GameTooltip:AddLine("Grey: ON CHAR", 1, 1, 1, true)
+        local st = GetActionState()
+        if st == "acc" then
+            GameTooltip:AddLine("State: ON ACC", 1, 1, 1, true)
+        elseif st == "char" then
+            GameTooltip:AddLine("State: ON CHAR", 1, 1, 1, true)
+        else
+            GameTooltip:AddLine("State: OFF ACC", 1, 1, 1, true)
+        end
+        if GetCVar then
+            GameTooltip:AddLine("Current CVar: ActionButtonUseKeyDown = " .. tostring(GetCVar("ActionButtonUseKeyDown")), 1, 1, 1, true)
+        end
+        GameTooltip:Show()
+    end
+
+    local function ShowNPCTooltip()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(btnNPCName, "ANCHOR_RIGHT")
+        GameTooltip:SetText("NPC Name")
+        GameTooltip:AddLine("Green: OFF ACC", 1, 1, 1, true)
+        GameTooltip:AddLine("Orange: ON ACC", 1, 1, 1, true)
+        GameTooltip:AddLine("Grey: ON CHAR", 1, 1, 1, true)
+        local st = GetNPCNameState()
+        if st == "acc" then
+            GameTooltip:AddLine("State: ON ACC", 1, 1, 1, true)
+        elseif st == "char" then
+            GameTooltip:AddLine("State: ON CHAR", 1, 1, 1, true)
+        else
+            GameTooltip:AddLine("State: OFF ACC", 1, 1, 1, true)
+        end
+        if ns and ns.GetFriendlyNPCNameplatesSafe then
+            local curv = ns.GetFriendlyNPCNameplatesSafe()
+            if curv ~= nil then
+                GameTooltip:AddLine("Current CVar: " .. (curv and "ON" or "OFF"), 1, 1, 1, true)
+            end
+        end
+        GameTooltip:Show()
+    end
+
+    btnAction:SetScript("OnClick", function()
+        local cur = GetActionState()
+        local nextState = "off"
+        if cur == "off" then
+            nextState = "acc"
+        elseif cur == "acc" then
+            nextState = "char"
+        else
+            nextState = "off"
+        end
+        if ns and ns.SetActionUseKeyDownState then
+            ns.SetActionUseKeyDownState(nextState)
+        end
+        UpdateActionRow()
+        Tooltip_RefreshIfOwnedBy(btnAction, ShowActionTooltip)
+    end)
+    btnAction:SetScript("OnEnter", function()
+        ShowActionTooltip()
+    end)
+    btnAction:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnNPCName:SetScript("OnClick", function()
+        local cur = GetNPCNameState()
+        local nextState = "off"
+        if cur == "off" then
+            nextState = "acc"
+        elseif cur == "acc" then
+            nextState = "char"
+        else
+            nextState = "off"
+        end
+        if ns and ns.SetNPCNameplatesState then
+            ns.SetNPCNameplatesState(nextState)
+        end
+        UpdateActionRow()
+        Tooltip_RefreshIfOwnedBy(btnNPCName, ShowNPCTooltip)
+    end)
+    btnNPCName:SetScript("OnEnter", function()
+        ShowNPCTooltip()
+    end)
+    btnNPCName:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    btnTutorial:SetScript("OnClick", function()
+        InitSV()
+        local hide = not ((AutoGossip_Settings and AutoGossip_Settings.tutorialEnabledAcc) and true or false)
+        hide = not hide
+        AutoGossip_Settings.tutorialEnabledAcc = not hide
+        AutoGossip_Settings.tutorialOffAcc = hide
+        if ns and ns.ApplyTutorialSetting then
+            ns.ApplyTutorialSetting(true)
+        end
+        UpdateActionRow()
+    end)
+    btnTutorial:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(btnTutorial, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Tutorial")
+            GameTooltip:AddLine("Green is hiding.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    btnTutorial:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
     -- Pet Walk segments (above Chromie)
     local petSegContainer = CreateFrame("Frame", nil, panel)
     petSegContainer:SetSize(BTN_W, BTN_H)
-    petSegContainer:SetPoint("TOP", btnPetPrepareAccept, "BOTTOM", 0, -GAP_Y)
+    petSegContainer:SetPoint("TOP", actionRow, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.petWalkSegContainer = petSegContainer
     end
-
-    local SEG_GAP = 2
-    local SEG_W = math.floor((BTN_W - (SEG_GAP * 2)) / 3)
 
     local segPetWalk = CreateFrame("Button", nil, petSegContainer, "UIPanelButtonTemplate")
     segPetWalk:SetSize(SEG_W, BTN_H)
@@ -310,7 +545,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end
 
     local segPetConfig = CreateFrame("Button", nil, petSegContainer, "UIPanelButtonTemplate")
-    segPetConfig:SetSize(BTN_W - (SEG_W * 2) - (SEG_GAP * 2), BTN_H)
+    segPetConfig:SetSize(SEG_W3, BTN_H)
     segPetConfig:SetPoint("LEFT", segPetDisable, "RIGHT", SEG_GAP, 0)
     if frame then
         frame.btnPetWalkSegConfig = segPetConfig
@@ -422,7 +657,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end
 
     local segMountConfig = CreateFrame("Button", nil, mountSegContainer, "UIPanelButtonTemplate")
-    segMountConfig:SetSize(BTN_W - (SEG_W * 2) - (SEG_GAP * 2), BTN_H)
+    segMountConfig:SetSize(SEG_W3, BTN_H)
     segMountConfig:SetPoint("LEFT", segMountDisable, "RIGHT", SEG_GAP, 0)
     if frame then
         frame.btnMountUpSegConfig = segMountConfig
@@ -524,7 +759,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end
 
     local segConfig = CreateFrame("Button", nil, segContainer, "UIPanelButtonTemplate")
-    segConfig:SetSize(BTN_W - (SEG_W * 2) - (SEG_GAP * 2), BTN_H)
+    segConfig:SetSize(SEG_W3, BTN_H)
     segConfig:SetPoint("LEFT", segLock, "RIGHT", SEG_GAP, 0)
     if frame then
         frame.btnChromieSegConfig = segConfig
@@ -632,7 +867,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end
 
     local segMailConfig = CreateFrame("Button", nil, mailSegContainer, "UIPanelButtonTemplate")
-    segMailConfig:SetSize(BTN_W - (SEG_W * 2) - (SEG_GAP * 2), BTN_H)
+    segMailConfig:SetSize(SEG_W3, BTN_H)
     segMailConfig:SetPoint("LEFT", segMailEnable, "RIGHT", SEG_GAP, 0)
     if frame then
         frame.btnMailNotifySegConfig = segMailConfig
@@ -743,14 +978,6 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end)
     segMailConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
-    -- Floating Reload UI button
-    local btnReloadFloat = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnReloadFloat:SetSize(BTN_W, BTN_H)
-    btnReloadFloat:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
-    if frame then
-        frame.btnReloadFloat = btnReloadFloat
-    end
-
     -- Reorder right-column segment rows to match spec:
     -- Chromie (top) -> Mount Up -> Pet Walk -> then the rest of the buttons.
     if segContainer and mountSegContainer and petSegContainer and mailSegContainer then
@@ -767,69 +994,19 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         mailSegContainer:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
     end
 
-    if btnTutorial then
-        btnTutorial:ClearAllPoints()
-        btnTutorial:SetPoint("TOP", btnReloadFloat, "BOTTOM", 0, -GAP_Y)
+    -- Anchor Queue Accept + new rows under Mail buttons.
+    if btnQueueAccept and mailSegContainer then
+        btnQueueAccept:ClearAllPoints()
+        btnQueueAccept:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
     end
-
-    local function UpdateReloadFloatToggle()
-        InitSV()
-        local on = (AutoGossip_UI and AutoGossip_UI.reloadFloatEnabled) and true or false
-        local size = (AutoGossip_UI and tonumber(AutoGossip_UI.reloadFloatTextSize)) or 12
-        local sizeSuffix = " |cff888888(" .. tostring(math.floor(size + 0.5)) .. ")|r"
-        if on then
-            btnReloadFloat:SetText("Reload Button: |cff00ccffON ACC|r" .. sizeSuffix)
-        else
-            btnReloadFloat:SetText("Reload Button: |cffff0000OFF ACC|r" .. sizeSuffix)
-        end
+    if popupRow and btnQueueAccept then
+        popupRow:ClearAllPoints()
+        popupRow:SetPoint("TOP", btnQueueAccept, "BOTTOM", 0, -GAP_Y)
     end
-
-    btnReloadFloat:RegisterForClicks("LeftButtonUp")
-    btnReloadFloat:SetScript("OnClick", function(self)
-        InitSV()
-
-        local clickRightThird = false
-        if GetCursorPosition and self and self.GetLeft and self.GetEffectiveScale and self.GetWidth then
-            local x = GetCursorPosition()
-            local scale = self:GetEffectiveScale() or 1
-            x = x / scale
-            local left = self:GetLeft() or 0
-            local relX = x - left
-            clickRightThird = (relX > (self:GetWidth() * (2 / 3)))
-        end
-
-        if clickRightThird then
-            local sizes = { 12, 14, 16, 18, 20 }
-            local cur = tonumber(AutoGossip_UI.reloadFloatTextSize)
-            local nextSize = sizes[1]
-            for i, s in ipairs(sizes) do
-                if s == cur then
-                    nextSize = sizes[(i % #sizes) + 1]
-                    break
-                end
-            end
-            AutoGossip_UI.reloadFloatTextSize = nextSize
-        else
-            AutoGossip_UI.reloadFloatEnabled = not (AutoGossip_UI.reloadFloatEnabled and true or false)
-        end
-
-        UpdateReloadFloatToggle()
-        if UpdateReloadFloatButton then
-            UpdateReloadFloatButton()
-        elseif EnsureReloadFloatButton then
-            EnsureReloadFloatButton()
-        end
-    end)
-    btnReloadFloat:SetScript("OnEnter", function()
-        if GameTooltip then
-            GameTooltip:SetOwner(btnReloadFloat, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Reload Floating Switch")
-            GameTooltip:AddLine("Click Left to Enable / Disable", 1, 1, 1, true)
-            GameTooltip:AddLine("Click Right to Change Font Size", 1, 1, 1, true)
-            GameTooltip:Show()
-        end
-    end)
-    btnReloadFloat:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    if actionRow and popupRow then
+        actionRow:ClearAllPoints()
+        actionRow:SetPoint("TOP", popupRow, "BOTTOM", 0, -GAP_Y)
+    end
 
     -- TooltipX
     local btnTooltipXEnabled = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
@@ -848,6 +1025,11 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
             btnTooltipXEnabled:SetText("TooltipX Module: |cffff0000OFF ACC|r")
         end
     end
+
+    -- Initialize new rows on build.
+    UpdateQueueAcceptButton()
+    UpdatePopUpRow()
+    UpdateActionRow()
 
     local function TooltipXDisabledPrefix()
         InitSV()
@@ -1280,16 +1462,14 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end)
 
     -- Initial paint
-    UpdateTutorialButton()
     UpdateBorderButton()
     UpdateQueueAcceptButton()
-    UpdatePetPopupDebugButton()
-    UpdatePetPrepareAcceptButton()
+    UpdatePopUpRow()
+    UpdateActionRow()
     UpdatePetWalkSegments()
     UpdateMountUpSegments()
     UpdateChromieSegments()
     UpdateMailNotifySegments()
-    UpdateReloadFloatToggle()
     UpdateTooltipXEnabledButton()
     UpdateTooltipXCombatButton()
     UpdateTooltipXModButton()
@@ -1303,16 +1483,14 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     UpdateTooltipXDebugButton()
 
     return function()
-        UpdateTutorialButton()
         UpdateBorderButton()
         UpdateQueueAcceptButton()
-        UpdatePetPopupDebugButton()
-        UpdatePetPrepareAcceptButton()
+        UpdatePopUpRow()
+        UpdateActionRow()
         UpdatePetWalkSegments()
         UpdateMountUpSegments()
         UpdateChromieSegments()
         UpdateMailNotifySegments()
-        UpdateReloadFloatToggle()
         UpdateTooltipXEnabledButton()
         UpdateTooltipXCombatButton()
         UpdateTooltipXModButton()
