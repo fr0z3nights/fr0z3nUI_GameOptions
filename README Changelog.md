@@ -4,11 +4,102 @@ Format: `YYMMDD-###` (sanity stamp) — short summary.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+# 260404-003
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOSwitchesQA.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Queue Accept: Switches UI now uses a 3-button row: `Queue` (account default) / `Enable` (per-character override) / `Config`.
+- Queue Accept config popout: optional master-volume boost on queue pop with restore %, and optional repeating queue sound with an interval.
+- SavedVariables: migrated legacy `queueAcceptMode="on"` into a boolean per-character override; legacy 3-state API remains supported.
+- Bumped TOC `## Version` to `2026.04.04.03`.
+
+# 260404-001
+- Files: `fUI_GOSwitches.lua`, `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- Safari floating button: avoid GUID `strsplit` crash when `UnitGUID("target")` is a Retail "secret" string value (taint-safe via `pcall`).
+- Tax: harden system money message parsing against "secret" strings so chat money events can't crash the addon.
+- Bumped TOC `## Version` to `2026.04.04.01`.
+
+# 260404-002
+- Files: `fUI_GOTalk01EK.lua`, `fr0z3nUI_GameOptions.toc`
+- Talk quest gate: fix NPC `__meta.stopIfQuestTurnIn` being overwritten by repeated assignments; now uses a questID list so any matching turn-in can block auto-select and keep gossip open.
+- Bumped TOC `## Version` to `2026.04.04.02`.
+
+# 260401-001
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: `Auto-arm` is now an On/Off button (not a checkbox).
+- Click popout: add `Float` On/Off button to show a floating `Arm` button for click-alias arming without opening the popout.
+- Slash: `/fgo arm` with no args now arms Click aliases (existing `/fgo arm <mode> <key>` Macro CMD behavior unchanged).
+- Bumped TOC `## Version` to `2026.04.01.01`.
+
+# 260401-002
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: Float toggle button now shows `Arm FB` with green/grey state coloring and a tooltip.
+- Bumped TOC `## Version` to `2026.04.01.02`.
+
+# 260401-004
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: add a numeric text-size box (like the Reload float) for the floating Click-Alias `Arm` button.
+- Floating Arm button label now applies the saved text size.
+- Bumped TOC `## Version` to `2026.04.01.04`.
+
+# 260401-005
+- Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: Arm FB toggle now always reads `Arm FB`; color alone indicates Off (grey) / On (Char orange) / On (Acc green).
+- Bumped TOC `## Version` to `2026.04.01.05`.
+
+# 260401-003
+- Files: `fUI_GOMacroXCMD.lua`, `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Click popout: Arm FB toggle is now 3-state: `Off` (grey) → `On` (orange, per-character) → `On` (green, account).
+- Floating Arm button visibility now respects the selected scope.
+- Bumped TOC `## Version` to `2026.04.01.03`.
+
 # 260328-009
 - Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
 - Food/Drink macros: when bag slots or item tooltip data aren't ready at login, the updater now schedules a few automatic retries instead of getting stuck until `/reload`.
 - `/fgo yump`: message now distinguishes "bags not ready" / "item data pending" from a true "no food/drink found" case.
 - Bumped TOC `## Version` to `2026.03.28.09`.
+
+# 260401-010
+- Files: `fUI_GOMacroXCMDB.lua`, `fr0z3nUI_GameOptions.toc`
+- SafariHat DB: fix `AddSafariHat(...)` argument order to match the curated entries (`npcID, questID, textSize, name`) and remove invalid trailing commas from calls.
+- Bumped TOC `## Version` to `2026.04.01.10`.
+
+# 260401-011
+- Files: `fUI_GOMacroXCMDB.lua`, `fr0z3nUI_GameOptions.toc`
+- SafariHat DB: reorder curated entry layout to `questID, npcID, textSize, name` (quest-first).
+- Bumped TOC `## Version` to `2026.04.01.11`.
+
+# 260401-012
+- Files: `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Safari config popout: now matches the Click popout style, including a scrollable seed list sourced from `ns.SafariHat_DB`.
+- Bumped TOC `## Version` to `2026.04.01.12`.
+
+# 260401-013
+- Files: `fUI_GOSwitches.lua`, `fr0z3nUI_GameOptions.toc`
+- Safari floating button: read Safari settings from `AutoGossip_UI` (matching the UI), and hide unless an NPCID is configured + currently targeted.
+- Bumped TOC `## Version` to `2026.04.01.13`.
+
+# 260401-014
+- Files: `fUI_GOSwitches.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- SafariHat: convert to a real Click-style multi-entry rules list (seed + SavedVariables overlay) stored in `AutoGossip_Acc.safariHatRulesAcc`.
+- Safari config popout: list shows effective rules; per-row `ON/OFF` toggle; delete is available for non-seed rules.
+- Safari floating button: hides unless your current target matches an enabled rule.
+- Bumped TOC `## Version` to `2026.04.01.14`.
+
+# 260401-015
+- Files: `fUI_GOSwitches.lua`, `fr0z3nUI_GameOptions.toc`
+- Safari floating button: harden toy-use click so it doesn't early-return; add fallback call path for better cross-character reliability.
+- Safari floating button: Shift-click prints a short debug line (combat + toy usable) to confirm the click handler is firing.
+- Bumped TOC `## Version` to `2026.04.01.15`.
+
+# 260401-016
+- Files: `fUI_GOSwitches.lua`, `fr0z3nUI_GameOptions.toc`
+- Safari floating button: click handler now registers `AnyUp` and gates on left-click to avoid edge cases.
+- Safari floating button: Shift-click debug now also posts to `UIErrorsFrame` and includes pet-battle state + a brief label flash to prove the click fired.
+- Bumped TOC `## Version` to `2026.04.01.16`.
+
+# 260401-017
+- Files: `fUI_GOSwitches.lua`, `fr0z3nUI_GameOptions.toc`
+- Safari floating button: convert to `SecureActionButtonTemplate` (`type="toy"`) so toy use is handled by the secure action system (more reliable across characters).
+- Bumped TOC `## Version` to `2026.04.01.17`.
 
 # 260328-010
 - Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
@@ -83,6 +174,11 @@ Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stay
 - Bumped TOC `## Version` to `2026.03.28.06`.
 
 # 260328-007
+
+# 260401-007
+- Files: `fUI_GOMacroXCMDB.lua`, `fUI_GOSwitches.lua`, `fr0z3nUI_GameOptions.toc`
+- Add a `SafariHat_DB` section (data-only) and have the floating Safari button read the toy ID from it (fallback remains `92738`).
+- Bumped TOC `## Version` to `2026.04.01.07`.
 - Files: `fUI_GOMacroXCMDUI.lua`, `fr0z3nUI_GameOptions.toc`
 - Click Debug: add index-based metadata lookup fallback (`GetAddOnMetadata(i, ...)`) for clients that return nil when queried by addon name.
 - Bumped TOC `## Version` to `2026.03.28.07`.
@@ -452,6 +548,13 @@ Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stay
 - Mount Up: do not auto-mount while you are actively eating/drinking (blocks Mount Up when the generic regen aura is present).
 - Bumped TOC `## Version` to `2026.03.21.05`.
 
+# 260401-006
+- Files: `fUI_GOSwitches.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Switches tab: add `Safari / Enable / Config` row below Mail.
+- Floating button: add a draggable `Safari` button that uses Safari Hat toy `92738` (still requires your click).
+- Config: NPCID gate (only show when targeting that NPC), QuestID gate (hide if quest completed), and text Size.
+- Bumped TOC `## Version` to `2026.04.01.06`.
+
 # 260321-006
 - Files: `fUI_GOSwitchesMU.lua`, `fUI_GOSwitchesBP.lua`, `fr0z3nUI_GameOptions.toc`
 - Floating buttons: when locked, right-click triggers the “special” action instead of drag.
@@ -464,10 +567,21 @@ Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stay
 - Mount Up: fix a taint error in the eating/drinking gate on some clients (“secret number” aura spellIDs can’t be compared directly) by stringifying spellID before matching.
 - Bumped TOC `## Version` to `2026.03.21.07`.
 
+# 260401-008
+- Files: `fUI_GOSwitchesUI.lua`, `fUI_GOSwitches.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Safari config: add a `Name` input after `NPCID` (used for display in the floating button tooltip).
+- Bumped TOC `## Version` to `2026.04.01.08`.
+
 # 260321-008
 - Files: `fUI_GOSwitchesMU.lua`, `fr0z3nUI_GameOptions.toc`
 - Mount Up: fix follow-up taint error (“secret string”) by avoiding all direct spellID comparisons; use `AuraUtil.FindAuraBySpellID` for eating/drinking detection, with a name-only fallback.
 - Bumped TOC `## Version` to `2026.03.21.08`.
+
+# 260401-009
+- Files: `fUI_GOMacroXCMDB.lua`, `fUI_GOSwitches.lua`, `fr0z3nUI_GameOptions.toc`
+- SafariHat DB: refactor `SafariHat_DB` into a ClickAlias-style seed list (data-only entries), not a config/default struct.
+- Floating Safari button now always uses toy `92738` directly.
+- Bumped TOC `## Version` to `2026.04.01.09`.
 
 # 260321-009
 - Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`

@@ -61,10 +61,22 @@ local function NPC(npcName, npcIDs)
 		end,
 	})
 end
---SetZone("Dornogal, Khaz Algar")
 
-   -- Delver's Guide
-        --local t = NPC("Delver's Guide", 227675)
-        --t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
+SetZone("Dazar'alor, Zandalar")
+
+   local t = NPC("Brillin the Beauty", { 122690, })
+   t[ 47954] = { text = "Let me browse your goods.", type = "", }     													-- Innkeeper Brillin the Beauty (122690)
+
+   local t = NPC("Examiner Alerinda", { 122701, })
+   t[ 49309] = { text = "Train me in Archaeology.", type = "", }     													-- Examiner Alerinda (122701)
+
+   local t = NPC("Pin'jin the Patient", { 122700, })
+   t[ 50268] = { text = "Train me in Tailoring.", type = "", }     														-- Pin'jin the Patient (122700)
+
+   local t = NPC("Princess Talanji", { 135440, })
+   t[ 47851] = { text = "Take me to King Rastakhan.", type = "", }     													-- Rastakhan (46930) Princess Talanji (135440)
+
+   local t = NPC("Secott the Goldsmith", { 122694, })
+   t[ 49216] = { text = "Train me in Mining.", type = "", }     														-- Secott the Goldsmith (122694)
 
 

@@ -225,3 +225,45 @@ AddClickAlias("TSDel",    "TSMDestroyBtn")
 AddClickAlias("TSBid",    "TSMBidBuyConfirmBtn")
 AddClickAlias("TFTB",     "TradeFrameTradeButton")
 AddClickAlias("ERG",      "rcButton")
+
+-- ============================================================================
+-- Safari Hat (toy) — DB section
+-- Data-only seeds for the Safari floating button feature (Switches).
+-- Mirrors the ClickAlias_DB style: curated entries live in-repo.
+-- ============================================================================
+
+ns.SafariHat_DB = ns.SafariHat_DB or {}
+
+-- Layout matches the curated entries below:
+--   AddSafariHat(questID, npcID, textSize, "Name")
+local function AddSafariHat(questID, npcID, textSize, name)
+    ns.SafariHat_DB[#ns.SafariHat_DB + 1] = {
+        questID = tonumber(questID) or 0,
+        npcID = tonumber(npcID) or 0,
+        textSize = tonumber(textSize) or 12,
+        name = tostring(name or ""),
+    }
+end
+
+-- Examples (uncomment and customize):
+-- AddSafariHat(questID, npcID, textSize, "name")
+AddSafariHat(32441,  68465, 24, "Thundering Spirit")
+AddSafariHat(37208,  87125, 24, "Taralune")
+AddSafariHat(32434,  68463, 24, "Burning Spirit")
+AddSafariHat(63435, 176655, 24, "Anthea")
+AddSafariHat(31958,  66741, 24, "Aki The Chosen")
+AddSafariHat(31954,  66733, 24, "Mo'ruk")
+AddSafariHat(37201,  83837, 24, "Brightblade")
+AddSafariHat(31957,  66739, 24, "Wastewalker")
+AddSafariHat(31955,  66734, 24, "Nishi")
+AddSafariHat(37207,  87123, 24, "Vesharr")
+AddSafariHat(31991,  66918, 24, "Zusshi")
+AddSafariHat(31953,  66730, 24, "Hyuna")
+AddSafariHat(32439,  68469, 24, "Flowing Spirit")
+AddSafariHat(37203,  87127, 24, "Ashlei")
+AddSafariHat(37205,  87129, 24, "Gargra")
+AddSafariHat(32440,  68470, 24, "Whispering Spirit")
+AddSafariHat(37206,  87128, 24, "Tarr Terrible")
+AddSafariHat(31956,  66738, 24, "Courageous Yon")
+AddSafariHat(45083, 115286, 24, "Crysa")
+AddSafariHat(47895, 124617, 24, "Environeer Bert")

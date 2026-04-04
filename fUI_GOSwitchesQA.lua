@@ -17,17 +17,126 @@ local queueOverlayWatchdogElapsed = 0
 local queueOverlaySuppressUntil = 0
 local queueOverlayProposalToken = 0
 local queueOverlayDismissedToken = 0
+local queueOverlayDidBoostVolume = false
+local queueOverlayRepeatNextAt = 0
 
 local function GetTimeNow()
     return (GetTime and GetTime()) or 0
 end
 
+local function SetCVarLocal(key, value)
+    if SetCVar then
+        pcall(SetCVar, tostring(key or ""), tostring(value))
+        return
+    end
+    if C_CVar and C_CVar.SetCVar then
+        pcall(C_CVar.SetCVar, tostring(key or ""), tostring(value))
+        return
+    end
+end
+
+local function ClampNumber(v, minV, maxV)
+    v = tonumber(v)
+    if v == nil then
+        return nil
+    end
+    if minV ~= nil and v < minV then v = minV end
+    if maxV ~= nil and v > maxV then v = maxV end
+    return v
+end
+
+local function GetAccEnabled()
+    return AutoGossip_Settings and AutoGossip_Settings.queueAcceptAcc == true
+end
+
+local function GetCharOverride()
+    if not AutoGossip_CharSettings then
+        return nil
+    end
+    local v = AutoGossip_CharSettings.queueAcceptEnabledOverride
+    if type(v) == "boolean" then
+        return v
+    end
+    return nil
+end
+
+local function GetEffectiveEnabled()
+    local override = GetCharOverride()
+    if override ~= nil then
+        return override
+    end
+    return GetAccEnabled()
+end
+
+local function GetRestoreVolumePct()
+    local pct = AutoGossip_Settings and AutoGossip_Settings.queueAcceptRestoreVolumePctAcc
+    pct = math.floor((tonumber(pct) or 50) + 0.5)
+    if pct < 0 then pct = 0 end
+    if pct > 100 then pct = 100 end
+    return pct
+end
+
+local function RestoreMasterVolumeIfNeeded()
+    if not queueOverlayDidBoostVolume then
+        return
+    end
+    queueOverlayDidBoostVolume = false
+
+    InitSV()
+    if not (SetCVar or (C_CVar and C_CVar.SetCVar)) then
+        return
+    end
+
+    local restorePct = GetRestoreVolumePct()
+    local restoreVol = ClampNumber(restorePct / 100, 0, 1) or 0.5
+    SetCVarLocal("Sound_MasterVolume", tostring(restoreVol))
+end
+
+local function MaybeBoostMasterVolumeOnPop()
+    InitSV()
+    if not (AutoGossip_Settings and AutoGossip_Settings.queueAcceptBoostVolumeAcc) then
+        return
+    end
+    if not (SetCVar or (C_CVar and C_CVar.SetCVar)) then
+        return
+    end
+    SetCVarLocal("Sound_MasterVolume", "1")
+    queueOverlayDidBoostVolume = true
+end
+
+local function PlayQueuePopSound()
+    if type(PlaySound) ~= "function" then
+        return
+    end
+
+    local kit = nil
+    if SOUNDKIT then
+        kit = SOUNDKIT.UI_GROUP_FINDER_RECEIVE_APPLICATION
+            or SOUNDKIT.LFG_REWARDS_AVAILABLE
+            or SOUNDKIT.READY_CHECK
+    end
+
+    if kit ~= nil then
+        pcall(PlaySound, kit, "Master")
+        return
+    end
+
+    -- Fallback: try Ready Check sound ID (may vary between clients).
+    pcall(PlaySound, 8960, "Master")
+end
+
 function QA.GetQueueAcceptState()
     InitSV()
-    if AutoGossip_Settings and AutoGossip_Settings.queueAcceptAcc then
+    local accOn = GetAccEnabled()
+    local override = GetCharOverride()
+
+    if override == false then
+        return "off"
+    end
+    if accOn then
         return "acc"
     end
-    if AutoGossip_CharSettings and AutoGossip_CharSettings.queueAcceptMode == "on" then
+    if override == true then
         return "char"
     end
     return "off"
@@ -38,19 +147,23 @@ function QA.SetQueueAcceptState(state)
     if state == "acc" then
         AutoGossip_Settings.queueAcceptAcc = true
         AutoGossip_CharSettings.queueAcceptMode = "acc"
+        AutoGossip_CharSettings.queueAcceptEnabledOverride = nil
         return
     end
     if state == "char" then
         AutoGossip_Settings.queueAcceptAcc = false
         AutoGossip_CharSettings.queueAcceptMode = "on"
+        AutoGossip_CharSettings.queueAcceptEnabledOverride = true
         return
     end
     AutoGossip_Settings.queueAcceptAcc = false
     AutoGossip_CharSettings.queueAcceptMode = "acc"
+    AutoGossip_CharSettings.queueAcceptEnabledOverride = nil
 end
 
 function QA.IsQueueAcceptEnabled()
-    return QA.GetQueueAcceptState() ~= "off"
+    InitSV()
+    return GetEffectiveEnabled() and true or false
 end
 
 function QA.HasActiveLfgProposal()
@@ -153,6 +266,31 @@ local function EnsureQueueOverlay()
             return
         end
 
+        -- Optional: repeat queue sound while the proposal is active.
+        InitSV()
+        if AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc then
+            local dismissed = (queueOverlayProposalToken or 0) > 0
+                and (queueOverlayDismissedToken or 0) == (queueOverlayProposalToken or 0)
+            if not dismissed then
+                local now = GetTimeNow()
+                local nextAt = tonumber(queueOverlayRepeatNextAt) or 0
+                if nextAt <= 0 then
+                    queueOverlayRepeatNextAt = now
+                    nextAt = now
+                end
+                if now >= nextAt then
+                    PlayQueuePopSound()
+                    local interval = AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc
+                    interval = math.floor((tonumber(interval) or 3) + 0.5)
+                    if interval < 1 then interval = 1 end
+                    if interval > 30 then interval = 30 end
+                    queueOverlayRepeatNextAt = now + interval
+                end
+            end
+        else
+            queueOverlayRepeatNextAt = 0
+        end
+
         local acceptButton = FindLfgAcceptButton()
         if not acceptButton then
             HideQueueOverlay()
@@ -214,6 +352,8 @@ HideQueueOverlay = function()
         if queueOverlayHint and queueOverlayHint.Hide then
             queueOverlayHint:Hide()
         end
+        RestoreMasterVolumeIfNeeded()
+        queueOverlayRepeatNextAt = 0
         return
     end
 
@@ -230,6 +370,8 @@ HideQueueOverlay = function()
         queueOverlayHint:Hide()
     end
     queueOverlayPendingHide = false
+    RestoreMasterVolumeIfNeeded()
+    queueOverlayRepeatNextAt = 0
 end
 
 function QA.HideQueueOverlay()
@@ -290,6 +432,13 @@ function QA.OnLfgProposalShow()
     queueOverlayProposalToken = (queueOverlayProposalToken or 0) + 1
     queueOverlayDismissedToken = 0
     InitSV()
+
+    if QA.IsQueueAcceptEnabled() then
+        MaybeBoostMasterVolumeOnPop()
+        if AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc then
+            queueOverlayRepeatNextAt = GetTimeNow()
+        end
+    end
     QA.ShowQueueOverlayIfNeeded()
 end
 
@@ -300,6 +449,12 @@ function QA.OnLfgProposalUpdate()
         queueOverlayDismissedToken = 0
     end
     InitSV()
+
+    if QA.IsQueueAcceptEnabled() and AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc then
+        if (queueOverlayRepeatNextAt or 0) <= 0 then
+            queueOverlayRepeatNextAt = GetTimeNow()
+        end
+    end
     QA.ShowQueueOverlayIfNeeded()
 end
 
@@ -307,4 +462,6 @@ function QA.OnLfgProposalEnded()
     queueOverlayProposalToken = 0
     queueOverlayDismissedToken = 0
     HideQueueOverlay()
+    RestoreMasterVolumeIfNeeded()
+    queueOverlayRepeatNextAt = 0
 end

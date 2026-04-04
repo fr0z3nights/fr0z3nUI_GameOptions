@@ -701,6 +701,51 @@ local function IsCastingOrChanneling()
     return false
 end
 
+local function _DbgNow()
+    if type(GetTime) == "function" then
+        return tonumber(GetTime()) or 0
+    end
+    if type(time) == "function" then
+        return tonumber(time()) or 0
+    end
+    return 0
+end
+
+local function _IsEatDbgEnabled()
+    InitSV()
+    return (AutoGossip_Settings and AutoGossip_Settings.mountUpDebugAcc) and true or false
+end
+
+local function _DbgEnsure()
+    if not _IsEatDbgEnabled() then
+        return nil
+    end
+    MU._eatdbg = MU._eatdbg or {}
+    local d = MU._eatdbg
+    d.history = d.history or {}
+    return d
+end
+
+local function _DbgPush(kind, data)
+    local d = _DbgEnsure()
+    if not d then
+        return nil
+    end
+    local ev = { t = _DbgNow(), kind = tostring(kind or "") }
+    if type(data) == "table" then
+        for k, v in pairs(data) do
+            ev[k] = v
+        end
+    end
+    local h = d.history
+    h[#h + 1] = ev
+    while #h > 30 do
+        table.remove(h, 1)
+    end
+    d.lastEvent = ev
+    return ev
+end
+
 local EAT_DRINK_IDS = {
     430, 431, 432, 433, -- legacy Food/Drink/Food&Drink
     167152, -- Conjured Refreshment
@@ -722,6 +767,42 @@ end
 
 local EAT_DRINK_AURA_FILTERS = { "HELPFUL", "HELPFUL|PLAYER" }
 
+local function SafeToNumber(v)
+    local ok, n = pcall(tonumber, v)
+    if ok and type(n) == "number" then
+        return n
+    end
+    return nil
+end
+
+local function SafeEqToID(v, id)
+    -- v can be a restricted/"secret" value; comparisons can throw.
+    local n = SafeToNumber(v)
+    if type(n) ~= "number" then
+        return false
+    end
+    local ok, eq = pcall(function()
+        return n == id
+    end)
+    return ok and eq or false
+end
+
+local function IsEatDrinkSpellID(spellID)
+    -- IMPORTANT: spellID can be a restricted/"secret" value.
+    -- Never use it as a table key (that can throw "table index is secret").
+    -- Never directly compare secret numbers either; coerce+compare under pcall.
+    if spellID == nil then
+        return false
+    end
+
+    for _, id in ipairs(EAT_DRINK_IDS) do
+        if SafeEqToID(spellID, id) then
+            return true
+        end
+    end
+    return false
+end
+
 local function IsEatingOrDrinking()
     -- NOTE: Some aura fields (including spellId/name) can be returned as restricted
     -- "secret" values. Direct comparisons (even after lowercasing) can taint and
@@ -729,18 +810,73 @@ local function IsEatingOrDrinking()
 
     -- Some clients don't reliably surface the aura immediately, but the cast/channel
     -- spell ID can be available right away.
+    local snap = {
+        t = _DbgNow(),
+        found = false,
+        method = nil,
+        id = nil,
+        filter = nil,
+        auraIndex = nil,
+        castSpellID = nil,
+        channelSpellID = nil,
+    }
+
     do
         local spellID
         if UnitChannelInfo then
             local _, _, _, _, _, _, _, id = UnitChannelInfo("player")
             spellID = id
+            snap.channelSpellID = SafeToNumber(id)
         end
         if type(spellID) ~= "number" and UnitCastingInfo then
             local _, _, _, _, _, _, _, _, id = UnitCastingInfo("player")
             spellID = id
+            snap.castSpellID = SafeToNumber(id)
         end
-        if type(spellID) == "number" and EAT_DRINK_IDSET[spellID] then
+        if IsEatDrinkSpellID(spellID) then
+            snap.found = true
+            snap.method = "cast/channel"
+            snap.id = SafeToNumber(spellID)
+            do
+                local d = _DbgEnsure()
+                if d then d.eatLast = snap end
+            end
             return true
+        end
+    end
+
+    -- Modern API: scan player buffs by numeric spellId. This avoids name comparisons
+    -- and catches cases where AuraUtil helpers don't find the aura quickly.
+    do
+        local unpackAura = AuraUtil and AuraUtil.UnpackAuraData
+        if C_UnitAuras and type(C_UnitAuras.GetBuffDataByIndex) == "function" then
+            for i = 1, 40 do
+                local data = C_UnitAuras.GetBuffDataByIndex("player", i)
+                if not data then
+                    break
+                end
+
+                local spellID
+                if type(data) == "table" then
+                    spellID = data.spellId or data.spellID
+                end
+                if not spellID and type(unpackAura) == "function" then
+                    spellID = select(10, unpackAura(data))
+                end
+
+                local sid = spellID
+                if IsEatDrinkSpellID(sid) then
+                    snap.found = true
+                    snap.method = "C_UnitAuras"
+                    snap.id = SafeToNumber(sid)
+                    snap.auraIndex = i
+                    do
+                        local d = _DbgEnsure()
+                        if d then d.eatLast = snap end
+                    end
+                    return true
+                end
+            end
         end
     end
 
@@ -749,6 +885,14 @@ local function IsEatingOrDrinking()
             for _, filter in ipairs(EAT_DRINK_AURA_FILTERS) do
                 local ok, found = pcall(AuraUtil.FindAuraBySpellID, id, "player", filter)
                 if ok and found then
+                    snap.found = true
+                    snap.method = "AuraUtil.FindAuraBySpellID"
+                    snap.id = id
+                    snap.filter = filter
+                    do
+                        local d = _DbgEnsure()
+                        if d then d.eatLast = snap end
+                    end
                     return true
                 end
             end
@@ -763,6 +907,14 @@ local function IsEatingOrDrinking()
                 for _, filter in ipairs(EAT_DRINK_AURA_FILTERS) do
                     local ok2, found = pcall(AuraUtil.FindAuraByName, name, "player", filter)
                     if ok2 and found then
+                        snap.found = true
+                        snap.method = "AuraUtil.FindAuraByName"
+                        snap.id = id
+                        snap.filter = filter
+                        do
+                            local d = _DbgEnsure()
+                            if d then d.eatLast = snap end
+                        end
                         return true
                     end
                 end
@@ -770,6 +922,10 @@ local function IsEatingOrDrinking()
         end
     end
 
+    do
+        local d = _DbgEnsure()
+        if d then d.eatLast = snap end
+    end
     return false
 end
 
@@ -1077,20 +1233,44 @@ end
 
 local function TryMount(reason)
     if not CanMountNow() then
+        local d = _DbgEnsure()
+        if d then
+            d.lastTry = _DbgPush("try", { reason = tostring(reason or ""), ok = false, stage = "CanMountNow" })
+        end
         return false
     end
 
     -- Re-check here because Mount Up can be delayed.
     if IsEatingOrDrinking() then
+        local d = _DbgEnsure()
+        if d then
+            local eat = d.eatLast
+            d.lastTry = _DbgPush("try", {
+                reason = tostring(reason or ""),
+                ok = false,
+                stage = "eating",
+                eatFound = eat and eat.found or nil,
+                eatMethod = eat and eat.method or nil,
+                eatID = eat and eat.id or nil,
+            })
+        end
         return false
     end
 
     local mountID = PickMount()
     if type(mountID) ~= "number" or mountID <= 0 then
+        local d = _DbgEnsure()
+        if d then
+            d.lastTry = _DbgPush("try", { reason = tostring(reason or ""), ok = false, stage = "PickMount" })
+        end
         return false
     end
 
     SafeCall(C_MountJournal.SummonByID, mountID)
+    local d = _DbgEnsure()
+    if d then
+        d.lastTry = _DbgPush("try", { reason = tostring(reason or ""), ok = true, stage = "Summon", mountID = mountID })
+    end
     return true
 end
 
@@ -1281,6 +1461,13 @@ local function ScheduleMount(reason, delay)
 
     CancelPending()
 
+    do
+        local d = _DbgEnsure()
+        if d then
+            d.lastSchedule = _DbgPush("schedule", { reason = tostring(reason or ""), delay = delay })
+        end
+    end
+
     if not (C_Timer and C_Timer.NewTimer) then
         TryMount(reason)
         return
@@ -1290,6 +1477,74 @@ local function ScheduleMount(reason, delay)
         pendingTimer = nil
         TryMount(reason)
     end)
+end
+
+function MU.DebugPrintEatDrink()
+    if not _IsEatDbgEnabled() then
+        print("|cff00ccff[FGO]|r MU eat/drink debug: DBG is OFF (enable MU DBG)")
+        return
+    end
+    local d = MU._eatdbg
+    print("|cff00ccff[FGO]|r MU eat/drink debug")
+
+    local e = d and d.eatLast
+    if e then
+        print(string.format("|cff00ccff[FGO]|r  lastCheck: t=%.2f found=%s method=%s id=%s filter=%s auraIndex=%s cast=%s channel=%s",
+            tonumber(e.t) or 0,
+            tostring(e.found and true or false),
+            tostring(e.method or ""),
+            tostring(e.id or ""),
+            tostring(e.filter or ""),
+            tostring(e.auraIndex or ""),
+            tostring(e.castSpellID or ""),
+            tostring(e.channelSpellID or "")))
+    else
+        print("|cff00ccff[FGO]|r  lastCheck: (none yet)")
+    end
+
+    local s = d and d.lastSchedule
+    if s then
+        print(string.format("|cff00ccff[FGO]|r  lastSchedule: t=%.2f reason=%s delay=%s",
+            tonumber(s.t) or 0, tostring(s.reason or ""), tostring(s.delay or "")))
+    else
+        print("|cff00ccff[FGO]|r  lastSchedule: (none yet)")
+    end
+
+    local t = d and d.lastTry
+    if t then
+        print(string.format("|cff00ccff[FGO]|r  lastTry: t=%.2f reason=%s ok=%s stage=%s mountID=%s eatFound=%s eatMethod=%s eatID=%s",
+            tonumber(t.t) or 0,
+            tostring(t.reason or ""),
+            tostring(t.ok and true or false),
+            tostring(t.stage or ""),
+            tostring(t.mountID or ""),
+            tostring(t.eatFound or ""),
+            tostring(t.eatMethod or ""),
+            tostring(t.eatID or "")))
+    else
+        print("|cff00ccff[FGO]|r  lastTry: (none yet)")
+    end
+
+    local h = d and d.history
+    if type(h) == "table" and #h > 0 then
+        local n = #h
+        local first = n - 4
+        if first < 1 then first = 1 end
+        for i = first, n do
+            local ev = h[i]
+            if type(ev) == "table" then
+                print(string.format("|cff00ccff[FGO]|r  hist[%d]: t=%.2f kind=%s reason=%s stage=%s ok=%s delay=%s id=%s",
+                    i,
+                    tonumber(ev.t) or 0,
+                    tostring(ev.kind or ""),
+                    tostring(ev.reason or ""),
+                    tostring(ev.stage or ""),
+                    tostring(ev.ok or ""),
+                    tostring(ev.delay or ""),
+                    tostring(ev.eatID or ev.id or "")))
+            end
+        end
+    end
 end
 
 function MU.OnSettingsChanged()

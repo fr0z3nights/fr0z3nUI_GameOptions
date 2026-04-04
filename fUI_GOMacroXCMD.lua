@@ -37,6 +37,24 @@ local function GetAcc()
     return a
 end
 
+local function GetCharSettings()
+    InitSV()
+    local c = rawget(_G, "AutoGame_CharSettings")
+    if type(c) ~= "table" then
+        return nil
+    end
+    return c
+end
+
+local function GetUI()
+    InitSV()
+    local u = rawget(_G, "AutoGame_UI")
+    if type(u) ~= "table" then
+        return nil
+    end
+    return u
+end
+
 local function EnsureCommandsArray()
     InitSV()
     local s = GetSettings()
@@ -50,6 +68,213 @@ local function EnsureCommandsArray()
         s.macroCmdsAcc = {}
     end
     return s.macroCmdsAcc
+end
+
+-- ============================================================================
+-- Floating Click-Alias Arm button (text-only, draggable)
+-- ============================================================================
+
+do
+    local btn
+
+    local function GetArmFloatMode()
+        local ui = GetUI()
+        local ch = GetCharSettings()
+
+        -- Back-compat: old builds used a single account-wide boolean.
+        if type(ui) == "table" and ui.clickAliasArmFloatEnabledAcc == true then
+            return "acc"
+        end
+
+        if type(ch) == "table" and ch.clickAliasArmFloatEnabledChar == true then
+            return "char"
+        end
+
+        return "off"
+    end
+
+    local function SetArmFloatMode(mode)
+        local ui = GetUI()
+        local ch = GetCharSettings()
+        mode = tostring(mode or "off"):lower()
+        if mode ~= "off" and mode ~= "char" and mode ~= "acc" then
+            mode = "off"
+        end
+
+        if type(ui) == "table" then
+            ui.clickAliasArmFloatEnabledAcc = (mode == "acc") and true or false
+        end
+        if type(ch) == "table" then
+            ch.clickAliasArmFloatEnabledChar = (mode == "char") and true or false
+        end
+    end
+
+    local function ApplySavedPosition(frame)
+        local ui = GetUI()
+        if not (ui and type(ui.clickAliasArmFloatPos) == "table" and frame and frame.SetPoint) then
+            return
+        end
+
+        local p = ui.clickAliasArmFloatPos
+        local point = type(p.point) == "string" and p.point or "TOP"
+        local relPoint = type(p.relativePoint) == "string" and p.relativePoint or point
+        local x = tonumber(p.x) or 0
+        local y = tonumber(p.y) or -140
+
+        frame:ClearAllPoints()
+        frame:SetPoint(point, UIParent, relPoint, x, y)
+    end
+
+    local function ApplyTextSize()
+        if not (btn and btn._label and btn._label.SetFont) then
+            return
+        end
+        local ui = GetUI()
+        local want = ui and tonumber(ui.clickAliasArmFloatTextSize)
+        if type(want) ~= "number" then
+            return
+        end
+        if want < 8 then want = 8 end
+        if want > 24 then want = 24 end
+        local fontPath, _, fontFlags = btn._label:GetFont()
+        if fontPath then
+            btn._label:SetFont(fontPath, want, fontFlags)
+        end
+    end
+
+    local function EnsureArmFloatButton()
+        if btn and btn.SetText then
+            return btn
+        end
+
+        if not (CreateFrame and UIParent) then
+            return nil
+        end
+
+        btn = CreateFrame("Button", "FGO_FloatingClickAliasArmButton", UIParent)
+        btn:SetSize(70, 18)
+        btn:SetClampedToScreen(true)
+        btn:SetFrameStrata("DIALOG")
+        btn:EnableMouse(true)
+        btn:SetMovable(true)
+        btn:RegisterForDrag("RightButton")
+
+        local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        fs:SetAllPoints(btn)
+        fs:SetJustifyH("CENTER")
+        fs:SetJustifyV("MIDDLE")
+        fs:SetText("|cff00ccffArm|r")
+        btn._label = fs
+
+        ApplyTextSize()
+
+        ApplySavedPosition(btn)
+
+        btn:SetScript("OnClick", function()
+            if ns and type(ns.ClickAlias_ArmAll) == "function" then
+                local ok, whyOrCount = ns.ClickAlias_ArmAll()
+                if ok then
+                    Print("Click aliases armed: " .. tostring(whyOrCount))
+                else
+                    Print("Click alias arm failed: " .. tostring(whyOrCount))
+                end
+            else
+                Print("Click alias module not loaded.")
+            end
+        end)
+
+        btn:SetScript("OnDragStart", function(self)
+            if self and self.StartMoving then
+                self:StartMoving()
+            end
+        end)
+
+        btn:SetScript("OnDragStop", function(self)
+            if self and self.StopMovingOrSizing then
+                self:StopMovingOrSizing()
+            end
+
+            local ui = GetUI()
+            if not ui then
+                return
+            end
+
+            ui.clickAliasArmFloatPos = ui.clickAliasArmFloatPos or {}
+            local point, _, relPoint, x, y = self:GetPoint(1)
+            ui.clickAliasArmFloatPos.point = point
+            ui.clickAliasArmFloatPos.relativePoint = relPoint
+            ui.clickAliasArmFloatPos.x = x
+            ui.clickAliasArmFloatPos.y = y
+        end)
+
+        btn:SetScript("OnEnter", function(self)
+            if GameTooltip then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText("|cff00ccff[FGO]|r Click Alias Arm")
+                GameTooltip:AddLine("Left-click: arm all click aliases", 1, 1, 1, true)
+                GameTooltip:AddLine("Right-drag: move", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+
+        btn:SetScript("OnLeave", function()
+            if GameTooltip then
+                GameTooltip:Hide()
+            end
+        end)
+
+        return btn
+    end
+
+    function ns.ClickAlias_GetArmFloatMode()
+        return GetArmFloatMode()
+    end
+
+    function ns.ClickAlias_SetArmFloatMode(mode)
+        SetArmFloatMode(mode)
+        if type(ns.ClickAlias_UpdateArmFloatButton) == "function" then
+            ns.ClickAlias_UpdateArmFloatButton()
+        end
+    end
+
+    -- Back-compat wrappers (older UI code may call these).
+    function ns.ClickAlias_GetArmFloatEnabled()
+        return GetArmFloatMode() ~= "off"
+    end
+
+    function ns.ClickAlias_SetArmFloatEnabled(enabled)
+        SetArmFloatMode((enabled and true) and "acc" or "off")
+        if type(ns.ClickAlias_UpdateArmFloatButton) == "function" then
+            ns.ClickAlias_UpdateArmFloatButton()
+        end
+    end
+
+    function ns.ClickAlias_UpdateArmFloatButton()
+        InitSV()
+        if GetArmFloatMode() ~= "off" then
+            local b = EnsureArmFloatButton()
+            if b and b.Show then
+                ApplySavedPosition(b)
+                ApplyTextSize()
+                b:Show()
+            end
+        else
+            if btn and btn.Hide then
+                btn:Hide()
+            end
+        end
+    end
+
+    local function OnEvent(_, event)
+        if event == "PLAYER_LOGIN" or event == "VARIABLES_LOADED" then
+            ns.ClickAlias_UpdateArmFloatButton()
+        end
+    end
+
+    local f = _G.CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:RegisterEvent("VARIABLES_LOADED")
+    f:SetScript("OnEvent", OnEvent)
 end
 
 local function NormalizeMode(mode)

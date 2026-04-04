@@ -435,8 +435,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[135052] = { text = "Hail the victories of the Vanguard and Sin'dorei you have seen so far.", type = "" }  -- Deepening Shadows (91854) Doomsayer (248826)
 
    local t = NPC("Drathen", 253468)
-   t.__meta.stopIfQuestAvailable = 92869                                                                       -- First NPCID, Stops Gossip until quest is accepted
-   t.__meta.stopIfQuestTurnIn = 92869                                                                          -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestAvailable = { 92869, }                                                                       -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestTurnIn = { 92869, }                                                                          -- First NPCID, Stops Gossip until quest is accepted
    t[136540] = { text = "Train me.", type = "" }
 
    local t = NPC("Gaari", { 247647, })
@@ -529,6 +529,16 @@ SetZone("Stormwind City, Eastern Kingdoms")
    local t = NPC("Honor Hold Mage", 150122)
    t[50005] = { text = "I must report to the Dark Portal.", type = "" }
 
+   local t = NPC("Kiatke", 101759)
+   t.__meta.stopIfQuestAvailable = { 86556, }                                                                   -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestTurnIn = { 86556, 40786, 40787, }                                                        -- Stops auto-select if any of these quests are turn-in ready
+   t[ 45067] = { text = "I would like to buy from you.", type = "" }                                            -- Vendor () Kiatke (101759)
+
+   local t = NPC("Recruiter Lee", 107934)
+   t.__meta.stopIfQuestAvailable = { 42782, }                                                                   -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestTurnIn = { 40519, }                                                                      -- First NPCID, Stops Gossip until quest is accepted
+   t[ 47484] = { text = "I've heard this tale before... <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, }, type = "" }                                   -- To Be Prepared (42782) Recruiter Lee (107934)
+
    local t = NPC("Tawny Seabraid", 185468)
    t[107827] = { text = "I'd like to see what you have to off this month.", type = "" }               -- Venndor () Tawny Seabraid (185468)
 
@@ -556,11 +566,6 @@ SetZone("Twilight Highlands, Eastern Kingdoms")
    local t = NPC("Restlass Neophyte", { 248230, 248229, 248228 })
    t[135794] = { text = "<Challenge the cultist to a \"sparring match.\"", type = "" }
 
-SetZone("Westfall, Eastern Kingdoms")
-
-   local t = NPC("Thor", 523)
-   t[32677] = { text = "I need a ride.", type = "" }
-
 SetZone("Voidstorm, Eastern Kingdoms")
 
    local t = NPC("Alleria Windrunner", { 235521, 235502, 235763, })
@@ -573,7 +578,7 @@ SetZone("Voidstorm, Eastern Kingdoms")
    t[138332] = { text = "<Ask Alayshen what he thinks.>", type = "" }                              -- Buried in the Dark (92946) Ancient Tablet (616704)
    t[138333] = { text = "<Ask Alayshen what he thinks.>", type = "" }                              -- Buried in the Dark (92946) Ancient Tablet (616705)
 
-   local t = NPC("Decimus", { 235607, 235392, 235653, 243276, 248583, 244948, })
+   local t = NPC("Decimus", { 235607, 235392, 235653, 243276, 248583, 244948, 252853, })
    t[132998] = { text = "<Apply force.>", type = "" }                                              -- Reliable Enemies (86536) Decimus (235607)
    t[135469] = { text = "How did Xal'atath take control of the ethereals?", type = "" }            -- Reliable Enemies (86536) Decimus (235607)
    t[132757] = { text = "Explain yourself.", type = "" }                                           -- Post Mortem (86544) Decimus (235392)
@@ -582,6 +587,7 @@ SetZone("Voidstorm, Eastern Kingdoms")
    t[135125] = { text = "<Tell Decimus your favorite food is ripe, fresh fruit.>", type = "" }     -- Warmth for the Soul (90920) Decimus (248583)
    t[135136] = { text = "<Tell Decimus you fear spiders.>", type = "" }                            -- Warmth for the Soul (90920) Decimus (248583)
    t[135131] = { text = "<Tell Decimus you regret all the lives you could not save.>", type = "" } -- Warmth for the Soul (90920) Decimus (248583)
+   t[136300] = { text = "<Give Decimus the blade.>", type = "" }                                   -- Shepherd of Fear (90923) Decimus (244948)
 
    local t = NPC("Fidoficus", { 246791, })
    t[134827] = { text = "<Feed the delicious snack to Fidoficus.>", type = "" }                   -- Belly of the Beast (91380) Fidoficus (246791)
@@ -592,8 +598,12 @@ SetZone("Voidstorm, Eastern Kingdoms")
    local t = NPC("Hospitus", { 235701, })
    t[135474] = { text = "What do you have for sale?", type = "" }                                  -- Innkeeper Hospitus (235701)
 
-   local t = NPC("Kifaan", { 244499, })
+   local t = NPC("Kifaan", { 244499, 244516, })
    t[136789] = { text = "<Hand Kifaan the Interrogated Data to interpret.>", type = "" }           -- Fits of Lucidity (90844) Kifaan (244499)
+   t[136988] = { text = "<Encourage Kifaan to talk to his sister.>", type = "" }                   -- Bursting at the Seams (93396) Kifaan (244516)
+
+   local t = NPC("Knight Anais", { 253594, })
+   t[136581] = { text = "I'm ready.", type = "" }                                                  -- Strung Along (91148) Knight Anais (253594)
 
    local t = NPC("Lady Darkglen", { 241170, })
    t[132555] = { text = "I'll find Hieron. Regroup with the others.", type = "" }                  -- Vanished in the Void (86517) Lady Darkglen (241170)
@@ -607,6 +617,9 @@ SetZone("Voidstorm, Eastern Kingdoms")
 
    local t = NPC("Magister Umbric", { 239828, })
    t[133258] = { text = "Scrying platform?", type = "" }                                           -- Clarity of Purpose (88697) Magister Umbric (239828)
+
+   local t = NPC("Orin Straylight", { 254114, })
+   t[136761] = { text = "Where does this voice lead?", type = "" }                                 -- O Lonely Star (92603) Orin Straylight (254114)
 
    local t = NPC("Ravenia", { 246727, })
    t[134864] = { text = "I slew the Den-Gorger while Fidoficus cowered in fear.", type = "" }      -- Mighty and Superior (91382) Ravenia (246727)
@@ -626,6 +639,14 @@ SetZone("Voidstorm, Eastern Kingdoms")
    local t = NPC("Void Reasercher Anomander", { 248328, })
    t[138232] = { text = "<Inquire about Anomander's reaserch.>", type = "", prio = 10 }            -- Domus Penumbra (86510) Void Reasercher Anomander (248328)
    t[138438] = { text = "Can I see the Renown items you have for sale?", type = "", prio = -10 }   -- Quartermaster Void Reasercher Anomander (248328)
+
+   local t = NPC("Ziadan", { 256901, })
+   t[138272] = { text = "<Tell them you are ready to deliver the final blow...>", type = "", }     -- Voidscar Arena: Clearing House (91606) Ziadan (256901)
+
+SetZone("Westfall, Eastern Kingdoms")
+
+   local t = NPC("Thor", 523)
+   t[32677] = { text = "I need a ride.", type = "" }
 
 SetZone("Zul'Aman, Eastern Kingdoms")
 

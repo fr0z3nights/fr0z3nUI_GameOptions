@@ -59,8 +59,19 @@ local function NPC(npcName, npcIDs)
 		end,
 	})
 end
-    local t = NPC("Gargra", 87122)
+
+
+
+SetZone("Frostifre Ridge, Draenor")
+
+	local t = NPC("Gargra", 87122)
     t[42881] = { text = "Let's do this!", mount = true, type = "", }
+
+    local t = NPC("Senior Peon II", 86775)
+    t[43217] = { text = "Gazlowe needs you.", type = "", close = true }					-- What We Got (34824) Senior Peon II (86775)
+
+    local t = NPC("Skaggit", 80225)
+    t[42535] = { text = "Get the peons back to work.", type = "", close = true }		-- What We Got (34824) Skaggit (80225)
 
 SetZone("Gorgrond, Draenor")
 
@@ -98,8 +109,18 @@ SetZone("Spires of Arak, Draenor")
 
 SetZone("Garrison, Draenor")
 
+    local t = NPC("Assistant Brightstone", 84455)
+    t[42666] = { text = "Time to get back to work.", type = "", close = true }					-- Keeping it Together (35176) Assistant Brightstone (84455)
+
+    local t = NPC("Rachelle Black", 81348)
+    t[42786] = { text = "Let me browse your goods.", type = "" }								-- Vendor Rachelle Black (81348)
+
+    local t = NPC("Shelly Hamby", 81441)
+    t[42677] = { text = "Gather Shelly's report.", type = "", close = true }					-- Keeping it Together (35176) Shelly Hamby (81441)
+
     -- System/helper entry (not tied to real gossip). Used as a toggle in the Talk tab.
     -- NOTE: This uses a fake NPC ID so it will never match real gossip.
     local t = NPC("Garrison Mission Table", -32000)
     t[1] = { text = "Auto-start first mission (tutorial quest)", type = "" }
+
 

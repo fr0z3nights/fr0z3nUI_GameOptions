@@ -17,8 +17,6 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         or (ns and ns._InitSV)
         or function() end
 
-    local GetQueueAcceptState = helpers.GetQueueAcceptState
-    local SetQueueAcceptState = helpers.SetQueueAcceptState
     local ShowQueueOverlayIfNeeded = helpers.ShowQueueOverlayIfNeeded
 
     local EnsureChromieIndicator = helpers.EnsureChromieIndicator
@@ -57,7 +55,10 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         end
         chromie = chromie or (_G and rawget(_G, "FGO_ChromieConfigPopup"))
 
-        for _, f in ipairs({ pet, mu, chromie }) do
+        local safari = (_G and rawget(_G, "FGO_SafariPopout"))
+        local queueAccept = (_G and rawget(_G, "FGO_QueueAcceptPopout"))
+
+        for _, f in ipairs({ pet, mu, chromie, safari, queueAccept }) do
             if f and f ~= exceptFrame then
                 HideIfShown(f)
             end
@@ -162,66 +163,310 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         if GameTooltip then GameTooltip:Hide() end
     end)
 
-    -- Queue Accept
-    local btnQueueAccept = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btnQueueAccept:SetSize(BTN_W, BTN_H)
-    btnQueueAccept:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
+    -- Queue Accept (3-button row: Queue / Enable / Config)
+    local queueAcceptPopout = nil
+    local UpdateQueueAcceptSegments = nil
+
+    local function ClampInt(v, minV, maxV, defaultV)
+        v = tonumber(v)
+        if v == nil then
+            v = defaultV
+        end
+        v = math.floor(v + 0.5)
+        if minV ~= nil and v < minV then v = minV end
+        if maxV ~= nil and v > maxV then v = maxV end
+        return v
+    end
+
+    local function GetQueueAcceptAccEnabled()
+        InitSV()
+        return (AutoGossip_Settings and AutoGossip_Settings.queueAcceptAcc) and true or false
+    end
+
+    local function GetQueueAcceptCharOverride()
+        InitSV()
+        if not AutoGossip_CharSettings then
+            return nil
+        end
+        local v = AutoGossip_CharSettings.queueAcceptEnabledOverride
+        if type(v) == "boolean" then
+            return v
+        end
+        return nil
+    end
+
+    local function GetQueueAcceptEffectiveEnabled()
+        local override = GetQueueAcceptCharOverride()
+        if override ~= nil then
+            return override
+        end
+        return GetQueueAcceptAccEnabled()
+    end
+
+    local function EnsureQueueAcceptPopout()
+        if queueAcceptPopout and queueAcceptPopout.SetPoint then
+            return queueAcceptPopout
+        end
+
+        queueAcceptPopout = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+        queueAcceptPopout:SetSize(360, 140)
+        queueAcceptPopout:ClearAllPoints()
+        queueAcceptPopout:SetPoint("TOPLEFT", panel, "TOPRIGHT", 10, 0)
+        if queueAcceptPopout.SetFrameStrata then queueAcceptPopout:SetFrameStrata("DIALOG") end
+        queueAcceptPopout:SetFrameLevel((panel.GetFrameLevel and panel:GetFrameLevel() or 0) + 80)
+        if queueAcceptPopout.SetClampedToScreen then queueAcceptPopout:SetClampedToScreen(true) end
+        queueAcceptPopout:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            tile = true,
+            tileSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        queueAcceptPopout:SetBackdropColor(0, 0, 0, 0.85)
+        queueAcceptPopout:Hide()
+        if _G then
+            _G.FGO_QueueAcceptPopout = queueAcceptPopout
+        end
+
+        queueAcceptPopout:SetScript("OnShow", function()
+            if queueAcceptPopout and queueAcceptPopout._fgoUpdate then
+                queueAcceptPopout._fgoUpdate()
+            end
+            if UpdateQueueAcceptSegments then
+                UpdateQueueAcceptSegments()
+            end
+        end)
+        queueAcceptPopout:SetScript("OnHide", function()
+            if UpdateQueueAcceptSegments then
+                UpdateQueueAcceptSegments()
+            end
+        end)
+
+        local close = CreateFrame("Button", nil, queueAcceptPopout, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", queueAcceptPopout, "TOPRIGHT", -6, -6)
+
+        local title = queueAcceptPopout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOPLEFT", queueAcceptPopout, "TOPLEFT", 12, -10)
+        title:SetText("Queue Accept")
+        title:SetTextColor(1, 0.82, 0, 1)
+
+        local hint = queueAcceptPopout:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+        hint:SetText("Sound/volume behavior while a queue is ready")
+
+        local row1 = CreateFrame("Frame", nil, queueAcceptPopout)
+        row1:SetSize(320, BTN_H)
+        row1:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
+
+        local btnBoost = CreateFrame("Button", nil, row1, "UIPanelButtonTemplate")
+        btnBoost:SetSize(SEG_W + 20, BTN_H)
+        btnBoost:SetPoint("LEFT", row1, "LEFT", 12, 0)
+
+        local lblRestore = row1:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        lblRestore:SetPoint("LEFT", btnBoost, "RIGHT", 8, 0)
+        lblRestore:SetText("Restore %")
+
+        local ebRestore = MakeNumericBox(row1, 40, BTN_H)
+        ebRestore:SetPoint("LEFT", lblRestore, "RIGHT", 6, 0)
+
+        local row2 = CreateFrame("Frame", nil, queueAcceptPopout)
+        row2:SetSize(320, BTN_H)
+        row2:SetPoint("TOPLEFT", row1, "BOTTOMLEFT", 0, -10)
+
+        local btnRepeat = CreateFrame("Button", nil, row2, "UIPanelButtonTemplate")
+        btnRepeat:SetSize(SEG_W + 20, BTN_H)
+        btnRepeat:SetPoint("LEFT", row2, "LEFT", 12, 0)
+
+        local lblEvery = row2:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        lblEvery:SetPoint("LEFT", btnRepeat, "RIGHT", 8, 0)
+        lblEvery:SetText("Every")
+
+        local ebEvery = MakeNumericBox(row2, 40, BTN_H)
+        ebEvery:SetPoint("LEFT", lblEvery, "RIGHT", 6, 0)
+
+        local lblSec = row2:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        lblSec:SetPoint("LEFT", ebEvery, "RIGHT", 6, 0)
+        lblSec:SetText("sec")
+
+        local function UpdateQueueAcceptPopout()
+            InitSV()
+            local boost = (AutoGossip_Settings and AutoGossip_Settings.queueAcceptBoostVolumeAcc) and true or false
+            local restorePct = ClampInt(AutoGossip_Settings and AutoGossip_Settings.queueAcceptRestoreVolumePctAcc, 0, 100, 50)
+            local repeatSound = (AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc) and true or false
+            local every = ClampInt(AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc, 1, 30, 3)
+
+            SetGreenGrey(btnBoost, "Boost Vol", boost)
+            SetGreenGrey(btnRepeat, "Repeat Sound", repeatSound)
+            if ebRestore and ebRestore.SetText then
+                ebRestore:SetText(tostring(restorePct))
+            end
+            if ebEvery and ebEvery.SetText then
+                ebEvery:SetText(tostring(every))
+            end
+        end
+
+        btnBoost:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.queueAcceptBoostVolumeAcc = not (AutoGossip_Settings.queueAcceptBoostVolumeAcc and true or false)
+            UpdateQueueAcceptPopout()
+        end)
+        btnBoost:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnBoost, "ANCHOR_RIGHT")
+                GameTooltip:SetText("Boost Vol")
+                GameTooltip:AddLine("If ON, sets master volume to 100% when a queue pops.", 1, 1, 1, true)
+                GameTooltip:AddLine("When the queue ends/dismisses, restores to the configured %.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnBoost:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+        btnRepeat:SetScript("OnClick", function()
+            InitSV()
+            AutoGossip_Settings.queueAcceptRepeatSoundAcc = not (AutoGossip_Settings.queueAcceptRepeatSoundAcc and true or false)
+            UpdateQueueAcceptPopout()
+        end)
+        btnRepeat:SetScript("OnEnter", function()
+            if GameTooltip then
+                GameTooltip:SetOwner(btnRepeat, "ANCHOR_RIGHT")
+                GameTooltip:SetText("Repeat Sound")
+                GameTooltip:AddLine("If ON, repeats a queue-ready sound while a proposal is active.", 1, 1, 1, true)
+                GameTooltip:AddLine("Uses the configured interval (sec).", 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        btnRepeat:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+        local function SaveRestorePct()
+            InitSV()
+            local v = ClampInt(ebRestore and ebRestore.GetText and ebRestore:GetText(), 0, 100, 50)
+            AutoGossip_Settings.queueAcceptRestoreVolumePctAcc = v
+            UpdateQueueAcceptPopout()
+        end
+        ebRestore:SetScript("OnEnterPressed", function(self)
+            SaveRestorePct()
+            if self and self.ClearFocus then self:ClearFocus() end
+        end)
+        ebRestore:SetScript("OnEditFocusLost", SaveRestorePct)
+
+        local function SaveEvery()
+            InitSV()
+            local v = ClampInt(ebEvery and ebEvery.GetText and ebEvery:GetText(), 1, 30, 3)
+            AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = v
+            UpdateQueueAcceptPopout()
+        end
+        ebEvery:SetScript("OnEnterPressed", function(self)
+            SaveEvery()
+            if self and self.ClearFocus then self:ClearFocus() end
+        end)
+        ebEvery:SetScript("OnEditFocusLost", SaveEvery)
+
+        queueAcceptPopout._fgoUpdate = UpdateQueueAcceptPopout
+        UpdateQueueAcceptPopout()
+        return queueAcceptPopout
+    end
+
+    local queueAcceptSegContainer = CreateFrame("Frame", nil, panel)
+    queueAcceptSegContainer:SetSize(BTN_W, BTN_H)
+    queueAcceptSegContainer:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
     if frame then
-        frame.btnQueueAccept = btnQueueAccept
+        frame.queueAcceptSegContainer = queueAcceptSegContainer
     end
 
-    local function UpdateQueueAcceptButton()
-        if not GetQueueAcceptState then
-            btnQueueAccept:SetText("Queue Accept: |cff888888(unavailable)|r")
-            return
-        end
-        local state = GetQueueAcceptState()
-        if state == "acc" then
-            btnQueueAccept:SetText("Queue Accept: |cff00ccffACC ON|r")
-        elseif state == "char" then
-            btnQueueAccept:SetText("Queue Accept: |cff00ccffON|r")
-        else
-            btnQueueAccept:SetText("Queue Accept: |cffff0000OFF|r")
-        end
+    local segQueueAcceptQueue = CreateFrame("Button", nil, queueAcceptSegContainer, "UIPanelButtonTemplate")
+    segQueueAcceptQueue:SetSize(SEG_W, BTN_H)
+    segQueueAcceptQueue:SetPoint("LEFT", queueAcceptSegContainer, "LEFT", 0, 0)
+
+    local segQueueAcceptEnable = CreateFrame("Button", nil, queueAcceptSegContainer, "UIPanelButtonTemplate")
+    segQueueAcceptEnable:SetSize(SEG_W, BTN_H)
+    segQueueAcceptEnable:SetPoint("LEFT", segQueueAcceptQueue, "RIGHT", SEG_GAP, 0)
+
+    local segQueueAcceptConfig = CreateFrame("Button", nil, queueAcceptSegContainer, "UIPanelButtonTemplate")
+    segQueueAcceptConfig:SetSize(SEG_W3, BTN_H)
+    segQueueAcceptConfig:SetPoint("LEFT", segQueueAcceptEnable, "RIGHT", SEG_GAP, 0)
+
+    UpdateQueueAcceptSegments = function()
+        InitSV()
+        local accOn = GetQueueAcceptAccEnabled()
+        local effectiveOn = GetQueueAcceptEffectiveEnabled()
+        local configOpen = (queueAcceptPopout and queueAcceptPopout.IsShown and queueAcceptPopout:IsShown()) and true or false
+
+        SetGreenGrey(segQueueAcceptQueue, "Queue", accOn)
+        SetGreenGrey(segQueueAcceptEnable, "Enable", effectiveOn)
+        SetGreenGrey(segQueueAcceptConfig, "Config", configOpen)
     end
 
-    btnQueueAccept:SetScript("OnClick", function()
-        if not (GetQueueAcceptState and SetQueueAcceptState) then
-            return
-        end
-        local state = GetQueueAcceptState()
-        if state == "acc" then
-            SetQueueAcceptState("char")
-        elseif state == "char" then
-            SetQueueAcceptState("off")
-        else
-            SetQueueAcceptState("acc")
-        end
-        UpdateQueueAcceptButton()
+    segQueueAcceptQueue:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_Settings.queueAcceptAcc = not (AutoGossip_Settings.queueAcceptAcc and true or false)
+        UpdateQueueAcceptSegments()
         if ShowQueueOverlayIfNeeded then
             ShowQueueOverlayIfNeeded()
         end
     end)
-    btnQueueAccept:SetScript("OnEnter", function()
+    segQueueAcceptQueue:SetScript("OnEnter", function()
         if GameTooltip then
-            GameTooltip:SetOwner(btnQueueAccept, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Queue Accept")
-            GameTooltip:AddLine("ACC ON: enable for all characters.", 1, 1, 1, true)
-            GameTooltip:AddLine("ON: enable only this character.", 1, 1, 1, true)
-            GameTooltip:AddLine("OFF: disable.", 1, 1, 1, true)
+            GameTooltip:SetOwner(segQueueAcceptQueue, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Queue")
+            GameTooltip:AddLine("Account default for Queue Accept.", 1, 1, 1, true)
+            GameTooltip:AddLine("If ON, Queue Accept is enabled unless a character override disables it.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segQueueAcceptQueue:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segQueueAcceptEnable:SetScript("OnClick", function()
+        InitSV()
+        local effective = GetQueueAcceptEffectiveEnabled()
+        AutoGossip_CharSettings.queueAcceptEnabledOverride = (not effective) and true or false
+        UpdateQueueAcceptSegments()
+        if ShowQueueOverlayIfNeeded then
+            ShowQueueOverlayIfNeeded()
+        end
+    end)
+    segQueueAcceptEnable:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segQueueAcceptEnable, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Enable")
+            GameTooltip:AddLine("Per-character override.", 1, 1, 1, true)
+            GameTooltip:AddLine("Click to toggle effective enable for this character.", 1, 1, 1, true)
             GameTooltip:AddLine("When a dungeon queue pops, clicking the world will accept.", 1, 1, 1, true)
             GameTooltip:AddLine("Clicks on other UI should not accept.", 1, 1, 1, true)
             GameTooltip:Show()
         end
     end)
-    btnQueueAccept:SetScript("OnLeave", function()
-        if GameTooltip then GameTooltip:Hide() end
+    segQueueAcceptEnable:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segQueueAcceptConfig:SetScript("OnClick", function()
+        local p = EnsureQueueAcceptPopout()
+        if p and p.IsShown and p:IsShown() then
+            p:Hide()
+            UpdateQueueAcceptSegments()
+            return
+        end
+
+        CloseAllConfigPopouts(p)
+        if p and p.Show then
+            p:Show()
+            if p._fgoUpdate then
+                p._fgoUpdate()
+            end
+        end
+        UpdateQueueAcceptSegments()
     end)
+    segQueueAcceptConfig:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segQueueAcceptConfig, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Config")
+            GameTooltip:AddLine("Open Queue Accept sound/volume configuration.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segQueueAcceptConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
     -- Row: PopUp / PopDbg / Reload (below Queue Accept)
     local popupRow = CreateFrame("Frame", nil, panel)
     popupRow:SetSize(BTN_W, BTN_H)
-    popupRow:SetPoint("TOP", btnQueueAccept, "BOTTOM", 0, -GAP_Y)
+    popupRow:SetPoint("TOP", queueAcceptSegContainer, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.popupRow = popupRow
     end
@@ -978,9 +1223,450 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end)
     segMailConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
+    -- Safari Hat float segments (below Mail)
+    local safariSegContainer = CreateFrame("Frame", nil, panel)
+    safariSegContainer:SetSize(BTN_W, BTN_H)
+    safariSegContainer:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.safariHatSegContainer = safariSegContainer
+    end
+
+    local segSafari = CreateFrame("Button", nil, safariSegContainer, "UIPanelButtonTemplate")
+    segSafari:SetSize(SEG_W, BTN_H)
+    segSafari:SetPoint("LEFT", safariSegContainer, "LEFT", 0, 0)
+    if frame then
+        frame.btnSafariHatSegMain = segSafari
+    end
+
+    local segSafariEnable = CreateFrame("Button", nil, safariSegContainer, "UIPanelButtonTemplate")
+    segSafariEnable:SetSize(SEG_W, BTN_H)
+    segSafariEnable:SetPoint("LEFT", segSafari, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnSafariHatSegEnable = segSafariEnable
+    end
+
+    local segSafariConfig = CreateFrame("Button", nil, safariSegContainer, "UIPanelButtonTemplate")
+    segSafariConfig:SetSize(SEG_W3, BTN_H)
+    segSafariConfig:SetPoint("LEFT", segSafariEnable, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnSafariHatSegConfig = segSafariConfig
+    end
+
+    local function UpdateSafariHatNow()
+        if ns and type(ns.UpdateSafariHatFloatButton) == "function" then
+            pcall(ns.UpdateSafariHatFloatButton)
+        end
+    end
+
+    local function UpdateSafariHatSegments()
+        InitSV()
+        local accOn = (AutoGossip_UI and AutoGossip_UI.safariHatFloatEnabledAcc) and true or false
+        local charOn = (AutoGossip_CharSettings and AutoGossip_CharSettings.safariHatFloatEnabledChar ~= false) and true or false
+
+        SetSegGreenGrey(segSafari, "Safari", accOn)
+        SetSegGreenGrey(segSafariEnable, "Enable", charOn)
+        segSafariConfig:SetText("Config")
+    end
+
+    local safariPop
+    local function FGO_IsSafariPopoutOpen()
+        return safariPop and safariPop.IsShown and safariPop:IsShown() or false
+    end
+    _G.FGO_IsSafariPopoutOpen = FGO_IsSafariPopoutOpen
+
+    local function MakeEditBoxBorderless(editBox)
+        if not editBox then return end
+        if editBox.Left and editBox.Left.Hide then editBox.Left:Hide() end
+        if editBox.Middle and editBox.Middle.Hide then editBox.Middle:Hide() end
+        if editBox.Right and editBox.Right.Hide then editBox.Right:Hide() end
+        if editBox.SetTextInsets then
+            editBox:SetTextInsets(6, 6, 2, 2)
+        end
+    end
+
+    local function AttachGhostText(editBox, text)
+        if not (editBox and editBox.CreateFontString) then
+            return
+        end
+        local ghost = editBox:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        ghost:SetText(tostring(text or ""))
+        ghost:SetJustifyH("LEFT")
+        ghost:SetPoint("LEFT", editBox, "LEFT", 6, 0)
+
+        local function Update()
+            local hasText = (tostring(editBox:GetText() or "") ~= "")
+            if editBox.HasFocus and editBox:HasFocus() then
+                ghost:Hide()
+            else
+                ghost:SetShown(not hasText)
+            end
+        end
+        editBox:HookScript("OnTextChanged", Update)
+        editBox:HookScript("OnEditFocusGained", Update)
+        editBox:HookScript("OnEditFocusLost", Update)
+        Update()
+        editBox._fgoGhost = ghost
+    end
+
+    local function MakeNumericBox(parent, width, height)
+        local eb = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+        eb:SetSize(width, height)
+        eb:SetAutoFocus(false)
+        if eb.SetNumeric then
+            eb:SetNumeric(true)
+        end
+        MakeEditBoxBorderless(eb)
+        return eb
+    end
+
+    local function MakeTextBox(parent, width, height)
+        local eb = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+        eb:SetSize(width, height)
+        eb:SetAutoFocus(false)
+        MakeEditBoxBorderless(eb)
+        return eb
+    end
+
+    local function EnsureSafariPopout()
+        if safariPop and safariPop.SetPoint then
+            return safariPop
+        end
+
+        safariPop = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+        safariPop:SetSize(480, 360)
+        safariPop:ClearAllPoints()
+        safariPop:SetPoint("TOPLEFT", panel, "TOPRIGHT", 10, 0)
+        if safariPop.SetFrameStrata then safariPop:SetFrameStrata("DIALOG") end
+        safariPop:SetFrameLevel((panel.GetFrameLevel and panel:GetFrameLevel() or 0) + 80)
+        if safariPop.SetClampedToScreen then safariPop:SetClampedToScreen(true) end
+        safariPop:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            tile = true,
+            tileSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        safariPop:SetBackdropColor(0, 0, 0, 0.85)
+        safariPop:Hide()
+        if _G then
+            _G.FGO_SafariPopout = safariPop
+        end
+
+        local close = CreateFrame("Button", nil, safariPop, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", safariPop, "TOPRIGHT", -6, -6)
+
+        local title = safariPop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOPLEFT", safariPop, "TOPLEFT", 12, -10)
+        title:SetText("Safari")
+        title:SetTextColor(1, 0.82, 0, 1)
+
+        local hint = safariPop:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+        hint:SetText("Toy: Safari Hat (92738)")
+
+        -- Click-popout style input row (borderless boxes + ghost text)
+        -- Tight widths: Quest/NPC ~6 digits, Size ~2 digits.
+        local questBox = MakeNumericBox(safariPop, 70, 20)
+        questBox:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 14, -10)
+        if questBox.SetJustifyH then questBox:SetJustifyH("CENTER") end
+        AttachGhostText(questBox, "QuestID")
+
+        local npcBox = MakeNumericBox(safariPop, 70, 20)
+        npcBox:SetPoint("LEFT", questBox, "RIGHT", 6, 0)
+        if npcBox.SetJustifyH then npcBox:SetJustifyH("CENTER") end
+        AttachGhostText(npcBox, "NPCID")
+
+        local nameBox = MakeTextBox(safariPop, 260, 20)
+        nameBox:SetPoint("LEFT", npcBox, "RIGHT", 6, 0)
+        AttachGhostText(nameBox, "Name")
+
+        local sizeBox = MakeNumericBox(safariPop, 36, 20)
+        sizeBox:SetPoint("LEFT", nameBox, "RIGHT", 6, 0)
+        if sizeBox.SetJustifyH then sizeBox:SetJustifyH("CENTER") end
+        AttachGhostText(sizeBox, "Size")
+
+        local listHeader = safariPop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        listHeader:SetPoint("TOPLEFT", questBox, "BOTTOMLEFT", -2, -12)
+        listHeader:SetText("Rules")
+
+        local listWidth = 420
+        local rowHeight = 20
+        local rowGap = 4
+        local listHeight = (rowHeight * 10) + (rowGap * 9)
+
+        local listScroll = CreateFrame("ScrollFrame", nil, safariPop, "UIPanelScrollFrameTemplate")
+        listScroll:SetPoint("TOPLEFT", listHeader, "BOTTOMLEFT", -2, -6)
+        listScroll:SetSize(listWidth + 24, listHeight + 6)
+        if listScroll.ScrollBar and listScroll.ScrollBar.Hide then
+            listScroll.ScrollBar:Hide()
+            listScroll.ScrollBar.Show = function() end
+        end
+        listScroll:EnableMouseWheel(true)
+
+        local listChild = CreateFrame("Frame", nil, listScroll)
+        listChild:SetSize(listWidth, listHeight)
+        listScroll:SetScrollChild(listChild)
+
+        local seedEmpty = safariPop:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        seedEmpty:SetPoint("CENTER", listScroll, "CENTER", -10, 0)
+        seedEmpty:SetText("No rules")
+        seedEmpty:Hide()
+
+        listScroll:SetScript("OnMouseWheel", function(self, delta)
+            local current = self:GetVerticalScroll() or 0
+            local maxScroll = self:GetVerticalScrollRange() or 0
+            local newScroll = current - (delta * (rowHeight + rowGap) * 2)
+            if newScroll < 0 then newScroll = 0 end
+            if newScroll > maxScroll then newScroll = maxScroll end
+            self:SetVerticalScroll(newScroll)
+        end)
+
+        local seedRows = {}
+
+        local function BuildRuleEntries()
+            if ns and type(ns.SafariHat_List) == "function" then
+                return ns.SafariHat_List()
+            end
+            return {}
+        end
+
+        local function RebuildSeedList()
+            local entries = BuildRuleEntries()
+            seedEmpty:SetShown(#entries == 0)
+
+            for i = 1, #entries do
+                local row = seedRows[i]
+                if not row then
+                    row = CreateFrame("Frame", nil, listChild)
+                    row:SetSize(listWidth, rowHeight)
+                    if i == 1 then
+                        row:SetPoint("TOPLEFT", listChild, "TOPLEFT", 0, 0)
+                    else
+                        row:SetPoint("TOPLEFT", seedRows[i - 1], "BOTTOMLEFT", 0, -rowGap)
+                    end
+
+                    row.bg = row:CreateTexture(nil, "BACKGROUND")
+                    row.bg:SetAllPoints(row)
+                    row.bg:SetColorTexture(1, 1, 1, 0.04)
+                    row.bg:Hide()
+
+                    row.btnToggle = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+                    row.btnToggle:SetSize(44, rowHeight)
+                    row.btnToggle:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+
+                    row.btnDelete = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+                    row.btnDelete:SetSize(22, rowHeight)
+                    row.btnDelete:SetPoint("RIGHT", row.btnToggle, "LEFT", -4, 0)
+                    row.btnDelete:SetText("X")
+
+                    row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+                    row.text:SetPoint("LEFT", row, "LEFT", 6, 0)
+                    row.text:SetPoint("RIGHT", row.btnDelete, "LEFT", -6, 0)
+                    row.text:SetJustifyH("LEFT")
+
+                    seedRows[i] = row
+                end
+
+                local e = entries[i]
+                row._fgoQuestID = tonumber(e.questID) or 0
+                row._fgoNpcID = tonumber(e.npcID) or 0
+                row._fgoTextSize = tonumber(e.textSize) or 12
+                row._fgoName = tostring(e.name or "")
+                row._fgoEnabled = (e.enabled ~= false)
+                row._fgoSeeded = (e.seeded and true or false)
+
+                local label = (row._fgoName ~= "" and row._fgoName) or "(unnamed)"
+                local qtxt = (row._fgoQuestID and row._fgoQuestID > 0) and ("Q" .. tostring(row._fgoQuestID)) or "Q-"
+                local ntxt = (row._fgoNpcID and row._fgoNpcID > 0) and ("N" .. tostring(row._fgoNpcID)) or "N-"
+                row.text:SetText(label .. "  [" .. qtxt .. "  " .. ntxt .. "]  Size " .. tostring(row._fgoTextSize or 12))
+
+                if row._fgoEnabled then
+                    row.text:SetTextColor(1, 1, 1, 1)
+                    row.btnToggle:SetText("ON")
+                else
+                    row.text:SetTextColor(0.6, 0.6, 0.6, 1)
+                    row.btnToggle:SetText("OFF")
+                end
+
+                row.btnDelete:SetShown(not row._fgoSeeded)
+
+                local zebra = (i % 2) == 0
+                row.bg:SetShown(zebra)
+
+                row:EnableMouse(true)
+                row:SetScript("OnMouseDown", function()
+                    questBox:SetText((row._fgoQuestID and row._fgoQuestID > 0) and tostring(row._fgoQuestID) or "")
+                    npcBox:SetText((row._fgoNpcID and row._fgoNpcID > 0) and tostring(row._fgoNpcID) or "")
+                    nameBox:SetText(tostring(row._fgoName or ""))
+                    sizeBox:SetText(tostring(math.floor((tonumber(row._fgoTextSize) or 12) + 0.5)))
+                    hint:SetText("Rule loaded (press Enter to add/update)")
+                end)
+
+                row.btnToggle:SetScript("OnClick", function()
+                    if ns and type(ns.SafariHat_SetEnabled) == "function" then
+                        ns.SafariHat_SetEnabled(row._fgoNpcID, not row._fgoEnabled)
+                    end
+                    RebuildSeedList()
+                    UpdateSafariHatNow()
+                end)
+
+                row.btnDelete:SetScript("OnClick", function()
+                    if ns and type(ns.SafariHat_Remove) == "function" then
+                        ns.SafariHat_Remove(row._fgoNpcID)
+                    end
+                    RebuildSeedList()
+                    UpdateSafariHatNow()
+                end)
+
+                row:Show()
+            end
+
+            for i = #entries + 1, #seedRows do
+                if seedRows[i] then
+                    seedRows[i]:Hide()
+                    seedRows[i]:SetScript("OnMouseDown", nil)
+                    if seedRows[i].btnToggle then seedRows[i].btnToggle:SetScript("OnClick", nil) end
+                    if seedRows[i].btnDelete then seedRows[i].btnDelete:SetScript("OnClick", nil) end
+                end
+            end
+
+            local n = #entries
+            local childHeight = 0
+            if n <= 0 then
+                childHeight = listHeight
+            else
+                childHeight = (n * rowHeight) + ((n - 1) * rowGap)
+                if childHeight < listHeight then childHeight = listHeight end
+            end
+            listChild:SetHeight(childHeight)
+            if listScroll.SetVerticalScroll then listScroll:SetVerticalScroll(0) end
+        end
+
+        local function RefreshSafariPopout()
+            RebuildSeedList()
+        end
+
+        local function ApplyFromBoxes()
+            InitSV()
+            local npc = tonumber(npcBox:GetText()) or 0
+            if npc < 0 then npc = 0 end
+
+            local name = tostring(nameBox:GetText() or "")
+
+            local size = tonumber(sizeBox:GetText())
+            if not size then size = 12 end
+            if size < 8 then size = 8 end
+            if size > 24 then size = 24 end
+
+            local q = tonumber(questBox:GetText()) or 0
+            if q < 0 then q = 0 end
+
+            if ns and type(ns.SafariHat_Upsert) == "function" then
+                local ok, err = ns.SafariHat_Upsert(q, npc, size, name)
+                if not ok then
+                    hint:SetText("Invalid rule: " .. tostring(err or ""))
+                else
+                    hint:SetText("Rule saved")
+                end
+            end
+
+            RefreshSafariPopout()
+            UpdateSafariHatNow()
+        end
+
+        npcBox:SetScript("OnEnterPressed", function(self) self:ClearFocus(); ApplyFromBoxes() end)
+        nameBox:SetScript("OnEnterPressed", function(self) self:ClearFocus(); ApplyFromBoxes() end)
+        sizeBox:SetScript("OnEnterPressed", function(self) self:ClearFocus(); ApplyFromBoxes() end)
+        questBox:SetScript("OnEnterPressed", function(self) self:ClearFocus(); ApplyFromBoxes() end)
+
+        npcBox:SetScript("OnEscapePressed", function(self) self:ClearFocus(); RefreshSafariPopout() end)
+        nameBox:SetScript("OnEscapePressed", function(self) self:ClearFocus(); RefreshSafariPopout() end)
+        sizeBox:SetScript("OnEscapePressed", function(self) self:ClearFocus(); RefreshSafariPopout() end)
+        questBox:SetScript("OnEscapePressed", function(self) self:ClearFocus(); RefreshSafariPopout() end)
+
+        safariPop._fgoRefresh = RefreshSafariPopout
+        RefreshSafariPopout()
+
+        return safariPop
+    end
+
+    local function FGO_ToggleSafariPopout(show)
+        local p = EnsureSafariPopout()
+        if not p then
+            return
+        end
+        if show == nil then
+            show = not (p.IsShown and p:IsShown())
+        end
+        if show then
+            if p._fgoRefresh then p._fgoRefresh() end
+            p:Show()
+        else
+            p:Hide()
+        end
+    end
+    _G.FGO_ToggleSafariPopout = FGO_ToggleSafariPopout
+
+    segSafari:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_UI.safariHatFloatEnabledAcc = not (AutoGossip_UI.safariHatFloatEnabledAcc and true or false)
+        UpdateSafariHatSegments()
+        UpdateSafariHatNow()
+    end)
+    segSafari:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segSafari, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Safari")
+            GameTooltip:AddLine("Green: ON ACC (enables the floating Safari button).", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: OFF ACC.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segSafari:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segSafariEnable:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_CharSettings.safariHatFloatEnabledChar = not (AutoGossip_CharSettings.safariHatFloatEnabledChar ~= false)
+        UpdateSafariHatSegments()
+        UpdateSafariHatNow()
+    end)
+    segSafariEnable:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segSafariEnable, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Enable")
+            GameTooltip:AddLine("Green: enabled on this character.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: disabled on this character.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segSafariEnable:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segSafariConfig:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segSafariConfig, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Config")
+            GameTooltip:AddLine("Open Safari float configuration.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segSafariConfig:SetScript("OnClick", function()
+        if _G and type(_G.FGO_IsSafariPopoutOpen) == "function" and _G.FGO_IsSafariPopoutOpen() then
+            if type(_G.FGO_ToggleSafariPopout) == "function" then
+                _G.FGO_ToggleSafariPopout(false)
+            end
+            return
+        end
+
+        local p = EnsureSafariPopout()
+        CloseAllConfigPopouts(p)
+        if _G and type(_G.FGO_ToggleSafariPopout) == "function" then
+            _G.FGO_ToggleSafariPopout(true)
+        end
+    end)
+    segSafariConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
     -- Reorder right-column segment rows to match spec:
     -- Chromie (top) -> Mount Up -> Pet Walk -> then the rest of the buttons.
-    if segContainer and mountSegContainer and petSegContainer and mailSegContainer then
+    if segContainer and mountSegContainer and petSegContainer and mailSegContainer and safariSegContainer then
         segContainer:ClearAllPoints()
         segContainer:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
 
@@ -992,16 +1678,19 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
         mailSegContainer:ClearAllPoints()
         mailSegContainer:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
+
+        safariSegContainer:ClearAllPoints()
+        safariSegContainer:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
     end
 
     -- Anchor Queue Accept + new rows under Mail buttons.
-    if btnQueueAccept and mailSegContainer then
-        btnQueueAccept:ClearAllPoints()
-        btnQueueAccept:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
+    if queueAcceptSegContainer and safariSegContainer then
+        queueAcceptSegContainer:ClearAllPoints()
+        queueAcceptSegContainer:SetPoint("TOP", safariSegContainer, "BOTTOM", 0, -GAP_Y)
     end
-    if popupRow and btnQueueAccept then
+    if popupRow and queueAcceptSegContainer then
         popupRow:ClearAllPoints()
-        popupRow:SetPoint("TOP", btnQueueAccept, "BOTTOM", 0, -GAP_Y)
+        popupRow:SetPoint("TOP", queueAcceptSegContainer, "BOTTOM", 0, -GAP_Y)
     end
     if actionRow and popupRow then
         actionRow:ClearAllPoints()
@@ -1027,9 +1716,10 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end
 
     -- Initialize new rows on build.
-    UpdateQueueAcceptButton()
+    UpdateQueueAcceptSegments()
     UpdatePopUpRow()
     UpdateActionRow()
+    UpdateSafariHatSegments()
 
     local function TooltipXDisabledPrefix()
         InitSV()
@@ -1463,7 +2153,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
     -- Initial paint
     UpdateBorderButton()
-    UpdateQueueAcceptButton()
+    UpdateQueueAcceptSegments()
     UpdatePopUpRow()
     UpdateActionRow()
     UpdatePetWalkSegments()
@@ -1484,7 +2174,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
     return function()
         UpdateBorderButton()
-        UpdateQueueAcceptButton()
+        UpdateQueueAcceptSegments()
         UpdatePopUpRow()
         UpdateActionRow()
         UpdatePetWalkSegments()

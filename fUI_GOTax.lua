@@ -1240,10 +1240,14 @@ do
       allow = (cfg.sources and cfg.sources.systemMoney) and true or false
       if not allow then denyReason = "systemMoney off" end
       if allow and type(msg) == "string" then
-        local m = msg:lower()
-        if m:find("spent", 1, true) or m:find("pay", 1, true) or m:find("paid", 1, true) or m:find("lost", 1, true) or m:find("cost", 1, true) or m:find("repair", 1, true) then
-          allow = false
-          denyReason = "system spend/pay/cost/repair"
+        -- Retail: msg may be a "secret" string value in tainted paths; any string
+        -- operations can throw. Best effort: if we can't safely inspect, keep allow=true.
+        local okLower, m = pcall(string.lower, msg)
+        if okLower and type(m) == "string" then
+          if m:find("spent", 1, true) or m:find("pay", 1, true) or m:find("paid", 1, true) or m:find("lost", 1, true) or m:find("cost", 1, true) or m:find("repair", 1, true) then
+            allow = false
+            denyReason = "system spend/pay/cost/repair"
+          end
         end
       end
     end
@@ -1268,10 +1272,12 @@ do
           end
         end
       else
-        copper = ParseMoneyFromChat(msg)
+        local ok, v = pcall(ParseMoneyFromChat, msg)
+        copper = (ok and tonumber(v)) or 0
       end
     else
-      copper = ParseMoneyFromChat(msg)
+      local ok, v = pcall(ParseMoneyFromChat, msg)
+      copper = (ok and tonumber(v)) or 0
     end
     if copper <= 0 then return end
 

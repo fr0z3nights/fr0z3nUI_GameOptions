@@ -77,9 +77,19 @@ SetZone("Orgrimmar, Kalimdor")
    local t = NPC("Image of Lady Liadrin", 241677)
    t[133523] = { text = "Please summon me to the Isle of Quel'Danas.", type = "" }
 
+   local t = NPC("Nathanos Blightcaller", 135205)
+   t[ 49081] = { text = "I have heard this story before. <Skip>", type = "", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure?" }, within = 3, },  }					-- Shadowlands: A Chilling Summons (61874) Nathanos Blightcaller (135205)
+
+   local t = NPC("Nazgrim", 171791)
+   t[ 52728] = { text = "I have heard this tale before. <Skip>", type = "", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure?" }, within = 3, },  }					-- Shadowlands: A Chilling Summons (61874) Nazgrim (171791)
+
    local t = NPC("Suspicious Citizen", { 246157, 248174 })
    t[134631] = { text = "Are you talking about the Twilight's Blade?", type = "" }
    t[134634] = { text = "Are you talking about the Twilight's Blade?", type = "" }
+
+   local t = NPC("Trading Post", { 185473, 185472 })
+   t[107825] = { text = "I'd like to see what you have to offer this month.", type = "" }		-- Zen'kala (185473)
+   t[107826] = { text = "I'd like to see what you have to offer this month.", type = "" }		-- Shiri (185472)
 
 SetZone("Razorwind Shores, Kalimdor")
 
@@ -91,6 +101,19 @@ SetZone("Razorwind Shores, Kalimdor")
 
     local t = NPC("Spirit Healer", 6491)
     t[29005] = { text = "Return me to life.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "If you find your corpse", "If you return to your corpse", "return to your corpse", "lose experience", "resurrection sickness" }, within = 3, }, type = "" }
+
+SetZone("Tanaris, Kalimdor")
+	-- Time Dungeon
+    local t = NPC("Time Transit Device", 209441)
+    t[40865] = { prio = 10, text = "Bronze Dragonshrine", type = "" }
+    t[40860] = { prio = 08, text = "Obsidian Dragonshrine", type = "" }
+    t[40862] = { prio = 06, text = "Emerald Dragonshrine", type = "" }
+--  t[40865] = { prio = 04, text = "Bronze Dragonshrine", type = "" }
+
+--[19:49] [FGO] OID:  40865  Bronze Dragonshrine
+--[19:41] [FGO] OID:  40860  Obsidian Dragonshrine 
+--[19:44] [FGO] OID:  40862  Emerald Dragonshrine
+
 
 SetZone("Uldum, Kalimdor")
 

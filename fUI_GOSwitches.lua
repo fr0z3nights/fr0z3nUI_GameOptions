@@ -64,7 +64,7 @@ do
 
     local function GetUI()
         InitSV()
-        return rawget(_G, "AutoGame_UI") or rawget(_G, "AutoGossip_UI")
+        return rawget(_G, "AutoGossip_UI") or rawget(_G, "AutoGame_UI")
     end
 
     local function IsEnabled()
@@ -215,6 +215,568 @@ do
     local f = _G.CreateFrame("Frame")
     f:RegisterEvent("PLAYER_LOGIN")
     f:RegisterEvent("VARIABLES_LOADED")
+    f:SetScript("OnEvent", OnEvent)
+end
+
+-- ============================================================================
+-- Floating Safari Hat toy button (text-only, draggable)
+-- ============================================================================
+
+do
+    local btn
+
+    local SAFARI_HAT_TOY_ID = 92738
+
+    local function InitSV()
+        if ns and type(ns._InitSV) == "function" then
+            ns._InitSV()
+        end
+    end
+
+    local function GetUI()
+        InitSV()
+        return rawget(_G, "AutoGossip_UI") or rawget(_G, "AutoGame_UI")
+    end
+
+    local function GetAcc()
+        InitSV()
+        return rawget(_G, "AutoGossip_Acc") or rawget(_G, "AutoGame_Acc")
+    end
+
+    local function GetCharSettings()
+        InitSV()
+        return rawget(_G, "AutoGossip_CharSettings") or rawget(_G, "AutoGame_CharSettings")
+    end
+
+    local function TrimSafe(s)
+        if type(s) ~= "string" then
+            return ""
+        end
+        return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+    end
+
+    local function EnsureRulesTable()
+        local a = GetAcc()
+        if type(a) ~= "table" then
+            return nil
+        end
+        if type(a.safariHatRulesAcc) ~= "table" then
+            a.safariHatRulesAcc = {}
+        end
+        -- Back-compat: allow numeric-keyed list -> normalize into npcID-keyed map.
+        -- (Only if someone manually edited SV.)
+        local isArray = (a.safariHatRulesAcc[1] ~= nil)
+        if isArray then
+            local newMap = {}
+            for i = 1, #a.safariHatRulesAcc do
+                local e = a.safariHatRulesAcc[i]
+                local npc = tonumber(e and e.npcID) or 0
+                if npc > 0 then
+                    newMap[tostring(npc)] = {
+                        npcID = npc,
+                        questID = tonumber(e.questID) or 0,
+                        textSize = tonumber(e.textSize) or 12,
+                        name = tostring(e.name or ""),
+                        enabled = (e.enabled ~= false),
+                    }
+                end
+            end
+            a.safariHatRulesAcc = newMap
+        end
+
+        return a.safariHatRulesAcc
+    end
+
+    local function GetSeedRuleMap()
+        local out = {}
+        if type(ns) ~= "table" or type(ns.SafariHat_DB) ~= "table" then
+            return out
+        end
+        for i = 1, #ns.SafariHat_DB do
+            local e = ns.SafariHat_DB[i]
+            if type(e) == "table" then
+                local npc = tonumber(e.npcID) or 0
+                if npc > 0 then
+                    out[tostring(npc)] = {
+                        npcID = npc,
+                        questID = tonumber(e.questID) or 0,
+                        textSize = tonumber(e.textSize) or 12,
+                        name = tostring(e.name or ""),
+                    }
+                end
+            end
+        end
+        return out
+    end
+
+    local function GetRuleEffective(npcID)
+        npcID = tonumber(npcID) or 0
+        if npcID <= 0 then
+            return nil
+        end
+        local key = tostring(npcID)
+        local t = EnsureRulesTable()
+        local sv = (type(t) == "table") and t[key] or nil
+        local seed = GetSeedRuleMap()[key]
+
+        local out = {
+            npcID = npcID,
+            questID = seed and seed.questID or 0,
+            textSize = seed and seed.textSize or 12,
+            name = seed and seed.name or "",
+            enabled = true,
+            seeded = (seed ~= nil),
+        }
+
+        if type(sv) == "table" then
+            if sv.enabled == false then
+                out.enabled = false
+            end
+            if type(sv.questID) == "number" or type(sv.questID) == "string" then
+                out.questID = tonumber(sv.questID) or out.questID
+            end
+            if type(sv.textSize) == "number" or type(sv.textSize) == "string" then
+                out.textSize = tonumber(sv.textSize) or out.textSize
+            end
+            if type(sv.name) == "string" then
+                out.name = sv.name
+            end
+        end
+
+        -- If it's not seeded and not present in SV, it doesn't exist.
+        if not out.seeded and type(sv) ~= "table" then
+            return nil
+        end
+
+        return out
+    end
+
+    function ns.SafariHat_Upsert(questID, npcID, textSize, name)
+        local npc = tonumber(npcID) or 0
+        if npc <= 0 then
+            return false, "Bad NPCID"
+        end
+        local q = tonumber(questID) or 0
+        if q < 0 then q = 0 end
+        local size = tonumber(textSize)
+        if not size then size = 12 end
+        if size < 8 then size = 8 end
+        if size > 24 then size = 24 end
+        local n = TrimSafe(tostring(name or ""))
+
+        local t = EnsureRulesTable()
+        if type(t) ~= "table" then
+            return false, "Settings not loaded"
+        end
+        local key = tostring(npc)
+        local prev = t[key]
+        if type(prev) ~= "table" then
+            prev = { enabled = true }
+        end
+        prev.npcID = npc
+        prev.questID = q
+        prev.textSize = size
+        prev.name = n
+        if prev.enabled == nil then prev.enabled = true end
+        t[key] = prev
+        return true
+    end
+
+    function ns.SafariHat_Remove(npcID)
+        local npc = tonumber(npcID) or 0
+        if npc <= 0 then
+            return false
+        end
+        local key = tostring(npc)
+        if GetSeedRuleMap()[key] ~= nil then
+            return false, "Seeded"
+        end
+        local t = EnsureRulesTable()
+        if type(t) ~= "table" then
+            return false
+        end
+        t[key] = nil
+        return true
+    end
+
+    function ns.SafariHat_SetEnabled(npcID, enabled)
+        local npc = tonumber(npcID) or 0
+        if npc <= 0 then
+            return false, "Bad NPCID"
+        end
+        local key = tostring(npc)
+        local t = EnsureRulesTable()
+        if type(t) ~= "table" then
+            return false, "Settings not loaded"
+        end
+        local v = t[key]
+        if type(v) ~= "table" then
+            -- For seeded entries, create an override entry.
+            local seed = GetSeedRuleMap()[key]
+            if not seed then
+                return false, "Missing"
+            end
+            v = { npcID = npc, questID = seed.questID or 0, textSize = seed.textSize or 12, name = seed.name or "" }
+        end
+        v.enabled = enabled and true or false
+        t[key] = v
+        return true
+    end
+
+    function ns.SafariHat_List()
+        local t = EnsureRulesTable()
+        if type(t) ~= "table" then
+            t = {}
+        end
+        local seedMap = GetSeedRuleMap()
+        local out = {}
+
+        for key, seed in pairs(seedMap) do
+            local eff = GetRuleEffective(tonumber(key) or 0)
+            if eff then
+                out[#out + 1] = {
+                    npcID = eff.npcID,
+                    questID = eff.questID,
+                    textSize = eff.textSize,
+                    name = eff.name,
+                    enabled = eff.enabled,
+                    seeded = true,
+                }
+            else
+                out[#out + 1] = {
+                    npcID = seed.npcID,
+                    questID = seed.questID,
+                    textSize = seed.textSize,
+                    name = seed.name,
+                    enabled = true,
+                    seeded = true,
+                }
+            end
+        end
+
+        for k, _ in pairs(t) do
+            if type(k) == "string" and seedMap[k] == nil then
+                local eff = GetRuleEffective(tonumber(k) or 0)
+                if eff then
+                    out[#out + 1] = {
+                        npcID = eff.npcID,
+                        questID = eff.questID,
+                        textSize = eff.textSize,
+                        name = eff.name,
+                        enabled = eff.enabled,
+                        seeded = false,
+                    }
+                end
+            end
+        end
+
+        table.sort(out, function(a, b)
+            local an = tostring(a.name or ""):lower()
+            local bn = tostring(b.name or ""):lower()
+            if an ~= bn then
+                if an == "" then return false end
+                if bn == "" then return true end
+                return an < bn
+            end
+            return (tonumber(a.npcID) or 0) < (tonumber(b.npcID) or 0)
+        end)
+        return out
+    end
+
+    local function IsEnabledEffective()
+        local ui = GetUI()
+        if type(ui) ~= "table" then
+            return false
+        end
+        if not (ui.safariHatFloatEnabledAcc and true or false) then
+            return false
+        end
+        local ch = GetCharSettings()
+        if type(ch) ~= "table" then
+            return true
+        end
+        return (ch.safariHatFloatEnabledChar ~= false)
+    end
+
+    local function GetTargetNpcID()
+        if not (UnitExists and UnitGUID) then
+            return nil
+        end
+        if not UnitExists("target") then
+            return nil
+        end
+        local guid = UnitGUID("target")
+        if type(guid) ~= "string" then
+            return nil
+        end
+        -- Retail: GUIDs may be "secret" values in tainted paths; any string
+        -- operation (including strsplit) can error. Fail closed instead.
+        local ok, _, _, _, _, _, npcID = pcall(strsplit, "-", guid)
+        if not ok then
+            return nil
+        end
+        return tonumber(npcID)
+    end
+
+    local function IsQuestCompleted(questID)
+        questID = tonumber(questID)
+        if not questID or questID <= 0 then
+            return false
+        end
+        if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
+            return (C_QuestLog.IsQuestFlaggedCompleted(questID) and true or false)
+        end
+        return false
+    end
+
+    local function GetActiveSafariEntry()
+        local curNpc = GetTargetNpcID()
+        if not curNpc or curNpc <= 0 then
+            return nil
+        end
+        local eff = GetRuleEffective(curNpc)
+        if not eff then
+            return nil
+        end
+        if eff.enabled == false then
+            return nil
+        end
+        return eff
+    end
+
+    local function ShouldShow()
+        local entry = GetActiveSafariEntry()
+        if not entry then
+            return false
+        end
+        if (tonumber(entry.questID) or 0) > 0 and IsQuestCompleted(entry.questID) then
+            return false
+        end
+        return true
+    end
+
+    local function ApplySavedPosition(frame)
+        local ui = GetUI()
+        if not (type(ui) == "table" and type(ui.safariHatFloatPos) == "table" and frame and frame.SetPoint) then
+            return
+        end
+
+        local p = ui.safariHatFloatPos
+        local point = type(p.point) == "string" and p.point or "TOP"
+        local relPoint = type(p.relativePoint) == "string" and p.relativePoint or point
+        local x = tonumber(p.x) or 0
+        local y = tonumber(p.y) or -160
+
+        frame:ClearAllPoints()
+        frame:SetPoint(point, UIParent, relPoint, x, y)
+    end
+
+    local function ApplyTextSize(size)
+        if not (btn and btn._label and btn._label.SetFont) then
+            return
+        end
+        local want = tonumber(size)
+        if type(want) ~= "number" then
+            return
+        end
+        if want < 8 then want = 8 end
+        if want > 24 then want = 24 end
+        local fontPath, _, fontFlags = btn._label:GetFont()
+        if fontPath then
+            btn._label:SetFont(fontPath, want, fontFlags)
+        end
+    end
+
+    function ns.EnsureSafariHatFloatButton()
+        if btn and btn.SetText then
+            return btn
+        end
+
+        if not (CreateFrame and UIParent) then
+            return nil
+        end
+
+        btn = CreateFrame("Button", "FGO_FloatingSafariHatButton", UIParent, "SecureActionButtonTemplate")
+        btn:SetSize(70, 18)
+        btn:SetClampedToScreen(true)
+        btn:SetFrameStrata("DIALOG")
+        btn:EnableMouse(true)
+        btn:SetMovable(true)
+        btn:RegisterForDrag("RightButton")
+
+        local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        fs:SetAllPoints(btn)
+        fs:SetJustifyH("CENTER")
+        fs:SetJustifyV("MIDDLE")
+        fs:SetText("|cff00ccffSafari|r")
+        btn._label = fs
+
+        ApplyTextSize(12)
+        ApplySavedPosition(btn)
+
+        -- Secure action: use toy via attributes.
+        if btn.SetAttribute then
+            btn:SetAttribute("type", "toy")
+            btn:SetAttribute("toy", SAFARI_HAT_TOY_ID)
+        end
+
+        btn:RegisterForClicks("LeftButtonUp")
+        btn:SetScript("PreClick", function(self, mouseButton)
+            if mouseButton ~= "LeftButton" then
+                return
+            end
+            local shiftFn = rawget(_G, "IsShiftKeyDown")
+            local shift = (type(shiftFn) == "function" and shiftFn()) and true or false
+            if not shift then
+                return
+            end
+
+            local inCombatFn = rawget(_G, "InCombatLockdown")
+            local inCombat = (type(inCombatFn) == "function" and inCombatFn()) and true or false
+
+            local inPetBattle
+            if rawget(_G, "C_PetBattles") and type(C_PetBattles.IsInBattle) == "function" then
+                local ok, v = pcall(C_PetBattles.IsInBattle)
+                if ok then
+                    inPetBattle = v and true or false
+                end
+            end
+
+            local usable, unusableReason
+            if C_ToyBox and type(C_ToyBox.IsToyUsable) == "function" then
+                local ok, u, r = pcall(C_ToyBox.IsToyUsable, SAFARI_HAT_TOY_ID)
+                if ok then
+                    usable = u and true or false
+                    unusableReason = r
+                end
+            end
+
+            local msg = "|cff00ccff[FGO]|r Safari click: toy=" .. tostring(SAFARI_HAT_TOY_ID) .. " combat=" .. tostring(inCombat)
+            if inPetBattle ~= nil then
+                msg = msg .. " petBattle=" .. tostring(inPetBattle)
+            end
+            if usable ~= nil then
+                msg = msg .. " usable=" .. tostring(usable)
+            end
+            if unusableReason ~= nil then
+                msg = msg .. " reason=" .. tostring(unusableReason)
+            end
+
+            local errs = rawget(_G, "UIErrorsFrame")
+            if errs and type(errs.AddMessage) == "function" then
+                errs:AddMessage(msg, 1, 0.82, 0, 1)
+            end
+
+            local chat = rawget(_G, "DEFAULT_CHAT_FRAME")
+            if chat and type(chat.AddMessage) == "function" then
+                chat:AddMessage(msg)
+            else
+                local p = rawget(_G, "print")
+                if type(p) == "function" then p(msg) end
+            end
+
+            if self and self._label and self._label.SetText and rawget(_G, "C_Timer") and type(C_Timer.After) == "function" then
+                self._label:SetText("|cff00ff00CLICK|r")
+                C_Timer.After(0.35, function()
+                    if btn and btn._label and btn._label.SetText then
+                        btn._label:SetText("|cff00ccffSafari|r")
+                    end
+                end)
+            end
+        end)
+
+        btn:SetScript("OnDragStart", function(self)
+            if self and self.StartMoving then
+                self:StartMoving()
+            end
+        end)
+
+        btn:SetScript("OnDragStop", function(self)
+            if self and self.StopMovingOrSizing then
+                self:StopMovingOrSizing()
+            end
+
+            local ui = GetUI()
+            if type(ui) ~= "table" then
+                return
+            end
+
+            ui.safariHatFloatPos = ui.safariHatFloatPos or {}
+            local point, _, relPoint, x, y = self:GetPoint(1)
+            ui.safariHatFloatPos.point = point
+            ui.safariHatFloatPos.relativePoint = relPoint
+            ui.safariHatFloatPos.x = x
+            ui.safariHatFloatPos.y = y
+        end)
+
+        btn:SetScript("OnEnter", function(self)
+            if self and self._label and self._label.SetText then
+                self._label:SetText("|cffffff00Safari|r")
+            end
+            if GameTooltip then
+                local entry = GetActiveSafariEntry() or {}
+                local wantNpc = tonumber(entry.npcID) or 0
+                local wantName = tostring(entry.name or "")
+                local questID = tonumber(entry.questID) or 0
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText("|cff00ccff[FGO]|r Safari Hat")
+                GameTooltip:AddLine("Left-click: use Safari Hat toy", 1, 1, 1, true)
+                GameTooltip:AddLine("Right-drag: move", 1, 1, 1, true)
+                if wantNpc > 0 then
+                    local s = "NPCID gate: " .. tostring(wantNpc)
+                    if wantName ~= "" then
+                        s = s .. " (" .. wantName .. ")"
+                    end
+                    GameTooltip:AddLine(s, 1, 1, 1, true)
+                end
+                if questID > 0 then
+                    GameTooltip:AddLine("Quest gate: hide if completed (" .. tostring(questID) .. ")", 1, 1, 1, true)
+                end
+                GameTooltip:Show()
+            end
+        end)
+
+        btn:SetScript("OnLeave", function(self)
+            if self and self._label and self._label.SetText then
+                self._label:SetText("|cff00ccffSafari|r")
+            end
+            if GameTooltip then
+                GameTooltip:Hide()
+            end
+        end)
+
+        return btn
+    end
+
+    function ns.UpdateSafariHatFloatButton()
+        InitSV()
+        local entry = GetActiveSafariEntry()
+        if IsEnabledEffective() and entry and ShouldShow() then
+            local b = ns.EnsureSafariHatFloatButton()
+            if b and b.Show then
+                ApplySavedPosition(b)
+                ApplyTextSize(entry.textSize)
+                b:Show()
+            end
+        else
+            if btn and btn.Hide then
+                btn:Hide()
+            end
+        end
+    end
+
+    local function OnEvent(_, event)
+        if event == "PLAYER_LOGIN" or event == "VARIABLES_LOADED" or event == "PLAYER_TARGET_CHANGED" or event == "QUEST_LOG_UPDATE" or event == "QUEST_TURNED_IN" then
+            ns.UpdateSafariHatFloatButton()
+        end
+    end
+
+    local f = _G.CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:RegisterEvent("VARIABLES_LOADED")
+    f:RegisterEvent("PLAYER_TARGET_CHANGED")
+    f:RegisterEvent("QUEST_LOG_UPDATE")
+    f:RegisterEvent("QUEST_TURNED_IN")
     f:SetScript("OnEvent", OnEvent)
 end
 

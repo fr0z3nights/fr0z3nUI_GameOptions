@@ -1891,15 +1891,14 @@ function ns.MacroXCMDUI_Build(panel)
     clickTitle:SetText("Click")
     clickTitle:SetTextColor(1, 0.82, 0, 1)
 
-    local enableCB = CreateFrame("CheckButton", nil, clickPop, "UICheckButtonTemplate")
-    enableCB:SetPoint("TOPLEFT", clickTitle, "BOTTOMLEFT", -4, -6)
-    if enableCB.Text and enableCB.Text.SetText then
-        enableCB.Text:SetText("Auto-arm")
-    end
+    local autoBtn = CreateFrame("Button", nil, clickPop, "UIPanelButtonTemplate")
+    autoBtn:SetSize(96, 20)
+    autoBtn:SetPoint("TOPLEFT", clickTitle, "BOTTOMLEFT", -2, -8)
+    autoBtn:SetText("Auto: ?")
 
     local armNowBtn = CreateFrame("Button", nil, clickPop, "UIPanelButtonTemplate")
     armNowBtn:SetSize(72, 20)
-    armNowBtn:SetPoint("LEFT", enableCB, "RIGHT", 8, 0)
+    armNowBtn:SetPoint("LEFT", autoBtn, "RIGHT", 8, 0)
     armNowBtn:SetText("Arm Now")
 
     local debugCB = CreateFrame("CheckButton", nil, clickPop, "UICheckButtonTemplate")
@@ -1910,7 +1909,7 @@ function ns.MacroXCMDUI_Build(panel)
 
     local shBox = CreateFrame("EditBox", nil, clickPop, "InputBoxTemplate")
     shBox:SetSize(140, 20)
-    shBox:SetPoint("TOPLEFT", enableCB, "BOTTOMLEFT", 12, -10)
+    shBox:SetPoint("TOPLEFT", autoBtn, "BOTTOMLEFT", 14, -10)
     shBox:SetAutoFocus(false)
     shBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
@@ -2325,12 +2324,127 @@ function ns.MacroXCMDUI_Build(panel)
     end
 
     local function RefreshAutoArmUI()
+        local on = true
         if ns and type(ns.ClickAlias_GetAutoArmEnabled) == "function" then
-            enableCB:SetChecked(ns.ClickAlias_GetAutoArmEnabled() ~= false)
+            on = (ns.ClickAlias_GetAutoArmEnabled() ~= false)
+        end
+        autoBtn:SetText(on and "Auto: On" or "Auto: Off")
+    end
+
+    local floatBtn = CreateFrame("Button", nil, clickPop, "UIPanelButtonTemplate")
+    floatBtn:SetSize(96, 20)
+    floatBtn:SetPoint("BOTTOMLEFT", clickPop, "BOTTOMLEFT", 12, 12)
+    floatBtn:SetText("Arm FB")
+
+    local function MakeNumericBox(parent, width, height)
+        local eb = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+        eb:SetSize(width, height)
+        eb:SetAutoFocus(false)
+        eb:SetJustifyH("CENTER")
+        eb:SetTextInsets(1, 1, 0, 0)
+        if eb.SetNumeric then
+            eb:SetNumeric(true)
+        end
+
+        -- Borderless: hide the default InputBoxTemplate textures.
+        if eb.Left and eb.Left.Hide then eb.Left:Hide() end
+        if eb.Middle and eb.Middle.Hide then eb.Middle:Hide() end
+        if eb.Right and eb.Right.Hide then eb.Right:Hide() end
+
+        return eb
+    end
+
+    local ebFloatSize = MakeNumericBox(clickPop, 22, 20)
+    ebFloatSize:SetPoint("LEFT", floatBtn, "RIGHT", 2, 0)
+
+    local function RefreshFloatUI()
+        local mode = "off"
+        if ns and type(ns.ClickAlias_GetArmFloatMode) == "function" then
+            mode = tostring(ns.ClickAlias_GetArmFloatMode() or "off"):lower()
+        elseif ns and type(ns.ClickAlias_GetArmFloatEnabled) == "function" then
+            mode = (ns.ClickAlias_GetArmFloatEnabled() and true or false) and "acc" or "off"
+        end
+
+        local size = 12
+        do
+            local u = GetUI()
+            size = (u and tonumber(u.clickAliasArmFloatTextSize)) or 12
+        end
+        if ebFloatSize and ebFloatSize.SetText then
+            ebFloatSize:SetText(tostring(math.floor((tonumber(size) or 12) + 0.5)))
+        end
+
+        if mode == "char" then
+            floatBtn:SetText("|cffff9900Arm FB|r")
+        elseif mode == "acc" then
+            floatBtn:SetText("|cff00ff00Arm FB|r")
         else
-            enableCB:SetChecked(true)
+            floatBtn:SetText("|cff888888Arm FB|r")
         end
     end
+
+    floatBtn:SetScript("OnEnter", function(self)
+        if not GameTooltip then
+            return
+        end
+        local mode = "off"
+        if ns and type(ns.ClickAlias_GetArmFloatMode) == "function" then
+            mode = tostring(ns.ClickAlias_GetArmFloatMode() or "off"):lower()
+        elseif ns and type(ns.ClickAlias_GetArmFloatEnabled) == "function" then
+            mode = (ns.ClickAlias_GetArmFloatEnabled() and true or false) and "acc" or "off"
+        end
+
+        local stateText = "|cff888888Off|r"
+        if mode == "char" then
+            stateText = "|cffff9900On (Char)|r"
+        elseif mode == "acc" then
+            stateText = "|cff00ff00On (Acc)|r"
+        end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("|cff00ccff[FGO]|r Arm FB")
+        GameTooltip:AddLine("Controls the floating Click-Alias Arm button.", 1, 1, 1, true)
+        GameTooltip:AddLine("(Lets you arm aliases without opening this popout.)", 1, 1, 1, true)
+        GameTooltip:AddLine("Current: " .. stateText, 1, 1, 1, true)
+        GameTooltip:AddLine("Left-click: cycle Off → Char → Acc", 1, 1, 1, true)
+        GameTooltip:AddLine("Text size: edit the box to the right.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+
+    floatBtn:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
+
+    ebFloatSize:SetScript("OnEnterPressed", function(self)
+        InitSV()
+        local u = GetUI()
+        if not u then
+            self:ClearFocus()
+            RefreshFloatUI()
+            return
+        end
+
+        local v = tonumber(self:GetText())
+        if not v then
+            self:ClearFocus()
+            RefreshFloatUI()
+            return
+        end
+        if v < 8 then v = 8 end
+        if v > 24 then v = 24 end
+        u.clickAliasArmFloatTextSize = v
+        self:ClearFocus()
+        RefreshFloatUI()
+        if ns and type(ns.ClickAlias_UpdateArmFloatButton) == "function" then
+            ns.ClickAlias_UpdateArmFloatButton()
+        end
+    end)
+
+    ebFloatSize:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+        RefreshFloatUI()
+    end)
 
     local function BuildClickDebugReport()
         local lines = {}
@@ -2487,16 +2601,62 @@ function ns.MacroXCMDUI_Build(panel)
         debugFrame._fgoRefresh = RefreshDebugText
     end
 
-    enableCB:SetScript("OnClick", function(self)
-        local on = self:GetChecked() and true or false
-        if ns and type(ns.ClickAlias_SetAutoArmEnabled) == "function" then
-            ns.ClickAlias_SetAutoArmEnabled(on)
+    autoBtn:SetScript("OnClick", function()
+        local cur = true
+        if ns and type(ns.ClickAlias_GetAutoArmEnabled) == "function" then
+            cur = (ns.ClickAlias_GetAutoArmEnabled() ~= false)
         end
-        if on and ns and type(ns.ClickAlias_AutoArmIfEnabled) == "function" then
+        local want = not cur
+
+        if ns and type(ns.ClickAlias_SetAutoArmEnabled) == "function" then
+            ns.ClickAlias_SetAutoArmEnabled(want)
+        end
+
+        RefreshAutoArmUI()
+        if want and ns and type(ns.ClickAlias_AutoArmIfEnabled) == "function" then
             local ok, why = ns.ClickAlias_AutoArmIfEnabled()
             hint:SetText(ok and "Auto-arm enabled" or tostring(why or "Can't auto-arm"))
         else
             hint:SetText("Auto-arm disabled")
+        end
+    end)
+
+    floatBtn:SetScript("OnClick", function()
+        if not (ns and (type(ns.ClickAlias_SetArmFloatMode) == "function" or type(ns.ClickAlias_SetArmFloatEnabled) == "function")) then
+            hint:SetText("Float control not available")
+            return
+        end
+
+        local cur = "off"
+        if ns and type(ns.ClickAlias_GetArmFloatMode) == "function" then
+            cur = tostring(ns.ClickAlias_GetArmFloatMode() or "off"):lower()
+        elseif ns and type(ns.ClickAlias_GetArmFloatEnabled) == "function" then
+            cur = (ns.ClickAlias_GetArmFloatEnabled() and true or false) and "acc" or "off"
+        end
+
+        local want = "off"
+        if cur == "off" then
+            want = "char"
+        elseif cur == "char" then
+            want = "acc"
+        else
+            want = "off"
+        end
+
+        if ns and type(ns.ClickAlias_SetArmFloatMode) == "function" then
+            ns.ClickAlias_SetArmFloatMode(want)
+        elseif ns and type(ns.ClickAlias_SetArmFloatEnabled) == "function" then
+            -- Legacy fallback: treat any On as account.
+            ns.ClickAlias_SetArmFloatEnabled(want ~= "off")
+        end
+
+        RefreshFloatUI()
+        if want == "off" then
+            hint:SetText("Arm FB: Off")
+        elseif want == "char" then
+            hint:SetText("Arm FB: On (Char)")
+        else
+            hint:SetText("Arm FB: On (Acc)")
         end
     end)
 
@@ -2558,6 +2718,7 @@ function ns.MacroXCMDUI_Build(panel)
         end
         clickPop:Show()
         RefreshAutoArmUI()
+        RefreshFloatUI()
         debugCB:SetChecked(GetClickDebugEnabled())
         local base = "/click shorthand → original button name"
         hint:SetText(base)

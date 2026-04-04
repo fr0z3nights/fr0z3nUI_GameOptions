@@ -234,6 +234,31 @@ InitSV = function()
         AutoGossip_UI.reloadFloatPos = { point = "TOP", relativePoint = "TOP", x = 0, y = -120 }
     end
 
+    -- Floating Click-Alias Arm button (Macro CMD -> Click popout)
+    if type(AutoGossip_UI.clickAliasArmFloatEnabledAcc) ~= "boolean" then
+        AutoGossip_UI.clickAliasArmFloatEnabledAcc = false
+    end
+    if type(AutoGossip_UI.clickAliasArmFloatTextSize) ~= "number" then
+        AutoGossip_UI.clickAliasArmFloatTextSize = 12
+    end
+    if type(AutoGossip_UI.clickAliasArmFloatPos) ~= "table" then
+        AutoGossip_UI.clickAliasArmFloatPos = { point = "TOP", relativePoint = "TOP", x = 0, y = -140 }
+    end
+
+    -- Floating Safari Hat toy button (Switches)
+    if type(AutoGossip_UI.safariHatFloatEnabledAcc) ~= "boolean" then
+        AutoGossip_UI.safariHatFloatEnabledAcc = false
+    end
+    if type(AutoGossip_UI.safariHatFloatPos) ~= "table" then
+        AutoGossip_UI.safariHatFloatPos = { point = "TOP", relativePoint = "TOP", x = 0, y = -160 }
+    end
+
+    -- Safari Hat rules list (account): keyed by npcID string.
+    -- Each entry: { npcID=number, questID=number, textSize=number, name=string, enabled=boolean }
+    if type(AutoGossip_Acc.safariHatRulesAcc) ~= "table" then
+        AutoGossip_Acc.safariHatRulesAcc = {}
+    end
+
     -- Floating Mount Up button (Mount Up popout)
     if type(AutoGossip_UI.mountUpFloatEnabled) ~= "boolean" then
         AutoGossip_UI.mountUpFloatEnabled = false
@@ -337,6 +362,15 @@ InitSV = function()
         else
             AutoGossip_CharSettings.chromieFrameLocked = false
         end
+    end
+
+    -- Floating Click-Alias Arm button: per-character mode flag.
+    if type(AutoGossip_CharSettings.clickAliasArmFloatEnabledChar) ~= "boolean" then
+        AutoGossip_CharSettings.clickAliasArmFloatEnabledChar = false
+    end
+
+    if type(AutoGossip_CharSettings.safariHatFloatEnabledChar) ~= "boolean" then
+        AutoGossip_CharSettings.safariHatFloatEnabledChar = true
     end
 
     if type(AutoGossip_Settings.disabled) ~= "table" then
@@ -638,10 +672,12 @@ InitSV = function()
         AutoGossip_Settings.autoAcceptTalkUpConfirmAcc = false
     end
 
-    -- Queue accept overlay: 3-state UX via two SVs.
-    -- - Acc On: queueAcceptAcc=true,  queueAcceptMode="acc"
-    -- - On:     queueAcceptAcc=false, queueAcceptMode="on"
-    -- - Off:    queueAcceptAcc=false, queueAcceptMode="acc" (inherit)
+    -- Queue accept overlay:
+    -- - Queue (account default): AutoGossip_Settings.queueAcceptAcc (boolean)
+    -- - Enable (per-character override): AutoGossip_CharSettings.queueAcceptEnabledOverride (boolean|nil)
+    --   - nil: inherit account default
+    --   - true/false: force enable state for this character
+    -- Legacy compat: older builds used AutoGossip_CharSettings.queueAcceptMode ("acc"/"on").
     if type(AutoGossip_Settings.queueAcceptAcc) ~= "boolean" then
         AutoGossip_Settings.queueAcceptAcc = true
     end
@@ -651,6 +687,34 @@ InitSV = function()
     if AutoGossip_CharSettings.queueAcceptMode ~= "acc" and AutoGossip_CharSettings.queueAcceptMode ~= "on" then
         AutoGossip_CharSettings.queueAcceptMode = "acc"
     end
+    if AutoGossip_CharSettings.queueAcceptEnabledOverride ~= nil and type(AutoGossip_CharSettings.queueAcceptEnabledOverride) ~= "boolean" then
+        AutoGossip_CharSettings.queueAcceptEnabledOverride = nil
+    end
+    if AutoGossip_CharSettings.queueAcceptEnabledOverride == nil and AutoGossip_CharSettings.queueAcceptMode == "on" then
+        -- Migrate legacy per-character ON mode into a boolean override.
+        AutoGossip_CharSettings.queueAcceptEnabledOverride = true
+    end
+
+    -- Queue accept behavior config (account-level).
+    if type(AutoGossip_Settings.queueAcceptBoostVolumeAcc) ~= "boolean" then
+        AutoGossip_Settings.queueAcceptBoostVolumeAcc = false
+    end
+    if type(AutoGossip_Settings.queueAcceptRestoreVolumePctAcc) ~= "number" then
+        AutoGossip_Settings.queueAcceptRestoreVolumePctAcc = 50
+    end
+    AutoGossip_Settings.queueAcceptRestoreVolumePctAcc = math.floor((tonumber(AutoGossip_Settings.queueAcceptRestoreVolumePctAcc) or 50) + 0.5)
+    if AutoGossip_Settings.queueAcceptRestoreVolumePctAcc < 0 then AutoGossip_Settings.queueAcceptRestoreVolumePctAcc = 0 end
+    if AutoGossip_Settings.queueAcceptRestoreVolumePctAcc > 100 then AutoGossip_Settings.queueAcceptRestoreVolumePctAcc = 100 end
+
+    if type(AutoGossip_Settings.queueAcceptRepeatSoundAcc) ~= "boolean" then
+        AutoGossip_Settings.queueAcceptRepeatSoundAcc = false
+    end
+    if type(AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc) ~= "number" then
+        AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = 3
+    end
+    AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = math.floor((tonumber(AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc) or 3) + 0.5)
+    if AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc < 1 then AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = 1 end
+    if AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc > 30 then AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = 30 end
     if type(AutoGossip_CharSettings.disabled) ~= "table" then
         AutoGossip_CharSettings.disabled = {}
     end
@@ -3136,6 +3200,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "",
                 "/fgo debug                 - print Macro CMD debug info",
                 "/fgo debug <mode> <key>    - debug a specific Macro CMD entry",
+                "/fgo arm                   - arm Click aliases (out of combat)",
                 "/fgo arm <key>             - arm secure /click for current mode",
                 "/fgo arm <mode> <key>      - arm secure /click for a specific mode",
                 "/fgo armtest <mode> <key>  - arm with marker (debug)",
@@ -3526,21 +3591,26 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         end
 
         if cmd == "arm" then
-            if not (ns and type(ns.MacroXCMD_ArmClickButton) == "function") then
-                Print("Macro command module not loaded.")
-                return
-            end
-
             local showHelperUsage = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
 
             local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
             if a == "f" then a = "c" end
             if a == "" then
-                if showHelperUsage then
-                    Print("Usage: /fgo arm <key>")
-                    Print("   or: /fgo arm <mode> <key>")
-                    Print("Example: /fgo arm c XAB")
+                if ns and type(ns.ClickAlias_ArmAll) == "function" then
+                    local ok, whyOrCount = ns.ClickAlias_ArmAll()
+                    if ok then
+                        Print("Click aliases armed: " .. tostring(whyOrCount))
+                    else
+                        Print("Click alias arm failed: " .. tostring(whyOrCount))
+                    end
+                else
+                    Print("Click alias module not loaded.")
                 end
+                return
+            end
+
+            if not (ns and type(ns.MacroXCMD_ArmClickButton) == "function") then
+                Print("Macro command module not loaded.")
                 return
             end
 
@@ -3833,7 +3903,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             end
 
             if sub == "" then
-                Print("Usage: /fgo mu acc|on|son|off|soff|sw|gon|goff|types|mounted|preferred")
+                Print("Usage: /fgo mu acc|on|son|off|soff|sw|gon|goff|types|mounted|preferred|eat")
                 return
             end
 
@@ -3854,6 +3924,15 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             if sub == "preferred" then
                 if ns and ns.SwitchesMU and ns.SwitchesMU.DebugPrintPreferredMounts then
                     ns.SwitchesMU.DebugPrintPreferredMounts()
+                end
+                return
+            end
+
+            if sub == "eat" then
+                if ns and ns.SwitchesMU and ns.SwitchesMU.DebugPrintEatDrink then
+                    ns.SwitchesMU.DebugPrintEatDrink()
+                else
+                    Print("Mount Up module not loaded.")
                 end
                 return
             end
@@ -3904,7 +3983,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 return
             end
 
-            Print("Usage: /fgo mu acc|on|son|off|soff|sw|gon|goff|types|mounted|preferred")
+            Print("Usage: /fgo mu acc|on|son|off|soff|sw|gon|goff|types|mounted|preferred|eat")
             return
         end
 
