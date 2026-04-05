@@ -3201,6 +3201,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo debug                 - print Macro CMD debug info",
                 "/fgo debug <mode> <key>    - debug a specific Macro CMD entry",
                 "/fgo arm                   - arm Click aliases (out of combat)",
+                "/fgo arms                  - arm Click aliases (silent)",
                 "/fgo arm <key>             - arm secure /click for current mode",
                 "/fgo arm <mode> <key>      - arm secure /click for a specific mode",
                 "/fgo armtest <mode> <key>  - arm with marker (debug)",
@@ -3361,6 +3362,66 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             return
         end
 
+        if cmd == "yumtest" then
+            local m = ns and ns.Macros
+            if not (m and type(m.FoodDrink_DebugStatus) == "function") then
+                Print("Macros module not loaded.")
+                return
+            end
+
+            local st = m.FoodDrink_DebugStatus()
+            if not st then
+                Print("YumTest failed: no status")
+                return
+            end
+
+            local function fmtBool(x)
+                return x and "ON" or "OFF"
+            end
+
+            local function fmtItem(id)
+                id = tonumber(id) or 0
+                if id <= 0 then
+                    return "none"
+                end
+                local link = select(2, GetItemInfo(id))
+                return link or ("item:" .. tostring(id))
+            end
+
+            local function fmtRate(x)
+                x = tonumber(x) or 0
+                if x <= 0 then
+                    return "0"
+                end
+                if x >= 100 then
+                    return string.format("%.0f", x)
+                end
+                return string.format("%.1f", x)
+            end
+
+            Print("YumTest: active=" .. fmtBool(st.active) .. ", perChar=" .. fmtBool(st.macroPerChar) .. ", preferConjured=" .. fmtBool(st.preferConjured) .. ", pendingItemData=" .. fmtBool(st.pendingItemData))
+            Print("YumTest: lvl=" .. tostring(st.level or "?") .. ", hpMax=" .. tostring(st.hpMax or "?") .. ", mpMax=" .. tostring(st.mpMax or "?"))
+
+            do
+                local e = st.bestFood
+                if e then
+                    Print("YumTest Food: " .. fmtItem(st.bestFoodID) .. " | req=" .. tostring(e.req or 0) .. " | hp/s=" .. fmtRate(e.hRate) .. " | %=" .. fmtBool(e.isPercent) .. " | conj=" .. fmtBool(e.conjured))
+                else
+                    Print("YumTest Food: " .. fmtItem(st.bestFoodID) .. " | (no parsed entry yet)")
+                end
+            end
+
+            do
+                local e = st.bestDrink
+                if e then
+                    Print("YumTest Drink: " .. fmtItem(st.bestDrinkID) .. " | req=" .. tostring(e.req or 0) .. " | mp/s=" .. fmtRate(e.mRate) .. " | %=" .. fmtBool(e.isPercent) .. " | conj=" .. fmtBool(e.conjured))
+                else
+                    Print("YumTest Drink: " .. fmtItem(st.bestDrinkID) .. " | (no parsed entry yet)")
+                end
+            end
+            return
+        end
+
         if cmd == "li" or cmd == "lootit" then
             local li = (ns and ns.LootIt) or (_G and rawget(_G, "fr0z3nUI_LootIt"))
             local uiv = li and (li.UIV or li.UIV_Impl)
@@ -3452,6 +3513,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 ["hs"] = true,
                 ["debug"] = true,
                 ["arm"] = true,
+                ["arms"] = true,
                 ["armtest"] = true,
                 ["mk"] = true,
                 ["mkmacro"] = true,
@@ -3591,6 +3653,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         end
 
         if cmd == "arm" then
+            local silent = false
             local showHelperUsage = (AutoGossip_Settings and AutoGossip_Settings.debugAcc) and true or false
 
             local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
@@ -3641,6 +3704,48 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             else
                 Print("Arm failed: " .. tostring(why))
             end
+            return
+        end
+
+        if cmd == "arms" then
+            local silent = true
+            local showHelperUsage = false
+
+            local a, b = (rest or ""):match("^(%S*)%s*(.-)$")
+            if a == "f" then a = "c" end
+            if a == "" then
+                if ns and type(ns.ClickAlias_ArmAll) == "function" then
+                    ns.ClickAlias_ArmAll()
+                end
+                return
+            end
+
+            if not (ns and type(ns.MacroXCMD_ArmClickButton) == "function") then
+                return
+            end
+
+            local mode = nil
+            local key = nil
+            if a == "x" or a == "m" or a == "c" or a == "d" then
+                mode = a
+                key = (b or ""):match("^(%S+)")
+            else
+                if ns and type(ns.MacroXCMD_GetMode) == "function" then
+                    mode = ns.MacroXCMD_GetMode()
+                end
+                mode = mode or "x"
+                key = a
+            end
+
+            key = tostring(key or "")
+            if key == "" then
+                if showHelperUsage then
+                    Print("Usage: /fgo arm <mode> <key>")
+                end
+                return
+            end
+
+            local ok, why = ns.MacroXCMD_ArmClickButton(mode, key)
             return
         end
 

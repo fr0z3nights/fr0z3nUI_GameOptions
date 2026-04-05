@@ -20,6 +20,10 @@ local queueOverlayDismissedToken = 0
 local queueOverlayDidBoostVolume = false
 local queueOverlayRepeatNextAt = 0
 
+local queueSoundRepeatRunning = false
+local queueSoundRepeatId = 0
+local queueSoundRepeatNoProposalTries = 0
+
 local function GetTimeNow()
     return (GetTime and GetTime()) or 0
 end
@@ -111,18 +115,127 @@ local function PlayQueuePopSound()
 
     local kit = nil
     if SOUNDKIT then
-        kit = SOUNDKIT.UI_GROUP_FINDER_RECEIVE_APPLICATION
+        kit = SOUNDKIT.LFG_READY_CHECK
             or SOUNDKIT.LFG_REWARDS_AVAILABLE
+            or SOUNDKIT.UI_GROUP_FINDER_RECEIVE_APPLICATION
             or SOUNDKIT.READY_CHECK
     end
 
-    if kit ~= nil then
-        pcall(PlaySound, kit, "Master")
+    local function Try(kitOrId)
+        if kitOrId == nil then
+            return false
+        end
+        -- Prefer Master, but some clients are picky; fall back to SFX.
+        local ok1, played1 = pcall(PlaySound, kitOrId, "Master", false)
+        if ok1 and played1 then return true end
+        local ok2, played2 = pcall(PlaySound, kitOrId, "SFX", false)
+        return (ok2 and played2) and true or false
+    end
+
+    if Try(kit) then
+        return
+    end
+    -- Fallback: try a Ready Check-ish sound ID (may vary between clients).
+    Try(8960)
+end
+
+local function IsCurrentProposalDismissed()
+    return (queueOverlayProposalToken or 0) > 0
+        and (queueOverlayDismissedToken or 0) == (queueOverlayProposalToken or 0)
+end
+
+local function GetRepeatIntervalSeconds()
+    InitSV()
+    local interval = AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc
+    interval = math.floor((tonumber(interval) or 3) + 0.5)
+    if interval < 1 then interval = 1 end
+    if interval > 30 then interval = 30 end
+    return interval
+end
+
+local function StopQueueRepeatSoundLoop()
+    queueSoundRepeatRunning = false
+    queueSoundRepeatId = (queueSoundRepeatId or 0) + 1
+    queueSoundRepeatNoProposalTries = 0
+end
+
+local function UpdateQueueRepeatSoundLoop()
+    InitSV()
+    if not (AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc) then
+        StopQueueRepeatSoundLoop()
+        return
+    end
+    if not QA.IsQueueAcceptEnabled() then
+        StopQueueRepeatSoundLoop()
+        return
+    end
+    -- Use the proposal token as the primary source of truth for whether we *should* be repeating.
+    -- Some clients fire LFG_PROPOSAL_SHOW slightly before GetLFGProposal()/dialogs are fully ready.
+    if (queueOverlayProposalToken or 0) <= 0 then
+        StopQueueRepeatSoundLoop()
+        return
+    end
+    if IsCurrentProposalDismissed() then
+        StopQueueRepeatSoundLoop()
         return
     end
 
-    -- Fallback: try Ready Check sound ID (may vary between clients).
-    pcall(PlaySound, 8960, "Master")
+    if not (C_Timer and type(C_Timer.After) == "function") then
+        -- No reliable timer available; fall back to single-shot behavior.
+        StopQueueRepeatSoundLoop()
+        return
+    end
+
+    if queueSoundRepeatRunning then
+        return
+    end
+
+    queueSoundRepeatRunning = true
+    queueSoundRepeatId = (queueSoundRepeatId or 0) + 1
+    local id = queueSoundRepeatId
+
+    local function Tick()
+        if not queueSoundRepeatRunning or queueSoundRepeatId ~= id then
+            return
+        end
+
+        InitSV()
+        if not (AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc) then
+            StopQueueRepeatSoundLoop()
+            return
+        end
+        if not QA.IsQueueAcceptEnabled() then
+            StopQueueRepeatSoundLoop()
+            return
+        end
+        if (queueOverlayProposalToken or 0) <= 0 then
+            StopQueueRepeatSoundLoop()
+            return
+        end
+        if IsCurrentProposalDismissed() then
+            StopQueueRepeatSoundLoop()
+            return
+        end
+
+        -- If proposal state isn't queryable yet, keep the loop alive briefly and retry.
+        if not QA.HasActiveLfgProposal() then
+            queueSoundRepeatNoProposalTries = (queueSoundRepeatNoProposalTries or 0) + 1
+            if queueSoundRepeatNoProposalTries >= 10 then
+                StopQueueRepeatSoundLoop()
+                return
+            end
+            C_Timer.After(0.50, Tick)
+            return
+        end
+
+        queueSoundRepeatNoProposalTries = 0
+
+        PlayQueuePopSound()
+        C_Timer.After(GetRepeatIntervalSeconds(), Tick)
+    end
+
+    -- Match prior behavior: first repeat fires immediately.
+    Tick()
 end
 
 function QA.GetQueueAcceptState()
@@ -206,6 +319,7 @@ local function DismissQueueOverlayForCurrentProposal()
     if (queueOverlayProposalToken or 0) > 0 then
         queueOverlayDismissedToken = queueOverlayProposalToken
     end
+    StopQueueRepeatSoundLoop()
     HideQueueOverlay()
 end
 
@@ -266,7 +380,7 @@ local function EnsureQueueOverlay()
             return
         end
 
-        -- Optional: repeat queue sound while the proposal is active.
+        -- Optional: repeat queue sound while the overlay is shown.
         InitSV()
         if AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc then
             local dismissed = (queueOverlayProposalToken or 0) > 0
@@ -390,13 +504,29 @@ function QA.ShowQueueOverlayIfNeeded()
 
     if not QA.IsQueueAcceptEnabled() then
         HideQueueOverlay()
+        StopQueueRepeatSoundLoop()
         return
     end
     if not QA.HasActiveLfgProposal() then
         HideQueueOverlay()
         queueOverlayProposalToken = 0
         queueOverlayDismissedToken = 0
+        StopQueueRepeatSoundLoop()
         return
+    end
+
+    -- Safety: if we missed the proposal events (e.g. /reload mid-proposal), seed a token
+    -- so the repeat-sound loop can still start.
+    if (queueOverlayProposalToken or 0) <= 0 then
+        queueOverlayProposalToken = 1
+        queueOverlayDismissedToken = 0
+    end
+
+    -- Repeat sound is driven by the overlay OnUpdate (not by a background ticker).
+    InitSV()
+    StopQueueRepeatSoundLoop()
+    if not (AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc) then
+        queueOverlayRepeatNextAt = 0
     end
 
     if InCombatLockdown and InCombatLockdown() then
@@ -435,9 +565,12 @@ function QA.OnLfgProposalShow()
 
     if QA.IsQueueAcceptEnabled() then
         MaybeBoostMasterVolumeOnPop()
-        if AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc then
-            queueOverlayRepeatNextAt = GetTimeNow()
-        end
+    end
+
+    if AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc then
+        queueOverlayRepeatNextAt = GetTimeNow()
+    else
+        queueOverlayRepeatNextAt = 0
     end
     QA.ShowQueueOverlayIfNeeded()
 end
@@ -450,10 +583,12 @@ function QA.OnLfgProposalUpdate()
     end
     InitSV()
 
-    if QA.IsQueueAcceptEnabled() and AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc then
+    if AutoGossip_Settings and AutoGossip_Settings.queueAcceptRepeatSoundAcc then
         if (queueOverlayRepeatNextAt or 0) <= 0 then
             queueOverlayRepeatNextAt = GetTimeNow()
         end
+    else
+        queueOverlayRepeatNextAt = 0
     end
     QA.ShowQueueOverlayIfNeeded()
 end
@@ -464,4 +599,5 @@ function QA.OnLfgProposalEnded()
     HideQueueOverlay()
     RestoreMasterVolumeIfNeeded()
     queueOverlayRepeatNextAt = 0
+    StopQueueRepeatSoundLoop()
 end

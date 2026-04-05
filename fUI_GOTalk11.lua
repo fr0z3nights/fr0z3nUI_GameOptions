@@ -6,11 +6,11 @@ ns.db.rules = ns.db.rules or {}
 -- XP11 database pack
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
--- ns.db.rules[123456][98765] = { zone = "Zone, Continent", npc = "NPC Name", text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { zone = "Zone, Continent", npc = "NPC Name", text = [[Option text]] }
 -- (Aliases also supported: zone / npc)
 -- Optional: set defaults once per NPC bucket:
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]] }
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
@@ -64,34 +64,34 @@ end
 SetZone("Dornogal, Khaz Algar")
 
     local t = NPC("Brann Bronzebeard", 206017)
-    t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r", type = "" }
-    t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r", type = "" }
+    t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
+    t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
 
     local t = NPC("Delver's Guide", 227675)
-    t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
+    t[123493] = { text = "<Review information on your current delve progress.>" }
 
     local t = NPC("Ronesh", 212370)
-    t[121503] = { text = "I want to browse your goods.", type = "" }
+    t[121503] = { text = "I want to browse your goods." }
 
 
 SetZone("Hallowfall, Khaz Algar")
 
     local t = NPC("Aliya Hillhelm", 220293)
-    t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this.", type = "" }
+    t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this." }
 
     local t = NPC("Chef Dinaire", 220354)
-    t[121539] = { text = "(Delve) I love scavenger hunts AND treasure. I'm in!", type = "" }
-    t[121541] = { text = "(Delve) Go get the treasure while I handle whatever is about to attack us.", type = "" }
+    t[121539] = { text = "(Delve) I love scavenger hunts AND treasure. I'm in!" }
+    t[121541] = { text = "(Delve) Go get the treasure while I handle whatever is about to attack us." }
 
     local t = NPC("Lamplighter Havrik Chayvn", 220585)
-    t[121408] = { text = "(Delve) I'll go deeper in and stop the nerubian ritual.", type = "" }
+    t[121408] = { text = "(Delve) I'll go deeper in and stop the nerubian ritual." }
 
     local t = NPC("Zah'ran", 248927)
-    t[135013] = { text = "Show me.", type = "" }
+    t[135013] = { text = "Show me." }
 
 SetZone("Azj-Kahet, Khaz Algar")
 
     local t = NPC("Weaver's Instructions", 220462)
-    t[121566] = { text = "(Delve) <Close the scroll and take the Weaver's web grappling hook.>", type = "" }
+    t[121566] = { text = "(Delve) <Close the scroll and take the Weaver's web grappling hook.>" }
 
 

@@ -208,52 +208,57 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
             return queueAcceptPopout
         end
 
-        queueAcceptPopout = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-        queueAcceptPopout:SetSize(360, 140)
-        queueAcceptPopout:ClearAllPoints()
-        queueAcceptPopout:SetPoint("TOPLEFT", panel, "TOPRIGHT", 10, 0)
-        if queueAcceptPopout.SetFrameStrata then queueAcceptPopout:SetFrameStrata("DIALOG") end
-        queueAcceptPopout:SetFrameLevel((panel.GetFrameLevel and panel:GetFrameLevel() or 0) + 80)
-        if queueAcceptPopout.SetClampedToScreen then queueAcceptPopout:SetClampedToScreen(true) end
-        queueAcceptPopout:SetBackdrop({
+        local popout = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+        if not popout then
+            return nil
+        end
+        queueAcceptPopout = popout
+
+        popout:SetSize(360, 140)
+        popout:ClearAllPoints()
+        popout:SetPoint("TOPLEFT", panel, "TOPRIGHT", 10, 0)
+        if popout.SetFrameStrata then popout:SetFrameStrata("DIALOG") end
+        popout:SetFrameLevel((panel.GetFrameLevel and panel:GetFrameLevel() or 0) + 80)
+        if popout.SetClampedToScreen then popout:SetClampedToScreen(true) end
+        popout:SetBackdrop({
             bgFile = "Interface/Tooltips/UI-Tooltip-Background",
             tile = true,
             tileSize = 16,
             insets = { left = 4, right = 4, top = 4, bottom = 4 },
         })
-        queueAcceptPopout:SetBackdropColor(0, 0, 0, 0.85)
-        queueAcceptPopout:Hide()
+        popout:SetBackdropColor(0, 0, 0, 0.85)
+        popout:Hide()
         if _G then
-            _G.FGO_QueueAcceptPopout = queueAcceptPopout
+            _G.FGO_QueueAcceptPopout = popout
         end
 
-        queueAcceptPopout:SetScript("OnShow", function()
-            if queueAcceptPopout and queueAcceptPopout._fgoUpdate then
-                queueAcceptPopout._fgoUpdate()
+        popout:SetScript("OnShow", function()
+            if popout and popout._fgoUpdate then
+                popout._fgoUpdate()
             end
             if UpdateQueueAcceptSegments then
                 UpdateQueueAcceptSegments()
             end
         end)
-        queueAcceptPopout:SetScript("OnHide", function()
+        popout:SetScript("OnHide", function()
             if UpdateQueueAcceptSegments then
                 UpdateQueueAcceptSegments()
             end
         end)
 
-        local close = CreateFrame("Button", nil, queueAcceptPopout, "UIPanelCloseButton")
-        close:SetPoint("TOPRIGHT", queueAcceptPopout, "TOPRIGHT", -6, -6)
+        local close = CreateFrame("Button", nil, popout, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", popout, "TOPRIGHT", -6, -6)
 
-        local title = queueAcceptPopout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        title:SetPoint("TOPLEFT", queueAcceptPopout, "TOPLEFT", 12, -10)
+        local title = popout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOPLEFT", popout, "TOPLEFT", 12, -10)
         title:SetText("Queue Accept")
         title:SetTextColor(1, 0.82, 0, 1)
 
-        local hint = queueAcceptPopout:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        local hint = popout:CreateFontString(nil, "OVERLAY", "GameFontDisable")
         hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
         hint:SetText("Sound/volume behavior while a queue is ready")
 
-        local row1 = CreateFrame("Frame", nil, queueAcceptPopout)
+        local row1 = CreateFrame("Frame", nil, popout)
         row1:SetSize(320, BTN_H)
         row1:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
 
@@ -268,7 +273,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         local ebRestore = MakeNumericBox(row1, 40, BTN_H)
         ebRestore:SetPoint("LEFT", lblRestore, "RIGHT", 6, 0)
 
-        local row2 = CreateFrame("Frame", nil, queueAcceptPopout)
+        local row2 = CreateFrame("Frame", nil, popout)
         row2:SetSize(320, BTN_H)
         row2:SetPoint("TOPLEFT", row1, "BOTTOMLEFT", 0, -10)
 
@@ -324,6 +329,9 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
             InitSV()
             AutoGossip_Settings.queueAcceptRepeatSoundAcc = not (AutoGossip_Settings.queueAcceptRepeatSoundAcc and true or false)
             UpdateQueueAcceptPopout()
+            if ShowQueueOverlayIfNeeded then
+                ShowQueueOverlayIfNeeded()
+            end
         end)
         btnRepeat:SetScript("OnEnter", function()
             if GameTooltip then
@@ -353,6 +361,9 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
             local v = ClampInt(ebEvery and ebEvery.GetText and ebEvery:GetText(), 1, 30, 3)
             AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = v
             UpdateQueueAcceptPopout()
+            if ShowQueueOverlayIfNeeded then
+                ShowQueueOverlayIfNeeded()
+            end
         end
         ebEvery:SetScript("OnEnterPressed", function(self)
             SaveEvery()
@@ -360,9 +371,9 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         end)
         ebEvery:SetScript("OnEditFocusLost", SaveEvery)
 
-        queueAcceptPopout._fgoUpdate = UpdateQueueAcceptPopout
+        popout._fgoUpdate = UpdateQueueAcceptPopout
         UpdateQueueAcceptPopout()
-        return queueAcceptPopout
+        return popout
     end
 
     local queueAcceptSegContainer = CreateFrame("Frame", nil, panel)

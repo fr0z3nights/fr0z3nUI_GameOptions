@@ -4,6 +4,57 @@ Format: `YYMMDD-###` (sanity stamp) — short summary.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+# 260405-001
+- Files: `fUI_GOSwitchesQA.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Queue Accept: fix repeat-sound loop so it continues while a proposal is active even if the overlay hides (repeat logic is now timer-driven instead of `OnUpdate`).
+- Queue Accept config: toggling `Repeat Sound` / changing the interval now takes effect immediately for an active proposal.
+- Bumped TOC `## Version` to `2026.04.05.01`.
+
+# 260405-002
+- Files: `fUI_GOSwitchesQA.lua`, `fr0z3nUI_GameOptions.toc`
+- Queue Accept: fix repeat-sound loop start timing so it still repeats when `LFG_PROPOSAL_SHOW` fires before `GetLFGProposal()`/dialog state is fully ready (short retry window).
+- Bumped TOC `## Version` to `2026.04.05.02`.
+
+# 260405-003
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOSwitchesQA.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: add `/fgo arms` as a silent alias for `/fgo arm` (no chat prints).
+- Queue Accept: if proposal events are missed (e.g. /reload mid-proposal), repeat-sound loop can still start when the overlay logic detects an active proposal.
+- Bumped TOC `## Version` to `2026.04.05.03`.
+
+# 260405-004
+- Files: `fUI_GOSwitchesQA.lua`, `fr0z3nUI_GameOptions.toc`
+- Queue Accept: overlay visibility no longer depends on the Repeat Sound toggle.
+- Queue Accept: repeat sound now runs from the overlay update loop (keeps it tied to the visible overlay).
+- Queue Accept: fixed PlaySound success detection (was treating `pcall` success as “sound played”).
+- Bumped TOC `## Version` to `2026.04.05.04`.
+
+# 260405-005
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: improve tooltip parsing for modern "(Eat/Drink) to restore ..." wording, including the common "health and mana" single-value format.
+- Fixes cases where buying a higher-tier food/drink doesn't update `FGO Food` / `FGO Drink` until a manual `/fgo yum`.
+- Bumped TOC `## Version` to `2026.04.05.05`.
+
+# 260405-006
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: refresh is now also triggered by `BAG_UPDATE` / `ITEM_PUSH` (still throttled) for better reliability right after looting/buying items.
+- Bumped TOC `## Version` to `2026.04.05.06`.
+
+# 260405-007
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: add one-shot follow-up rescan a few seconds after `PLAYER_ENTERING_WORLD`, and refresh on `MERCHANT_CLOSED`.
+- Food/Drink macros: throttle `RequestLoadItemDataByID` calls and force refresh when pending item info arrives.
+- Bumped TOC `## Version` to `2026.04.05.07`.
+
+# 260405-008
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: fix parsing for "X% of your maximum health/mana every second over Y sec" tooltips so percent-based foods/drinks rank correctly against flat restore items.
+- Bumped TOC `## Version` to `2026.04.05.08`.
+
+# 260405-009
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: add `/fgo yumtest` to print the current best Food/Drink candidates + computed rates (debug helper).
+- Bumped TOC `## Version` to `2026.04.05.09`.
+
 # 260404-003
 - Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOSwitchesQA.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
 - Queue Accept: Switches UI now uses a 3-button row: `Queue` (account default) / `Enable` (per-character override) / `Config`.

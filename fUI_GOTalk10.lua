@@ -7,7 +7,7 @@ ns.db.rules = ns.db.rules or {}
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]] }
 -- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
@@ -62,8 +62,8 @@ end
 SetZone("The Forbidden Reach, Dragon Isles")
 
     local t = NPC("Zone NPCs", { 184165, 182610, 182611, })
-    t[51921] = { text = "Come with me. I will get you to safety.", type = "" }	-- Halp! (65071)		Little Ko (184165)
-    t[51849] = { text = "Come with me. I will get you to safety.", type = "" }	-- Final Orders (65100)	Scalecommander Viridia (182610)
-    t[51850] = { text = "<Relay what Nozdormu told you.>", type = "" }			-- Final Orders (65100)	Scalecommander Sarkareth (182611)
+    t[51921] = { text = "Come with me. I will get you to safety." }	-- Halp! (65071)		Little Ko (184165)
+    t[51849] = { text = "Come with me. I will get you to safety." }	-- Final Orders (65100)	Scalecommander Viridia (182610)
+    t[51850] = { text = "<Relay what Nozdormu told you.>" }			-- Final Orders (65100)	Scalecommander Sarkareth (182611)
 
 

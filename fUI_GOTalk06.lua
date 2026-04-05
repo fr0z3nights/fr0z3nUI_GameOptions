@@ -7,7 +7,7 @@ ns.db.rules = ns.db.rules or {}
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]] }
 -- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
@@ -65,62 +65,62 @@ end
 SetZone("Frostifre Ridge, Draenor")
 
 	local t = NPC("Gargra", 87122)
-    t[42881] = { text = "Let's do this!", mount = true, type = "", }
+    t[42881] = { text = "Let's do this!", mount = true, }
 
     local t = NPC("Senior Peon II", 86775)
-    t[43217] = { text = "Gazlowe needs you.", type = "", close = true }					-- What We Got (34824) Senior Peon II (86775)
+    t[43217] = { text = "Gazlowe needs you.", close = true }					-- What We Got (34824) Senior Peon II (86775)
 
     local t = NPC("Skaggit", 80225)
-    t[42535] = { text = "Get the peons back to work.", type = "", close = true }		-- What We Got (34824) Skaggit (80225)
+    t[42535] = { text = "Get the peons back to work.", close = true }		-- What We Got (34824) Skaggit (80225)
 
 SetZone("Gorgrond, Draenor")
 
     local t = NPC("Cymre Brightblade", 83837)
-    t[42651] = { text = "Let's do battle!", mount = true, type = "", }
+    t[42651] = { text = "Let's do battle!", mount = true, }
 
 SetZone("Nagrand, Draenor")
 
     local t = NPC("Tarr the Terrible", 87110)
-    t[42882] = { text = "Let's do this!", mount = true, type = "", }
+    t[42882] = { text = "Let's do this!", mount = true, }
 
 SetZone("Shadowmoon Valley, Draenor")
 
     local t = NPC("Ashlei", 87124)
-    t[43294] = { text = "Let's do this!", mount = true, type = "" }
+    t[43294] = { text = "Let's do this!", mount = true }
 
     local t = NPC("Baros Alexston", 79243)
-    t[43035] = { text = "We have everything we need. It's time to build the garrison.", type = "" }
+    t[43035] = { text = "We have everything we need. It's time to build the garrison." }
 
 SetZone("Talador, Draenor")
 
     local t = NPC("Taralune", 87125)
-    t[42883] = { text = "Let's do this!", mount = true, type = "" }
+    t[42883] = { text = "Let's do this!", mount = true }
 
 SetZone("Spires of Arak, Draenor")
 
     local t = NPC("Kuro'ak <Innkeeper>", 86386)
-    t[43234] = { text = "Let me browse your goods.", type = "" }
+    t[43234] = { text = "Let me browse your goods." }
 
     local t = NPC("Skytalon Meshaal", 84498)
-    t[42904] = { text = "Show me where I can fly.", type = "" }
+    t[42904] = { text = "Show me where I can fly." }
 
     local t = NPC("Vesharr", 87123)
-    t[43292] = { text = "Lets do battle!", mount = true, type = "" }
+    t[43292] = { text = "Lets do battle!", mount = true }
 
 SetZone("Garrison, Draenor")
 
     local t = NPC("Assistant Brightstone", 84455)
-    t[42666] = { text = "Time to get back to work.", type = "", close = true }					-- Keeping it Together (35176) Assistant Brightstone (84455)
+    t[42666] = { text = "Time to get back to work.", close = true }					-- Keeping it Together (35176) Assistant Brightstone (84455)
 
     local t = NPC("Rachelle Black", 81348)
-    t[42786] = { text = "Let me browse your goods.", type = "" }								-- Vendor Rachelle Black (81348)
+    t[42786] = { text = "Let me browse your goods." }								-- Vendor Rachelle Black (81348)
 
     local t = NPC("Shelly Hamby", 81441)
-    t[42677] = { text = "Gather Shelly's report.", type = "", close = true }					-- Keeping it Together (35176) Shelly Hamby (81441)
+    t[42677] = { text = "Gather Shelly's report.", close = true }					-- Keeping it Together (35176) Shelly Hamby (81441)
 
     -- System/helper entry (not tied to real gossip). Used as a toggle in the Talk tab.
     -- NOTE: This uses a fake NPC ID so it will never match real gossip.
     local t = NPC("Garrison Mission Table", -32000)
-    t[1] = { text = "Auto-start first mission (tutorial quest)", type = "" }
+    t[1] = { text = "Auto-start first mission (tutorial quest)" }
 
 

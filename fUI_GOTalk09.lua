@@ -7,7 +7,7 @@ ns.db.rules = ns.db.rules or {}
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]] }
 -- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
@@ -62,9 +62,9 @@ end
 SetZone("Oribos, Shadowlands")
 
     local t = NPC("Protector Captain", 168252)
-    t[53754] = { text = "Where am I? Have I escaped the Maw?", type = "" }
+    t[53754] = { text = "Where am I? Have I escaped the Maw?" }
 
    local t = NPC("Overseer Kah-Delen", 167425)
-   t[131497] = { text = "I've been here before. <Skip the level up campaign and unlock world content.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, type = "", }
+   t[131497] = { text = "I've been here before. <Skip the level up campaign and unlock world content.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, }
 
 

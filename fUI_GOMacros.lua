@@ -692,11 +692,13 @@ end
 local FoodDrink = {
     pendingBags = {},
     itemsPending = {},
+    itemInfoRequestAt = {},
     tooltipCache = {},
     lastScanAt = 0,
     scanTimerArmed = false,
     scanPending = false,
     needsRewrite = false,
+    percentRatesDirty = false,
     createdFood = false,
     createdDrink = false,
     lastFoodID = 0,
@@ -706,6 +708,27 @@ local FoodDrink = {
     retryAttempts = 0,
     retryTimerArmed = false,
 }
+
+local function RequestLoadItemDataByID_Throttled(itemID)
+    if not (C_Item and C_Item.RequestLoadItemDataByID) then
+        return
+    end
+
+    itemID = tonumber(itemID)
+    if not itemID or itemID <= 0 then
+        return
+    end
+
+    FoodDrink.itemsPending[itemID] = true
+
+    local now = GetTime()
+    local last = FoodDrink.itemInfoRequestAt[itemID] or 0
+    if (now - last) < 0.20 then
+        return
+    end
+    FoodDrink.itemInfoRequestAt[itemID] = now
+    pcall(C_Item.RequestLoadItemDataByID, itemID)
+end
 
 local function IsFoodDrinkActive()
     if FoodDrink.createdFood or FoodDrink.createdDrink then
@@ -943,6 +966,32 @@ local function ParseFoodDrinkRates(itemID)
         if tl:find("%%") then
             local percentHealthRate, secH = GetMaxPercentRate(tl, hpMax)
             local percentManaRate, secM = GetMaxPercentRate(tl, mpMax)
+
+            -- Some modern tooltips are per-second percent restores, e.g.:
+            -- "Restores 6% of your maximum health every second over 20 sec."
+            -- Treat as a per-second rate (do NOT divide by the duration).
+            do
+                local pctH, durH = tl:match("(%d+)%s*%%%D+" .. kwHealth .. "%D+every%s+second%D+over%D+(%d+)")
+                if pctH and durH then
+                    local pct = tonumber(pctH)
+                    local dur = tonumber(durH)
+                    if pct and pct > 0 and dur and dur > 0 then
+                        percentHealthRate = math.max(percentHealthRate, (hpMax * (pct / 100)))
+                        secH = dur
+                    end
+                end
+
+                local pctM, durM = tl:match("(%d+)%s*%%%D+" .. kwMana .. "%D+every%s+second%D+over%D+(%d+)")
+                if pctM and durM then
+                    local pct = tonumber(pctM)
+                    local dur = tonumber(durM)
+                    if pct and pct > 0 and dur and dur > 0 then
+                        percentManaRate = math.max(percentManaRate, (mpMax * (pct / 100)))
+                        secM = dur
+                    end
+                end
+            end
+
             local sawH = percentHealthRate > 0 and tl:find(kwHealth, 1, true) ~= nil
             local sawM = percentManaRate > 0 and tl:find(kwMana, 1, true) ~= nil
             if sawH then
@@ -969,12 +1018,43 @@ local function ParseFoodDrinkRates(itemID)
             end
         end
 
+        -- Generic parsing using a detected duration.
+        -- This intentionally does not depend on a specific "Restores" vs "restore" token.
+        if st.lastSec and st.lastSec > 0 and not tl:find("%", 1, true) then
+            local sec = st.lastSec
+
+            -- "... X health and Y mana ..."
+            local h, m = tl:match("(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwMana)
+            if not (h and m) then
+                -- Sometimes the tooltip reverses the order.
+                m, h = tl:match("(%d[%d,%.]*)%s+.-" .. kwMana .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwHealth)
+            end
+            if h and m then
+                local hv = StrNum(h)
+                local mv = StrNum(m)
+                if hv > 0 then st.hRate = math.max(st.hRate, hv / sec) end
+                if mv > 0 then st.mRate = math.max(st.mRate, mv / sec) end
+                return
+            end
+
+            -- "... X health and mana ..." (single amount applies to both)
+            local both = tl:match("(%d[%d,%.]*)%s+.-" .. kwHealth .. "%s+and%s+" .. kwMana)
+            if both then
+                local v = StrNum(both)
+                if v > 0 then
+                    st.hRate = math.max(st.hRate, v / sec)
+                    st.mRate = math.max(st.mRate, v / sec)
+                end
+                return
+            end
+        end
+
         -- EnUS restore patterns.
         -- "Restores X health and Y mana over Z sec"
-        local a1, a2, s = tl:match("restores%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-over%s+(%d+)")
+        local a1, a2, s = tl:match("restores?%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-over%s+(%d+)")
         if not (a1 and a2 and s) then
             -- Some tooltips reverse order.
-            a1, a2, s = tl:match("restores%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-over%s+(%d+)")
+            a1, a2, s = tl:match("restores?%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-and%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-over%s+(%d+)")
             if a1 and a2 and s then
                 -- swap into health,mana order
                 a1, a2 = a2, a1
@@ -992,7 +1072,7 @@ local function ParseFoodDrinkRates(itemID)
         end
 
         -- "Restores X health over Z sec" / "Restores X mana over Z sec"
-        local one, s2 = tl:match("restores%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-over%s+(%d+)")
+        local one, s2 = tl:match("restores?%s+(%d[%d,%.]*)%s+.-" .. kwHealth .. ".-over%s+(%d+)")
         if one and s2 then
             local sec = isSecondsToken(s2)
             if sec then
@@ -1002,7 +1082,7 @@ local function ParseFoodDrinkRates(itemID)
             return
         end
 
-        one, s2 = tl:match("restores%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-over%s+(%d+)")
+        one, s2 = tl:match("restores?%s+(%d[%d,%.]*)%s+.-" .. kwMana .. ".-over%s+(%d+)")
         if one and s2 then
             local sec = isSecondsToken(s2)
             if sec then
@@ -1073,14 +1153,13 @@ local function ParseFoodDrinkRates(itemID)
         local joined = table.concat(lines, " "):lower()
         -- At login, consumable tooltips are sometimes missing restore lines (only name/req lines).
         -- If we don't see any restore signal, request item data and retry later.
-        local hasRestoreSignal = (joined:find("%%", 1, true) ~= nil)
-            or (joined:find("restores", 1, true) ~= nil)
+        local hasRestoreSignal = (joined:find("%", 1, true) ~= nil)
+            or (joined:find("restore", 1, true) ~= nil)
             or (joined:find(kwHealth, 1, true) ~= nil)
             or (joined:find(kwMana, 1, true) ~= nil)
         local looksEmpty = (#joined <= 8) or (not hasRestoreSignal)
         if looksEmpty then
-            C_Item.RequestLoadItemDataByID(itemID)
-            FoodDrink.itemsPending[itemID] = true
+            RequestLoadItemDataByID_Throttled(itemID)
         end
     end
 
@@ -1092,8 +1171,7 @@ local function ClassifyFoodDrink(itemID)
 
     local classID, subID, req, subName = GetItemClassSubclassReq(itemID)
     if not classID then
-        C_Item.RequestLoadItemDataByID(itemID)
-        FoodDrink.itemsPending[itemID] = true
+        RequestLoadItemDataByID_Throttled(itemID)
         return nil
     end
 
@@ -1103,6 +1181,16 @@ local function ClassifyFoodDrink(itemID)
 
     local cached = FoodDrink.tooltipCache[itemID]
     if cached then
+        if cached.isPercent and FoodDrink.percentRatesDirty then
+            local st = ParseFoodDrinkRates(itemID)
+            if st then
+                cached.hRate = st.hRate or cached.hRate or 0
+                cached.mRate = st.mRate or cached.mRate or 0
+                cached.isPercent = st.isPercent and true or cached.isPercent
+                cached.percentDuration = st.percentDuration or cached.percentDuration
+                FoodDrink.tooltipCache[itemID] = cached
+            end
+        end
         return cached
     end
 
@@ -1203,6 +1291,9 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
 
     local bestFood = tonumber(PickBestFromBags("food")) or 0
     local bestDrink = tonumber(PickBestFromBags("drink")) or 0
+
+    -- Reset percent-derived dirty flag after a pass that re-classifies candidates.
+    FoodDrink.percentRatesDirty = false
 
     local foodIdx = (GetMacroIndexByName(FOOD_MACRO_NAME) or 0)
     local drinkIdx = (GetMacroIndexByName(DRINK_MACRO_NAME) or 0)
@@ -1312,10 +1403,14 @@ end
 do
     local f = CreateFrame("Frame")
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("BAG_UPDATE")
     f:RegisterEvent("BAG_UPDATE_DELAYED")
     f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
     f:RegisterEvent("ITEM_DATA_LOAD_RESULT")
+    f:RegisterEvent("ITEM_PUSH")
+    f:RegisterEvent("MERCHANT_CLOSED")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
+    f:RegisterEvent("PLAYER_LEVEL_UP")
     f:RegisterEvent("UNIT_MAXHEALTH")
     f:RegisterEvent("UNIT_MAXPOWER")
 
@@ -1326,6 +1421,21 @@ do
                     RequestFoodDrinkScan(true)
                 end
             end)
+
+            -- One-shot follow-up scan: helps when bag/item tooltip data stabilizes a few seconds
+            -- after login/zone load even though BAG_UPDATE events already fired.
+            C_Timer.After(4.0, function()
+                if IsFoodDrinkActive() then
+                    RequestFoodDrinkScan(true)
+                end
+            end)
+            return
+        end
+
+        if event == "BAG_UPDATE" then
+            if IsFoodDrinkActive() then
+                RequestFoodDrinkScan(false)
+            end
             return
         end
 
@@ -1336,10 +1446,18 @@ do
             return
         end
 
+        if event == "ITEM_PUSH" then
+            if IsFoodDrinkActive() then
+                RequestFoodDrinkScan(false)
+            end
+            return
+        end
+
         if event == "GET_ITEM_INFO_RECEIVED" then
             local itemID = arg1
             if itemID and FoodDrink.itemsPending[itemID] then
                 FoodDrink.itemsPending[itemID] = nil
+                FoodDrink.itemInfoRequestAt[itemID] = nil
                 -- Force an update after new item info arrives.
                 if IsFoodDrinkActive() then
                     RequestFoodDrinkScan(true)
@@ -1352,9 +1470,17 @@ do
             local itemID, ok = arg1, arg2
             if ok and itemID and FoodDrink.itemsPending[itemID] then
                 FoodDrink.itemsPending[itemID] = nil
+                FoodDrink.itemInfoRequestAt[itemID] = nil
                 if IsFoodDrinkActive() then
                     RequestFoodDrinkScan(true)
                 end
+            end
+            return
+        end
+
+        if event == "MERCHANT_CLOSED" then
+            if IsFoodDrinkActive() then
+                RequestFoodDrinkScan(false)
             end
             return
         end
@@ -1366,10 +1492,18 @@ do
             return
         end
 
+        if event == "PLAYER_LEVEL_UP" then
+            if IsFoodDrinkActive() then
+                RequestFoodDrinkScan(true)
+            end
+            return
+        end
+
         if event == "UNIT_MAXHEALTH" then
             local unit = arg1
             if unit == "player" and IsFoodDrinkActive() then
                 -- Percent-based foods depend on max health.
+                FoodDrink.percentRatesDirty = true
                 RequestFoodDrinkScan(true)
             end
             return
@@ -1378,6 +1512,7 @@ do
         if event == "UNIT_MAXPOWER" then
             local unit, powerType = arg1, arg2
             if unit == "player" and (powerType == nil or powerType == "MANA" or powerType == 0) and IsFoodDrinkActive() then
+                FoodDrink.percentRatesDirty = true
                 RequestFoodDrinkScan(true)
             end
             return
@@ -1440,4 +1575,66 @@ ns.Macros.FoodDrink_ForceUpdate = function()
     FoodDrink.createdFood = true
     FoodDrink.createdDrink = true
     return UpdateFoodDrinkMacros(true, true, true)
+end
+
+ns.Macros.FoodDrink_DebugStatus = function()
+    local lvl = UnitLevel("player") or 1
+    local hpMax = UnitHealthMax("player") or 0
+    local mpMax = 0
+    do
+        local pt = nil
+        if UnitPowerType then
+            local ok, p = pcall(UnitPowerType, "player")
+            if ok then
+                pt = p
+            end
+        end
+        if UnitPowerMax and pt ~= nil then
+            mpMax = UnitPowerMax("player", pt) or 0
+        end
+        if mpMax <= 0 and UnitPowerMax then
+            for p = 0, 10 do
+                local v = UnitPowerMax("player", p) or 0
+                if v and v > mpMax then
+                    mpMax = v
+                end
+            end
+        end
+    end
+
+    local bestFoodID = tonumber(PickBestFromBags("food")) or 0
+    local bestDrinkID = tonumber(PickBestFromBags("drink")) or 0
+
+    local foodEntry = (bestFoodID > 0) and ClassifyFoodDrink(bestFoodID) or nil
+    local drinkEntry = (bestDrinkID > 0) and ClassifyFoodDrink(bestDrinkID) or nil
+
+    local foodIdx = (type(GetMacroIndexByName) == "function") and (GetMacroIndexByName(FOOD_MACRO_NAME) or 0) or 0
+    local drinkIdx = (type(GetMacroIndexByName) == "function") and (GetMacroIndexByName(DRINK_MACRO_NAME) or 0) or 0
+
+    return {
+        inCombat = InCombat(),
+        level = lvl,
+        hpMax = hpMax,
+        mpMax = mpMax,
+        preferConjured = GetPreferConjured(),
+        active = IsFoodDrinkActive(),
+        createdFood = FoodDrink.createdFood and true or false,
+        createdDrink = FoodDrink.createdDrink and true or false,
+        macroPerChar = GetMacroPerCharSetting() and true or false,
+        foodMacroIndex = foodIdx,
+        drinkMacroIndex = drinkIdx,
+        lastFoodID = tonumber(FoodDrink.lastFoodID) or 0,
+        lastDrinkID = tonumber(FoodDrink.lastDrinkID) or 0,
+        bestFoodID = bestFoodID,
+        bestDrinkID = bestDrinkID,
+        bestFood = foodEntry,
+        bestDrink = drinkEntry,
+        pendingItemData = HasPendingItemData() and true or false,
+        lastScanAt = tonumber(FoodDrink.lastScanAt) or 0,
+        lastBagScan = {
+            anySlots = FoodDrink.lastBagScan.anySlots and true or false,
+            anyItems = FoodDrink.lastBagScan.anyItems and true or false,
+            at = tonumber(FoodDrink.lastBagScan.at) or 0,
+        },
+    }
 end

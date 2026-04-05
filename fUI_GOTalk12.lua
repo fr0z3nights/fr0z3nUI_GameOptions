@@ -7,7 +7,7 @@ ns.db.rules = ns.db.rules or {}
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]] }
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
@@ -60,6 +60,6 @@ local function NPC(npcName, npcIDs)
 end
    -- Delver's Guide
         --local t = NPC("Delver's Guide", 227675)
-        --t[123493] = { text = "<Review information on your current delve progress.>", type = "" }
+        --t[123493] = { text = "<Review information on your current delve progress.>" }
 
 

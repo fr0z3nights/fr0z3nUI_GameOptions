@@ -7,7 +7,7 @@ ns.db.rules = ns.db.rules or {}
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]] }
 -- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
@@ -62,6 +62,6 @@ SetZone("Zul'Drak, Northrend")
 
 
 	local t = NPC("Maaka", 28624)
-    t[36716] = { text = "Show me where I can fly.", type = "" }
+    t[36716] = { text = "Show me where I can fly." }
 
 

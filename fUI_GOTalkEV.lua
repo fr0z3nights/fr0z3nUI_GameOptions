@@ -7,7 +7,7 @@ ns.db.rules = ns.db.rules or {}
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]] }
 -- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
@@ -62,8 +62,8 @@ end
 SetZone("Darkmoon Island")
 
     local t = NPC("Pet Battles", { 67370, 85519})
-    t[41758] = { text = "I challenge you to a pet battle!", type = "" }	-- Darkmoon Pet Battle! (32175) Jeremy Feasel (67370)
-    t[42667] = { text = "I challenge you to a pet battle!", type = "" }	-- A New Darkmoon Challenger! (36471) Christoph VonFeasel (85519)
+    t[41758] = { text = "I challenge you to a pet battle!" }	-- Darkmoon Pet Battle! (32175) Jeremy Feasel (67370)
+    t[42667] = { text = "I challenge you to a pet battle!" }	-- A New Darkmoon Challenger! (36471) Christoph VonFeasel (85519)
 
 
 

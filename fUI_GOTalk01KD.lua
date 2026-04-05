@@ -9,7 +9,7 @@ ns.db.rules = ns.db.rules or {}
 -- Add rules like:
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]], type = "" }
+-- ns.db.rules[123456][98765] = { text = [[Option text]] }
 -- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
@@ -64,61 +64,58 @@ end
 SetZone("The Barrens, Kalimdor")
 
     local t = NPC("Crysa", 115286)
-    t[47298] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, type = "", }
+    t[47298] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
 
 SetZone("Darkshore, Kalimdor")
 
     -- Zidormi
     local t = NPC("Zidormi", 141489)
-    t[49022] = { text = "Can you show me what Darkshore was like before the battle?", type = "" }
+    t[49022] = { text = "Can you show me what Darkshore was like before the battle?" }
 
 SetZone("Orgrimmar, Kalimdor")
 
    local t = NPC("Image of Lady Liadrin", 241677)
-   t[133523] = { text = "Please summon me to the Isle of Quel'Danas.", type = "" }
+   t[133523] = { text = "Please summon me to the Isle of Quel'Danas." }
 
    local t = NPC("Nathanos Blightcaller", 135205)
-   t[ 49081] = { text = "I have heard this story before. <Skip>", type = "", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure?" }, within = 3, },  }					-- Shadowlands: A Chilling Summons (61874) Nathanos Blightcaller (135205)
+   t[ 49081] = { text = "I have heard this story before. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure?" }, within = 3, },  }					-- Shadowlands: A Chilling Summons (61874) Nathanos Blightcaller (135205)
 
    local t = NPC("Nazgrim", 171791)
-   t[ 52728] = { text = "I have heard this tale before. <Skip>", type = "", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure?" }, within = 3, },  }					-- Shadowlands: A Chilling Summons (61874) Nazgrim (171791)
+   t[ 52728] = { text = "I have heard this tale before. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure?" }, within = 3, },  }					-- Shadowlands: A Chilling Summons (61874) Nazgrim (171791)
 
    local t = NPC("Suspicious Citizen", { 246157, 248174 })
-   t[134631] = { text = "Are you talking about the Twilight's Blade?", type = "" }
-   t[134634] = { text = "Are you talking about the Twilight's Blade?", type = "" }
+   t[134631] = { text = "Are you talking about the Twilight's Blade?" }
+   t[134634] = { text = "Are you talking about the Twilight's Blade?" }
 
    local t = NPC("Trading Post", { 185473, 185472 })
-   t[107825] = { text = "I'd like to see what you have to offer this month.", type = "" }		-- Zen'kala (185473)
-   t[107826] = { text = "I'd like to see what you have to offer this month.", type = "" }		-- Shiri (185472)
+   t[107825] = { text = "I'd like to see what you have to offer this month." }		-- Zen'kala (185473)
+   t[107826] = { text = "I'd like to see what you have to offer this month." }		-- Shiri (185472)
 
 SetZone("Razorwind Shores, Kalimdor")
 
     local t = NPC("Rotha", 254687)
-    t[137156] = { text = "I'd like to upgrade my house.", type = "" }
-    t[137155] = { text = "I'd like to upgrade my house.", type = "" }
-    t[137153] = { text = "Let's do this!", type = "" }
-    t[137154] = { text = "I'll be back.", type = "" }
+    t[137156] = { text = "I'd like to upgrade my house." }
+    t[137155] = { text = "I'd like to upgrade my house." }
+    t[137153] = { text = "Let's do this!" }
+    t[137154] = { text = "I'll be back." }
 
     local t = NPC("Spirit Healer", 6491)
-    t[29005] = { text = "Return me to life.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "If you find your corpse", "If you return to your corpse", "return to your corpse", "lose experience", "resurrection sickness" }, within = 3, }, type = "" }
+    t[29005] = { text = "Return me to life.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "If you find your corpse", "If you return to your corpse", "return to your corpse", "lose experience", "resurrection sickness" }, within = 3, } }
 
 SetZone("Tanaris, Kalimdor")
-	-- Time Dungeon
-    local t = NPC("Time Transit Device", 209441)
-    t[40865] = { prio = 10, text = "Bronze Dragonshrine", type = "" }
-    t[40860] = { prio = 08, text = "Obsidian Dragonshrine", type = "" }
-    t[40862] = { prio = 06, text = "Emerald Dragonshrine", type = "" }
---  t[40865] = { prio = 04, text = "Bronze Dragonshrine", type = "" }
 
---[19:49] [FGO] OID:  40865  Bronze Dragonshrine
---[19:41] [FGO] OID:  40860  Obsidian Dragonshrine 
---[19:44] [FGO] OID:  40862  Emerald Dragonshrine
-
+    local t = NPC("Time Transit Device", { 209441, 209437, 209438, 209439, 209442, })
+    t[40865] = { prio = 10, text = "Bronze Dragonshrine" }
+    t[40863] = { prio = 04, text = "Azure Dragonshrine" }
+    t[40862] = { prio = 06, text = "Emerald Dragonshrine" }
+    t[40860] = { prio = 08, text = "Obsidian Dragonshrine" }
+    t[40857] = { prio = 02, text = "Ruby Dragonshrine" }
+    t[40856] = { prio = 00, text = "Entryway of Time" }
 
 SetZone("Uldum, Kalimdor")
 
     local t = NPC("Zidormi", 162419)
-    t[51282] = { text = "Can you show me what Uldum was like during the time of the Cataclysm?", type = "" }
+    t[51282] = { text = "Can you show me what Uldum was like during the time of the Cataclysm?" }
 
 
 
