@@ -1425,6 +1425,44 @@ do
   local _liMerchantNotSoldWarned
   local _liMerchantBuyPrinted
 
+  local _liMerchantPrewarmCursor
+
+  local function PrewarmMerchantItemList(maxItems)
+    if type(GetMerchantNumItems) ~= "function" then return end
+    local n = tonumber(GetMerchantNumItems()) or 0
+    if n <= 0 then
+      _liMerchantWantsCache = true
+      return
+    end
+
+    maxItems = tonumber(maxItems) or 18
+    maxItems = math.floor(maxItems)
+    if maxItems < 1 then maxItems = 1 end
+    if maxItems > 60 then maxItems = 60 end
+
+    if type(_liMerchantPrewarmCursor) ~= "number" or _liMerchantPrewarmCursor < 1 then
+      _liMerchantPrewarmCursor = 1
+    end
+
+    local warmed = 0
+    while warmed < maxItems and _liMerchantPrewarmCursor <= n do
+      local i = _liMerchantPrewarmCursor
+      _liMerchantPrewarmCursor = _liMerchantPrewarmCursor + 1
+
+      -- Touch link first: some clients populate item links lazily.
+      pcall(GetMerchantItemLinkSafe, i)
+
+      local id = GetMerchantItemIDSafe(i)
+      if id and id > 0 then
+        pcall(PrewarmTradeItemCache, id)
+      else
+        _liMerchantWantsCache = true
+      end
+
+      warmed = warmed + 1
+    end
+  end
+
   local function RunMerchantTradeOnce(skipFoodSell)
     SyncDB()
     local mode = GetTradeMode()
@@ -1507,12 +1545,17 @@ do
     -- Some UIs/clients populate the merchant item list a moment after MERCHANT_SHOW.
     -- If we're in buy mode but the list isn't ready yet, mark wants-cache so the ticker
     -- keeps running (and doesn't idle-out) until the list is available.
+    local merchantN = nil
     if mode == "buy" and type(GetMerchantNumItems) == "function" then
-      local n = tonumber(GetMerchantNumItems()) or 0
-      if n <= 0 then
+      merchantN = tonumber(GetMerchantNumItems()) or 0
+      if merchantN <= 0 then
         _liMerchantWantsCache = true
         return 0
       end
+    end
+
+    if mode == "buy" and (type(_liMerchantPrewarmCursor) ~= "number" or (_liMerchantPrewarmCursor <= (merchantN or 0))) then
+      PrewarmMerchantItemList((_liMerchantWantsCache == true) and 30 or 18)
     end
 
     local rules = GetEffectiveTradeRules(mode)
@@ -2101,6 +2144,7 @@ do
     _liMerchantBuyBlocked = nil
     _liMerchantLastBuyAttempt = nil
     _liMerchantBuyPrinted = nil
+    _liMerchantPrewarmCursor = nil
     _liMerchantDebugSummaryPrinted = false
     _liMerchantDebugRulePrinted = false
   end
@@ -2124,6 +2168,7 @@ do
     _liMerchantBuyBlocked = {}
     _liMerchantLastBuyAttempt = nil
     _liMerchantBuyPrinted = {}
+    _liMerchantPrewarmCursor = nil
 
     _liMerchantDebugSummaryPrinted = false
     _liMerchantDebugRulePrinted = false

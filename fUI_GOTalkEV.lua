@@ -61,8 +61,14 @@ local function NPC(npcName, npcIDs)
 end
 SetZone("Darkmoon Island")
 
-    local t = NPC("Pet Battles", { 67370, 85519})
+	local t = NPC("Darkmoon Faire Mystic Mage", 54334)
+	t.__meta.stopIfQuestAvailable = { 7905 }                                                        -- First NPCID, Stops Gossip until quest is accepted
+	t[40457] = { text = "Take me to the faire...", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Travel to the faire staging area" }, within = 3, }, }
+
+    local t = NPC("Jeremy Feasel", { 67370 })
     t[41758] = { text = "I challenge you to a pet battle!" }	-- Darkmoon Pet Battle! (32175) Jeremy Feasel (67370)
+
+    local t = NPC("Christoph VonFeasel", { 85519 })
     t[42667] = { text = "I challenge you to a pet battle!" }	-- A New Darkmoon Challenger! (36471) Christoph VonFeasel (85519)
 
 

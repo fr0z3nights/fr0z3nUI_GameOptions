@@ -4,6 +4,111 @@ Format: `YYMMDD-###` (sanity stamp) — short summary.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+# 260407-004
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): prewarm the merchant item list incrementally on the ticker so buy/restock has item+tooltip cache sooner (helps cases where purchases only start after opening the Trade UI).
+- Bumped TOC `## Version` to `2026.04.07.04`.
+
+# 260407-003
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: dedupe achievement reprints so the same achievement can’t print twice in quick succession (common when both `CHAT_MSG_ACHIEVEMENT` and `CHAT_MSG_GUILD_ACHIEVEMENT` fire).
+- Bumped TOC `## Version` to `2026.04.07.03`.
+
+# 260407-002
+- Files: `fr0z3nUI_GameOptions.toc`
+- Bumped TOC `## Version` to `2026.04.07.02`.
+
+# 260407-001
+- Files: `fUI_GOTalk.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: `stopIfQuestAvailable` now gates purely on what the gossip frame reports as an available quest, avoiding false negatives from `IsQuestFlaggedCompleted` on repeatable quests (fixes cases like Darkmoon travel NPC still auto-selecting while the quest is offered).
+- Bumped TOC `## Version` to `2026.04.07.01`.
+
+# 260406-001
+- Files: `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: re-apply chat filters on combat + encounter start/end so loot/profession/xp capture+reprint doesn’t silently drop during boss fights (some boss mods reset chat filters mid-fight).
+- Bumped TOC `## Version` to `2026.04.06.01`.
+
+# 260406-002
+- Files: `fUI_GOCore.lua`, `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: add a lightweight in-combat / in-encounter “filter watch” that re-applies chat filters if they get stripped mid-fight (prevents capture/reprint from dropping during long boss combats).
+- Bumped TOC `## Version` to `2026.04.06.02`.
+
+# 260406-003
+- Files: `fUI_GOCore.lua`, `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: revert encounter/combat filter-watch behavior (stop auto re-applying filters during bosses) and instead improve `chatdebug dump` to audit which chat filters are currently installed, plus add `/fgo li chatdebug filters`.
+- Bumped TOC `## Version` to `2026.04.06.03`.
+
+# 260406-004
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: make `chatdebug filters` robust on clients where `ChatFrame_GetMessageEventFilters` is unavailable by tracking `ChatFrame_AddMessageEventFilter`/`ChatFrame_RemoveMessageEventFilter` via `hooksecurefunc`, including recent add/remove ops + stack traces.
+- Bumped TOC `## Version` to `2026.04.06.04`.
+
+# 260406-005
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: fix `chatdebug filters` audit hook crash by using the string form of `hooksecurefunc` (some clients don’t accept passing the function reference).
+- Bumped TOC `## Version` to `2026.04.06.05`.
+
+# 260406-006
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: add `/fgo li chatdebug events` to show last-seen timestamps + counts for loot/xp/system/profession handlers and direct `ChatFrame:AddMessage` prints (diagnose boss-fight “stops working” without changing loot parsing).
+- Bumped TOC `## Version` to `2026.04.06.06`.
+
+# 260406-007
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: add secret-string diagnostics so `/fgo li chatdebug events` reports when chat payloads are unreadable (`issecretvalue`), including per-event counts + last-seen times (helps confirm boss-fight restrictions vs. filter removal).
+- Bumped TOC `## Version` to `2026.04.06.07`.
+
+# 260406-008
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: fix `chatdebug dump/filters/events` output being incorrectly suppressed by the direct `ChatFrame:AddMessage` loot/money suppressor (debug lines were being misdetected as money and causing spam).
+- Bumped TOC `## Version` to `2026.04.06.08`.
+
+# 260406-009
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: fix a boss-fight secret-string crash in the `ChatFrame:AddMessage` hook (avoid calling `:match()` on secret values by checking `issecretvalue` first).
+- Bumped TOC `## Version` to `2026.04.06.09`.
+
+# 260406-010
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: stop rewriting `CHAT_MSG_SYSTEM` transfer lines (e.g. “transferred … to …”) that include item/currency links; these are not loot and were causing duplicate alias outputs like `TW Token`.
+- Bumped TOC `## Version` to `2026.04.06.10`.
+
+# 260406-011
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: dedupe direct `ChatFrame:AddMessage` currency prints against recent `CHAT_MSG_CURRENCY`/loot-currency rewrites to prevent double outputs (fixes `TW Token x550` + `TW Token` duplicates).
+- Bumped TOC `## Version` to `2026.04.06.11`.
+
+# 260406-012
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: broaden transfer-line suppression to also catch bracket-only messages like “X transferred [Timewarped Badge]x540 to Y” (some clients omit hyperlinks), preventing a second aliased `TW Token` output.
+- Bumped TOC `## Version` to `2026.04.06.12`.
+
+# 260406-013
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: make transfer-line detection resilient to color codes/textures/NBSP so “transferred … to …” messages reliably bypass the generic item rewrite (prevents stray `TW Token` echoes).
+- Bumped TOC `## Version` to `2026.04.06.13`.
+
+# 260406-014
+- Files: `fUI_GOLootChat.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt: dedupe currency outputs across `CHAT_MSG_CURRENCY` and currency-in-`CHAT_MSG_LOOT` so a single currency gain can’t produce both `TW Token x540` and `TW Token`.
+- Bumped TOC `## Version` to `2026.04.06.14`.
+
+# 260406-015
+- Files: `fr0z3nUI_GameOptions.lua`, `fUI_GOLootAlias.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt Alias: make the Alias UI a true popout (fixed size, anchored outside the LootIt tab, dialog-style backdrop) instead of an oversized in-panel overlay.
+- LootIt Alias: update Account/Character button coloring to match the Trade tab scheme (green/orange/yellow) and remove the red styling.
+- Bumped TOC `## Version` to `2026.04.06.15`.
+
+# 260406-016
+- Files: `fUI_GOLootAlias.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt Alias: fix Account button getting stuck in repeated “Alias removed” when the only alias is the built-in addon alias (e.g. currency 1166); Account now toggles the addon alias enable/disable in that state.
+- Bumped TOC `## Version` to `2026.04.06.16`.
+
+# 260406-017
+- Files: `fUI_GOLootAlias.lua`, `fr0z3nUI_GameOptions.toc`
+- LootIt Alias: fix alias “shadow placeholder” not hiding when the UI auto-fills the alias text for an existing ID; placeholder now refreshes immediately on programmatic `SetText`.
+- Bumped TOC `## Version` to `2026.04.06.17`.
+
 # 260405-001
 - Files: `fUI_GOSwitchesQA.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
 - Queue Accept: fix repeat-sound loop so it continues while a proposal is active even if the overlay hides (repeat logic is now timer-driven instead of `OnUpdate`).

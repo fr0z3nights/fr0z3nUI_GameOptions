@@ -2348,26 +2348,26 @@ local function CreateOptionsWindow()
 
             -- Alias popout (keeps LootIt tab clean; opens on-demand)
             local aliasPopout = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-            aliasPopout:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -44)
-            aliasPopout:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 44)
-            aliasPopout:SetWidth(320)
+            -- Pop out from the right side of the LootIt tab (like Trade tab popouts).
+            aliasPopout:SetPoint("TOPLEFT", panel, "TOPRIGHT", 8, -44)
+            aliasPopout:SetSize(320, 420)
+            aliasPopout:SetFrameStrata("DIALOG")
             aliasPopout:SetFrameLevel((panel.GetFrameLevel and panel:GetFrameLevel() or 0) + 50)
             aliasPopout:SetBackdrop({
-                bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+                bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
                 tile = true,
-                tileSize = 16,
-                insets = { left = 4, right = 4, top = 4, bottom = 4 },
+                tileSize = 32,
+                insets = { left = 8, right = 8, top = 8, bottom = 8 },
             })
-            aliasPopout:SetBackdropColor(0, 0, 0, 0.85)
             aliasPopout:Hide()
 
             local aliasClose = CreateFrame("Button", nil, aliasPopout, "UIPanelCloseButton")
-            aliasClose:SetPoint("TOPRIGHT", aliasPopout, "TOPRIGHT", -6, -6)
+            aliasClose:SetPoint("TOPRIGHT", aliasPopout, "TOPRIGHT", -4, -4)
             aliasClose:SetScript("OnClick", function() if aliasPopout.Hide then aliasPopout:Hide() end end)
 
             local aliasPanel = CreateFrame("Frame", nil, aliasPopout)
-            aliasPanel:SetPoint("TOPLEFT", aliasPopout, "TOPLEFT", 10, -34)
-            aliasPanel:SetPoint("BOTTOMRIGHT", aliasPopout, "BOTTOMRIGHT", -10, 10)
+            aliasPanel:SetPoint("TOPLEFT", aliasPopout, "TOPLEFT", 12, -34)
+            aliasPanel:SetPoint("BOTTOMRIGHT", aliasPopout, "BOTTOMRIGHT", -12, 12)
 
             local function ToggleAliasPopout(force)
                 local show = force

@@ -526,11 +526,12 @@ SetZone("Stormwind City, Eastern Kingdoms")
    local t = NPC("High Inquisitor Whitemane", 171789)
    t[52725] = { text = "I have heard this tale before. <Skip the Maw introduction. Oribos awaits.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, }
 
-   local t = NPC("Darkmoon Faire Mystic Mage", 54334)
-   t[40457] = { text = "Take me to the faire staging area.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Travel to the faire staging area" }, within = 3, }, }
-
    local t = NPC("Honor Hold Mage", 150122)
    t[50005] = { text = "I must report to the Dark Portal." }
+
+   local t = NPC("Lady Jaina Proudmoore", 120590)
+   t[47616] = { prio = 10, text = "I've heard this tale before... <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, } }
+   t[47615] = { prio = 05, text = "I'm ready to set sail!" }
 
    local t = NPC("Kiatke", 101759)
    t.__meta.stopIfQuestAvailable = { 86556, }                                                         -- First NPCID, Stops Gossip until quest is accepted

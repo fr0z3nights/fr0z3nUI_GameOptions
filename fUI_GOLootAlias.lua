@@ -384,15 +384,18 @@ function LI.Alias.BuildTab(aliasPanel, env)
     end
   end
 
-  local function SetButtonColor(btn, label, color)
+  local function SetButtonColor(btn, label, state)
     if not btn then return end
-    if color == "yellow" then
-      btn:SetText("|cffffff00" .. label .. "|r")
-    elseif color == "red" then
-      btn:SetText("|cffff0000" .. label .. "|r")
-    else
-      btn:SetText(label)
+    local s = tostring(state or "inactive")
+    if s == "active" then
+      btn:SetText("|cff00ff00" .. label .. "|r")
+      return
     end
+    if s == "disabled" then
+      btn:SetText("|cffffa500" .. label .. "|r")
+      return
+    end
+    btn:SetText("|cffffff00" .. label .. "|r")
   end
 
   local function Trim(s)
@@ -519,6 +522,14 @@ function LI.Alias.BuildTab(aliasPanel, env)
     return false
   end
 
+  local function IsOnlyAddonAlias(st)
+    if not st then return false end
+    local hasAcc = (type(st.acc.text) == "string" and st.acc.text ~= "") and true or false
+    local hasChar = (type(st.char.text) == "string" and st.char.text ~= "") and true or false
+    local hasAddon = (type(st.addon.text) == "string" and st.addon.text ~= "") and true or false
+    return hasAddon and (not hasAcc) and (not hasChar)
+  end
+
   local function GetEffectiveAlias(mode, id)
     local st = GetAliasState(mode, id)
 
@@ -573,8 +584,8 @@ function LI.Alias.BuildTab(aliasPanel, env)
       ignoreCB:Disable()
       delayBox:SetText("0")
       delayBox:Disable()
-      SetButtonColor(btnAcc, "Account", nil)
-      SetButtonColor(btnChar, "Character", nil)
+      SetButtonColor(btnAcc, "Account", "inactive")
+      SetButtonColor(btnChar, "Character", "inactive")
       return
     end
 
@@ -626,6 +637,7 @@ function LI.Alias.BuildTab(aliasPanel, env)
       renameEdit:SetText(tostring(seedText or ""))
       renameEdit:HighlightText()
       aliasPanel._aliasBaseline = Trim(seedText)
+      UpdateAliasPlaceholder()
     end
 
     local current = Trim(renameEdit:GetText())
@@ -636,8 +648,8 @@ function LI.Alias.BuildTab(aliasPanel, env)
       -- Input - Doesn't exist: Account Active / Character Inactive.
       btnAcc:Enable()
       btnChar:Disable()
-      SetButtonColor(btnAcc, "Account", nil)
-      SetButtonColor(btnChar, "Character", nil)
+      SetButtonColor(btnAcc, "Account", "inactive")
+      SetButtonColor(btnChar, "Character", "inactive")
       if not (mode == MODE_ITEM and ignoreCB:GetChecked()) then
         status:SetText("Type an Alias, Click Account to Save")
       end
@@ -648,19 +660,38 @@ function LI.Alias.BuildTab(aliasPanel, env)
       -- Alias edited: Account Yellow / Character Inactive.
       btnAcc:Enable()
       btnChar:Disable()
-      SetButtonColor(btnAcc, "Account", "yellow")
-      SetButtonColor(btnChar, "Character", nil)
+      SetButtonColor(btnAcc, "Account", "inactive")
+      SetButtonColor(btnChar, "Character", "inactive")
       if not (mode == MODE_ITEM and ignoreCB:GetChecked()) then
         status:SetText("Click Account to Save")
       end
       return
     end
 
-    -- Input - Exists, no edit: Account Red (remove from both), Character Red/Yellow (toggle char disable).
+    if IsOnlyAddonAlias(st) then
+      -- Addon-only alias: Account toggles the built-in addon alias enable/disable.
+      btnAcc:Enable()
+      btnChar:Enable()
+      SetButtonColor(btnAcc, "Account", st.addon.disabled and "disabled" or "active")
+      SetButtonColor(btnChar, "Character", st.char.disabled and "disabled" or "active")
+
+      if not (mode == MODE_ITEM and ignoreCB:GetChecked()) then
+        if st.addon.disabled then
+          status:SetText("Addon alias disabled: Click Account to Enable")
+        else
+          status:SetText("Addon alias active: Click Account to Disable")
+        end
+      end
+      return
+    end
+
+    -- Input - Exists, no edit: Account (remove from both), Character (toggle char disable).
     btnAcc:Enable()
     btnChar:Enable()
-    SetButtonColor(btnAcc, "Account", "red")
-    SetButtonColor(btnChar, "Character", st.char.disabled and "yellow" or "red")
+    -- Use Trade-style coloring: green=enabled, orange=disabled, yellow=inactive.
+    -- Account is a destructive action here (removes from both), so use orange.
+    SetButtonColor(btnAcc, "Account", "disabled")
+    SetButtonColor(btnChar, "Character", st.char.disabled and "disabled" or "active")
 
     if st.char.disabled then
       if not (mode == MODE_ITEM and ignoreCB:GetChecked()) then
@@ -715,6 +746,31 @@ function LI.Alias.BuildTab(aliasPanel, env)
       Print(PREFIX .. string.format("Alias removed: %d", id))
     end
     aliasPanel._aliasBaseline = ""
+  end
+
+  local function ToggleAddonDisable(mode, id)
+    EnsureDB()
+    if not id then return end
+
+    if mode == MODE_CURRENCY then
+      DB.currencyAliasDisabledAddon = (type(DB.currencyAliasDisabledAddon) == "table") and DB.currencyAliasDisabledAddon or {}
+      if DB.currencyAliasDisabledAddon[id] == true then
+        DB.currencyAliasDisabledAddon[id] = nil
+        Print(PREFIX .. string.format("Alias enabled (Addon, Currency): %d", id))
+      else
+        DB.currencyAliasDisabledAddon[id] = true
+        Print(PREFIX .. string.format("Alias disabled (Addon, Currency): %d", id))
+      end
+    else
+      DB.linkAliasDisabledAddon = (type(DB.linkAliasDisabledAddon) == "table") and DB.linkAliasDisabledAddon or {}
+      if DB.linkAliasDisabledAddon[id] == true then
+        DB.linkAliasDisabledAddon[id] = nil
+        Print(PREFIX .. string.format("Alias enabled (Addon): %d", id))
+      else
+        DB.linkAliasDisabledAddon[id] = true
+        Print(PREFIX .. string.format("Alias disabled (Addon): %d", id))
+      end
+    end
   end
 
   local function SaveToAccount(mode, id)
@@ -896,7 +952,9 @@ function LI.Alias.BuildTab(aliasPanel, env)
     local baseline = Trim(aliasPanel._aliasBaseline)
     local edited = (current ~= baseline)
 
-    if (not exists) or edited then
+    if exists and (not edited) and IsOnlyAddonAlias(st) then
+      ToggleAddonDisable(mode, id)
+    elseif (not exists) or edited then
       SaveToAccount(mode, id)
     else
       RemoveFromBoth(mode, id)

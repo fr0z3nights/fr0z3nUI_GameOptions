@@ -800,8 +800,7 @@ function ns.Talk.TryAutoSelect(isRetry)
         for questID in pairs(mergedAvailable) do
             if GossipHasAvailableQuest(questID)
                 and (not GossipHasActiveQuest(questID))
-                and (not PlayerIsOnQuestID(questID))
-                and (not QuestIsCompleted(questID)) then
+                and (not PlayerIsOnQuestID(questID)) then
                 return true, questID, "available"
             end
         end

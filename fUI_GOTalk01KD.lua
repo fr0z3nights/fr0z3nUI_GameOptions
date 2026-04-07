@@ -104,7 +104,7 @@ SetZone("Razorwind Shores, Kalimdor")
 
 SetZone("Tanaris, Kalimdor")
 
-    local t = NPC("Time Transit Device", { 209441, 209437, 209438, 209439, 209442, })
+    local t = NPC("Time Transit Device", { 209437, 209438, 209439, 209441, 209442, 209443, })
     t[40865] = { prio = 10, text = "Bronze Dragonshrine" }
     t[40863] = { prio = 04, text = "Azure Dragonshrine" }
     t[40862] = { prio = 06, text = "Emerald Dragonshrine" }

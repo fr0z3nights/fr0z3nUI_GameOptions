@@ -192,6 +192,88 @@ local function DebugPrint(line)
   PrintToChatFrame("[LootIt ChatDebug] " .. tostring(line or ""), outFrame)
 end
 
+-- Debug-only: track whether handlers are firing (helps diagnose boss-fight "stops working" cases
+-- where filters remain installed but no events arrive, or settings flip mid-fight).
+local _debugEventStats = {
+  startedAt = (type(GetTime) == "function" and GetTime()) or 0,
+  ev = {},
+}
+
+local _debugSecretStats = {
+  ev = {}, -- [eventKey] = { n=?, last=? }
+}
+
+local function DebugBumpEvent(key)
+  if type(key) ~= "string" or key == "" then return end
+  local now = (type(GetTime) == "function" and GetTime()) or 0
+  _debugEventStats.ev = _debugEventStats.ev or {}
+  local s = _debugEventStats.ev[key]
+  if type(s) ~= "table" then s = { n = 0 } end
+  s.n = (tonumber(s.n) or 0) + 1
+  s.last = now
+  -- Snapshot the relevant toggles at last-seen time.
+  s.enabled = IsEnabled() and true or false
+  s.hide = (DB and DB.hideLootText) and true or false
+  s.echo = (DB and DB.echoItem) and true or false
+  _debugEventStats.ev[key] = s
+end
+
+local function DebugBumpSecret(key)
+  if type(key) ~= "string" or key == "" then return end
+  local now = (type(GetTime) == "function" and GetTime()) or 0
+  _debugSecretStats.ev = _debugSecretStats.ev or {}
+  local s = _debugSecretStats.ev[key]
+  if type(s) ~= "table" then s = { n = 0 } end
+  s.n = (tonumber(s.n) or 0) + 1
+  s.last = now
+  _debugSecretStats.ev[key] = s
+end
+
+function LootChat.DumpEventStats(PrintFn)
+  EnsureRefs()
+  local now = (type(GetTime) == "function" and GetTime()) or 0
+  local startAt = tonumber(_debugEventStats.startedAt) or 0
+  SafeCall(PrintFn, string.format("Event stats: up=%.1fs", (now - startAt)))
+
+  local function Line(key, label)
+    local s = _debugEventStats.ev and _debugEventStats.ev[key] or nil
+    local ss = _debugSecretStats.ev and _debugSecretStats.ev[key] or nil
+    local secretN = (type(ss) == "table" and tonumber(ss.n)) or 0
+    local secretAge = (type(ss) == "table" and ss.last) and (now - ss.last) or nil
+    local secretText = (secretN > 0)
+      and string.format(" secret=%d(last %.2fs)", secretN, tonumber(secretAge) or 0)
+      or ""
+    if type(s) ~= "table" then
+      SafeCall(PrintFn, string.format("  %s: n=0 last=(never)%s", label, secretText))
+      return
+    end
+    local age = (s.last and (now - s.last)) or nil
+    local ageText = age and string.format("%.2fs ago", age) or "?"
+    SafeCall(PrintFn, string.format(
+      "  %s: n=%d last=%s enabled=%s hide=%s echo=%s%s",
+      label,
+      tonumber(s.n) or 0,
+      ageText,
+      tostring(s.enabled == true),
+      tostring(s.hide == true),
+      tostring(s.echo == true),
+      secretText
+    ))
+  end
+
+  Line("CHAT_MSG_LOOT", "loot")
+  Line("CHAT_MSG_MONEY", "money")
+  Line("CHAT_MSG_CURRENCY", "currency")
+  Line("CHAT_MSG_SYSTEM", "system")
+  Line("CHAT_MSG_COMBAT_MISC_INFO", "combat_misc")
+  Line("CHAT_MSG_COMBAT_XP_GAIN", "xp_gain")
+  Line("CHAT_MSG_SKILL", "skill")
+  Line("CHAT_MSG_TRADESKILLS", "tradeskills")
+  Line("CHAT_MSG_ACHIEVEMENT", "achievement")
+  Line("CHAT_MSG_GUILD_ACHIEVEMENT", "guild_achievement")
+  Line("ChatFrame.AddMessage", "direct_print")
+end
+
 -- Loot lifecycle hooks (delegated from core) so LOOT_OPENED/READY can re-apply
 -- chat filters and start the combine window, and LOOT_CLOSED can end it.
 function LootChat.OnLootLifecycle(event, wiring)
@@ -262,6 +344,46 @@ local function MessageStartsWithAnyPrefix(msg, prefixes)
   return false
 end
 
+-- Direct-print dedupe: some clients print a currency line directly via ChatFrame:AddMessage
+-- while also emitting the normal CHAT_MSG_CURRENCY event. Suppress the direct print if we
+-- very recently printed the same currency/qty ourselves.
+local function SafeGetTime()
+  if type(GetTime) == "function" then
+    local ok, v = pcall(GetTime)
+    if ok and type(v) == "number" then
+      return v
+    end
+  end
+  return nil
+end
+
+local function RememberRecentCurrencyPrint(currencyID, qty)
+  LootChat._recentCurrencyPrint = {
+    ts = SafeGetTime(),
+    id = tonumber(currencyID),
+    qty = tonumber(qty),
+  }
+end
+
+local function IsDuplicateRecentCurrencyPrint(currencyID, qty, windowSec)
+  local t = LootChat._recentCurrencyPrint
+  if type(t) ~= "table" then return false end
+  local now = SafeGetTime()
+  if not now or type(t.ts) ~= "number" then return false end
+  local w = tonumber(windowSec) or 0.35
+  if w < 0.05 then w = 0.05 end
+  if (now - t.ts) > w then return false end
+  local id = tonumber(currencyID)
+  local q = tonumber(qty)
+  if not id or id <= 0 then return false end
+  if tonumber(t.id) ~= id then return false end
+  -- Qty can be missing on some direct prints; treat missing as match.
+  if q and q > 0 and t.qty and tonumber(t.qty) ~= q then
+    return false
+  end
+  return true
+end
+
 local function HookChatFrameAddMessage(frame)
   if not frame or type(frame.AddMessage) ~= "function" then return end
 
@@ -272,15 +394,34 @@ local function HookChatFrameAddMessage(frame)
   local orig = frame.AddMessage
   addMessageHooks[key] = orig
 
+  -- Debug visibility: count how many frames we successfully hooked.
+  LootChat._debugAddMessageHookCount = (tonumber(LootChat._debugAddMessageHookCount) or 0) + 1
+
   frame.AddMessage = function(self, text, ...)
     if addMessageInHook then
       return orig(self, text, ...)
     end
 
     EnsureRefs()
+    if LootChat and LootChat._inChatDebugDump then
+      return orig(self, text, ...)
+    end
+    if type(text) == "string" and IsSecretString(text) then
+      DebugBumpEvent("ChatFrame.AddMessage")
+      DebugBumpSecret("ChatFrame.AddMessage")
+      if LootChat.CaptureEnabled() then
+        LootChat.CaptureAppend("CHAT_SECRET", { event = "ChatFrame.AddMessage" })
+      end
+      return orig(self, text, ...)
+    end
+    if type(text) == "string" and text:match("^%[LootIt") then
+      return orig(self, text, ...)
+    end
     if not IsNonEmptyPublicString(text) then
       return orig(self, text, ...)
     end
+
+    DebugBumpEvent("ChatFrame.AddMessage")
 
     -- Capture debug: direct AddMessage prints can bypass chat event filters.
     LootChat.CaptureChatIn("CHATFRAME_ADD", text)
@@ -394,8 +535,47 @@ local function HookChatFrameAddMessage(frame)
             end
 
             if link then
-              -- Remove brackets in the displayed portion: |h[Name]|h -> |hName|h
-              display = string.gsub(link, "|h%[([^%]]+)%]|h", "|h%1|h")
+              -- Currency dedupe: if we very recently printed the same currency via CHAT_MSG_CURRENCY,
+              -- suppress this direct print without echoing a second line.
+              if startsCurrency and link:find("|Hcurrency:", 1, true) then
+                local currencyID = GetCurrencyIDFromLink(link)
+
+                local qty
+                do
+                  local escaped = EscapeLuaPattern(link)
+                  qty = string.match(text, escaped .. "%s*[x×]%s*(%d+)")
+                    or string.match(text, escaped .. "[\r\n ]*[x×]%s*(%d+)")
+                    or string.match(text, "%s*[x×]%s*(%d+)%s*%.?$")
+                end
+                local n = tonumber(qty)
+
+                if currencyID and IsDuplicateRecentCurrencyPrint(currencyID, n, 0.35) then
+                  LootChat.CaptureChatOut("CHATFRAME_ADD", "(currency) deduped", {
+                    handled = true,
+                    directPrint = true,
+                    dedupedCurrency = true,
+                    currencyID = currencyID,
+                    qty = n,
+                  })
+                  return
+                end
+
+                -- Build a clean display for currency direct prints (alias + qty) when we *do* echo.
+                if currencyID and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink then
+                  local built = C_CurrencyInfo.GetCurrencyLink(currencyID, (n and n > 0) and n or 0)
+                  if type(built) == "string" and built ~= "" then
+                    link = built
+                  end
+                end
+                link = (ApplyCurrencyLinkAlias and ApplyCurrencyLinkAlias(link)) or link
+                display = StripDisplayedLinkBrackets(link)
+                if n and n > 1 then
+                  display = string.format("%s x%d", display, n)
+                end
+              else
+                -- Remove brackets in the displayed portion: |h[Name]|h -> |hName|h
+                display = string.gsub(link, "|h%[([^%]]+)%]|h", "|h%1|h")
+              end
             else
               -- Fallback: use the shown [Name]
               display = string.match(text, "%b[]")
@@ -470,6 +650,67 @@ local function HookChatFrameAddMessage(frame)
 
     return orig(self, text, ...)
   end
+end
+
+-- Filter audit tracking (for clients that do not expose ChatFrame_GetMessageEventFilters).
+-- We hook add/remove calls and keep a best-effort view of which filters are installed.
+local _filterAuditHooked = false
+local _filterAudit = {
+  events = {}, -- [eventName][fn] = true
+  last = {}, -- ring buffer of recent add/remove operations
+}
+
+local function AuditRemember(op, eventName, fn)
+  local t = _filterAudit
+  if not t then return end
+  t.last = t.last or {}
+  local stack = nil
+  if (DB and DB.debugChatSetup) or (DB and DB.debugCaptureStacks) then
+    if type(debugstack) == "function" then
+      stack = debugstack(3, 4, 8)
+    end
+  end
+  t.last[#t.last + 1] = {
+    t = (type(date) == "function" and date("%H:%M:%S")) or "",
+    op = tostring(op or ""),
+    ev = tostring(eventName or ""),
+    fn = tostring(fn),
+    stack = stack,
+  }
+  while #t.last > 12 do
+    table.remove(t.last, 1)
+  end
+end
+
+local function EnsureFilterAuditHooks()
+  if _filterAuditHooked then return end
+  if type(hooksecurefunc) ~= "function" then return end
+  if type(ChatFrame_AddMessageEventFilter) ~= "function" or type(ChatFrame_RemoveMessageEventFilter) ~= "function" then return end
+
+  _filterAuditHooked = true
+
+  -- Some clients only support the string/table+method forms of hooksecurefunc.
+  hooksecurefunc("ChatFrame_AddMessageEventFilter", function(eventName, fn)
+    EnsureRefs()
+    local t = _filterAudit
+    t.events = t.events or {}
+    t.events[eventName] = t.events[eventName] or {}
+    if type(fn) == "function" then
+      t.events[eventName][fn] = true
+      AuditRemember("add", eventName, fn)
+    end
+  end)
+
+  hooksecurefunc("ChatFrame_RemoveMessageEventFilter", function(eventName, fn)
+    EnsureRefs()
+    local t = _filterAudit
+    if t.events and t.events[eventName] and type(fn) == "function" then
+      t.events[eventName][fn] = nil
+    end
+    if type(fn) == "function" then
+      AuditRemember("remove", eventName, fn)
+    end
+  end)
 end
 
 local function HookAllChatFramesAddMessage()
@@ -606,6 +847,7 @@ function LootChat.HandleChatDebugSlash(rest, e)
   local sub = (parts[1] and parts[1]:lower()) or "status"
 
   local function DumpChatFrames()
+    LootChat._inChatDebugDump = true
     local maxN = tonumber(_G and rawget(_G, "NUM_CHAT_WINDOWS")) or 10
     if maxN < 1 then maxN = 10 end
     if maxN > 20 then maxN = 20 end
@@ -642,6 +884,12 @@ function LootChat.HandleChatDebugSlash(rest, e)
       "LootIt other.experience.outputChatFrame=%s",
       tostring(DB and DB.other and DB.other.experience and DB.other.experience.outputChatFrame)
     ))
+
+    if LootChat and LootChat.DumpFilterAudit then
+      LootChat.DumpFilterAudit(PrintFn)
+    end
+
+    LootChat._inChatDebugDump = false
   end
 
   if sub == "on" then
@@ -662,12 +910,46 @@ function LootChat.HandleChatDebugSlash(rest, e)
     return
   end
   if sub == "dump" then
-    DumpChatFrames()
+    local ok = pcall(DumpChatFrames)
+    LootChat._inChatDebugDump = false
+    if not ok then
+      -- best-effort
+    end
+    return
+  end
+
+  if sub == "filters" or sub == "audit" then
+    LootChat._inChatDebugDump = true
+    local ok = pcall(function()
+      if LootChat and LootChat.DumpFilterAudit then
+        LootChat.DumpFilterAudit(PrintFn)
+      end
+    end)
+    LootChat._inChatDebugDump = false
+    if not ok then
+      -- best-effort
+    end
+    return
+  end
+
+  if sub == "events" then
+    LootChat._inChatDebugDump = true
+    local ok = pcall(function()
+      if LootChat and LootChat.DumpEventStats then
+        LootChat.DumpEventStats(PrintFn)
+      end
+    end)
+    LootChat._inChatDebugDump = false
+    if not ok then
+      -- best-effort
+    end
     return
   end
 
   SafeCall(PrintFn, "Chat debug: " .. (((DB and DB.debugChatSetup) and "on") or "off"))
   SafeCall(PrintFn, "Run: /fgo li chatdebug dump")
+  SafeCall(PrintFn, "Also: /fgo li chatdebug filters")
+  SafeCall(PrintFn, "Also: /fgo li chatdebug events")
 end
 
 -- Slash handler for /fli capture ... (kept here for portability).
@@ -1755,7 +2037,15 @@ end
 
 local function OnCurrencyChat(_, _, msg, ...)
   EnsureRefs()
+  DebugBumpEvent("CHAT_MSG_CURRENCY")
   if not IsEnabled() then return false end
+  if type(msg) == "string" and IsSecretString(msg) then
+    DebugBumpSecret("CHAT_MSG_CURRENCY")
+    if LootChat.CaptureEnabled() then
+      LootChat.CaptureAppend("CHAT_SECRET", { event = "CHAT_MSG_CURRENCY" })
+    end
+    return false
+  end
   if not IsNonEmptyPublicString(msg) then return false end
 
   LootChat.CaptureChatIn("CHAT_MSG_CURRENCY", msg)
@@ -1832,6 +2122,16 @@ local function OnCurrencyChat(_, _, msg, ...)
 
   local handled = false
   if DB and DB.echoItem then
+    if currencyID and IsDuplicateRecentCurrencyPrint(currencyID, n, 0.35) then
+      LootChat.CaptureChatOut("CHAT_MSG_CURRENCY", "(currency) deduped", {
+        handled = (DB and DB.hideLootText) and true or false,
+        dedupedCurrency = true,
+        qty = n,
+        currencyID = currencyID,
+      })
+      return (DB and DB.hideLootText) and true or false
+    end
+
     local out = ApplyCurrencyLinkAlias(link)
     out = StripDisplayedLinkBrackets(out)
     if n and n > 1 then
@@ -1845,6 +2145,10 @@ local function OnCurrencyChat(_, _, msg, ...)
     else
       Print(FormatSelfLine(out))
       handled = true
+    end
+
+    if handled and currencyID then
+      RememberRecentCurrencyPrint(currencyID, n)
     end
 
     LootChat.CaptureChatOut("CHAT_MSG_CURRENCY", out, {
@@ -1953,9 +2257,9 @@ ParseCoinsFromMoneyMessage = function(msg)
     local lower = string.lower(cleaned)
     local g, s, c = string.match(lower, "^you gained:%s*([%d,]+)%s+([%d,]+)%s+([%d,]+)%s*[%.!]*%s*$")
     if g and s and c then
-      g = tonumber((g:gsub(",", "")))
-      s = tonumber((s:gsub(",", "")))
-      c = tonumber((c:gsub(",", "")))
+      if type(g) == "string" then g = tonumber((g:gsub(",", ""))) end
+      if type(s) == "string" then s = tonumber((s:gsub(",", ""))) end
+      if type(c) == "string" then c = tonumber((c:gsub(",", ""))) end
       if g or s or c then
         gold = g
         silver = s
@@ -1964,8 +2268,8 @@ ParseCoinsFromMoneyMessage = function(msg)
     else
       local g2, s2 = string.match(lower, "^you gained:%s*([%d,]+)%s+([%d,]+)%s*[%.!]*%s*$")
       if g2 and s2 then
-        g2 = tonumber((g2:gsub(",", "")))
-        s2 = tonumber((s2:gsub(",", "")))
+        if type(g2) == "string" then g2 = tonumber((g2:gsub(",", ""))) end
+        if type(s2) == "string" then s2 = tonumber((s2:gsub(",", ""))) end
         if g2 or s2 then
           gold = g2
           silver = s2
@@ -1974,7 +2278,7 @@ ParseCoinsFromMoneyMessage = function(msg)
       else
         local g3 = string.match(lower, "^you gained:%s*([%d,]+)%s*[%.!]*%s*$")
         if g3 then
-          g3 = tonumber((g3:gsub(",", "")))
+          if type(g3) == "string" then g3 = tonumber((g3:gsub(",", ""))) end
           if g3 then
             gold = g3
             silver = 0
@@ -2106,7 +2410,15 @@ LootChat.ParseCoinsFromMoneyMessage = ParseCoinsFromMoneyMessage
 
 local function OnMoneyChat(_, _, msg, ...)
   EnsureRefs()
+  DebugBumpEvent("CHAT_MSG_MONEY")
   if not IsEnabled() then return false end
+  if type(msg) == "string" and IsSecretString(msg) then
+    DebugBumpSecret("CHAT_MSG_MONEY")
+    if LootChat.CaptureEnabled() then
+      LootChat.CaptureAppend("CHAT_SECRET", { event = "CHAT_MSG_MONEY" })
+    end
+    return false
+  end
   if not IsNonEmptyPublicString(msg) then return false end
 
   LootChat.CaptureChatIn("CHAT_MSG_MONEY", msg)
@@ -2327,6 +2639,14 @@ local MaybePrintXPDebug
 
 local function OnSystemChat(_, eventName, msg, ...)
   EnsureRefs()
+  DebugBumpEvent(tostring(eventName or "CHAT_MSG_SYSTEM"))
+  if type(msg) == "string" and IsSecretString(msg) then
+    DebugBumpSecret(tostring(eventName or "CHAT_MSG_SYSTEM"))
+    if LootChat.CaptureEnabled() then
+      LootChat.CaptureAppend("CHAT_SECRET", { event = tostring(eventName or "CHAT_MSG_SYSTEM") })
+    end
+    return false
+  end
   if not IsNonEmptyPublicString(msg) then return false end
 
   local ev = (type(eventName) == "string" and eventName ~= "") and eventName or "CHAT_MSG_SYSTEM"
@@ -2448,6 +2768,42 @@ local function OnSystemChat(_, eventName, msg, ...)
   end
 
   if not LOOT_PATTERNS then BuildLootPatterns() end
+
+  -- Some system lines include item/currency names but are not loot (e.g. transfers to another player).
+  -- These should not be rewritten/reprinted by LootIt; if Hide Loot Text is on, suppress them.
+  do
+    -- Normalize to avoid missing matches due to color codes, textures, or NBSP/thin spaces.
+    local t = msg
+    t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    t = t:gsub("|T.-|t", "")
+    t = t:gsub("\r", " "):gsub("\n", " ")
+    t = t:gsub("\194\160", " ")
+    t = t:gsub("\226\128\175", " ")
+    t = t:gsub("\226\128\135", " ")
+    t = t:gsub("%s+", " ")
+    t = t:gsub("^%s+", ""):gsub("%s+$", "")
+
+    local low = t:lower()
+    local looksLikeTransfer = (low:find("transfer", 1, true) ~= nil)
+      and ((low:find(" to ", 1, true) ~= nil) or (low:match("%sto%s") ~= nil))
+
+    if looksLikeTransfer then
+      local hasItem = (msg:find("|Hitem:", 1, true) ~= nil) and true or false
+      local hasCurrency = (msg:find("|Hcurrency:", 1, true) ~= nil) and true or false
+      local hasBracket = (msg:match("%b[]") ~= nil) and true or false
+      if hasItem or hasCurrency or hasBracket then
+        local suppress = (DB and DB.hideLootText) and true or false
+        LootChat.CaptureChatOut(ev, suppress and "(transfer) suppressed" or "(transfer) passthru", {
+          handled = suppress,
+          passedThroughTransfer = true,
+          hasItemLink = hasItem,
+          hasCurrencyLink = hasCurrency,
+          hasBracket = hasBracket,
+        })
+        return suppress
+      end
+    end
+  end
 
   -- Some loot lines (notably fishing) can show up as CHAT_MSG_SYSTEM instead of CHAT_MSG_LOOT.
   -- If the message begins with a known loot prefix, treat it as self loot and rewrite/suppress it.
@@ -2649,7 +3005,15 @@ local pendingAsyncLoot = {}
 
 local function OnLootChat(_, _, msg, author, ...)
   EnsureRefs()
+  DebugBumpEvent("CHAT_MSG_LOOT")
   if not IsEnabled() then return false end
+  if type(msg) == "string" and IsSecretString(msg) then
+    DebugBumpSecret("CHAT_MSG_LOOT")
+    if LootChat.CaptureEnabled() then
+      LootChat.CaptureAppend("CHAT_SECRET", { event = "CHAT_MSG_LOOT", author = (type(author) == "string") and author or nil })
+    end
+    return false
+  end
   if not IsNonEmptyPublicString(msg) then return false end
 
   LootChat.CaptureChatIn("CHAT_MSG_LOOT", msg, author)
@@ -2672,6 +3036,18 @@ local function OnLootChat(_, _, msg, author, ...)
 
       local n = tonumber(qty)
       local currencyID = (GetCurrencyIDFromLink and GetCurrencyIDFromLink(link)) or nil
+
+      if currencyID and IsDuplicateRecentCurrencyPrint(currencyID, n, 0.35) then
+        LootChat.CaptureChatOut("CHAT_MSG_LOOT", "(currency) deduped", {
+          handled = (DB and DB.hideLootText) and true or false,
+          dedupedCurrency = true,
+          qty = n,
+          currencyID = currencyID,
+          rewrittenCurrency = true,
+        })
+        return (DB and DB.hideLootText) and true or false
+      end
+
       if currencyID and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink then
         local built = C_CurrencyInfo.GetCurrencyLink(currencyID, (n and n > 0) and n or 0)
         if type(built) == "string" and string.len(built) > 0 then
@@ -2693,6 +3069,10 @@ local function OnLootChat(_, _, msg, author, ...)
       else
         Print(FormatSelfLine(out))
         handled = true
+      end
+
+      if handled and currencyID then
+        RememberRecentCurrencyPrint(currencyID, n)
       end
 
       LootChat.CaptureChatOut("CHAT_MSG_LOOT", out, {
@@ -3094,7 +3474,15 @@ end
 
 local function OnAchievementChat(_, _, msg, author, ...)
   EnsureRefs()
+  DebugBumpEvent("CHAT_MSG_ACHIEVEMENT")
   if not (DB and DB.other and DB.other.achievement and DB.other.achievement.enabled) then
+    return false
+  end
+  if type(msg) == "string" and IsSecretString(msg) then
+    DebugBumpSecret("CHAT_MSG_ACHIEVEMENT")
+    if LootChat.CaptureEnabled() then
+      LootChat.CaptureAppend("CHAT_SECRET", { event = "CHAT_MSG_ACHIEVEMENT", author = (type(author) == "string") and author or nil })
+    end
     return false
   end
   if not IsNonEmptyPublicString(msg) then
@@ -3191,10 +3579,36 @@ local function OnAchievementChat(_, _, msg, author, ...)
   local displayLink = StripDisplayedLinkBrackets(link)
   local out = string.format("%s earned %s!", coloredPrefix, displayLink)
 
+  -- Dedupe: some clients/addons can surface the same achievement twice in quick
+  -- succession (commonly one via CHAT_MSG_ACHIEVEMENT and one via
+  -- CHAT_MSG_GUILD_ACHIEVEMENT). We still suppress the original event line, but
+  -- avoid printing our rewritten line twice.
+  local now2 = (GetTime and GetTime()) or 0
   local outFrame = (DB.other and DB.other.achievement and DB.other.achievement.outputChatFrame)
     or (DB.other and DB.other.outputChatFrame)
     or (DB and DB.outputChatFrame)
     or 1
+  do
+    if not LootChat._achDedupe then
+      LootChat._achDedupe = { map = {}, lastPurgeAt = 0 }
+    end
+    local st = LootChat._achDedupe
+    local key = tostring(outFrame) .. "|" .. tostring(name) .. "|" .. tostring(displayLink)
+    local lastAt = st.map[key]
+    if type(lastAt) == "number" and (now2 - lastAt) < 0.75 then
+      return true
+    end
+    st.map[key] = now2
+
+    if (now2 - (tonumber(st.lastPurgeAt) or 0)) > 5 then
+      st.lastPurgeAt = now2
+      for k, t in pairs(st.map) do
+        if type(t) ~= "number" or (now2 - t) > 10 then
+          st.map[k] = nil
+        end
+      end
+    end
+  end
   PrintToChatFrame(out, outFrame)
 
   return true
@@ -3684,7 +4098,15 @@ end
 
 local function OnExperienceChat(_, eventName, msg, ...)
   EnsureRefs()
+  DebugBumpEvent(tostring(eventName or "CHAT_MSG_COMBAT_XP_GAIN"))
   if not (DB and DB.other and DB.other.experience and DB.other.experience.enabled) then
+    return false
+  end
+  if type(msg) == "string" and IsSecretString(msg) then
+    DebugBumpSecret(tostring(eventName or "CHAT_MSG_COMBAT_XP_GAIN"))
+    if LootChat.CaptureEnabled() then
+      LootChat.CaptureAppend("CHAT_SECRET", { event = tostring(eventName or "CHAT_MSG_COMBAT_XP_GAIN") })
+    end
     return false
   end
   if not IsNonEmptyPublicString(msg) then
@@ -4343,7 +4765,15 @@ end
 
 local function OnProfessionSkillChat(_, eventName, msg, ...)
   EnsureRefs()
+  DebugBumpEvent(tostring(eventName or "CHAT_MSG_SKILL"))
   if not (DB and DB.other and DB.other.profession and DB.other.profession.enabled) then
+    return false
+  end
+  if type(msg) == "string" and IsSecretString(msg) then
+    DebugBumpSecret(tostring(eventName or "CHAT_MSG_SKILL"))
+    if LootChat.CaptureEnabled() then
+      LootChat.CaptureAppend("CHAT_SECRET", { event = tostring(eventName or "CHAT_MSG_SKILL") })
+    end
     return false
   end
   if not IsNonEmptyPublicString(msg) then
@@ -4408,6 +4838,9 @@ end
 
 function LootChat.ApplyFilters()
   EnsureRefs()
+
+  -- Make filter auditing available even when the client doesn't expose ChatFrame_GetMessageEventFilters.
+  EnsureFilterAuditHooks()
 
   -- Install direct-print suppression once; only activates when enabled+hideLootText.
   HookAllChatFramesAddMessage()
@@ -4522,6 +4955,155 @@ function LootChat.ApplyFiltersSoon(delaySeconds)
     EnsureRefs()
     LootChat.ApplyFilters()
   end)
+end
+
+-- Returns true/false when we can verify filter installation, or nil if the client
+-- does not expose ChatFrame_GetMessageEventFilters (rare / restricted environments).
+function LootChat.FiltersInstalled()
+  EnsureRefs()
+  local getFilters = _G and rawget(_G, "ChatFrame_GetMessageEventFilters")
+  if type(getFilters) ~= "function" then
+    return nil
+  end
+
+  local function Has(eventName, fn)
+    if type(fn) ~= "function" then return false end
+    local ok, filters = pcall(getFilters, eventName)
+    if not ok or type(filters) ~= "table" then return false end
+    for _, f in ipairs(filters) do
+      if f == fn then
+        return true
+      end
+    end
+    return false
+  end
+
+  local enabledNow = IsEnabled() and true or false
+  if not enabledNow then
+    -- If LootIt is disabled, we intentionally don't guarantee loot filters.
+    return true
+  end
+
+  if not (Has("CHAT_MSG_LOOT", OnLootChat) and Has("CHAT_MSG_MONEY", OnMoneyChat) and Has("CHAT_MSG_CURRENCY", OnCurrencyChat)) then
+    return false
+  end
+
+  -- System-level filter is used both for loot-mode and optional suppressions.
+  if not (Has("CHAT_MSG_SYSTEM", OnSystemChat) and Has("CHAT_MSG_COMBAT_MISC_INFO", OnSystemChat)) then
+    return false
+  end
+
+  if DB and DB.other and DB.other.achievement and DB.other.achievement.enabled then
+    if not (Has("CHAT_MSG_ACHIEVEMENT", OnAchievementChat) and Has("CHAT_MSG_GUILD_ACHIEVEMENT", OnAchievementChat)) then
+      return false
+    end
+  end
+
+  if DB and DB.other and DB.other.experience and DB.other.experience.enabled then
+    if not (Has("CHAT_MSG_COMBAT_XP_GAIN", OnExperienceChat)
+      and Has("CHAT_MSG_COMBAT_MISC_INFO", OnExperienceChat)
+      and Has("CHAT_MSG_SYSTEM", OnExperienceChat)) then
+      return false
+    end
+  end
+
+  if DB and DB.other and DB.other.profession and DB.other.profession.enabled then
+    if not (Has("CHAT_MSG_SKILL", OnProfessionSkillChat) and Has("CHAT_MSG_SYSTEM", OnProfessionSkillChat)) then
+      return false
+    end
+  end
+
+  return true
+end
+
+function LootChat.DumpFilterAudit(PrintFn)
+  EnsureRefs()
+  local getFilters = _G and rawget(_G, "ChatFrame_GetMessageEventFilters")
+  if type(getFilters) ~= "function" then
+    EnsureFilterAuditHooks()
+  end
+
+  local function Has(eventName, fn)
+    if type(fn) ~= "function" then return false, 0 end
+    if type(getFilters) == "function" then
+      local ok, filters = pcall(getFilters, eventName)
+      if not ok or type(filters) ~= "table" then
+        return false, 0
+      end
+      local has = false
+      for _, f in ipairs(filters) do
+        if f == fn then
+          has = true
+          break
+        end
+      end
+      return has, #filters
+    end
+
+    -- Fallback: use our tracked state (best-effort; misses addons using cached function refs).
+    local t = _filterAudit
+    local ev = t and t.events and t.events[eventName]
+    if ev then
+      return (ev[fn] == true), 0
+    end
+    return false, 0
+  end
+
+  local enabledNow = IsEnabled() and true or false
+  local hookN = tonumber(LootChat._debugAddMessageHookCount) or 0
+  local mode = (type(getFilters) == "function") and "api" or "tracked"
+  SafeCall(PrintFn, string.format("Filter audit: enabled=%s addMessageHooks=%d mode=%s", tostring(enabledNow), hookN, mode))
+
+  local lines = {
+    { "CHAT_MSG_LOOT", OnLootChat, "loot" },
+    { "CHAT_MSG_CURRENCY", OnCurrencyChat, "currency" },
+    { "CHAT_MSG_MONEY", OnMoneyChat, "money" },
+    { "CHAT_MSG_SYSTEM", OnSystemChat, "system" },
+    { "CHAT_MSG_COMBAT_MISC_INFO", OnSystemChat, "combat_misc->system" },
+    { "CHAT_MSG_ACHIEVEMENT", OnAchievementChat, "achievement" },
+    { "CHAT_MSG_GUILD_ACHIEVEMENT", OnAchievementChat, "guild_achievement" },
+    { "CHAT_MSG_COMBAT_XP_GAIN", OnExperienceChat, "xp_gain" },
+    { "CHAT_MSG_COMBAT_MISC_INFO", OnExperienceChat, "combat_misc->xp" },
+    { "CHAT_MSG_SYSTEM", OnExperienceChat, "system->xp" },
+    { "CHAT_MSG_SKILL", OnProfessionSkillChat, "skill->profession" },
+    { "CHAT_MSG_SYSTEM", OnProfessionSkillChat, "system->profession" },
+  }
+
+  local missing = {}
+  for _, row in ipairs(lines) do
+    local ev, fn, label = row[1], row[2], row[3]
+    local has, n = Has(ev, fn)
+    if mode == "api" then
+      SafeCall(PrintFn, string.format("  %s: %s (filters=%d)", tostring(label), tostring(has), tonumber(n) or 0))
+    else
+      SafeCall(PrintFn, string.format("  %s: %s", tostring(label), tostring(has)))
+    end
+    if enabledNow and not has then
+      missing[#missing + 1] = label
+    end
+  end
+  if enabledNow and #missing > 0 then
+    SafeCall(PrintFn, "  Missing while enabled: " .. table.concat(missing, ", "))
+  end
+
+  if mode ~= "api" then
+    local t = _filterAudit
+    local last = t and t.last or nil
+    if type(last) == "table" and #last > 0 then
+      SafeCall(PrintFn, string.format("  Recent filter ops (last %d):", #last))
+      for _, e in ipairs(last) do
+        SafeCall(PrintFn, string.format("    %s %s %s", tostring(e.t or ""), tostring(e.op or ""), tostring(e.ev or "")))
+        if e.stack and e.stack ~= "" then
+          local s = tostring(e.stack):gsub("\n", " | ")
+          -- WoW chat uses '|' for escape codes; doubling shows a literal pipe.
+          s = s:gsub("|", "||")
+          SafeCall(PrintFn, "      stack: " .. s)
+        end
+      end
+    else
+      SafeCall(PrintFn, "  Recent filter ops: (none observed)")
+    end
+  end
 end
 
 function LootChat.GetSupportedMessageLines()
