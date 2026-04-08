@@ -4,6 +4,10 @@ Format: `YYYY.MM.DD.NN` (TOC `## Version`) — short summary. Newest at the top.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+# 2026.04.09.01
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax/Warbank: when in Guild scope but not currently in a guild, fall back to character config so Warbank deposit/withdraw/manual tracking doesn’t silently no-op.
+
 # 2026.04.08.03
 - Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
 - Trade (Merchant): when Trade mode is `deposit`, infer merchant buy/sell mode from configured rules so buy/restock can start on `MERCHANT_SHOW` without opening the Trade UI.

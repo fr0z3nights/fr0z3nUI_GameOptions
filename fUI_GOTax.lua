@@ -550,8 +550,9 @@ do
 
     local guildKey = select(1, GetCurrentGuildKeyAndName())
     if not guildKey then
-      -- Config is guild-scoped, but without a guild we only have character balances.
-      return "guild", nil, (ct and ct.bal) or nil
+      -- Config is guild-scoped, but without a guild we can't resolve a guild bucket.
+      -- Fall back to character cfg so Warbank and local tax tracking still work.
+      return "guild", (ct and ct.cfg) or nil, (ct and ct.bal) or nil
     end
     local g = EnsureGuildTaxDB(guildKey)
     if type(g) == "table" and g.owedScope == "characters" then
