@@ -1233,8 +1233,13 @@ local function PickBestFromBags(kind)
                     local e = ClassifyFoodDrink(id)
                     if e and (e.req or 0) <= lvl then
                         local rate = (kind == "food") and (e.hRate or 0) or (e.mRate or 0)
-                        if rate and rate > 0 then
-                            local score = rate
+                        -- Fallback: if tooltip parsing yields 0, still pick the highest-tier usable item.
+                        -- Keep this score tiny so real parsed rates always win.
+                        local score = tonumber(rate) or 0
+                        if score <= 0 then
+                            score = (tonumber(e.req) or 0) * 0.0001
+                        end
+                        if score > 0 then
                             if preferConjured and e.conjured then
                                 -- Absolute priority when enabled.
                                 score = score + 1e12

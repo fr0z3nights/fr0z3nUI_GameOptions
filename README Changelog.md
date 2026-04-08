@@ -4,6 +4,16 @@ Format: `YYMMDD-###` (sanity stamp) — short summary.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+# 260408-001
+- Files: `fUI_GOMacros.lua`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink (Yum): if tooltip parsing yields 0 hp/s or mp/s (new/odd tooltip formats), fall back to picking the highest required-level usable food/drink so `/fgo yum` doesnt report no valid food/drink when you have consumables.
+- Bumped TOC `## Version` to `2026.04.08.01`.
+
+# 260408-002
+- Files: `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Slash: add `/fgo yumd` (yum + dump) to force-update `FGO Food` / `FGO Drink` and print the selected items + computed stats.
+- Bumped TOC `## Version` to `2026.04.08.02`.
+
 # 260407-004
 - Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
 - Trade (Merchant): prewarm the merchant item list incrementally on the ticker so buy/restock has item+tooltip cache sooner (helps cases where purchases only start after opening the Trade UI).

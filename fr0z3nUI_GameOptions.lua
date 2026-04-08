@@ -3189,6 +3189,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo petbattle             - force-enable pet battle auto-accept",
                 "/fgo yum                   - force-update FGO Food/Drink macros",
                 "/fgo yump                  - yum + print status",
+                "/fgo yumd                  - yum + dump best food/drink",
+                "/fgo yumtest               - print yum debug status",
                 "/fgo deposit               - run bank deposit helper (bank UI must be open)",
                 "/fgo lootit ...            - LootIt (loot chat cleaner) commands",
                 "/fgo li ...                - legacy alias for /fgo lootit",
@@ -3358,6 +3360,83 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 end
             else
                 Print("Macros module not loaded.")
+            end
+            return
+        end
+
+        if cmd == "yumd" then
+            local m = ns and ns.Macros
+            if not (m and type(m.FoodDrink_ForceUpdate) == "function" and type(m.FoodDrink_DebugStatus) == "function") then
+                Print("Macros module not loaded.")
+                return
+            end
+
+            local ok, why = m.FoodDrink_ForceUpdate()
+            if ok then
+                Print("YumD: updated FGO Food/Drink")
+            else
+                if why == "in-combat" then
+                    Print("YumD: deferred (combat)")
+                elseif why == "bags not ready" then
+                    Print("YumD: bags not ready yet (login) — retrying")
+                elseif why == "item data pending" then
+                    Print("YumD: item data not ready yet — retrying")
+                elseif why == "no food/drink candidate" then
+                    Print("YumD: no valid food/drink found in bags")
+                else
+                    Print("YumD failed: " .. tostring(why))
+                end
+            end
+
+            local st = m.FoodDrink_DebugStatus()
+            if not st then
+                Print("YumD failed: no status")
+                return
+            end
+
+            local function fmtBool(x)
+                return x and "ON" or "OFF"
+            end
+
+            local function fmtItem(id)
+                id = tonumber(id) or 0
+                if id <= 0 then
+                    return "none"
+                end
+                local link = select(2, GetItemInfo(id))
+                return link or ("item:" .. tostring(id))
+            end
+
+            local function fmtRate(x)
+                x = tonumber(x) or 0
+                if x <= 0 then
+                    return "0"
+                end
+                if x >= 100 then
+                    return string.format("%.0f", x)
+                end
+                return string.format("%.1f", x)
+            end
+
+            Print("YumD: active=" .. fmtBool(st.active) .. ", perChar=" .. fmtBool(st.macroPerChar) .. ", preferConjured=" .. fmtBool(st.preferConjured) .. ", pendingItemData=" .. fmtBool(st.pendingItemData))
+            Print("YumD: lvl=" .. tostring(st.level or "?") .. ", hpMax=" .. tostring(st.hpMax or "?") .. ", mpMax=" .. tostring(st.mpMax or "?"))
+
+            do
+                local e = st.bestFood
+                if e then
+                    Print("YumD Food: " .. fmtItem(st.bestFoodID) .. " | req=" .. tostring(e.req or 0) .. " | hp/s=" .. fmtRate(e.hRate) .. " | %=" .. fmtBool(e.isPercent) .. " | conj=" .. fmtBool(e.conjured))
+                else
+                    Print("YumD Food: " .. fmtItem(st.bestFoodID) .. " | (no parsed entry yet)")
+                end
+            end
+
+            do
+                local e = st.bestDrink
+                if e then
+                    Print("YumD Drink: " .. fmtItem(st.bestDrinkID) .. " | req=" .. tostring(e.req or 0) .. " | mp/s=" .. fmtRate(e.mRate) .. " | %=" .. fmtBool(e.isPercent) .. " | conj=" .. fmtBool(e.conjured))
+                else
+                    Print("YumD Drink: " .. fmtItem(st.bestDrinkID) .. " | (no parsed entry yet)")
+                end
             end
             return
         end
@@ -4374,6 +4453,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         Print("/fgo petbattle - force-enable pet battle auto-accept")
         Print("/fgo yum       - force-update FGO Food/Drink macros")
         Print("/fgo yump      - yum + print status")
+        Print("/fgo yumd      - yum + dump best food/drink")
         Print("/fgo x ...     - exclusion macros (old /fgo m behavior)")
         Print("/fgo m ...     - macros (no character boxes)")
         Print("/fgo c ...     - faction macros (Both + Alliance/Horde)")
@@ -4433,6 +4513,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     Print("/fgo petbattle - force-enable pet battle auto-accept")
     Print("/fgo yum       - force-update FGO Food/Drink macros")
     Print("/fgo yump      - yum + print status")
+    Print("/fgo yumd      - yum + dump best food/drink")
     Print("/fgo x ...     - exclusion macros (old /fgo m behavior)")
     Print("/fgo m ...     - macros (no character boxes)")
     Print("/fgo c ...     - faction macros (Both + Alliance/Horde)")
