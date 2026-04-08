@@ -8,6 +8,11 @@ Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stay
 - Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
 - Tax/Warbank: when in Guild scope but not currently in a guild, fall back to character config so Warbank deposit/withdraw/manual tracking doesn’t silently no-op.
 
+# 2026.04.09.02
+- Files: `fUI_GOCore.lua`, `fUI_GOTradeBank.lua`, `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- Tax/Warbank: fix BANKFRAME_CLOSED reset wiring so warbank open-state is properly cleared between sessions (prevents “open once after reload, then never re-triggers after close/reopen”).
+- Debug (Tax debug only): print core banking interaction + bankframe open/close events to diagnose missing close signals.
+
 # 2026.04.08.03
 - Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
 - Trade (Merchant): when Trade mode is `deposit`, infer merchant buy/sell mode from configured rules so buy/restock can start on `MERCHANT_SHOW` without opening the Trade UI.

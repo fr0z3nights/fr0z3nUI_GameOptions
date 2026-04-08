@@ -3695,6 +3695,8 @@ LI.ResetGuildBankQuerySession = ResetGuildBankQuerySession
 LI.SetBankInteractionOpen = function(v) _bankInteractionOpen = (v == true) end
 LI.SetWarbankInteractionOpen = function(v) _warbankInteractionOpen = (v == true) end
 LI.SetGuildbankInteractionOpen = function(v) _guildbankInteractionOpen = (v == true) end
+LI.GetTaxWarbankOpen = function() return _taxWarbankOpen == true end
+LI.SetTaxWarbankOpen = function(v) _taxWarbankOpen = (v == true) end
 LI.GetBankInteractionOpen = function() return _bankInteractionOpen == true end
 LI.GetWarbankInteractionOpen = function() return _warbankInteractionOpen == true end
 LI.GetGuildbankInteractionOpen = function() return _guildbankInteractionOpen == true end

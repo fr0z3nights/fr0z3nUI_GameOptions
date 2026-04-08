@@ -1081,6 +1081,18 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
       if tax and tax.OnInteraction then
         tax.OnInteraction(isShow, arg1)
       end
+
+      if tax and type(tax.IsDebugEnabled) == "function" and tax.IsDebugEnabled() then
+        local evName = (isShow and "PIM_SHOW") or "PIM_HIDE"
+        local itName = tostring(arg1)
+        local it = (Enum and Enum.PlayerInteractionType) and Enum.PlayerInteractionType or nil
+        if it then
+          if it.Banker and arg1 == it.Banker then itName = "Banker" end
+          if it.AccountBanker and arg1 == it.AccountBanker then itName = "AccountBanker" end
+          if it.GuildBanker and arg1 == it.GuildBanker then itName = "GuildBanker" end
+        end
+        Print("Tax debug: core " .. evName .. " type=" .. itName)
+      end
     end
 
     -- Mail notifier: hide while mailbox is open; recheck when it closes.
@@ -1202,6 +1214,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
     end
   elseif event == "GUILDBANKFRAME_OPENED" or event == "GUILDBANKFRAME_CLOSED" or event == "BANKFRAME_OPENED" or event == "BANKFRAME_CLOSED" then
     do
+      local tax = LI and LI.Tax
+      if tax and type(tax.IsDebugEnabled) == "function" and tax.IsDebugEnabled() then
+        Print("Tax debug: core event=" .. tostring(event))
+      end
+    end
+    do
       local trade = LI and LI.Trade
       if trade and type(trade.OnBankOrGuildBankFrameEvent) == "function" then
         trade.OnBankOrGuildBankFrameEvent({
@@ -1287,16 +1305,21 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
         if tax and type(tax.OnBankFrameClosed) == "function" then
           tax.OnBankFrameClosed({
             GetTaxWarbankOpen = function()
-              return _taxWarbankOpen
+              return (LI and type(LI.GetTaxWarbankOpen) == "function" and LI.GetTaxWarbankOpen()) or false
             end,
             SetTaxWarbankOpen = function(v)
-              _taxWarbankOpen = (v == true)
+              if LI and type(LI.SetTaxWarbankOpen) == "function" then
+                LI.SetTaxWarbankOpen(v == true)
+              end
             end,
           })
         else
           -- Ensure Tax warbank state closes when the unified BankFrame closes.
-          if _taxWarbankOpen == true then
-            _taxWarbankOpen = false
+          local wasOpen = (LI and type(LI.GetTaxWarbankOpen) == "function" and LI.GetTaxWarbankOpen()) or false
+          if wasOpen == true then
+            if LI and type(LI.SetTaxWarbankOpen) == "function" then
+              LI.SetTaxWarbankOpen(false)
+            end
             if tax and tax.OnWarbankFrame then
               tax.OnWarbankFrame(false)
             end

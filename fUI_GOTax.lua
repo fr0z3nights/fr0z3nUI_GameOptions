@@ -534,6 +534,11 @@ do
     return (type(ct) == "table") and (ct.debug == true)
   end
 
+  -- Expose for other modules (core) to gate debug prints.
+  function Tax.IsDebugEnabled()
+    return IsTaxDebugEnabled() == true
+  end
+
   local function TaxDbg(cfg, line)
     if not IsTaxDebugEnabled() then return end
     if type(cfg) == "table" and cfg.quiet == true then return end
