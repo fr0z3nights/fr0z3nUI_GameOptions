@@ -1465,7 +1465,9 @@ do
 
   local function RunMerchantTradeOnce(skipFoodSell)
     SyncDB()
-    local mode = GetTradeMode()
+    local rawMode = GetTradeMode()
+    local mode = rawMode
+    local inferredMode = false
     _liMerchantWantsCache = false
 
     local foodEnabled = IsSellFoodEnabled()
@@ -1490,6 +1492,20 @@ do
     end
 
     local dbg = (LI and LI.Trade and LI.Trade._debugOn == true) and true or false
+
+    -- Merchant automation should not require the Trade UI to be opened.
+    -- If the user is in Deposit mode, infer the merchant mode from configured rules.
+    if mode ~= "buy" and mode ~= "sell" then
+      local buyRules = GetEffectiveTradeRules("buy")
+      local sellRules = GetEffectiveTradeRules("sell")
+      if type(buyRules) == "table" and next(buyRules) ~= nil then
+        mode = "buy"
+        inferredMode = true
+      elseif type(sellRules) == "table" and next(sellRules) ~= nil then
+        mode = "sell"
+        inferredMode = true
+      end
+    end
 
     if dbg and _liMerchantDebugSummaryPrinted ~= true then
       local function CountRules(t)
@@ -1522,8 +1538,13 @@ do
         pt, token = UnitPowerType("player")
       end
 
+      local modeText = tostring(mode)
+      if inferredMode then
+        modeText = tostring(mode) .. " (from " .. tostring(rawMode) .. ")"
+      end
+
       Print(
-        "Merchant debug: mode=" .. tostring(mode) ..
+        "Merchant debug: mode=" .. modeText ..
         ", buyRules=" .. tostring(bn) .. " (restock " .. tostring(br) .. ")" ..
         ", sellRules=" .. tostring(sn) .. " (restock " .. tostring(sr) .. ")"
         .. ", usesMana=" .. tostring(usesMana)
