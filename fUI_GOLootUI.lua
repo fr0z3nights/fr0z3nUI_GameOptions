@@ -1293,6 +1293,25 @@ function LI.LootTab.BuildTab(lootPanel, env)
       end
     )
 
+    local profLearnedBtn = CreateTextToggleButton(bottomRow, 68, 20)
+    profLearnedBtn:SetPoint("LEFT", profOutputDD, "RIGHT", 6, 2)
+    profLearnedBtn:SetScript("OnClick", function()
+      EnsureDB()
+      local DB = GetDB()
+      if not DB then return end
+      DB.other = (type(DB.other) == "table") and DB.other or {}
+      DB.other.profession = (type(DB.other.profession) == "table") and DB.other.profession or {}
+
+      DB.other.profession.learnedItems = not (DB.other.profession.learnedItems == true)
+      -- Ensure the Profession chat filter is active so the Learned output can print.
+      if DB.other.profession.learnedItems == true then
+        DB.other.profession.enabled = true
+      end
+      SetToggleText(profBtn, "Professions", DB.other.profession.enabled == true)
+      SetToggleText(profLearnedBtn, "Learned", DB.other.profession.learnedItems == true)
+      ApplyFilters()
+    end)
+
     local xpDebugBtn = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
     -- Match Tax tab Debug sizing/feel (short button)
     xpDebugBtn:SetSize(68, 20)
@@ -1510,28 +1529,76 @@ function LI.LootTab.BuildTab(lootPanel, env)
         end
         EnsureSuppressDB(DB)
 
+        if type(DB.suppress.seedDisabled) ~= "table" then DB.suppress.seedDisabled = {} end
+
         enableCB:SetChecked(DB.suppress.enabled ~= false)
         local rules = DB.suppress.rules
-        local n = #rules
+
+        local entries = {}
+        if type(rules) == "table" then
+          for i = 1, #rules do
+            local r = rules[i]
+            if type(r) == "table" and type(r.text) == "string" and r.text ~= "" then
+              entries[#entries + 1] = { kind = "rule", idx = i, ref = r, text = r.text }
+            end
+          end
+        end
+
+        local seeds = (type(LI) == "table" and type(LI.AddonSuppressSeeds) == "table") and LI.AddonSuppressSeeds
+          or (_G and rawget(_G, "fr0z3nUI_LootIt_AddonSuppressSeeds"))
+        if type(seeds) == "table" then
+          for i = 1, #seeds do
+            local s = seeds[i]
+            if type(s) == "table" and type(s.text) == "string" and s.text ~= "" then
+              local key = (type(s.key) == "string" and s.key ~= "") and s.key or tostring(i)
+              entries[#entries + 1] = { kind = "seed", key = key, text = s.text }
+            end
+          end
+        end
+
+        local n = #entries
 
         for i = 1, MAX_ROWS do
           local row = rows[i]
-          local r = rules[i]
-          if type(r) == "table" and type(r.text) == "string" and r.text ~= "" then
+          local e = entries[i]
+          if type(e) == "table" and type(e.text) == "string" and e.text ~= "" then
             row:Show()
-            local on = (r.enabled ~= false)
+            local on
+            if e.kind == "seed" then
+              on = not (DB.suppress.seedDisabled[e.key] == true)
+            else
+              local r = e.ref
+              on = (type(r) == "table") and (r.enabled ~= false)
+            end
             row._onBtn:SetText(on and "On" or "Off")
-            row._txt:SetText(r.text)
+            row._txt:SetText(e.text)
             row._onBtn:SetScript("OnClick", function()
-              r.enabled = not (r.enabled ~= false)
+              if e.kind == "seed" then
+                DB.suppress.seedDisabled[e.key] = on and true or nil
+              else
+                local r = e.ref
+                if type(r) == "table" then
+                  r.enabled = not (r.enabled ~= false)
+                end
+              end
               RefreshSuppressUI()
               ApplyFilters()
             end)
-            row._delBtn:SetScript("OnClick", function()
-              table.remove(rules, i)
-              RefreshSuppressUI()
-              ApplyFilters()
-            end)
+            if e.kind == "seed" then
+              if row._delBtn then
+                row._delBtn:SetScript("OnClick", nil)
+                row._delBtn:Hide()
+              end
+            else
+              if row._delBtn then
+                row._delBtn:Show()
+                row._delBtn:SetScript("OnClick", function()
+                  table.remove(rules, e.idx)
+                  RefreshSuppressUI()
+                  ApplyFilters()
+                end)
+              end
+            end
           else
             row:Hide()
           end
@@ -1661,7 +1728,12 @@ function LI.LootTab.BuildTab(lootPanel, env)
 
       SetToggleText(achBtn, "Achievement", DB.other.achievement.enabled == true)
       SetToggleText(xpBtn, "Experience", DB.other.experience.enabled == true)
+
+      if DB.other.profession.enabled == nil then DB.other.profession.enabled = true end
       SetToggleText(profBtn, "Professions", DB.other.profession.enabled == true)
+
+      if DB.other.profession.learnedItems == nil then DB.other.profession.learnedItems = true end
+      SetToggleText(profLearnedBtn, "Learned", DB.other.profession.learnedItems == true)
 
       local outA = DB.other.achievement.outputChatFrame
       if outA == nil then outA = GetFallbackOtherOutputChatFrame(DB) end

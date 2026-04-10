@@ -17,6 +17,85 @@ local function SetZone(zone)
    CURRENT_ZONE = zone
 end
 
+local function PlayerHasQuestInLog(questID)
+   questID = tonumber(questID)
+   if not questID then
+      return false
+   end
+
+   if C_QuestLog and type(C_QuestLog.IsOnQuest) == "function" then
+      local ok, on = pcall(C_QuestLog.IsOnQuest, questID)
+      if ok and on then
+         return true
+      end
+   end
+
+   if C_QuestLog and type(C_QuestLog.GetLogIndexForQuestID) == "function" then
+      local ok, idx = pcall(C_QuestLog.GetLogIndexForQuestID, questID)
+      return ok and type(idx) == "number" and idx > 0
+   end
+
+   if type(GetQuestLogIndexByID) == "function" then
+      local ok, idx = pcall(GetQuestLogIndexByID, questID)
+      return ok and type(idx) == "number" and idx > 0
+   end
+
+   return false
+end
+
+local function NormalizeRealmName(realm)
+   realm = tostring(realm or "")
+   realm = realm:gsub("%s+", "")
+   realm = realm:gsub("%-+", "")
+   return realm:lower()
+end
+
+local function PlayerIsCharacter(full)
+   full = tostring(full or "")
+   if full == "" then
+      return false
+   end
+
+   local wantName, wantRealm = full:match("^([^%-]+)%-(.+)$")
+   if not wantName then
+      wantName = full
+      wantRealm = nil
+   end
+
+   local name, realm
+   if UnitName then
+      name, realm = UnitName("player")
+   end
+   if not name then
+      return false
+   end
+
+   if realm == nil then
+      if GetNormalizedRealmName then
+         realm = GetNormalizedRealmName()
+      elseif GetRealmName then
+         realm = GetRealmName()
+      end
+   end
+
+   if tostring(name):lower() ~= tostring(wantName):lower() then
+      return false
+   end
+
+   if wantRealm and wantRealm ~= "" then
+      return NormalizeRealmName(realm) == NormalizeRealmName(wantRealm)
+   end
+
+   return true
+end
+
+local function TalkCacheSeen(key)
+   if ns and ns.Talk and type(ns.Talk.CacheGet) == "function" then
+      return ns.Talk.CacheGet(key) and true or false
+   end
+   return false
+end
+
 
 
 
@@ -70,7 +149,9 @@ SetZone("Burning Steppes, Eastern Kingdoms")
    t[136312] = { text = "<Ask Arator how he is doing.>" }
 
    local t = NPC("Alonsus Faol", 246863)
-   t[138705] = { text = "Let's get started. <Skip the conversation.>" }
+   local INTRO_SEEN = "GOTalk:246863:138706"
+   t[138706] = { prio = 10, text = "What are we here for?", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
+   t[138705] = { prio = 10, text = "Let's get started. <Skip>", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
    local t = NPC("Kudran Wildhammer", 248250)
    t[134709] = { text = "What happened?" }
@@ -346,7 +427,9 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 
    local t = NPC("Arator", { 236959, 237502, })
    t[132388] = { text = "Your father sent me to find you." }                                           -- My Son (89271) Arator (236959)
-   t[136469] = { text = "Let's get back to Silvermoon." }
+   local INTRO_SEEN = "GOTalk:237502:134861"
+   t[134861] = { prio = 10, text = "What are you going to do with the shield?", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
+   t[136469] = { prio = 10, text = "Let's get back to Silvermoon.", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
    local t = NPC("Commander Koruth Mountainfist", { 247304, })
    t[134577] = { text = "Are the warframes prepared, Commander?" }                                     -- Feeding the Flame (90777) Commander Koruth Mountainfist (247304)

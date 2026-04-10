@@ -20,6 +20,20 @@ local function Print(msg)
     end
 end
 
+-- Expose a tiny "sanity" probe so split-out modules can print a consistent version marker.
+-- (Used for troubleshooting load order / stale file deploys.)
+do
+    ns.LootIt = ns.LootIt or {}
+    ns.LootIt.SANITY_VERSION = SANITY_VERSION
+    ns.LootIt.PrintSanity = function(prefix)
+        if prefix and prefix ~= "" then
+            Print(tostring(prefix) .. " Sanity: " .. tostring(SANITY_VERSION))
+        else
+            Print("Sanity: " .. tostring(SANITY_VERSION))
+        end
+    end
+end
+
 -- Popout manager: allow only one popout open at a time.
 -- Any popout can register a closer; opening a popout should close the others.
 do

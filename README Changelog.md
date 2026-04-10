@@ -4,6 +4,190 @@ Format: `YYYY.MM.DD.NN` (TOC `## Version`) — short summary. Newest at the top.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+## 2026.04.11.04
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Allow the sell pass (including Low Food selling) to run even at merchants with 0 items for sale ("no stock" vendors can still buy from you). Buy/restock rules are skipped when the merchant list is empty, but Low Food + sell rules are no longer blocked.
+- Trade (Merchant): tradeDebug summary now includes `foodEnabled` + `foodDiff`.
+
+# 2026.04.10.41
+- Files: `fUI_GOTalk05.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Marked Master Lao option `40512` ("Please, sit and make yourself comfortable.") as manual-only so it won't be auto-selected.
+
+## 2026.04.11.01
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- FGO Tax: When BOTH EB/XS toggles are enabled (Guild Bank + Warbank), the **excess** (above MinGold + total owed) is split between banks to keep cached balances even. If one bank is lower by at least the excess amount, all excess goes to the lower bank; otherwise it splits to equalize then 50/50.
+- FGO Tax: Added best-effort cached balance tracking for Guild Bank / Warbank and updates it on bank open and detected deposits/withdraws while a bank is open.
+
+## 2026.04.11.02
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- FGO Tax: Added Tax-debug-only logging for XS excess split decisions (shows cached balances and the computed split).
+
+## 2026.04.11.03
+- Files: `fUI_GOTax.lua`, `fUI_GOTaxUI.lua`, `fr0z3nUI_GameOptions.toc`
+- FGO Tax: Renamed internal config fields from `*EB` to `*XS` (with automatic migration/cleanup) to match the UI label.
+
+# 2026.04.10.40
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Fix ticker crash in tradeDebug tick-summary (`GetPendingBought` nil) by making pending-bought helpers shared scope.
+
+# 2026.04.10.39
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Fix Lua scoping bug where merchant ticker/session state was accidentally split between globals and locals (due to locals being declared after `RunMerchantTradeOnce`). This could cause “reopen does nothing” (food sell pass skipped) and mismatched close tick summaries.
+
+# 2026.04.10.38
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Removed `BAG_UPDATE_DELAYED` auto-restart of the merchant ticker while a vendor is open (prevents buyback from triggering an immediate auto-resell).
+- Trade (Merchant): Low Food selling now counts as ticker ops (prevents false “idle” classification while actively selling).
+- Trade (Merchant): Added deterministic tradeDebug output for “no actions” cases and an explicit idle-stop line with a reason; tick summary generation now follows `tradeDebug` (matches close logging).
+
+# 2026.04.10.34
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Ticker start line now prints the same version as `/fgo status` and keeps it on one line: `Merchant ticker: start (<version>)`.
+- Trade (Merchant): Low Food keep logic now treats protected non-low food as still “usable non-low”, so low food (e.g. Lava Cake) won’t be kept just because the better food is protected by restock rules.
+
+# 2026.04.10.35
+- Files: `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Added tradeDebug diagnostics showing why the merchant ticker stops (`MERCHANT_CLOSED` vs verified `PIM_HIDE`) to help chase “reopen stops immediately” cases.
+
+# 2026.04.10.36
+- Files: `fUI_GOTrade.lua`, `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Added tradeDebug diagnostics around post-buy gating (`BAG_UPDATE_DELAYED` seen) and prints a one-line last-tick summary on merchant close to explain what happened between buy and sell.
+
+# 2026.04.10.33
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food debug slot lines now include an explicit reason tag (e.g. `eligible`, `protected`, `bestLowFallback`, `notLow`, `noReq`, `noPrice`, `locked`) so “SELL”/“KEEP” is self-explanatory.
+
+# 2026.04.10.32
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Fix sanity line on ticker start (prints via core `Print`, no longer depends on missing `LI.PrintSanity`).
+- Trade (Merchant): Low Food selling now sells “low” food if you have any usable non-low food (prevents keeping Lava Cake when Sunsalad exists).
+- Trade (Merchant): If ticker start is called while already running, re-arm the sell pass so quick reopen/duplicate-show paths still sell.
+
+# 2026.04.10.31
+- Files: `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Don’t stop the merchant ticker on transient `PLAYER_INTERACTION_MANAGER_FRAME_HIDE` events; delay/verify close so the sell pass can run reliably.
+
+# 2026.04.10.30
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food debug now respects protected/restock item IDs, so “SELL” output matches what will actually be sold.
+
+# 2026.04.10.29
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Merchant ticker start now runs the actual sanity probe (prints `Sanity: <version>`), replacing the placeholder `(<sanitycheck>)` label.
+
+# 2026.04.10.28
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Post-buy sell gating is now stricter: waits for purchased item counts to actually appear in bag scans (prevents Low Food selling from running “too soon”).
+
+# 2026.04.10.27
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food debug no longer prints on merchant open; it prints when the sell pass actually runs (post-buy + post-`BAG_UPDATE_DELAYED`).
+- Trade (Merchant): Low Food selling now runs even when `sellRules=0` (still respects the post-buy `BAG_UPDATE_DELAYED` gate).
+- Trade (Merchant): Restock compare debug is de-duped per merchant session; ticker start line includes `(<sanitycheck>)`.
+
+# 2026.04.10.26
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food selling now runs after buy/restock and respects the post-buy `BAG_UPDATE_DELAYED` gate (so “SELL” corresponds to actual selling).
+
+# 2026.04.10.25
+- Files: `fUI_GOTrade.lua`, `fUI_GOCore.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Buy/restock runs first; if a buy happens, selling is delayed until `BAG_UPDATE_DELAYED` so bag counts are up-to-date.
+
+# 2026.04.10.24
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Fixed merchant ticker crash after decoupling vendor automation from UI mode.
+
+# 2026.04.10.23
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Vendor automation no longer depends on the Trade UI mode; at a merchant it runs buy/restock rules and sell rules independently (if present).
+
+# 2026.04.10.22
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Merchant buy/restock no longer gets blocked by `tradeMode=sell` when there are no sell rules (auto-picks the mode that has rules).
+
+# 2026.04.10.21
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Fixed Restock compare debug crash and added hp/s-based bag fallback when score classification isn\'t cached yet.
+
+# 2026.04.10.20
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Debug now explicitly warns when `mode=sell` prevents buy/restock (so Restock compare won’t print).
+
+# 2026.04.10.19
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Restock debug now prints vendor-best vs bag-best food comparisons (req + score) and the `desiredScore` threshold used.
+
+# 2026.04.10.18
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food threshold math fixed so diff=N keeps the last N levels (e.g. lvl 80 diff 5 => 76–80 not low).
+
+# 2026.04.10.17
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food threshold is now strict (`req < threshold`), so req==threshold (e.g. 75 at lvl 80 with diff=5) is not treated as low.
+
+# 2026.04.10.16
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): when Trade Debug is enabled, Low Food debug auto-prints on merchant open (hp/s + KEEP/SELL/SKIP).
+
+# 2026.04.10.15
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food debug now prints hp/s + KEEP/SELL/SKIP decision visuals.
+
+# 2026.04.10.14
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food keep-best logic now compares actual food health regen (tooltip) instead of required level.
+
+# 2026.04.10.13
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food selling now keeps ALL of your single best low-food item when you have no better usable food.
+
+# 2026.04.10.12
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food selling now keeps one best low-food stack if you have no better usable food (prevents selling your last food).
+
+# 2026.04.10.11
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): Low Food sell output now strips hyperlink brackets again (keeps item clickable without showing `[Name]`).
+
+# 2026.04.10.10
+- Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): change Low Food selling output to "<Name:> <Gold>  <Amount> <ItemLink>  (Low Food <Level>)".
+
+# 2026.04.10.09
+- Files: `fUI_GOTalk.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: improve `close = true` reliability by also closing InteractionManager-owned windows and using a multi-step delayed close ladder (handles frame transitions).
+
+# 2026.04.10.08
+ LootIt: Suppress popout now appends seeds at the bottom of the main Rules list (no separate list).
+
+# 2026.04.10.06
+ LootIt: rename Loot DB file to `fUI_GOLootDB.lua` and add Suppress seeds section (DB-toggled, not SV rules).
+
+# 2026.04.10.05
+ LootIt: enable Professions + "Learned" output by default.
+
+# 2026.04.10.04
+ LootIt: add Professions "Learned" toggle button; reprint recipe-learned messages as "<Name:> Learned <Item>".
+
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalk01EK.lua`, `fr0z3nUI_GameOptions.toc`
+- Burning Steppes (Alonsus Faol 246863): first character runs the full intro option (`138706`), all later characters auto-pick the skip option (`138705`).
+
+# 2026.04.10.02
+- Files: `fUI_GOTalk.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: fix `close = true` rules by adding reliable close fallbacks (GossipFrame/QuestFrame close buttons + hide panel) and a one-time delayed re-close.
+
+# 2026.04.09.06
+- Files: `fUI_GOTalk01EK.lua`, `fUI_GOTalk01KD.lua`, `fUI_GOTalk02.lua`, `fUI_GOTalk03.lua`, `fUI_GOTalk04.lua`, `fUI_GOTalk05.lua`, `fUI_GOTalk06.lua`, `fUI_GOTalk07.lua`, `fUI_GOTalk08KT.lua`, `fUI_GOTalk08ZL.lua`, `fUI_GOTalk09.lua`, `fUI_GOTalk10.lua`, `fUI_GOTalk11.lua`, `fUI_GOTalk12.lua`, `fUI_GOTalkEV.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk (Manapoof): when quest `86839` is in your log, prefer gossip option `47010` (Stratholme).
+- GOTalk (Manapoof): on a specific character (`Name-Realm` placeholder), prefer option `47009` (Gnomeregan), but still below the Stratholme quest rule.
+- Refactor: moved the Talk rule helper predicates back into each Talk DB pack (keeps rule entries short).
+
+# 2026.04.09.05
+- Files: `fUI_GOTalk07.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk (Manapoof): when quest `86839` is in your log, prefer gossip option `47010` (Stratholme).
+- GOTalk (Manapoof): on a specific character (`Name-Realm` placeholder), prefer option `47009` (Gnomeregan), but still below the Stratholme quest rule.
+- Refactor: moved Talk rule helper predicates into `fUI_GOTalk.lua` so DB packs don't need to define functions.
+
 # 2026.04.09.01
 - Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
 - Tax/Warbank: when in Guild scope but not currently in a guild, fall back to character config so Warbank deposit/withdraw/manual tracking doesn’t silently no-op.

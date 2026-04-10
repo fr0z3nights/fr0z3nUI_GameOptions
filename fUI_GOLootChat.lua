@@ -36,8 +36,16 @@ local function SuppressRulesEnabled()
   local s = DB and DB.suppress
   if type(s) ~= "table" then return false, nil end
   if s.enabled == false then return false, nil end
-  if type(s.rules) ~= "table" or #s.rules == 0 then return false, nil end
-  return true, s.rules
+  local rules = (type(s.rules) == "table") and s.rules or nil
+  local seeds = (type(LI) == "table" and type(LI.AddonSuppressSeeds) == "table") and LI.AddonSuppressSeeds
+    or (_G and rawget(_G, "fr0z3nUI_LootIt_AddonSuppressSeeds"))
+
+  local hasRules = (type(rules) == "table") and (#rules > 0)
+  local hasSeeds = (type(seeds) == "table") and (#seeds > 0)
+  if (not hasRules) and (not hasSeeds) then
+    return false, nil
+  end
+  return true, { rules = rules, seeds = seeds }
 end
 
 local function NormalizeSuppressText(msg)
@@ -63,14 +71,39 @@ local function ShouldSuppressMessage(msg)
   local t = NormalizeSuppressText(msg)
   if not t then return false end
 
-  for i = 1, #rules do
-    local r = rules[i]
-    if type(r) == "table" and r.enabled ~= false then
-      local needle = r.text
-      if type(needle) == "string" and needle ~= "" and not IsSecretString(needle) then
-        local n = needle:lower():gsub("^%s+", ""):gsub("%s+$", "")
-        if n ~= "" and string.find(t, n, 1, true) then
-          return true, i, needle
+  local svRules = rules.rules
+  if type(svRules) == "table" then
+    for i = 1, #svRules do
+      local r = svRules[i]
+      if type(r) == "table" and r.enabled ~= false then
+        local needle = r.text
+        if type(needle) == "string" and needle ~= "" and not IsSecretString(needle) then
+          local n = needle:lower():gsub("^%s+", ""):gsub("%s+$", "")
+          if n ~= "" and string.find(t, n, 1, true) then
+            return true, i, needle
+          end
+        end
+      end
+    end
+  end
+
+  local seeds = rules.seeds
+  if type(seeds) == "table" and #seeds > 0 then
+    local s = DB and DB.suppress
+    local disabled = (type(s) == "table" and type(s.seedDisabled) == "table") and s.seedDisabled or nil
+
+    for i = 1, #seeds do
+      local r = seeds[i]
+      if type(r) == "table" then
+        local needle = r.text
+        if type(needle) == "string" and needle ~= "" and not IsSecretString(needle) then
+          local key = (type(r.key) == "string" and r.key ~= "") and r.key or tostring(i)
+          if not (disabled and disabled[key] == true) then
+            local n = needle:lower():gsub("^%s+", ""):gsub("%s+$", "")
+            if n ~= "" and string.find(t, n, 1, true) then
+              return true, "seed:" .. key, needle
+            end
+          end
         end
       end
     end
@@ -4749,6 +4782,8 @@ end
 local _skillLastSig
 local _skillLastTS
 local _skillLastRankByName
+local _learnedItemLastSig
+local _learnedItemLastTS
 
 local function GetProfessionRankCache()
   -- Persist per-character so the first rank-up after /reload can still show +Δ.
@@ -4761,6 +4796,25 @@ local function GetProfessionRankCache()
   end
   _skillLastRankByName = _skillLastRankByName or {}
   return _skillLastRankByName
+end
+
+local function ParseLearnedItemMessage(msg)
+  if type(msg) ~= "string" or msg == "" then return nil end
+
+  -- Prefer an item link if present (some clients/chat settings may include it).
+  local link = msg:match("You have learned how to create a new item:%s*(|c%x+|Hitem:.-|h%[.-%]|h|r)")
+    or msg:match("You have learned how to create a new item:%s*(|Hitem:.-|h%[.-%]|h)")
+  if link and link ~= "" then
+    return { display = link }
+  end
+
+  local name = msg:match("^You have learned how to create a new item:%s*(.-)%.%s*$")
+    or msg:match("^You have learned how to create a new item:%s*(.-)%s*$")
+  if name and name ~= "" then
+    return { display = name }
+  end
+
+  return nil
 end
 
 local function OnProfessionSkillChat(_, eventName, msg, ...)
@@ -4782,6 +4836,27 @@ local function OnProfessionSkillChat(_, eventName, msg, ...)
 
   local ev = (type(eventName) == "string" and eventName ~= "") and eventName or "CHAT_MSG_SKILL"
   LootChat.CaptureChatIn(ev, msg)
+
+  -- Recipe learned lines ("You have learned how to create a new item: X.")
+  if DB and DB.other and DB.other.profession and DB.other.profession.learnedItems == true then
+    local parsedLearned = ParseLearnedItemMessage(msg)
+    if parsedLearned and parsedLearned.display then
+      local now = SafeNow()
+      local sig = tostring(parsedLearned.display)
+      if _learnedItemLastSig == sig and _learnedItemLastTS and (now - _learnedItemLastTS) < 0.35 then
+        return true
+      end
+      _learnedItemLastSig = sig
+      _learnedItemLastTS = now
+
+      local outText = string.format("Learned %s", tostring(parsedLearned.display))
+      local out = FormatSelfLine(outText)
+      local outFrame = GetProfessionOutputFrame()
+      PrintToChatFrame(out, outFrame)
+      LootChat.CaptureChatOut(ev, out, { handled = true, learnedItem = true, outFrame = outFrame })
+      return true
+    end
+  end
 
   local parsed = ParseSkillMessage(msg)
   if not parsed then

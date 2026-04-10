@@ -17,6 +17,85 @@ local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
 
+local function PlayerHasQuestInLog(questID)
+	questID = tonumber(questID)
+	if not questID then
+		return false
+	end
+
+	if C_QuestLog and type(C_QuestLog.IsOnQuest) == "function" then
+		local ok, on = pcall(C_QuestLog.IsOnQuest, questID)
+		if ok and on then
+			return true
+		end
+	end
+
+	if C_QuestLog and type(C_QuestLog.GetLogIndexForQuestID) == "function" then
+		local ok, idx = pcall(C_QuestLog.GetLogIndexForQuestID, questID)
+		return ok and type(idx) == "number" and idx > 0
+	end
+
+	if type(GetQuestLogIndexByID) == "function" then
+		local ok, idx = pcall(GetQuestLogIndexByID, questID)
+		return ok and type(idx) == "number" and idx > 0
+	end
+
+	return false
+end
+
+local function NormalizeRealmName(realm)
+	realm = tostring(realm or "")
+	realm = realm:gsub("%s+", "")
+	realm = realm:gsub("%-+", "")
+	return realm:lower()
+end
+
+local function PlayerIsCharacter(full)
+	full = tostring(full or "")
+	if full == "" then
+		return false
+	end
+
+	local wantName, wantRealm = full:match("^([^%-]+)%-(.+)$")
+	if not wantName then
+		wantName = full
+		wantRealm = nil
+	end
+
+	local name, realm
+	if UnitName then
+		name, realm = UnitName("player")
+	end
+	if not name then
+		return false
+	end
+
+	if realm == nil then
+		if GetNormalizedRealmName then
+			realm = GetNormalizedRealmName()
+		elseif GetRealmName then
+			realm = GetRealmName()
+		end
+	end
+
+	if tostring(name):lower() ~= tostring(wantName):lower() then
+		return false
+	end
+
+	if wantRealm and wantRealm ~= "" then
+		return NormalizeRealmName(realm) == NormalizeRealmName(wantRealm)
+	end
+
+	return true
+end
+
+local function TalkCacheSeen(key)
+	if ns and ns.Talk and type(ns.Talk.CacheGet) == "function" then
+		return ns.Talk.CacheGet(key) and true or false
+	end
+	return false
+end
+
 
 
 

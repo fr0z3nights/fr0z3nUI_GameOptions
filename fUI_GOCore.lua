@@ -170,6 +170,10 @@ local DEFAULTS = {
     experience = {
       enabled = true,
     },
+    profession = {
+      enabled = true,
+      learnedItems = true,
+    },
   },
 
   -- Debug capture: stores recent raw chat events and LootIt output decisions.
@@ -936,6 +940,28 @@ end
 
 local f = CreateFrame("Frame")
 local _merchantInteractionOpen = false
+local _merchantClosePendingToken = 0
+
+local function IsTradeDebugEnabled()
+  return (DB and DB.deposit and DB.deposit.tradeDebug == true) and true or false
+end
+
+local function IsMerchantStillOpen()
+  local mf = _G and rawget(_G, "MerchantFrame")
+  if mf and mf.IsShown and mf:IsShown() then
+    return true
+  end
+
+  if type(GetMerchantNumItems) == "function" then
+    local ok, n = pcall(GetMerchantNumItems)
+    n = ok and tonumber(n) or 0
+    if n and n > 0 then
+      return true
+    end
+  end
+
+  return false
+end
 f:RegisterEvent("PLAYER_LOGIN")
 f:RegisterEvent("PLAYER_ENTERING_WORLD")
 f:RegisterEvent("PLAYER_GUILD_UPDATE")
@@ -951,6 +977,7 @@ f:RegisterEvent("GUILDBANKFRAME_OPENED")
 f:RegisterEvent("GUILDBANKFRAME_CLOSED")
 f:RegisterEvent("BANKFRAME_OPENED")
 f:RegisterEvent("BANKFRAME_CLOSED")
+f:RegisterEvent("BAG_UPDATE_DELAYED")
 f:RegisterEvent("UI_ERROR_MESSAGE")
 f:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
 f:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
@@ -1007,6 +1034,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
     end
   elseif event == "MERCHANT_SHOW" then
     _merchantInteractionOpen = true
+    _merchantClosePendingToken = 0
     local trade = LI and LI.Trade
     if trade and type(trade.OnMerchantShow) == "function" then
       trade.OnMerchantShow({
@@ -1030,7 +1058,18 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
       end
     end
   elseif event == "MERCHANT_CLOSED" then
+    if IsTradeDebugEnabled() then
+      Print("Merchant close: event=MERCHANT_CLOSED")
+      local trade = LI and LI.Trade
+      if trade and type(trade.GetMerchantTickSummary) == "function" then
+        local s = trade.GetMerchantTickSummary()
+        if type(s) == "string" and s ~= "" then
+          Print("Merchant close: " .. s)
+        end
+      end
+    end
     _merchantInteractionOpen = false
+    _merchantClosePendingToken = 0
     local trade = LI and LI.Trade
     if trade and type(trade.OnMerchantClosed) == "function" then
       trade.OnMerchantClosed({
@@ -1066,6 +1105,18 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
             return DB
           end,
         }, arg1, arg2)
+      end
+    end
+  elseif event == "BAG_UPDATE_DELAYED" then
+    if _merchantInteractionOpen == true then
+      local trade = LI and LI.Trade
+      if trade and type(trade.OnBagUpdateDelayed) == "function" then
+        trade.OnBagUpdateDelayed({
+          Print = Print,
+          GetDB = function()
+            return DB
+          end,
+        })
       end
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" or event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
@@ -1122,6 +1173,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
       local trade = LI and LI.Trade
       if trade and isShow and (not _merchantInteractionOpen) and type(trade.OnMerchantShow) == "function" then
         _merchantInteractionOpen = true
+        _merchantClosePendingToken = 0
         trade.OnMerchantShow({
           StartMerchantTradeTicker = trade.StartMerchantTradeTicker,
           StopMerchantTradeTicker = trade.StopMerchantTradeTicker,
@@ -1133,17 +1185,57 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
           Tax = LI and LI.Tax,
         })
       elseif trade and (not isShow) and _merchantInteractionOpen and type(trade.OnMerchantClosed) == "function" then
-        _merchantInteractionOpen = false
-        trade.OnMerchantClosed({
-          StartMerchantTradeTicker = trade.StartMerchantTradeTicker,
-          StopMerchantTradeTicker = trade.StopMerchantTradeTicker,
-          DelayPrintFlushAll = DelayPrintFlushAll,
-          Print = Print,
-          GetDB = function()
-            return DB
-          end,
-          Tax = LI and LI.Tax,
-        })
+        -- Some clients/UIs can emit a transient PIM_HIDE while the merchant is still open
+        -- (e.g. right after buy/restock updates). Don't stop the ticker immediately.
+        _merchantClosePendingToken = (_merchantClosePendingToken or 0) + 1
+        local token = _merchantClosePendingToken
+        if C_Timer and type(C_Timer.After) == "function" then
+          C_Timer.After(0.25, function()
+            if token ~= _merchantClosePendingToken then return end
+            if not _merchantInteractionOpen then return end
+            if IsMerchantStillOpen() then
+              if IsTradeDebugEnabled() then
+                Print("Merchant close: ignore transient PIM_HIDE (still open)")
+              end
+              return
+            end
+
+            if IsTradeDebugEnabled() then
+              Print("Merchant close: event=PIM_HIDE (verified closed)")
+            end
+
+            _merchantInteractionOpen = false
+            _merchantClosePendingToken = 0
+            trade.OnMerchantClosed({
+              StartMerchantTradeTicker = trade.StartMerchantTradeTicker,
+              StopMerchantTradeTicker = trade.StopMerchantTradeTicker,
+              DelayPrintFlushAll = DelayPrintFlushAll,
+              Print = Print,
+              GetDB = function()
+                return DB
+              end,
+              Tax = LI and LI.Tax,
+            })
+          end)
+        else
+          if not IsMerchantStillOpen() then
+            if IsTradeDebugEnabled() then
+              Print("Merchant close: event=PIM_HIDE (no timer; verified closed)")
+            end
+            _merchantInteractionOpen = false
+            _merchantClosePendingToken = 0
+            trade.OnMerchantClosed({
+              StartMerchantTradeTicker = trade.StartMerchantTradeTicker,
+              StopMerchantTradeTicker = trade.StopMerchantTradeTicker,
+              DelayPrintFlushAll = DelayPrintFlushAll,
+              Print = Print,
+              GetDB = function()
+                return DB
+              end,
+              Tax = LI and LI.Tax,
+            })
+          end
+        end
       end
     end
     if isBanker then

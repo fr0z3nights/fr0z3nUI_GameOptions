@@ -10,6 +10,130 @@ end
 
 ns.Talk = ns.Talk or {}
 
+local function GetAccountDb()
+    local a = rawget(_G, "AutoGame_Acc")
+    if type(a) == "table" then
+        return a
+    end
+    a = rawget(_G, "AutoGossip_Acc")
+    if type(a) == "table" then
+        return a
+    end
+    return nil
+end
+
+local function GetTalkCacheAcc()
+    local acc = GetAccountDb()
+    if type(acc) ~= "table" then
+        return nil
+    end
+    if type(acc.gotalkCacheAcc) ~= "table" then
+        acc.gotalkCacheAcc = {}
+    end
+    return acc.gotalkCacheAcc
+end
+
+function ns.Talk.CacheGet(key)
+    if type(key) ~= "string" or key == "" then
+        return nil
+    end
+    local cache = GetTalkCacheAcc()
+    if type(cache) ~= "table" then
+        return nil
+    end
+    return cache[key]
+end
+
+function ns.Talk.CacheSet(key, value)
+    if type(key) ~= "string" or key == "" then
+        return
+    end
+    local cache = GetTalkCacheAcc()
+    if type(cache) ~= "table" then
+        return
+    end
+    if value == nil then
+        value = true
+    end
+    cache[key] = value
+end
+
+local function PlayerHasQuestInLog(questID)
+    questID = tonumber(questID)
+    if not questID then
+        return false
+    end
+
+    if C_QuestLog and type(C_QuestLog.IsOnQuest) == "function" then
+        local ok, on = pcall(C_QuestLog.IsOnQuest, questID)
+        if ok and on then
+            return true
+        end
+    end
+
+    if C_QuestLog and type(C_QuestLog.GetLogIndexForQuestID) == "function" then
+        local ok, idx = pcall(C_QuestLog.GetLogIndexForQuestID, questID)
+        return ok and type(idx) == "number" and idx > 0
+    end
+
+    if type(GetQuestLogIndexByID) == "function" then
+        local ok, idx = pcall(GetQuestLogIndexByID, questID)
+        return ok and type(idx) == "number" and idx > 0
+    end
+
+    return false
+end
+
+local function NormalizeRealmName(realm)
+    realm = tostring(realm or "")
+    realm = realm:gsub("%s+", "")
+    realm = realm:gsub("%-+", "")
+    return realm:lower()
+end
+
+local function PlayerIsCharacter(full)
+    full = tostring(full or "")
+    if full == "" then
+        return false
+    end
+
+    local wantName, wantRealm = full:match("^([^%-]+)%-(.+)$")
+    if not wantName then
+        wantName = full
+        wantRealm = nil
+    end
+
+    local name, realm
+    if UnitName then
+        name, realm = UnitName("player")
+    end
+    if not name then
+        return false
+    end
+
+    if realm == nil then
+        if GetNormalizedRealmName then
+            realm = GetNormalizedRealmName()
+        elseif GetRealmName then
+            realm = GetRealmName()
+        end
+    end
+
+    if tostring(name):lower() ~= tostring(wantName):lower() then
+        return false
+    end
+
+    if wantRealm and wantRealm ~= "" then
+        return NormalizeRealmName(realm) == NormalizeRealmName(wantRealm)
+    end
+
+    return true
+end
+
+-- Expose helpers for DB packs (which load before this file) via ruleEntry.when closures.
+ns.Talk.PlayerHasQuestInLog = PlayerHasQuestInLog
+ns.Talk.PlayerIsCharacter = PlayerIsCharacter
+
 -- Forward-declare helpers used by EnsureEngineInitialized() hooks.
 -- Without this, Lua closures would resolve to nil globals at runtime.
 local GetCurrentNpcID
@@ -51,6 +175,17 @@ function ns.Talk.EnsureEngineInitialized()
                 local entry = LookupRuleEntry(npcTable, optionID)
                 if entry == nil then
                     return
+                end
+
+                if type(entry) == "table" and ns and ns.Talk and type(ns.Talk.CacheSet) == "function" then
+                    local key = entry.cacheKey or entry.cacheSet or entry.cache
+                    if type(key) == "string" and key ~= "" then
+                        local v = entry.cacheValue
+                        if v == nil then
+                            v = true
+                        end
+                        pcall(ns.Talk.CacheSet, key, v)
+                    end
                 end
 
                 if ns and ns.TalkUP and type(ns.TalkUP.SetLastGossipSelection) == "function" then
@@ -103,12 +238,83 @@ local function GetCurrentNpcName()
     return nil
 end
 
-local function CloseGossipWindow()
-    if ns and type(ns.CloseGossipWindow) == "function" then
-        return ns.CloseGossipWindow()
+local function CloseGossipWindow(isRetry)
+    local attempt
+    if type(isRetry) == "number" then
+        attempt = isRetry
+    elseif isRetry then
+        attempt = 1
+    else
+        attempt = 0
     end
-    if C_GossipInfo and C_GossipInfo.CloseGossip then
-        return C_GossipInfo.CloseGossip()
+
+    local function Try(fn, ...)
+        if type(fn) ~= "function" then
+            return false
+        end
+        pcall(fn, ...)
+        return true
+    end
+
+    if ns and type(ns.CloseGossipWindow) == "function" then
+        Try(ns.CloseGossipWindow)
+    end
+
+    if C_GossipInfo and type(C_GossipInfo.CloseGossip) == "function" then
+        Try(C_GossipInfo.CloseGossip)
+    end
+
+    -- Newer interactions are owned by PlayerInteractionManager.
+    if C_PlayerInteractionManager then
+        if type(C_PlayerInteractionManager.ClearInteraction) == "function" then
+            Try(C_PlayerInteractionManager.ClearInteraction)
+        end
+        -- Some clients/APIs may expose alternate close helpers.
+        if type(C_PlayerInteractionManager.CloseInteraction) == "function" then
+            Try(C_PlayerInteractionManager.CloseInteraction)
+        end
+    end
+
+    if _G and type(_G.CloseGossipWindow) == "function" then
+        Try(_G.CloseGossipWindow)
+    end
+
+    if _G and _G.GossipFrame then
+        local closeBtn = _G.GossipFrame.CloseButton
+        if closeBtn and type(closeBtn.Click) == "function" then
+            Try(closeBtn.Click, closeBtn)
+        end
+        if type(_G.HideUIPanel) == "function" then
+            Try(_G.HideUIPanel, _G.GossipFrame)
+        elseif type(_G.GossipFrame.Hide) == "function" then
+            Try(_G.GossipFrame.Hide, _G.GossipFrame)
+        end
+    end
+
+    -- Some gossip options transition to the QuestFrame; honor close=true by closing that too.
+    if _G and type(_G.CloseQuest) == "function" then
+        Try(_G.CloseQuest)
+    end
+    if _G and _G.QuestFrame then
+        local closeBtn = _G.QuestFrame.CloseButton
+        if closeBtn and type(closeBtn.Click) == "function" then
+            Try(closeBtn.Click, closeBtn)
+        end
+        if type(_G.HideUIPanel) == "function" then
+            Try(_G.HideUIPanel, _G.QuestFrame)
+        elseif type(_G.QuestFrame.Hide) == "function" then
+            Try(_G.QuestFrame.Hide, _G.QuestFrame)
+        end
+    end
+
+    -- Retry a few times after the UI has had time to transition.
+    -- Some options bounce between GossipFrame -> QuestFrame -> GossipFrame.
+    if attempt < 4 and C_Timer and type(C_Timer.After) == "function" then
+        local delays = { 0.10, 0.28, 0.55, 0.90 }
+        local d = delays[attempt + 1] or 0.20
+        C_Timer.After(d, function()
+            CloseGossipWindow(attempt + 1)
+        end)
     end
 end
 
@@ -946,6 +1152,16 @@ function ns.Talk.TryAutoSelect(isRetry)
                 end
 
                 if SelectEntry(bestG, npcID, entriesKey, isFirst) then
+                    if type(bestEntry) == "table" and ns and ns.Talk and type(ns.Talk.CacheSet) == "function" then
+                        local key = bestEntry.cacheKey or bestEntry.cacheSet or bestEntry.cache
+                        if type(key) == "string" and key ~= "" then
+                            local v = bestEntry.cacheValue
+                            if v == nil then
+                                v = true
+                            end
+                            pcall(ns.Talk.CacheSet, key, v)
+                        end
+                    end
                     if EntryWantsCloseAfterSelect(bestEntry) then
                         local d = isFirst and 0.65 or 0.35
                         if C_Timer and C_Timer.After then
@@ -1070,6 +1286,16 @@ function ns.Talk.TryAutoSelect(isRetry)
             end
 
             if SelectEntry(bestG, npcID, entriesKey, isFirst) then
+                if type(bestEntry) == "table" and ns and ns.Talk and type(ns.Talk.CacheSet) == "function" then
+                    local key = bestEntry.cacheKey or bestEntry.cacheSet or bestEntry.cache
+                    if type(key) == "string" and key ~= "" then
+                        local v = bestEntry.cacheValue
+                        if v == nil then
+                            v = true
+                        end
+                        pcall(ns.Talk.CacheSet, key, v)
+                    end
+                end
                 if EntryWantsCloseAfterSelect(bestEntry) then
                     local d = isFirst and 0.65 or 0.35
                     if C_Timer and C_Timer.After then

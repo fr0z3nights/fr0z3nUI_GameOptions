@@ -413,13 +413,31 @@ do
     if g.warBankEnabled == nil then g.warBankEnabled = false end
     g.warBankEnabled = (g.warBankEnabled == true)
 
-    -- Warbank: Everything-But-Min toggle (scope-scoped).
-    if g.warBankEB == nil then g.warBankEB = false end
-    g.warBankEB = (g.warBankEB == true)
+    -- Warbank: Excess toggle (XS) (scope-scoped). Migrate legacy EB field.
+    if g.warBankXS == nil and g.warBankEB ~= nil then
+      g.warBankXS = (g.warBankEB == true)
+      g.warBankEB = nil
+    end
+    if g.warBankXS == nil then g.warBankXS = false end
+    g.warBankXS = (g.warBankXS == true)
 
-    -- Guild Bank: Everything-But-Min toggle (scope-scoped).
-    if g.guildBankEB == nil then g.guildBankEB = false end
-    g.guildBankEB = (g.guildBankEB == true)
+    -- Guild Bank: Excess toggle (XS) (scope-scoped). Migrate legacy EB field.
+    if g.guildBankXS == nil and g.guildBankEB ~= nil then
+      g.guildBankXS = (g.guildBankEB == true)
+      g.guildBankEB = nil
+    end
+    if g.guildBankXS == nil then g.guildBankXS = false end
+    g.guildBankXS = (g.guildBankXS == true)
+
+    -- Cached bank balances (best-effort; used for XS balancing).
+    if g.guildBankMoneyCached ~= nil then
+      g.guildBankMoneyCached = math.floor(tonumber(g.guildBankMoneyCached) or 0)
+      if g.guildBankMoneyCached < 0 then g.guildBankMoneyCached = 0 end
+    end
+    if g.guildBankMoneyCachedTS ~= nil then
+      g.guildBankMoneyCachedTS = math.floor(tonumber(g.guildBankMoneyCachedTS) or 0)
+      if g.guildBankMoneyCachedTS < 0 then g.guildBankMoneyCachedTS = 0 end
+    end
 
     -- Scope-scoped safety/borrowing controls.
     if g.minGold == nil then g.minGold = 0 end
@@ -470,11 +488,21 @@ do
     if cfg.warBankEnabled == nil then cfg.warBankEnabled = false end
     cfg.warBankEnabled = (cfg.warBankEnabled == true)
 
-    if cfg.warBankEB == nil then cfg.warBankEB = false end
-    cfg.warBankEB = (cfg.warBankEB == true)
+    -- Excess toggle (XS). Migrate legacy EB fields.
+    if cfg.warBankXS == nil and cfg.warBankEB ~= nil then
+      cfg.warBankXS = (cfg.warBankEB == true)
+      cfg.warBankEB = nil
+    end
+    if cfg.guildBankXS == nil and cfg.guildBankEB ~= nil then
+      cfg.guildBankXS = (cfg.guildBankEB == true)
+      cfg.guildBankEB = nil
+    end
 
-    if cfg.guildBankEB == nil then cfg.guildBankEB = false end
-    cfg.guildBankEB = (cfg.guildBankEB == true)
+    if cfg.warBankXS == nil then cfg.warBankXS = false end
+    cfg.warBankXS = (cfg.warBankXS == true)
+
+    if cfg.guildBankXS == nil then cfg.guildBankXS = false end
+    cfg.guildBankXS = (cfg.guildBankXS == true)
 
     -- Scope-scoped safety/borrowing controls live on the active cfg.
     -- Migrate legacy per-character fields (ct.minGold/ct.allowWithdraw) into cfg if present.
@@ -526,6 +554,16 @@ do
     if ct.warBal.due < 0 then ct.warBal.due = 0 end
     if ct.warBal.paidToDate < 0 then ct.warBal.paidToDate = 0 end
 
+    -- Cached bank balances (best-effort; used for XS balancing).
+    if ct.warBankMoneyCached ~= nil then
+      ct.warBankMoneyCached = math.floor(tonumber(ct.warBankMoneyCached) or 0)
+      if ct.warBankMoneyCached < 0 then ct.warBankMoneyCached = 0 end
+    end
+    if ct.warBankMoneyCachedTS ~= nil then
+      ct.warBankMoneyCachedTS = math.floor(tonumber(ct.warBankMoneyCachedTS) or 0)
+      if ct.warBankMoneyCachedTS < 0 then ct.warBankMoneyCachedTS = 0 end
+    end
+
     return ct
   end
 
@@ -564,6 +602,131 @@ do
       return "guild", g, (g.sharedBal)
     end
     return "guild", g, (ct and ct.bal) or nil
+  end
+
+  local function NowTS()
+    if type(time) == "function" then
+      local v = math.floor(tonumber(time()) or 0)
+      if v > 0 then return v end
+    end
+    return 0
+  end
+
+  local function CacheGuildBankMoneyFromAPI()
+    local guildKey = select(1, GetCurrentGuildKeyAndName())
+    if not guildKey then return end
+    local g = EnsureGuildTaxDB(guildKey)
+    if type(g) ~= "table" then return end
+    if type(GetGuildBankMoney) ~= "function" then return end
+
+    local ok, v = pcall(GetGuildBankMoney)
+    local money = ok and math.floor(tonumber(v) or 0) or nil
+    if type(money) == "number" and money >= 0 then
+      g.guildBankMoneyCached = money
+      g.guildBankMoneyCachedTS = NowTS()
+    end
+  end
+
+  local function CacheWarbankMoneyFromAPI()
+    local ct = EnsureCharTaxDB()
+    if type(ct) ~= "table" then return end
+
+    local bankType = (Enum and Enum.BankType) and Enum.BankType or nil
+    if not (bankType and bankType.Account) then return end
+    local cBank = _G and rawget(_G, "C_Bank")
+    if type(cBank) ~= "table" then return end
+
+    local money = nil
+    -- Best-effort: API names vary by client build; only call when present.
+    if type(cBank.GetBankMoney) == "function" then
+      local ok, v = pcall(cBank.GetBankMoney, bankType.Account)
+      if ok then money = math.floor(tonumber(v) or 0) end
+    elseif type(cBank.GetMoney) == "function" then
+      local ok, v = pcall(cBank.GetMoney, bankType.Account)
+      if ok then money = math.floor(tonumber(v) or 0) end
+    end
+
+    if type(money) == "number" and money >= 0 then
+      ct.warBankMoneyCached = money
+      ct.warBankMoneyCachedTS = NowTS()
+    end
+  end
+
+  local function ApplyBankDeltaToCaches(bankKind, playerMoneyDelta)
+    playerMoneyDelta = math.floor(tonumber(playerMoneyDelta) or 0)
+    if playerMoneyDelta == 0 then return end
+    local bankDelta = -playerMoneyDelta
+
+    if bankKind == "guild" then
+      local guildKey = select(1, GetCurrentGuildKeyAndName())
+      if not guildKey then return end
+      local g = EnsureGuildTaxDB(guildKey)
+      if type(g) ~= "table" then return end
+
+      if g.guildBankMoneyCached == nil then
+        CacheGuildBankMoneyFromAPI()
+      end
+      local cur = tonumber(g.guildBankMoneyCached)
+      if type(cur) ~= "number" then return end
+      cur = math.floor(cur)
+      cur = cur + bankDelta
+      if cur < 0 then cur = 0 end
+      g.guildBankMoneyCached = cur
+      g.guildBankMoneyCachedTS = NowTS()
+      return
+    end
+
+    if bankKind == "warbank" then
+      local ct = EnsureCharTaxDB()
+      if type(ct) ~= "table" then return end
+
+      if ct.warBankMoneyCached == nil then
+        CacheWarbankMoneyFromAPI()
+      end
+      local cur = tonumber(ct.warBankMoneyCached)
+      if type(cur) ~= "number" then return end
+      cur = math.floor(cur)
+      cur = cur + bankDelta
+      if cur < 0 then cur = 0 end
+      ct.warBankMoneyCached = cur
+      ct.warBankMoneyCachedTS = NowTS()
+      return
+    end
+  end
+
+  local function ComputeEBExtraSplit(extra, guildMoneyCached, warMoneyCached)
+    extra = math.floor(tonumber(extra) or 0)
+    if extra <= 0 then return 0, 0 end
+
+    local g = (type(guildMoneyCached) == "number") and math.floor(guildMoneyCached) or nil
+    local w = (type(warMoneyCached) == "number") and math.floor(warMoneyCached) or nil
+    if g == nil or w == nil then
+      local toGuild = math.floor(extra / 2)
+      return toGuild, (extra - toGuild)
+    end
+    if g < 0 then g = 0 end
+    if w < 0 then w = 0 end
+
+    local lowIsGuild = (g < w)
+    local diff = w - g
+    if diff < 0 then diff = -diff end
+
+    if diff >= extra then
+      if lowIsGuild then
+        return extra, 0
+      end
+      return 0, extra
+    end
+
+    local toLow = math.floor((extra + diff) / 2)
+    if toLow < 0 then toLow = 0 end
+    if toLow > extra then toLow = extra end
+    local toHigh = extra - toLow
+
+    if lowIsGuild then
+      return toLow, toHigh
+    end
+    return toHigh, toLow
   end
 
   local function MoneyToString(copper)
@@ -889,13 +1052,13 @@ do
     end
 
     local function DoDeposit()
-      local ebEnabled = (cfg.guildBankEB == true)
+      local xsEnabled = (cfg.guildBankXS == true)
       local dueTax = math.floor(tonumber(bal.dueTax) or 0)
       local dueBorrowed = math.floor(tonumber(bal.dueBorrowed) or 0)
       if dueTax < 0 then dueTax = 0 end
       if dueBorrowed < 0 then dueBorrowed = 0 end
       local due = dueTax + dueBorrowed
-      if due <= 0 and not ebEnabled then return end
+      if due <= 0 and not xsEnabled then return end
 
       -- XS: only pay excess above MinGold + (Guild Owed + WarBank Owed).
       local warDue = 0
@@ -927,10 +1090,28 @@ do
       if available < 0 then available = 0 end
 
       local toPay
-      if ebEnabled then
+      if xsEnabled then
         local extra = available - totalOwed
         if extra < 0 then extra = 0 end
-        toPay = due + extra
+        if scope == "guild" and cfg.warBankEnabled == true and cfg.warBankXS == true then
+          local guildKey = select(1, GetCurrentGuildKeyAndName())
+          local g = guildKey and EnsureGuildTaxDB(guildKey) or nil
+          local ct = EnsureCharTaxDB()
+          local gMoney = (type(g) == "table") and g.guildBankMoneyCached or nil
+          local wMoney = (type(ct) == "table") and ct.warBankMoneyCached or nil
+          local extraGuild, extraWar = ComputeEBExtraSplit(extra, gMoney, wMoney)
+          TaxDbg(cfg, string.format(
+            "XS split: extra=%d gCached=%s wCached=%s -> gExtra=%d wExtra=%d",
+            extra,
+            tostring(gMoney),
+            tostring(wMoney),
+            math.floor(tonumber(extraGuild) or 0),
+            math.floor(tonumber(extraWar) or 0)
+          ))
+          toPay = due + extraGuild
+        else
+          toPay = due + extra
+        end
       else
         toPay = due
         if toPay > available then
@@ -953,6 +1134,7 @@ do
         PushPendingDelta(state._pendingGuildDeltas, -toPay)
         local ok = pcall(DepositGuildBankMoney, toPay)
         if ok then
+          ApplyBankDeltaToCaches("guild", -toPay)
           local payToDue = toPay
           if payToDue > due then payToDue = due end
 
@@ -996,6 +1178,7 @@ do
             PushPendingDelta(state._pendingGuildDeltas, need)
             local ok = pcall(WithdrawGuildBankMoney, need)
             if ok then
+              ApplyBankDeltaToCaches("guild", need)
               bal.dueBorrowed = math.floor((tonumber(bal.dueBorrowed) or 0) + need)
               if bal.dueBorrowed < 0 then bal.dueBorrowed = 0 end
               bal.dueTax = math.floor(tonumber(bal.dueTax) or 0)
@@ -1076,14 +1259,14 @@ do
     end
 
     local function DoDeposit()
-      local ebEnabled = (cfg.warBankEB == true)
+      local xsEnabled = (cfg.warBankXS == true)
 
       local dueTax = math.floor(tonumber(wb.dueTax) or 0)
       local dueBorrowed = math.floor(tonumber(wb.dueBorrowed) or 0)
       if dueTax < 0 then dueTax = 0 end
       if dueBorrowed < 0 then dueBorrowed = 0 end
       local due = dueTax + dueBorrowed
-      if due <= 0 and not ebEnabled then return end
+      if due <= 0 and not xsEnabled then return end
 
       -- XS: only pay excess above MinGold + (Guild Owed + WarBank Owed).
       local guildDue = 0
@@ -1110,10 +1293,29 @@ do
       if available < 0 then available = 0 end
 
       local toPay
-      if ebEnabled then
+      if xsEnabled then
         local extra = available - totalOwed
         if extra < 0 then extra = 0 end
-        toPay = due + extra
+        if cfg.guildBankXS == true then
+          local guildKey = select(1, GetCurrentGuildKeyAndName())
+          local g = guildKey and EnsureGuildTaxDB(guildKey) or nil
+          local gMoney = (type(g) == "table") and g.guildBankMoneyCached or nil
+          local wMoney = (type(ct) == "table") and ct.warBankMoneyCached or nil
+          local _, extraWar = ComputeEBExtraSplit(extra, gMoney, wMoney)
+          local extraGuild = extra - math.floor(tonumber(extraWar) or 0)
+          if extraGuild < 0 then extraGuild = 0 end
+          TaxDbg(cfg, string.format(
+            "XS split: extra=%d gCached=%s wCached=%s -> gExtra=%d wExtra=%d",
+            extra,
+            tostring(gMoney),
+            tostring(wMoney),
+            math.floor(tonumber(extraGuild) or 0),
+            math.floor(tonumber(extraWar) or 0)
+          ))
+          toPay = due + extraWar
+        else
+          toPay = due + extra
+        end
       else
         toPay = due
         if toPay > available then
@@ -1133,6 +1335,7 @@ do
         PushPendingDelta(state._pendingWarbankDeltas, -toPay)
         local ok = pcall(C_Bank.DepositMoney, bankType.Account, toPay)
         if ok then
+          ApplyBankDeltaToCaches("warbank", -toPay)
           local payToDue = toPay
           if payToDue > due then payToDue = due end
 
@@ -1166,6 +1369,7 @@ do
           PushPendingDelta(state._pendingWarbankDeltas, need)
           local ok = pcall(C_Bank.WithdrawMoney, bankType.Account, need)
           if ok then
+            ApplyBankDeltaToCaches("warbank", need)
             wb.dueBorrowed = math.floor((tonumber(wb.dueBorrowed) or 0) + need)
             if wb.dueBorrowed < 0 then wb.dueBorrowed = 0 end
             wb.dueTax = math.floor(tonumber(wb.dueTax) or 0)
@@ -1352,6 +1556,9 @@ do
       if state.guildBankOpen then
         state._manualPrevMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
         state._pendingGuildDeltas = {}
+
+        -- Seed cached money (used for XS balancing).
+        CacheGuildBankMoneyFromAPI()
       else
         state._manualPrevMoney = nil
         state._pendingGuildDeltas = {}
@@ -1377,6 +1584,9 @@ do
       if state.warbankOpen then
         state._manualPrevMoneyWar = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
         state._pendingWarbankDeltas = {}
+
+        -- Seed cached money (used for XS balancing).
+        CacheWarbankMoneyFromAPI()
       else
         state._manualPrevMoneyWar = nil
         state._pendingWarbankDeltas = {}
@@ -1404,6 +1614,8 @@ do
     if state.guildBankOpen then
       state._manualPrevMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
       state._pendingGuildDeltas = {}
+
+      CacheGuildBankMoneyFromAPI()
     else
       state._manualPrevMoney = nil
       state._pendingGuildDeltas = {}
@@ -1447,6 +1659,8 @@ do
     if state.warbankOpen then
       state._manualPrevMoneyWar = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
       state._pendingWarbankDeltas = {}
+
+      CacheWarbankMoneyFromAPI()
     else
       state._manualPrevMoneyWar = nil
       state._pendingWarbankDeltas = {}
@@ -1544,8 +1758,11 @@ do
         if not PopIfMatches(state._pendingGuildDeltas, delta) then
           local _, cfg, bal = GetActiveScopeCfgAndBal()
           if type(cfg) == "table" and type(bal) == "table" then
+            ApplyBankDeltaToCaches("guild", delta)
             ApplyManualDepositOrWithdraw(cfg, bal, delta, "Guild Bank")
           end
+        else
+          ApplyBankDeltaToCaches("guild", delta)
         end
       end
     end
@@ -1563,9 +1780,12 @@ do
             local ct = EnsureCharTaxDB()
             local wb = ct and ct.warBal
             if type(wb) == "table" then
+              ApplyBankDeltaToCaches("warbank", delta)
               ApplyManualDepositOrWithdraw(cfg, wb, delta, "WarBank")
             end
           end
+        else
+          ApplyBankDeltaToCaches("warbank", delta)
         end
       end
     end
