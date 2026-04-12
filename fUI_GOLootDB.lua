@@ -41,12 +41,14 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X05:PBAki",        text = "Aki the Chosen says" },
     { key = "X05:PBAnthea",     text = "Anthea says" },
     { key = "X05:PBBurning",    text = "Burning Pandaren Spirit says" },
+--Midnight
 --Addon
     { key = "ANG:Awake",        text = "Is awake. To temporarily disable" },
     { key = "ANG:Config",       text = "To access the configuration menu," },
     { key = "ANG:Thank",        text = "Thank you for using Angleur" },
     { key = "ANG:Visual",       text = "the Visual Button." },
-    { key = "RMB:NoKeybind",    text = "Hey Bud! You're seeing this beacause" },
+    { key = "RMB:NoKeybind",    text = "Hey Bud! You're seeing this because" },
+    { key = "VMB:Version",      text = "Vamoose's Endeavors v" },
     { key = "XAN:Loaded",       text = "] loaded" },
     { key = "ZYG:ActvGuide",    text = "Activated guide:" },
     { key = "ZYG:GoldGuide",    text = "Gold Guide:" },

@@ -1,4 +1,4 @@
-local _, ns = ...
+﻿local _, ns = ...
 
 ns.db = ns.db or {}
 ns.db.rules = ns.db.rules or {}
@@ -12,7 +12,8 @@ ns.db.rules = ns.db.rules or {}
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+local t
 local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
@@ -140,7 +141,7 @@ local function NPC(npcName, npcIDs)
 end
 SetZone("Dalaran, Broken Isles")
 
-    local t = NPC("Manapoof", 121602)
+    t = NPC("Manapoof", 121602)
 	t[47010] = { prio = 10, text = "Stratholme", when = function() return PlayerHasQuestInLog(86839) end }
 	t[47009] = { prio = 09, text = "Gnomeregan", when = function() return PlayerIsCharacter("Shadowspiner-Dath'Remar") end }
 --  t[47007] = { text = "Would you please send me to the Wailing Caverns?" }

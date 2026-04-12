@@ -1,4 +1,4 @@
-local _, ns = ...
+﻿local _, ns = ...
 
 ns.db = ns.db or {}
 ns.db.rules = ns.db.rules or {}
@@ -12,7 +12,8 @@ ns.db.rules = ns.db.rules or {}
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+local t
 local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
@@ -140,10 +141,10 @@ local function NPC(npcName, npcIDs)
 end
 SetZone("Oribos, Shadowlands")
 
-    local t = NPC("Protector Captain", 168252)
+    t = NPC("Protector Captain", 168252)
     t[53754] = { text = "Where am I? Have I escaped the Maw?" }
 
-   local t = NPC("Overseer Kah-Delen", 167425)
+   t = NPC("Overseer Kah-Delen", 167425)
    t[131497] = { text = "I've been here before. <Skip the level up campaign and unlock world content.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, }
 
 

@@ -4,10 +4,92 @@ Format: `YYYY.MM.DD.NN` (TOC `## Version`) — short summary. Newest at the top.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+## 2026.04.13.02
+- Files: `fUI_GOTax.lua`, `fUI_GOTaxUI.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Print button now cycles deposit prints Off → Basic → Detail → Full (single button).
+- Tax: Detail is now compact (shows deposit and owed/XS attribution); Full shows the prior multi-line breakdown.
+
+## 2026.04.13.03
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Shorten Detail deposit lines to `Deposited (...)` and use `GB`/`WB` labels (keeps gold icon formatting).
+
+## 2026.04.13.04
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Adjust Detail deposit format to `GB/WB Deposit ...` lines; XS line now shows `available - XS` (keeps gold icon formatting).
+
+## 2026.04.11.11
+- Files: `fUI_GOSwitchesFB.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Switches: Added Fishing (FB) 3-segment row (Fish / Enable / Config) placed between Mail and Safari.
+- Switches: Fishing Config opens a minimal right-side popout (placeholder for future settings).
+
+## 2026.04.11.12
+- Files: `fUI_GOSwitchesFB.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Replaced placeholder popout with functional controls: Apply/Restore fishing audio+loot CVars (via seeded Macro CMD entries) and configure/use a preferred bobber ToyID and lure ItemID using secure-action buttons.
+
+## 2026.04.11.13
+- Files: `fUI_GOSwitchesFB.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Reworked the popout layout (intermediate iteration).
+
+## 2026.04.11.14
+- Files: `fUI_GOSwitchesFB.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Removed embedded Macro-style “Fish” button; popout now focuses on configuring and directly using bobber ToyID + lure ItemID via secure toy/item buttons.
+
+## 2026.04.11.15
+- Files: `fUI_GOSwitchesFB.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Auto-applies the fishing prep CVars while the player is actively channeling Fishing, and restores prior CVar values when fishing ends (no UI interaction required).
+
+## 2026.04.11.16
+- Files: `fUI_GOSwitchesFB.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Removed the automatic CVar watcher; added a popout button to create/update a real fishing macro (`FGO_Fish`) from your configured lure/bobber IDs, plus a small on-screen reminder while channeling Fishing.
+
+## 2026.04.11.17
+- Files: `fUI_GOSwitchesFB.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Display the configured bobber/lure in the Fishing popout and in the Fish button tooltip (shows item links when available).
+
+## 2026.04.11.18
+- Files: `fUI_GOSwitchesFB.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Fix blocked action error when opening the Fishing config in combat by preventing popout creation during combat lockdown.
+
+## 2026.04.11.19
+- Files: `fUI_GOSwitchesFB.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Remove the protected "Use" buttons (they caused blocked `SetPoint` errors). Keep the macro workflow + bobber/lure display.
+
+## 2026.04.11.20
+- Files: `fUI_GOSwitchesFB.lua`, `fr0z3nUI_GameOptions.toc`
+- Fishing (FB): Rebuild Fishing Config as a standard FGO popout window (same structure/anchoring/padding style as Mail Config).
+
+## 2026.04.12.02
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Revert the XS “other bank owed” gating; excess is again computed above `Min Gold + (Guild Owed + WarBank Owed)` so one bank’s XS can’t consume gold needed to pay the other bank’s owed.
+
 ## 2026.04.11.04
 - Files: `fUI_GOTrade.lua`, `fr0z3nUI_GameOptions.toc`
 - Trade (Merchant): Allow the sell pass (including Low Food selling) to run even at merchants with 0 items for sale ("no stock" vendors can still buy from you). Buy/restock rules are skipped when the merchant list is empty, but Low Food + sell rules are no longer blocked.
 - Trade (Merchant): tradeDebug summary now includes `foodEnabled` + `foodDiff`.
+
+## 2026.04.11.07
+- Files: `fUI_GOTalk01EK.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Fix `fUI_GOTalk01EK.lua` failing to load due to Lua's 200-active-locals limit (caused by many repeated `local t = NPC(...)` declarations) by scoping large sections into blocks.
+
+## 2026.04.11.08
+- Files: `fUI_GOTalk01EK.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Refactor `fUI_GOTalk01EK.lua` to reuse a single `t` variable (`t = NPC(...)`) instead of declaring `local t` repeatedly, preventing future growth from reintroducing the Lua local-limit load failure.
+
+## 2026.04.11.09
+- Files: `fUI_GOTalk01KD.lua`, `fUI_GOTalk02.lua`, `fUI_GOTalk03.lua`, `fUI_GOTalk04.lua`, `fUI_GOTalk05.lua`, `fUI_GOTalk06.lua`, `fUI_GOTalk07.lua`, `fUI_GOTalk08KT.lua`, `fUI_GOTalk08ZL.lua`, `fUI_GOTalk09.lua`, `fUI_GOTalk10.lua`, `fUI_GOTalk11.lua`, `fUI_GOTalk12.lua`, `fUI_GOTalkEV.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Refactor remaining DB packs to reuse a single `t` variable (`t = NPC(...)`) so none of them can hit Lua's 200-active-locals load failure as they grow.
+
+## 2026.04.11.10
+- Files: `fUI_GOTalk02.lua`, `fUI_GOTalk04.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Add the reusable `t` variable to the (currently empty) XP02/XP04 DB packs so future entries don’t accidentally reintroduce the repeated-`local t` pattern.
+
+## 2026.04.11.06
+- Files: `fUI_GOTax.lua`, `fr0z3nUI_GameOptions.toc`
+- FGO Tax (Warbank): Prevent duplicate auto-pay executions from overlapping warbank-open signals (InteractionManager + bank ticker + money events), which could schedule two deposits from the same money snapshot and then trigger a compensating withdraw back to Min Gold.
+
+## 2026.04.11.05
+- Files: `fUI_GOTalk.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Fix `close = true` not closing some non-gossip interaction UIs by also closing PlayerChoice/QuestChoice-style frames (in addition to Gossip/Quest + InteractionManager).
 
 # 2026.04.10.41
 - Files: `fUI_GOTalk05.lua`, `fr0z3nUI_GameOptions.toc`

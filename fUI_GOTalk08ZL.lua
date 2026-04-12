@@ -1,4 +1,4 @@
----@diagnostic disable: undefined-global
+﻿---@diagnostic disable: undefined-global
 
 local _, ns = ...
 
@@ -14,7 +14,8 @@ ns.db.rules = ns.db.rules or {}
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+local t
 local function SetZone(zone)
     CURRENT_ZONE = zone
 end
@@ -143,19 +144,19 @@ end
 
 SetZone("Dazar'alor, Zandalar")
 
-   local t = NPC("Brillin the Beauty", { 122690, })
+   t = NPC("Brillin the Beauty", { 122690, })
    t[ 47954] = { text = "Let me browse your goods.", }     													-- Innkeeper Brillin the Beauty (122690)
 
-   local t = NPC("Examiner Alerinda", { 122701, })
+   t = NPC("Examiner Alerinda", { 122701, })
    t[ 49309] = { text = "Train me in Archaeology.", }     													-- Examiner Alerinda (122701)
 
-   local t = NPC("Pin'jin the Patient", { 122700, })
+   t = NPC("Pin'jin the Patient", { 122700, })
    t[ 50268] = { text = "Train me in Tailoring.", }     														-- Pin'jin the Patient (122700)
 
-   local t = NPC("Princess Talanji", { 135440, })
+   t = NPC("Princess Talanji", { 135440, })
    t[ 47851] = { text = "Take me to King Rastakhan.", }     													-- Rastakhan (46930) Princess Talanji (135440)
 
-   local t = NPC("Secott the Goldsmith", { 122694, })
+   t = NPC("Secott the Goldsmith", { 122694, })
    t[ 49216] = { text = "Train me in Mining.", }     														-- Secott the Goldsmith (122694)
 
 

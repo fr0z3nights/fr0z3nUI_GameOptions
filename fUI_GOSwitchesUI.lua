@@ -56,9 +56,14 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         chromie = chromie or (_G and rawget(_G, "FGO_ChromieConfigPopup"))
 
         local safari = (_G and rawget(_G, "FGO_SafariPopout"))
+        local fishing = nil
+        if ns and ns.SwitchesFB and ns.SwitchesFB.GetFishingConfigPopupFrame then
+            fishing = ns.SwitchesFB.GetFishingConfigPopupFrame()
+        end
+        fishing = fishing or (_G and rawget(_G, "FGO_FishingPopout"))
         local queueAccept = (_G and rawget(_G, "FGO_QueueAcceptPopout"))
 
-        for _, f in ipairs({ pet, mu, chromie, safari, queueAccept }) do
+        for _, f in ipairs({ pet, mu, chromie, safari, fishing, queueAccept }) do
             if f and f ~= exceptFrame then
                 HideIfShown(f)
             end
@@ -1234,10 +1239,146 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end)
     segMailConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
+    -- Fishing (FB) segments (between Mail and Safari)
+    local fishSegContainer = CreateFrame("Frame", nil, panel)
+    fishSegContainer:SetSize(BTN_W, BTN_H)
+    fishSegContainer:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.fishingSegContainer = fishSegContainer
+    end
+
+    local segFish = CreateFrame("Button", nil, fishSegContainer, "UIPanelButtonTemplate")
+    segFish:SetSize(SEG_W, BTN_H)
+    segFish:SetPoint("LEFT", fishSegContainer, "LEFT", 0, 0)
+    if frame then
+        frame.btnFishingSegMain = segFish
+    end
+
+    local segFishEnable = CreateFrame("Button", nil, fishSegContainer, "UIPanelButtonTemplate")
+    segFishEnable:SetSize(SEG_W, BTN_H)
+    segFishEnable:SetPoint("LEFT", segFish, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnFishingSegEnable = segFishEnable
+    end
+
+    local segFishConfig = CreateFrame("Button", nil, fishSegContainer, "UIPanelButtonTemplate")
+    segFishConfig:SetSize(SEG_W3, BTN_H)
+    segFishConfig:SetPoint("LEFT", segFishEnable, "RIGHT", SEG_GAP, 0)
+    if frame then
+        frame.btnFishingSegConfig = segFishConfig
+    end
+
+    local function UpdateFishingSegments()
+        InitSV()
+        local accOn = (AutoGossip_Settings and AutoGossip_Settings.fishingEnabledAcc) and true or false
+        local effective = accOn
+        if AutoGossip_CharSettings and AutoGossip_CharSettings.fishingEnabledOverride ~= nil then
+            effective = (AutoGossip_CharSettings.fishingEnabledOverride == true)
+        end
+
+        SetSegGreenGrey(segFish, "Fish", accOn)
+        SetSegGreenGrey(segFishEnable, "Enable", effective)
+        segFishConfig:SetText("Config")
+    end
+
+    segFish:SetScript("OnClick", function()
+        InitSV()
+        if type(AutoGossip_Settings) ~= "table" then return end
+        AutoGossip_Settings.fishingEnabledAcc = not (AutoGossip_Settings.fishingEnabledAcc and true or false)
+        UpdateFishingSegments()
+        if ns and ns.SwitchesFB and type(ns.SwitchesFB.OnSettingsChanged) == "function" then
+            ns.SwitchesFB.OnSettingsChanged()
+        end
+    end)
+    segFish:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segFish, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Fishing")
+            GameTooltip:AddLine("Green: ON ACC (enables Fishing module account-wide).", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: OFF ACC.", 1, 1, 1, true)
+
+            InitSV()
+            local toyID = tonumber(AutoGossip_Settings and AutoGossip_Settings.fishingBobberToyIDAcc) or 0
+            local lureID = tonumber(AutoGossip_Settings and AutoGossip_Settings.fishingLureItemIDAcc) or 0
+            if toyID > 0 or lureID > 0 then
+                GameTooltip:AddLine(" ", 1, 1, 1, true)
+            end
+            if toyID > 0 then
+                local link = nil
+                if type(GetItemInfo) == "function" then
+                    link = select(2, GetItemInfo(toyID))
+                end
+                GameTooltip:AddLine("Bobber: " .. tostring(link or ("item:" .. tostring(toyID))), 1, 1, 1, true)
+            end
+            if lureID > 0 then
+                local link = nil
+                if type(GetItemInfo) == "function" then
+                    link = select(2, GetItemInfo(lureID))
+                end
+                GameTooltip:AddLine("Lure: " .. tostring(link or ("item:" .. tostring(lureID))), 1, 1, 1, true)
+            end
+            GameTooltip:Show()
+        end
+    end)
+    segFish:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segFishEnable:SetScript("OnClick", function()
+        InitSV()
+        if type(AutoGossip_CharSettings) ~= "table" then return end
+
+        local accOn = (AutoGossip_Settings and AutoGossip_Settings.fishingEnabledAcc) and true or false
+        local effective = accOn
+        if AutoGossip_CharSettings.fishingEnabledOverride ~= nil then
+            effective = (AutoGossip_CharSettings.fishingEnabledOverride == true)
+        end
+        AutoGossip_CharSettings.fishingEnabledOverride = not effective
+
+        UpdateFishingSegments()
+        if ns and ns.SwitchesFB and type(ns.SwitchesFB.OnSettingsChanged) == "function" then
+            ns.SwitchesFB.OnSettingsChanged()
+        end
+    end)
+    segFishEnable:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segFishEnable, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Enable")
+            GameTooltip:AddLine("Green: enabled on this character.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: disabled on this character.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segFishEnable:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segFishConfig:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segFishConfig, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Config")
+            GameTooltip:AddLine("Open Fishing configuration.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segFishConfig:SetScript("OnClick", function()
+        local pop = nil
+        if ns and ns.SwitchesFB and type(ns.SwitchesFB.GetFishingConfigPopupFrame) == "function" then
+            pop = ns.SwitchesFB.GetFishingConfigPopupFrame()
+        end
+        pop = pop or (_G and rawget(_G, "FGO_FishingPopout"))
+
+        if pop and pop.IsShown and pop:IsShown() then
+            if pop.Hide then pop:Hide() end
+            return
+        end
+
+        if ns and ns.SwitchesFB and type(ns.SwitchesFB.ToggleFishingConfigPopup) == "function" then
+            ns.SwitchesFB.ToggleFishingConfigPopup(panel, true, CloseAllConfigPopouts)
+        end
+    end)
+    segFishConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
     -- Safari Hat float segments (below Mail)
     local safariSegContainer = CreateFrame("Frame", nil, panel)
     safariSegContainer:SetSize(BTN_W, BTN_H)
-    safariSegContainer:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
+    safariSegContainer:SetPoint("TOP", fishSegContainer, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.safariHatSegContainer = safariSegContainer
     end
@@ -1677,7 +1818,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
     -- Reorder right-column segment rows to match spec:
     -- Chromie (top) -> Mount Up -> Pet Walk -> then the rest of the buttons.
-    if segContainer and mountSegContainer and petSegContainer and mailSegContainer and safariSegContainer then
+    if segContainer and mountSegContainer and petSegContainer and mailSegContainer and fishSegContainer and safariSegContainer then
         segContainer:ClearAllPoints()
         segContainer:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
 
@@ -1690,8 +1831,11 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         mailSegContainer:ClearAllPoints()
         mailSegContainer:SetPoint("TOP", petSegContainer, "BOTTOM", 0, -GAP_Y)
 
+        fishSegContainer:ClearAllPoints()
+        fishSegContainer:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
+
         safariSegContainer:ClearAllPoints()
-        safariSegContainer:SetPoint("TOP", mailSegContainer, "BOTTOM", 0, -GAP_Y)
+        safariSegContainer:SetPoint("TOP", fishSegContainer, "BOTTOM", 0, -GAP_Y)
     end
 
     -- Anchor Queue Accept + new rows under Mail buttons.
@@ -1730,6 +1874,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     UpdateQueueAcceptSegments()
     UpdatePopUpRow()
     UpdateActionRow()
+    UpdateFishingSegments()
     UpdateSafariHatSegments()
 
     local function TooltipXDisabledPrefix()
@@ -2171,6 +2316,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     UpdateMountUpSegments()
     UpdateChromieSegments()
     UpdateMailNotifySegments()
+    UpdateFishingSegments()
     UpdateTooltipXEnabledButton()
     UpdateTooltipXCombatButton()
     UpdateTooltipXModButton()
@@ -2192,6 +2338,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         UpdateMountUpSegments()
         UpdateChromieSegments()
         UpdateMailNotifySegments()
+        UpdateFishingSegments()
         UpdateTooltipXEnabledButton()
         UpdateTooltipXCombatButton()
         UpdateTooltipXModButton()

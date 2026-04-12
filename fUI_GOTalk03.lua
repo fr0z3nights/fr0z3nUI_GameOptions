@@ -1,4 +1,4 @@
-local _, ns = ...
+﻿local _, ns = ...
 
 ns.db = ns.db or {}
 ns.db.rules = ns.db.rules or {}
@@ -12,7 +12,8 @@ ns.db.rules = ns.db.rules or {}
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+local t
 local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
@@ -140,7 +141,7 @@ end
 SetZone("Zul'Drak, Northrend")
 
 
-	local t = NPC("Maaka", 28624)
+	t = NPC("Maaka", 28624)
     t[36716] = { text = "Show me where I can fly." }
 
 

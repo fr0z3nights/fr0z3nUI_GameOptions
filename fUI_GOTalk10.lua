@@ -1,4 +1,4 @@
-local _, ns = ...
+﻿local _, ns = ...
 
 ns.db = ns.db or {}
 ns.db.rules = ns.db.rules or {}
@@ -12,7 +12,8 @@ ns.db.rules = ns.db.rules or {}
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+local t
 local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
@@ -140,7 +141,7 @@ local function NPC(npcName, npcIDs)
 end
 SetZone("The Forbidden Reach, Dragon Isles")
 
-    local t = NPC("Zone NPCs", { 184165, 182610, 182611, })
+    t = NPC("Zone NPCs", { 184165, 182610, 182611, })
     t[51921] = { text = "Come with me. I will get you to safety." }	-- Halp! (65071)		Little Ko (184165)
     t[51849] = { text = "Come with me. I will get you to safety." }	-- Final Orders (65100)	Scalecommander Viridia (182610)
     t[51850] = { text = "<Relay what Nozdormu told you.>" }			-- Final Orders (65100)	Scalecommander Sarkareth (182611)

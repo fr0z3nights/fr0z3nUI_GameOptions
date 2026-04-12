@@ -1,4 +1,4 @@
-local _, ns = ...
+﻿local _, ns = ...
 
 ns.db = ns.db or {}
 ns.db.rules = ns.db.rules or {}
@@ -11,7 +11,8 @@ ns.db.rules = ns.db.rules or {}
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+local t
 local function SetZone(zone)
     CURRENT_ZONE = zone
 end
@@ -140,7 +141,7 @@ end
 
 SetZone("Midnight Intro")
 
-	local t = NPC("Image of Lady Liadrin", 241677)
+	t = NPC("Image of Lady Liadrin", 241677)
 	t.__meta.stopIfQuestAvailable = { 91281, 88719, }                                                         -- First NPCID, Stops Gossip until quest is accepted
 	t.__meta.stopIfQuestTurnIn = { 91281, }                                                            -- First NPCID, Stops Gossip until quest is accepted
 	t[138201] = { prio = 10, text = "I have heard this tale before. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, }  }

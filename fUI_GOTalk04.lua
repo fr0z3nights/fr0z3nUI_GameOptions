@@ -13,6 +13,9 @@ ns.db.rules = ns.db.rules or {}
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
 
+-- Reuse one variable throughout to avoid Lua's 200-active-locals limit in large packs.
+local t
+
 local function SetZone(zone)
 	CURRENT_ZONE = zone
 end
@@ -141,7 +144,7 @@ end
 --SetZone("Dornogal, Khaz Algar")
 
    -- Delver's Guide
-        --local t = NPC("Delver's Guide", 227675)
+	   --t = NPC("Delver's Guide", 227675)
         --t[123493] = { text = "<Review information on your current delve progress.>" }
 
 

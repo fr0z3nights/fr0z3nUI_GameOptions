@@ -252,8 +252,8 @@ local function CloseGossipWindow(isRetry)
         if type(fn) ~= "function" then
             return false
         end
-        pcall(fn, ...)
-        return true
+        local ok = pcall(fn, ...)
+        return ok and true or false
     end
 
     if ns and type(ns.CloseGossipWindow) == "function" then
@@ -266,12 +266,62 @@ local function CloseGossipWindow(isRetry)
 
     -- Newer interactions are owned by PlayerInteractionManager.
     if C_PlayerInteractionManager then
+        local it = nil
+        if type(C_PlayerInteractionManager.GetInteractionType) == "function" then
+            local okT, vT = pcall(C_PlayerInteractionManager.GetInteractionType)
+            it = okT and vT or nil
+        end
         if type(C_PlayerInteractionManager.ClearInteraction) == "function" then
+            if it ~= nil then
+                Try(C_PlayerInteractionManager.ClearInteraction, it)
+            end
             Try(C_PlayerInteractionManager.ClearInteraction)
         end
         -- Some clients/APIs may expose alternate close helpers.
         if type(C_PlayerInteractionManager.CloseInteraction) == "function" then
+            if it ~= nil then
+                Try(C_PlayerInteractionManager.CloseInteraction, it)
+            end
             Try(C_PlayerInteractionManager.CloseInteraction)
+        end
+    end
+
+    -- Some conversations use PlayerChoice / QuestChoice frames rather than GossipFrame.
+    if C_PlayerChoice and type(C_PlayerChoice.ClosePlayerChoice) == "function" then
+        Try(C_PlayerChoice.ClosePlayerChoice)
+    end
+    if _G and type(_G.ClosePlayerChoice) == "function" then
+        Try(_G.ClosePlayerChoice)
+    end
+    if _G and _G.PlayerChoiceFrame then
+        local f = _G.PlayerChoiceFrame
+        local closeBtn = f.CloseButton
+        if closeBtn and type(closeBtn.Click) == "function" then
+            Try(closeBtn.Click, closeBtn)
+        end
+        if type(_G.HideUIPanel) == "function" then
+            Try(_G.HideUIPanel, f)
+        elseif type(f.Hide) == "function" then
+            Try(f.Hide, f)
+        end
+    end
+
+    if C_QuestChoice and type(C_QuestChoice.CloseQuestChoice) == "function" then
+        Try(C_QuestChoice.CloseQuestChoice)
+    end
+    if _G and type(_G.CloseQuestChoice) == "function" then
+        Try(_G.CloseQuestChoice)
+    end
+    if _G and _G.QuestChoiceFrame then
+        local f = _G.QuestChoiceFrame
+        local closeBtn = f.CloseButton
+        if closeBtn and type(closeBtn.Click) == "function" then
+            Try(closeBtn.Click, closeBtn)
+        end
+        if type(_G.HideUIPanel) == "function" then
+            Try(_G.HideUIPanel, f)
+        elseif type(f.Hide) == "function" then
+            Try(f.Hide, f)
         end
     end
 

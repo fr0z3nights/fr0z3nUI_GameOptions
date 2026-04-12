@@ -1,4 +1,4 @@
-local _, ns = ...
+﻿local _, ns = ...
 
 ns.db = ns.db or {}
 ns.db.rules = ns.db.rules or {}
@@ -14,7 +14,8 @@ ns.db.rules = ns.db.rules or {}
 
 -- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+local t
 local function SetZone(zone)
     CURRENT_ZONE = zone
 end
@@ -142,35 +143,35 @@ local function NPC(npcName, npcIDs)
 end
 SetZone("Dornogal, Khaz Algar")
 
-    local t = NPC("Brann Bronzebeard", 206017)
+    t = NPC("Brann Bronzebeard", 206017)
     t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
     t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
 
-    local t = NPC("Delver's Guide", 227675)
+    t = NPC("Delver's Guide", 227675)
     t[123493] = { text = "<Review information on your current delve progress.>" }
 
-    local t = NPC("Ronesh", 212370)
+    t = NPC("Ronesh", 212370)
     t[121503] = { text = "I want to browse your goods." }
 
 
 SetZone("Hallowfall, Khaz Algar")
 
-    local t = NPC("Aliya Hillhelm", 220293)
+    t = NPC("Aliya Hillhelm", 220293)
     t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this." }
 
-    local t = NPC("Chef Dinaire", 220354)
+    t = NPC("Chef Dinaire", 220354)
     t[121539] = { text = "(Delve) I love scavenger hunts AND treasure. I'm in!" }
     t[121541] = { text = "(Delve) Go get the treasure while I handle whatever is about to attack us." }
 
-    local t = NPC("Lamplighter Havrik Chayvn", 220585)
+    t = NPC("Lamplighter Havrik Chayvn", 220585)
     t[121408] = { text = "(Delve) I'll go deeper in and stop the nerubian ritual." }
 
-    local t = NPC("Zah'ran", 248927)
+    t = NPC("Zah'ran", 248927)
     t[135013] = { text = "Show me." }
 
 SetZone("Azj-Kahet, Khaz Algar")
 
-    local t = NPC("Weaver's Instructions", 220462)
+    t = NPC("Weaver's Instructions", 220462)
     t[121566] = { text = "(Delve) <Close the scroll and take the Weaver's web grappling hook.>" }
 
 

@@ -329,6 +329,20 @@ do
     if g.bankPrintEnabled == nil then g.bankPrintEnabled = true end
     g.bankPrintEnabled = (g.bankPrintEnabled == true)
 
+    -- Deposit print verbosity mode:
+    --   off   => no bank move prints
+    --   basic => "X deposited to Y" (legacy behavior)
+    --   detail=> compact owed/XS explanation
+    --   full  => multi-line explanation
+    if g.bankPrintMode == nil or g.bankPrintMode == "" then
+      g.bankPrintMode = (g.bankPrintEnabled == true) and "basic" or "off"
+    end
+    g.bankPrintMode = tostring(g.bankPrintMode or "basic"):lower()
+    if g.bankPrintMode ~= "off" and g.bankPrintMode ~= "basic" and g.bankPrintMode ~= "detail" and g.bankPrintMode ~= "full" then
+      g.bankPrintMode = (g.bankPrintEnabled == true) and "basic" or "off"
+    end
+    g.bankPrintEnabled = (g.bankPrintMode ~= "off")
+
     -- Manual bank move tracking (deposit/withdraw). Scope-scoped; stored per guild when in Guild scope.
     if g.manualBankMovesEnabled == nil then g.manualBankMovesEnabled = false end
     g.manualBankMovesEnabled = (g.manualBankMovesEnabled == true)
@@ -471,6 +485,15 @@ do
     -- Bank move prints (deposit/withdraw). Scope-scoped; stored per character when in Character scope.
     if cfg.bankPrintEnabled == nil then cfg.bankPrintEnabled = true end
     cfg.bankPrintEnabled = (cfg.bankPrintEnabled == true)
+
+    if cfg.bankPrintMode == nil or cfg.bankPrintMode == "" then
+      cfg.bankPrintMode = (cfg.bankPrintEnabled == true) and "basic" or "off"
+    end
+    cfg.bankPrintMode = tostring(cfg.bankPrintMode or "basic"):lower()
+    if cfg.bankPrintMode ~= "off" and cfg.bankPrintMode ~= "basic" and cfg.bankPrintMode ~= "detail" and cfg.bankPrintMode ~= "full" then
+      cfg.bankPrintMode = (cfg.bankPrintEnabled == true) and "basic" or "off"
+    end
+    cfg.bankPrintEnabled = (cfg.bankPrintMode ~= "off")
 
     -- Manual bank move tracking (deposit/withdraw). Scope-scoped; stored per character when in Character scope.
     if cfg.manualBankMovesEnabled == nil then cfg.manualBankMovesEnabled = false end
@@ -790,6 +813,7 @@ do
   local function PrintBankMove(cfg, copper, direction, bank)
     if type(cfg) ~= "table" then return end
     if cfg.quiet == true then return end
+    if tostring(cfg.bankPrintMode or ""):lower() == "off" then return end
     if not (cfg.bankPrintEnabled == true) then return end
     copper = math.floor(tonumber(copper) or 0)
     if copper <= 0 then return end
@@ -835,6 +859,119 @@ do
     end
 
     Print(GetClassColoredPlayerName() .. " " .. FormatGoldOnly(copper) .. " " .. tostring(direction or "") .. " " .. bankLabel)
+  end
+
+  local function GetBankPrintMode(cfg)
+    if type(cfg) ~= "table" then return "off" end
+    local mode = tostring(cfg.bankPrintMode or "")
+    mode = mode:lower()
+    if mode == "off" or mode == "basic" or mode == "detail" or mode == "full" then
+      return mode
+    end
+    if cfg.bankPrintEnabled == true then
+      return "basic"
+    end
+    return "off"
+  end
+
+  local function PrintTaxAutoDeposit(cfg, bankName, toPayCopper, info)
+    if type(cfg) ~= "table" then return end
+    if cfg.quiet == true then return end
+    if not (cfg.bankPrintEnabled == true) then return end
+
+    local mode = GetBankPrintMode(cfg)
+    if mode == "off" then return end
+
+    local copper = math.floor(tonumber(toPayCopper) or 0)
+    if copper <= 0 then return end
+
+    if mode == "basic" then
+      PrintBankMove(cfg, copper, "deposited to", bankName)
+      return
+    end
+
+    local function NormalizeBankLabel(bankName2)
+      local raw = tostring(bankName2 or "")
+      raw = raw:gsub("^%s+", ""):gsub("%s+$", "")
+      local key = raw:lower():gsub("%s+", "")
+      if key == "guildbank" or key == "guild" then
+        return "Guild Bank", "guild"
+      end
+      if key == "warbank" or key == "warbandbank" or key == "warband" then
+        return "Warband Bank", "warbank"
+      end
+      if key == "" then
+        return "Bank", "bank"
+      end
+      return raw, key
+    end
+
+    local bankLabel, bankKey = NormalizeBankLabel(bankName)
+
+    -- Safety: only print while the relevant frame is actually open.
+    if bankKey == "guild" then
+      local f = _G and rawget(_G, "GuildBankFrame")
+      if not (f and f.IsShown and f:IsShown()) then return end
+    elseif bankKey == "warbank" or bankKey == "bank" then
+      local f = _G and rawget(_G, "BankFrame")
+      if not (f and f.IsShown and f:IsShown()) then return end
+    end
+
+    local owedTax = math.floor(tonumber(info and info.owedTax) or 0)
+    local owedBorrowed = math.floor(tonumber(info and info.owedBorrowed) or 0)
+    if owedTax < 0 then owedTax = 0 end
+    if owedBorrowed < 0 then owedBorrowed = 0 end
+    local owed = math.floor(tonumber(info and info.owed) or (owedTax + owedBorrowed) or 0)
+    if owed < 0 then owed = 0 end
+
+    local xsOn = (info and info.xsEnabled == true) and true or false
+    local payToOwed = math.floor(tonumber(info and info.payToOwed) or 0)
+    if payToOwed < 0 then payToOwed = 0 end
+    if payToOwed == 0 then
+      payToOwed = copper
+      if payToOwed > owed then payToOwed = owed end
+      if payToOwed < 0 then payToOwed = 0 end
+    end
+    if payToOwed > copper then payToOwed = copper end
+    local payToXS = copper - payToOwed
+    if payToXS < 0 then payToXS = 0 end
+
+    local name = GetClassColoredPlayerName()
+    local paidGold = FormatGoldOnly(copper)
+
+    if mode == "detail" then
+      local bankShort = "B"
+      if bankKey == "guild" then
+        bankShort = "GB"
+      elseif bankKey == "warbank" then
+        bankShort = "WB"
+      end
+
+      -- Compact output:
+      --  Name: GB/WB Deposit <paidToOwed> / <owed> Owed
+      --  (optional) Name: GB/WB Deposit <available> - <paidToXS> XS
+      Print(name .. " " .. bankShort .. " Deposit  " .. FormatGoldOnly(payToOwed) .. " / " .. FormatGoldOnly(owed) .. " Owed")
+
+      if xsOn and payToXS > 0 then
+        local avail = math.floor(tonumber(info and info.available) or 0)
+        if avail < 0 then avail = 0 end
+        Print(name .. " " .. bankShort .. " Deposit  " .. FormatGoldOnly(avail) .. " - " .. FormatGoldOnly(payToXS) .. " XS")
+      end
+      return
+    end
+
+    -- full (multi-line)
+    local prefix = name .. " " .. paidGold .. " deposited to " .. bankLabel
+    Print(prefix)
+    Print("  owed=" .. MoneyToString(owed) .. " (tax=" .. MoneyToString(owedTax) .. ", borrowed=" .. MoneyToString(owedBorrowed) .. ")")
+    Print("  paid: owed=" .. MoneyToString(payToOwed) .. ", XS=" .. MoneyToString(payToXS) .. " (XS " .. (xsOn and "ON" or "OFF") .. ")")
+    local minCopper = math.floor(tonumber(info and info.minCopper) or 0)
+    local available = math.floor(tonumber(info and info.available) or 0)
+    local totalOwed = math.floor(tonumber(info and info.totalOwed) or 0)
+    if minCopper < 0 then minCopper = 0 end
+    if available < 0 then available = 0 end
+    if totalOwed < 0 then totalOwed = 0 end
+    Print("  Min=" .. MoneyToString(minCopper) .. ", available=" .. MoneyToString(available) .. ", totalOwed(all banks)=" .. MoneyToString(totalOwed))
   end
 
   local function PushPendingDelta(queue, delta)
@@ -1060,9 +1197,9 @@ do
       local due = dueTax + dueBorrowed
       if due <= 0 and not xsEnabled then return end
 
-      -- XS: only pay excess above MinGold + (Guild Owed + WarBank Owed).
+      -- XS: only pay excess above MinGold + owed.
       local warDue = 0
-      do
+      if cfg.warBankEnabled == true then
         local ct = EnsureCharTaxDB()
         local wb = ct and ct.warBal
         if type(wb) == "table" then
@@ -1150,7 +1287,17 @@ do
           if bal.dueBorrowed < 0 then bal.dueBorrowed = 0 end
           bal.due = bal.dueTax + bal.dueBorrowed
           bal.paidToDate = math.floor((tonumber(bal.paidToDate) or 0) + toPay)
-          PrintBankMove(cfg, toPay, "deposited to", "Guild Bank")
+          PrintTaxAutoDeposit(cfg, "Guild Bank", toPay, {
+            owedTax = dueTax,
+            owedBorrowed = dueBorrowed,
+            owed = due,
+            xsEnabled = xsEnabled,
+            payToOwed = payToDue,
+            extra = extra,
+            minCopper = minCopper,
+            available = available,
+            totalOwed = totalOwed,
+          })
           RequestUIRefresh()
         else
           if IsTaxDebugEnabled() and not (cfg.quiet == true) then Print("Tax deposit failed.") end
@@ -1207,22 +1354,44 @@ do
     if type(cfg) ~= "table" then return end
     if not (cfg.warBankEnabled == true) then return end
 
-    -- Throttle: WarBank open detection can fire from multiple UI paths (tab switches,
-    -- interaction manager, money updates). Prevent overlapping deposit timers.
-    do
-      local now = 0
+    -- Guard: Warbank open detection can fire from multiple UI paths (interaction manager,
+    -- bank ticker sync, and PLAYER_MONEY). Ensure we don't schedule overlapping deposit/withdraw
+    -- sequences that each compute availability from the same snapshot.
+    local function NowSeconds()
       if type(GetTime) == "function" then
-        now = tonumber(GetTime()) or 0
-      elseif type(time) == "function" then
-        now = tonumber(time()) or 0
+        return tonumber(GetTime()) or 0
       end
-      state._tryPayWarbankTS = tonumber(state._tryPayWarbankTS) or 0
-      if now > 0 and (now - state._tryPayWarbankTS) < 0.35 then
-        return
+      if type(time) == "function" then
+        return tonumber(time()) or 0
       end
-      if now > 0 then
-        state._tryPayWarbankTS = now
+      return 0
+    end
+
+    local function IsAutoLocked()
+      if not (isAuto == true) then return false end
+      local now = NowSeconds()
+      local untilTS = tonumber(state._warbankAutoLockUntil) or 0
+      local lockToken = tonumber(state._warbankAutoLockToken) or 0
+      local openToken = tonumber(state._warbankOpenToken) or 0
+      if now > 0 and untilTS > 0 and now < untilTS and lockToken == openToken then
+        return true
       end
+      return false
+    end
+
+    local function SetAutoLock(seconds)
+      if not (isAuto == true) then return end
+      seconds = tonumber(seconds) or 0
+      if seconds <= 0 then return end
+      local now = NowSeconds()
+      if now <= 0 then return end
+      local openToken = tonumber(state._warbankOpenToken) or 0
+      state._warbankAutoLockToken = openToken
+      state._warbankAutoLockUntil = now + seconds
+    end
+
+    if IsAutoLocked() then
+      return
     end
 
     local ct = EnsureCharTaxDB()
@@ -1268,7 +1437,7 @@ do
       local due = dueTax + dueBorrowed
       if due <= 0 and not xsEnabled then return end
 
-      -- XS: only pay excess above MinGold + (Guild Owed + WarBank Owed).
+      -- XS: only pay excess above MinGold + owed.
       local guildDue = 0
       if type(bal) == "table" then
         local gTax = math.floor(tonumber(bal.dueTax) or 0)
@@ -1330,6 +1499,9 @@ do
         return
       end
 
+      -- Lock long enough for the delayed deposit to fire and settle.
+      SetAutoLock(1.10)
+
       C_Timer.After(0.30, function()
         state._pendingWarbankDeltas = (type(state._pendingWarbankDeltas) == "table") and state._pendingWarbankDeltas or {}
         PushPendingDelta(state._pendingWarbankDeltas, -toPay)
@@ -1351,7 +1523,17 @@ do
           if wb.dueBorrowed < 0 then wb.dueBorrowed = 0 end
           wb.due = wb.dueTax + wb.dueBorrowed
           wb.paidToDate = math.floor((tonumber(wb.paidToDate) or 0) + toPay)
-          PrintBankMove(cfg, toPay, "deposited to", "WarBank")
+          PrintTaxAutoDeposit(cfg, "Warband Bank", toPay, {
+            owedTax = dueTax,
+            owedBorrowed = dueBorrowed,
+            owed = due,
+            xsEnabled = xsEnabled,
+            payToOwed = payToDue,
+            extra = extra,
+            minCopper = minCopper,
+            available = available,
+            totalOwed = totalOwed,
+          })
           RequestUIRefresh()
         else
           RequestUIRefresh()
@@ -1365,6 +1547,8 @@ do
       if money < minCopper then
         local need = math.floor(minCopper - money)
         if need > 0 and CanWithdraw() then
+          -- Lock long enough for withdraw + follow-up deposit scheduling.
+          SetAutoLock(1.60)
           state._pendingWarbankDeltas = (type(state._pendingWarbankDeltas) == "table") and state._pendingWarbankDeltas or {}
           PushPendingDelta(state._pendingWarbankDeltas, need)
           local ok = pcall(C_Bank.WithdrawMoney, bankType.Account, need)
@@ -1384,6 +1568,26 @@ do
       end
     end
     DoDeposit()
+  end
+
+  local function ScheduleTryPayWarbankAuto()
+    if not (state.warbankOpen == true) then return end
+    local token = tonumber(state._warbankOpenToken) or 0
+    if token <= 0 then return end
+    state._warbankAutoScheduledToken = tonumber(state._warbankAutoScheduledToken) or 0
+    if state._warbankAutoScheduledToken == token then
+      return
+    end
+    state._warbankAutoScheduledToken = token
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0.25, function()
+        if not (state.warbankOpen == true) then return end
+        if (tonumber(state._warbankOpenToken) or 0) ~= token then return end
+        TryPayWarbank(true)
+      end)
+    else
+      TryPayWarbank(true)
+    end
   end
 
   function Tax.Init(db, charDb, env)
@@ -1580,7 +1784,11 @@ do
       if IsTaxDebugEnabled() then
         Print("Tax interaction: AccountBanker " .. ((isShow and "show") or "hide"))
       end
+      local wasOpen = (state.warbankOpen == true)
       state.warbankOpen = (isShow == true)
+      if state.warbankOpen and not wasOpen then
+        state._warbankOpenToken = (tonumber(state._warbankOpenToken) or 0) + 1
+      end
       if state.warbankOpen then
         state._manualPrevMoneyWar = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
         state._pendingWarbankDeltas = {}
@@ -1590,13 +1798,12 @@ do
       else
         state._manualPrevMoneyWar = nil
         state._pendingWarbankDeltas = {}
+        state._warbankAutoScheduledToken = 0
+        state._warbankAutoLockToken = 0
+        state._warbankAutoLockUntil = 0
       end
       if isShow then
-        if C_Timer and C_Timer.After then
-          C_Timer.After(0.25, function() TryPayWarbank(true) end)
-        else
-          TryPayWarbank(true)
-        end
+        ScheduleTryPayWarbankAuto()
       end
       RequestUIRefresh()
       return
@@ -1652,7 +1859,11 @@ do
   -- surface as PlayerInteractionManager.AccountBanker. Expose an entrypoint so
   -- the core event handler can keep Tax in sync.
   function Tax.OnWarbankFrame(isOpen)
+    local wasOpen = (state.warbankOpen == true)
     state.warbankOpen = (isOpen == true)
+    if state.warbankOpen and not wasOpen then
+      state._warbankOpenToken = (tonumber(state._warbankOpenToken) or 0) + 1
+    end
     if IsTaxDebugEnabled() then
       Print("Tax warbank: " .. ((state.warbankOpen and "open") or "closed"))
     end
@@ -1664,13 +1875,12 @@ do
     else
       state._manualPrevMoneyWar = nil
       state._pendingWarbankDeltas = {}
+      state._warbankAutoScheduledToken = 0
+      state._warbankAutoLockToken = 0
+      state._warbankAutoLockUntil = 0
     end
     if state.warbankOpen then
-      if C_Timer and C_Timer.After then
-        C_Timer.After(0.25, function() TryPayWarbank(true) end)
-      else
-        TryPayWarbank(true)
-      end
+      ScheduleTryPayWarbankAuto()
     end
     RequestUIRefresh()
   end

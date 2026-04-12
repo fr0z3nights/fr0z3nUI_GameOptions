@@ -1013,7 +1013,22 @@ do
       SetToggleText(warbankXSBtn, "XS", (type(viewCfg) == "table") and (viewCfg.warBankXS == true))
       SetToggleText(guildXSBtn, "XS", (type(viewCfg) == "table") and (viewCfg.guildBankXS == true))
       SetToggleText(debugBtn, "Debug", (ct and ct.debug == true))
-      SetToggleText(bankPrintBtn, "Print", (type(viewCfg) == "table") and (viewCfg.bankPrintEnabled == true))
+      do
+        local mode = (type(viewCfg) == "table") and tostring(viewCfg.bankPrintMode or "") or ""
+        mode = mode:lower()
+        if mode ~= "off" and mode ~= "basic" and mode ~= "detail" and mode ~= "full" then
+          mode = ((type(viewCfg) == "table") and (viewCfg.bankPrintEnabled == true)) and "basic" or "off"
+        end
+        if mode == "full" then
+          SetToggleText(bankPrintBtn, "Full", true)
+        elseif mode == "detail" then
+          SetToggleText(bankPrintBtn, "Detail", true)
+        elseif mode == "basic" then
+          SetToggleText(bankPrintBtn, "Basic", true)
+        else
+          SetToggleText(bankPrintBtn, "Print", false)
+        end
+      end
       SetToggleText(manualBtn, "Manual", (type(viewCfg) == "table") and (viewCfg.manualBankMovesEnabled == true))
 
       -- Action button state
@@ -1586,14 +1601,31 @@ do
         cfg = EnsureGuildTaxDB(guildKey)
         if not cfg then return end
       end
-      cfg.bankPrintEnabled = not (cfg.bankPrintEnabled == true)
+
+      cfg.bankPrintMode = tostring(cfg.bankPrintMode or ((cfg.bankPrintEnabled == true) and "basic" or "off")):lower()
+      if cfg.bankPrintMode ~= "off" and cfg.bankPrintMode ~= "basic" and cfg.bankPrintMode ~= "detail" and cfg.bankPrintMode ~= "full" then
+        cfg.bankPrintMode = (cfg.bankPrintEnabled == true) and "basic" or "off"
+      end
+
+      -- Cycle: off -> basic -> detail -> full -> off
+      if cfg.bankPrintMode == "off" then
+        cfg.bankPrintMode = "basic"
+      elseif cfg.bankPrintMode == "basic" then
+        cfg.bankPrintMode = "detail"
+      elseif cfg.bankPrintMode == "detail" then
+        cfg.bankPrintMode = "full"
+      else
+        cfg.bankPrintMode = "off"
+      end
+
+      cfg.bankPrintEnabled = (cfg.bankPrintMode ~= "off")
       Refresh()
     end)
 
     bankPrintBtn:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetText("Print Deposit/Withdraw")
+      GameTooltip:SetText("Deposit prints: Off / Basic / Detail / Full\nClick to cycle.")
       GameTooltip:Show()
     end)
     bankPrintBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
