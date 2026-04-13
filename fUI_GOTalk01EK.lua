@@ -8,9 +8,9 @@ ns.db.rules = ns.db.rules or {}
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
 -- ns.db.rules[123456][98765] = { text = [[Option text]], prio = 0, xpop = { which = "GOSSIP_CONFIRM", containsAll = {"are you sure", "cannot be undone"}, within = 3 } }
--- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
+--   pcn = "Name-Realm"   -- only if you are this character
+--   pcn = {"Name-Realm", "Alt-Realm"} -- only if you are ANY of these characters
 
--- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
 
 local function SetZone(zone)
@@ -360,8 +360,9 @@ SetZone("Harandar, Eastern Kingdoms")
    t[136764] = { prio = 05, text = "<Meditate here for a moment.>" }                                     -- Toy () Altar of Wisdom (590789)
    t[136767] = { prio = 10, text = "<Offer the old rolled up pillow...>", close = true }                 -- Toy () Elder Spirit (254116)
 
-   t = NPC("Ashayo", { 256441, })
+   t = NPC("Ashayo", { 256441, 255763, })
    t[137389] = { text = "Deal with the big ones. Got it." }                                              -- Down the Rootways (86912) Ashayo (256441)
+   t[137248] = { text = "Release the moths near Lightbloom patches." }                                   -- Down the Rootways (86912) Ashayo (255763)
 
    t = NPC("Brakko", { 243178, 246208, 257287, })
    t[135601] = { text = "<Ask if they want to join your new team.>", close = true }                      -- A Few Fun Guys (90617) Brakko (243178)
@@ -425,6 +426,9 @@ SetZone("Harandar, Eastern Kingdoms")
    t = NPC("Naynar", 240407)
    t[132852] = { text = "What can you tell me about the Rift of Aln", prio = 10 }                        -- Watch the Den (86864) Naynar (240407)
    t[132730] = { text = "Can I see the Renown items you have for sale?", prio = -5 }
+
+   t = NPC("Ney'leia", { 242684, })
+   t[133929] = { text = "I'm ready. Let's go." }                                                         -- Late Bloomers (90537) Ney'leia (242684)
 
    t = NPC("Oorla", { 237866, })
    t[133721] = { text = "It's safe to return to the village." }                                          -- To Har'athir (86900)          Oorla (237866)

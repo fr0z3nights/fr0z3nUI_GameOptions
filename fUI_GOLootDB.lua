@@ -42,6 +42,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X05:PBAnthea",     text = "Anthea says" },
     { key = "X05:PBBurning",    text = "Burning Pandaren Spirit says" },
 --Midnight
+    { key = "X12:Valeera",      text = "Valeera Sanguinar says" },
 --Addon
     { key = "ANG:Awake",        text = "Is awake. To temporarily disable" },
     { key = "ANG:Config",       text = "To access the configuration menu," },

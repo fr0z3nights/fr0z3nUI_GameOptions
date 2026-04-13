@@ -295,14 +295,26 @@ local function CloseGossipWindow(isRetry)
     end
     if _G and _G.PlayerChoiceFrame then
         local f = _G.PlayerChoiceFrame
-        local closeBtn = f.CloseButton
-        if closeBtn and type(closeBtn.Click) == "function" then
-            Try(closeBtn.Click, closeBtn)
+        -- Guard: some client builds can throw inside Blizzard_PlayerChoice when the frame
+        -- is asked to hide while choiceInfo is nil. Prefer API close helpers above; only
+        -- attempt UI-driven hiding when the frame looks fully initialized.
+        local okToHide = false
+        if f and type(f) == "table" then
+            local shown = (type(f.IsShown) == "function") and f:IsShown() or false
+            if shown then
+                okToHide = (type(rawget(f, "choiceInfo")) == "table")
+            end
         end
-        if type(_G.HideUIPanel) == "function" then
-            Try(_G.HideUIPanel, f)
-        elseif type(f.Hide) == "function" then
-            Try(f.Hide, f)
+        if okToHide then
+            local closeBtn = f.CloseButton
+            if closeBtn and type(closeBtn.Click) == "function" then
+                Try(closeBtn.Click, closeBtn)
+            end
+            if type(_G.HideUIPanel) == "function" then
+                Try(_G.HideUIPanel, f)
+            elseif type(f.Hide) == "function" then
+                Try(f.Hide, f)
+            end
         end
     end
 
@@ -454,9 +466,75 @@ function ns.Talk.TryAutoSelect(isRetry)
             return true
         end
 
+        local function MatchesQuestInLogSpec(spec)
+            if spec == nil then
+                return nil
+            end
+
+            if type(spec) == "table" then
+                for _, q in ipairs(spec) do
+                    if PlayerHasQuestInLog(q) then
+                        return true
+                    end
+                end
+                return false
+            end
+
+            if type(spec) == "number" or type(spec) == "string" then
+                return PlayerHasQuestInLog(spec) and true or false
+            end
+
+            return false
+        end
+
+        local function MatchesCharacterSpec(spec)
+            if spec == nil then
+                return nil
+            end
+
+            if type(spec) == "table" then
+                for _, who in ipairs(spec) do
+                    if PlayerIsCharacter(who) then
+                        return true
+                    end
+                end
+                return false
+            end
+
+            if type(spec) == "string" then
+                return PlayerIsCharacter(spec) and true or false
+            end
+
+            return false
+        end
+
         local pred = ruleEntry.when or ruleEntry.cond or ruleEntry.condition
+
+        -- Shorthand (DB packs):
+        --   `qil = 123` / `qil = {123, 456}` => only allow if quest(s) are in your log
+        --   `pcn = "Name-Realm"` / `pcn = {"Name-Realm", ...}` => only allow on specific character(s)
         if pred == nil then
-            return true
+            local allow = true
+            local saw = false
+
+            local qil = ruleEntry.qil or ruleEntry.questInLog
+            local okQ = MatchesQuestInLogSpec(qil)
+            if okQ ~= nil then
+                saw = true
+                allow = allow and (okQ and true or false)
+            end
+
+            local pcn = ruleEntry.pcn or ruleEntry.playerCharacterName
+            local okP = MatchesCharacterSpec(pcn)
+            if okP ~= nil then
+                saw = true
+                allow = allow and (okP and true or false)
+            end
+
+            if not saw then
+                return true
+            end
+            return allow and true or false
         end
 
         if type(pred) == "function" then

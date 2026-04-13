@@ -949,13 +949,15 @@ do
 
       -- Compact output:
       --  Name: GB/WB Deposit <paidToOwed> / <owed> Owed
-      --  (optional) Name: GB/WB Deposit <available> - <paidToXS> XS
+      --  (optional) Name: GB/WB Deposit <totalMoneyMinusOwed> - <paidToXS> XS
       Print(name .. " " .. bankShort .. " Deposit  " .. FormatGoldOnly(payToOwed) .. " / " .. FormatGoldOnly(owed) .. " Owed")
 
       if xsOn and payToXS > 0 then
-        local avail = math.floor(tonumber(info and info.available) or 0)
-        if avail < 0 then avail = 0 end
-        Print(name .. " " .. bankShort .. " Deposit  " .. FormatGoldOnly(avail) .. " - " .. FormatGoldOnly(payToXS) .. " XS")
+        local totalMoney = math.floor(tonumber(info and info.totalMoney) or 0) -- full pre-deposit snapshot
+        if totalMoney < 0 then totalMoney = 0 end
+        local totalMoneyMinusOwed = math.floor(totalMoney - payToOwed)
+        if totalMoneyMinusOwed < 0 then totalMoneyMinusOwed = 0 end
+        Print(name .. " " .. bankShort .. " Deposit  " .. FormatGoldOnly(totalMoneyMinusOwed) .. " - " .. FormatGoldOnly(payToXS) .. " XS")
       end
       return
     end
@@ -1288,6 +1290,7 @@ do
           bal.due = bal.dueTax + bal.dueBorrowed
           bal.paidToDate = math.floor((tonumber(bal.paidToDate) or 0) + toPay)
           PrintTaxAutoDeposit(cfg, "Guild Bank", toPay, {
+            totalMoney = money,
             owedTax = dueTax,
             owedBorrowed = dueBorrowed,
             owed = due,
@@ -1524,6 +1527,7 @@ do
           wb.due = wb.dueTax + wb.dueBorrowed
           wb.paidToDate = math.floor((tonumber(wb.paidToDate) or 0) + toPay)
           PrintTaxAutoDeposit(cfg, "Warband Bank", toPay, {
+            totalMoney = money,
             owedTax = dueTax,
             owedBorrowed = dueBorrowed,
             owed = due,

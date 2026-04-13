@@ -753,6 +753,7 @@ local EAT_DRINK_IDS = {
     -- Expansion/patch-specific restoration auras
     1291946, 1269916, -- Food & Drink (variants)
     1291849, -- Food
+    1269922, -- Food (variant)
     1269919, 1291954, -- Drink (variants)
     1291858, -- Mage food / conjured
     1277461, 1291831, -- Restoring Mana (specific)

@@ -3,15 +3,10 @@
 ns.db = ns.db or {}
 ns.db.rules = ns.db.rules or {}
 
--- XP12 database pack
--- Add rules like:
--- ns.db.rules[123456] = ns.db.rules[123456] or {}
--- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
--- ns.db.rules[123456][98765] = { text = [[Option text]] }
-
--- Helpers so you can set a zone header and avoid repeating zone/npc fields.
+--   pcn = "Name-Realm"   -- only if you are this character
+--   pcn = {"Name-Realm", "Alt-Realm"} -- only if you are ANY of these characters
 local CURRENT_ZONE
-
+
 local t
 local function SetZone(zone)
     CURRENT_ZONE = zone

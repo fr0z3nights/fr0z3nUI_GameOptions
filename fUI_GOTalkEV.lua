@@ -8,11 +8,12 @@ ns.db.rules = ns.db.rules or {}
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
 -- ns.db.rules[123456][98765] = { text = [[Option text]] }
--- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
+--   pcn = "Name-Realm"   -- only if you are this character
+--   pcn = {"Name-Realm", "Alt-Realm"} -- only if you are ANY of these characters
 
--- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+
 local t
 local function SetZone(zone)
 	CURRENT_ZONE = zone
@@ -154,12 +155,20 @@ SetZone("Darkmoon Island")
 -- Noblegarden
 SetZone("Nablegarden")
 
+   t = NPC("Noblegarden Merchant", 32837)
+   t.__meta.stopIfQuestAvailable = { 13503, }                                                                       -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestTurnIn = { 13503, }                                                                          -- First NPCID, Stops Gossip until quest is accepted
+   t[37187] = { text = "I want to browse your goods." }
+
    t = NPC("Noblegarden Vendor", 124617)
    t.__meta.stopIfQuestAvailable = { 13502, }                                                                       -- First NPCID, Stops Gossip until quest is accepted
    t.__meta.stopIfQuestTurnIn = { 13502, }                                                                          -- First NPCID, Stops Gossip until quest is accepted
    t[37187] = { text = "I want to browse your goods." }
 
    t = NPC("Emmery Fiske", 216129)
-   t[121089] = { text = "Zinnia sent me...", close = true }
+   t[121089] = { text = "Zinnia sent me...", qil = 79323, close = true }
+
+   t = NPC("Tethris Dewgazer", 217147)
+	t[120851] = { prio = 10, text = "Sylnaria sent me...", qil = 79576, close = true }	-- A Fowl Concoction (79576) Tethris Dewgazer (217147)
 
 

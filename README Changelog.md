@@ -4,6 +4,62 @@ Format: `YYYY.MM.DD.NN` (TOC `## Version`) — short summary. Newest at the top.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+## 2026.04.13.18
+- Files: `fUI_GOSwitchesMU.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- MountUp: Treat aura/spellID `1269922` as Food (eating) so MU won't interrupt/attempt mount while the buff is active.
+
+## 2026.04.13.17
+- Files: `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Fix: Restore pre-existing `/fgo fish` help/scope output and keep migrating legacy `cfish` Macro CMD key to `fish` (this is independent of the removed Fishing (FB) Switches module).
+
+## 2026.04.13.16
+- Files: `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Switches: Remove the Fishing (FB) module completely (no Switches row/buttons, no config popout, no TOC load).
+
+## 2026.04.13.15
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalk07.lua`, `fUI_GOTalk01EK.lua`, `fUI_GOTalk01KD.lua`, `fUI_GOTalk02.lua`, `fUI_GOTalk03.lua`, `fUI_GOTalk04.lua`, `fUI_GOTalk05.lua`, `fUI_GOTalk06.lua`, `fUI_GOTalk08KT.lua`, `fUI_GOTalk08ZL.lua`, `fUI_GOTalk09.lua`, `fUI_GOTalk10.lua`, `fUI_GOTalk11.lua`, `fUI_GOTalk12.lua`, `fUI_GOTalkEV.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Add rule shorthand `pcn = "Name-Realm"` / `pcn = {"Name-Realm", ...}` (character gating) and document it across DB pack headers; convert the remaining `PlayerIsCharacter(...)` when-closure to `pcn = ...`.
+
+## 2026.04.13.05
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Detail XS line now prints as `Deposit <available> (XS <paid>)` instead of `<available> - <paid> XS` (avoids reading like a subtraction when both numbers are equal).
+
+## 2026.04.13.06
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Detail XS line now shows `Min <minGold> (XS <paid>)` (more useful than repeating the same number when all available gold is paid to XS).
+
+## 2026.04.13.07
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Detail XS line now prints `Deposit <totalMoney> - <paidToXS>` where `totalMoney` includes Min Gold (matches expected `Min+excess` snapshot like `10996 - 996`).
+
+## 2026.04.13.08
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Detail XS line now prints `Deposit <totalMinusOwed> - <paidToXS> XS` (subtracts the owed portion first so the left number represents the Min+XS pool, e.g. `10996 - 996 XS` when 1g was owed).
+
+## 2026.04.13.09
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Detail XS line now prints `Deposit <minPlusXS> - <paidToXS> XS` where `<minPlusXS>` is computed from the same snapshot (`GetMoney`, `Min Gold`, `available`) and reflects other-bank owed reduction + XS split (avoids misleading totals).
+
+## 2026.04.13.10
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Detail XS line left number is now the raw pre-deposit money snapshot (`GetMoney()`), printing `Deposit <totalMoney> - <paidToXS> XS` (does not subtract owed/XS splits from the left-hand value).
+
+## 2026.04.13.11
+- Files: `fUI_GOTax.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: Detail XS line now subtracts the owed slice first, printing `Deposit <totalMoney - paidToOwed> - <paidToXS> XS` (matches cases like 1g owed + 996 XS => `10996 - 996 XS` when total was 10997).
+
+## 2026.04.13.12
+- Files: `fUI_GOTalk.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Guard PlayerChoiceFrame hide/close fallback when `choiceInfo` is nil (prevents Blizzard_PlayerChoice.lua nil-index error while closing interactions).
+
+## 2026.04.13.13
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalkEV.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Add rule shorthand `qil = 123` / `qil = {123,456}` (quest-in-log condition) so DB packs don’t need inline `when = function() ... end` closures.
+
+## 2026.04.13.14
+- Files: `fUI_GOTalk07.lua`, `fUI_GOTalk01EK.lua`, `fUI_GOTalk01KD.lua`, `fUI_GOTalk02.lua`, `fUI_GOTalk03.lua`, `fUI_GOTalk04.lua`, `fUI_GOTalk05.lua`, `fUI_GOTalk06.lua`, `fUI_GOTalk08KT.lua`, `fUI_GOTalk08ZL.lua`, `fUI_GOTalk09.lua`, `fUI_GOTalk10.lua`, `fUI_GOTalk11.lua`, `fUI_GOTalk12.lua`, `fUI_GOTalkEV.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: Document `qil` shorthand in all DB pack headers; convert remaining `PlayerHasQuestInLog(...)` when-closure to `qil = ...`.
+
 ## 2026.04.13.02
 - Files: `fUI_GOTax.lua`, `fUI_GOTaxUI.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
 - Tax: Print button now cycles deposit prints Off → Basic → Detail → Full (single button).

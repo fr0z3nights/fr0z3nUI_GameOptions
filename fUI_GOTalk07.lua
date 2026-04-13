@@ -8,11 +8,12 @@ ns.db.rules = ns.db.rules or {}
 -- ns.db.rules[123456] = ns.db.rules[123456] or {}
 -- ns.db.rules[123456].__meta = { zone = "Zone, Continent", npc = "NPC Name" }
 -- ns.db.rules[123456][98765] = { text = [[Option text]] }
--- (Per-rule overrides still supported: zoneName/zone, npcName/npc)
+--   pcn = "Name-Realm"   -- only if you are this character
+--   pcn = {"Name-Realm", "Alt-Realm"} -- only if you are ANY of these characters
 
--- Helpers so you can set a zone header and avoid repeating zone/npc fields.
 local CURRENT_ZONE
-
+
+
 local t
 local function SetZone(zone)
 	CURRENT_ZONE = zone
@@ -142,8 +143,8 @@ end
 SetZone("Dalaran, Broken Isles")
 
     t = NPC("Manapoof", 121602)
-	t[47010] = { prio = 10, text = "Stratholme", when = function() return PlayerHasQuestInLog(86839) end }
-	t[47009] = { prio = 09, text = "Gnomeregan", when = function() return PlayerIsCharacter("Shadowspiner-Dath'Remar") end }
+	t[47010] = { prio = 10, text = "Stratholme", qil = 86839 }
+	t[47009] = { prio = 09, text = "Gnomeregan", pcn = "Shadowspiner-Dath'Remar" }
 --  t[47007] = { text = "Would you please send me to the Wailing Caverns?" }
 --  t[47008] = { text = "Would you please send me to the Deadmines?" }
 --  t[47011] = { text = "I'm ready, send me into Blackrock Depths!" }
