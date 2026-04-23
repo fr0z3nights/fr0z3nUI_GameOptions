@@ -1798,6 +1798,7 @@ do
   local _liMerchantBuyPrinted
 
   local _liMerchantRestockComparePrinted
+  local _liMerchantRestockLowerTierPrinted
 
   -- After a merchant buy, delay any selling until BAG_UPDATE_DELAYED fires.
   local _liMerchantSellBlockedUntilBag
@@ -2178,7 +2179,17 @@ do
                     local maxBag = GetMaxFoodDrinkScoreInBags(cat)
                     if maxBag and maxBag > best.score then
                       skipLowerTierVendor = true
-                      Print("Restock skipped (merchant lower tier): " .. (GetItemNameSafe(itemID) or tostring(itemID)))
+                      if dbg and type(Print) == "function" then
+                        if type(_liMerchantRestockLowerTierPrinted) ~= "table" then
+                          _liMerchantRestockLowerTierPrinted = {}
+                        end
+
+                        local k = tostring(cat) .. ":" .. tostring(itemID)
+                        if _liMerchantRestockLowerTierPrinted[k] ~= true then
+                          _liMerchantRestockLowerTierPrinted[k] = true
+                          Print("Restock skipped (merchant lower tier): " .. (GetItemNameSafe(itemID) or tostring(itemID)))
+                        end
+                      end
                     end
                   end
 
@@ -2690,6 +2701,7 @@ do
     _liMerchantLastBuyAttempt = nil
     _liMerchantBuyPrinted = nil
     _liMerchantRestockComparePrinted = nil
+    _liMerchantRestockLowerTierPrinted = nil
     _liMerchantPrewarmCursor = nil
     _liMerchantSellBlockedUntilBag = false
     _liMerchantSellWaitPrinted = false
@@ -2738,6 +2750,7 @@ do
     _liMerchantLastBuyAttempt = nil
     _liMerchantBuyPrinted = {}
     _liMerchantRestockComparePrinted = {}
+    _liMerchantRestockLowerTierPrinted = {}
     _liMerchantPrewarmCursor = nil
 
     _liMerchantSellBlockedUntilBag = false

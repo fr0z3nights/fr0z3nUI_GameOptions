@@ -123,8 +123,14 @@ local function CanSummonNow()
         return false
     end
 
-    if GetUnitSpeed and (GetUnitSpeed("player") or 0) > 0 then
-        return false
+    if GetUnitSpeed then
+        local speed = GetUnitSpeed("player") or 0
+        if issecretvalue and issecretvalue(speed) then
+            return false
+        end
+        if speed > 0 then
+            return false
+        end
     end
 
     local summoned = GetSummonedGUID()
@@ -1211,7 +1217,14 @@ do
     local periodicElapsed = 0
 
     local function IsMoving()
-        return (GetUnitSpeed and (GetUnitSpeed("player") or 0) > 0) and true or false
+        if not GetUnitSpeed then
+            return false
+        end
+        local speed = GetUnitSpeed("player") or 0
+        if issecretvalue and issecretvalue(speed) then
+            return false
+        end
+        return (speed > 0) and true or false
     end
 
     local function OnEvent(_, event)
@@ -1261,6 +1274,13 @@ do
 
     f:SetScript("OnUpdate", function(_, elapsed)
         if not IsEnabled() then
+            lastMoving = false
+            movePollElapsed = 0
+            periodicElapsed = 0
+            return
+        end
+
+        if issecretvalue and issecretvalue(elapsed) then
             lastMoving = false
             movePollElapsed = 0
             periodicElapsed = 0

@@ -688,7 +688,14 @@ local function IsInPetBattle()
 end
 
 local function IsMoving()
-    return (GetUnitSpeed and (GetUnitSpeed("player") or 0) > 0) and true or false
+    if not GetUnitSpeed then
+        return false
+    end
+    local speed = GetUnitSpeed("player") or 0
+    if issecretvalue and issecretvalue(speed) then
+        return false
+    end
+    return (speed > 0) and true or false
 end
 
 local function IsCastingOrChanneling()

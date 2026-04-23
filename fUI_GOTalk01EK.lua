@@ -381,6 +381,11 @@ SetZone("Harandar, Eastern Kingdoms")
    t = NPC("Eager Volunteer", { 241690, })
    t[132939] = { text = "This Alndust will protect you from the Lightbloom so we can fight them.", }     -- Alndust in Right Hands (86882) Eager Volunteer (241690)
 
+   t = NPC("En'liahn", { 244394, 244456, 244465,})
+   t[133898] = { text = "Let's go find your ritual site.", }                                             -- The Path Will Reveal Iteself (90830) En'liahn (244394)
+   t[133930] = { text = "The wards are placed. Let's begin.", }                                          -- As Her Voice Goes Silent (90832) En'liahn (244456)
+   t[134053] = { text = "Grim. I'm ready when you are.", }                                               -- The Final Rite (90833) En'liahn (244465)
+
    t = NPC("Eonka", { 240225, 244126, })
    t[132714] = { text = "<Ask if they have Lightbloom in their village.>" }                              -- The Traveling Flowers (86956) Eonka (240225)
    t[133712] = { text = "Are you still feeling well?" }                                                  -- Seeds of the Rift (86944) Eonka (244126)
@@ -419,6 +424,11 @@ SetZone("Harandar, Eastern Kingdoms")
    t = NPC("Ku'paal", { 237209, 241045, })
    t[132537] = { text = "We are froemds of Orweyna and we are here to help." }                           -- To Har'athir (86900) Ku'paal (237209)
    t[132858] = { text = "What can you tell me about the Rift of Aln", }                                  -- Watch the Den (86864) Ku'paal (241045)
+
+   t = NPC("Mothkeeper Wew'tam", { 251259, })
+   t.__meta.stopIfQuestAvailable = { 92448, }   -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestTurnIn = { 92448, }      -- First NPCID, Stops Gossip when turn in available
+   t[136981] = { text = "I have some Luminous Dust for trade." }                                         -- Vendor Mothkeeper Wew'tam (251259)
 
    t = NPC("N'ala", { 254622, })
    t[137321] = { text = "<Pick up the budling.>" }                                                       -- Re-Hydra-ted (92866) N'ala (254622)
@@ -568,16 +578,16 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[135052] = { text = "Hail the victories of the Vanguard and Sin'dorei you have seen so far." }       -- Deepening Shadows (91854) Doomsayer (248826)
 
    t = NPC("Drathen", 253468)
-   t.__meta.stopIfQuestAvailable = { 92869, }                                                            -- First NPCID, Stops Gossip until quest is accepted
-   t.__meta.stopIfQuestTurnIn = { 92869, }                                                               -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestAvailable = { 92869, }                                                            -- Waits for Quest Accepted (First NPCID Only)
+   t.__meta.stopIfQuestTurnIn = { 92868, 92869, }                                                        -- Waits for Quest Hand-Ins (First NPCID Only)
    t[136540] = { text = "Train me." }
 
    t = NPC("Gaari", { 247647, })
    t[135588] = { text = "Mr. Brightstitch isn't accepting more work right now." }                        -- Mad to Measure (91386) Gaari (247647)
 
    t = NPC("Galana", { 243352, })
-   t.__meta.stopIfQuestAvailable = { 93696, }                                                            -- First NPCID, Stops Gossip until quest is accepted
-   t.__meta.stopIfQuestTurnIn = { 93730, }                                                               -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestAvailable = { 93696, }                                                            -- Waits for Quest Accepted (First NPCID Only)
+   t.__meta.stopIfQuestTurnIn = { 93730, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
    t[138587] = { text = "Train me in Tailoring." }                                                       -- Tailoring Trainer Galana (243352)
 
    t = NPC("Grand Magister Rommath", 249270)

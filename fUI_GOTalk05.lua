@@ -186,6 +186,14 @@ SetZone("Townlong Steppes, Pandaria")
     t = NPC("Seeker Zusshi", 66918)
     t[41155] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance!" }, within = 3, }, }
 
+SetZone("Timeless Isle, Pandaria")
+
+    t = NPC("Mistweaver Ku", 73306)
+    t[41556] = { text = "What can I buy with timeless coins?", }
+
+    t = NPC("Nostwin", 237817)
+    t[131914] = { text = "Let me browse your goods.", }
+
 SetZone("Vale of Eternal Blossoms, Pandaria")
 
     t = NPC("Aki the Chosen", 66741)

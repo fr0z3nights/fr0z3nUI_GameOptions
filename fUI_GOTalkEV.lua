@@ -152,7 +152,13 @@ SetZone("Darkmoon Island")
     t = NPC("Christoph VonFeasel", { 85519 })
     t[42667] = { text = "I challenge you to a pet battle!" }	-- A New Darkmoon Challenger! (36471) Christoph VonFeasel (85519)
 
--- Noblegarden
+SetZone("Timewalking")
+
+   t = NPC("Mistweaver Xia", 118828)
+   t.__meta.stopIfQuestAvailable = { 86560, }                                                                       -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestTurnIn = { 86560, 45563, }                                                                   -- First NPCID, Stops Gossip until quest is accepted
+   t[46752] = { text = "I would like to buy from you." }
+
 SetZone("Nablegarden")
 
    t = NPC("Noblegarden Merchant", 32837)
