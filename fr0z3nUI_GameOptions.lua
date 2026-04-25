@@ -3205,6 +3205,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo yump                  - yum + print status",
                 "/fgo yumd                  - yum + dump best food/drink",
                 "/fgo yumtest               - print yum debug status",
+                "/fgo sounddebug on|off|toggle|status|last|dump - print the last played SoundKit IDs",
+                "/fgo clickdebug on|off|toggle|status|dump     - trace action bar pickup/place writes (for post-combat clicking)",
                 "/fgo deposit               - run bank deposit helper (bank UI must be open)",
                 "/fgo lootit ...            - LootIt (loot chat cleaner) commands",
                 "/fgo li ...                - legacy alias for /fgo lootit",
@@ -3341,6 +3343,163 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             else
                 Print("Textures module not loaded.")
             end
+            return
+        end
+
+        if cmd == "clickdebug" then
+            local arg = (rest or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            arg = arg:lower()
+
+            if not (ns and type(ns.ActionBar_SetWriteDebugEnabled) == "function") then
+                Print("ClickDebug unavailable.")
+                return
+            end
+
+            local function BoolStr(v)
+                return v and "ON" or "OFF"
+            end
+
+            local function GetCur()
+                if ns and type(ns.ActionBar_IsWriteDebugEnabled) == "function" then
+                    return ns.ActionBar_IsWriteDebugEnabled() and true or false
+                end
+                return false
+            end
+
+            if arg == "" or arg == "toggle" then
+                local cur = GetCur()
+                local now = ns.ActionBar_SetWriteDebugEnabled(not cur)
+                Print("ClickDebug: " .. BoolStr(now))
+                return
+            end
+            if arg == "on" or arg == "1" then
+                ns.ActionBar_SetWriteDebugEnabled(true)
+                Print("ClickDebug: ON")
+                return
+            end
+            if arg == "off" or arg == "0" then
+                ns.ActionBar_SetWriteDebugEnabled(false)
+                Print("ClickDebug: OFF")
+                return
+            end
+            if arg == "status" then
+                Print("ClickDebug: " .. BoolStr(GetCur()))
+                return
+            end
+            if arg == "dump" then
+                if type(ns.ActionBar_DumpWriteLog) == "function" then
+                    ns.ActionBar_DumpWriteLog(12)
+                else
+                    Print("ClickDebug dump unavailable.")
+                end
+                return
+            end
+
+            Print("Usage: /fgo clickdebug on|off|toggle|status|dump")
+            return
+        end
+
+        if cmd == "sounddebug" then
+            local arg = (rest or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            arg = arg:lower()
+            if not (ns and type(ns.SoundSpy_SetEnabled) == "function") then
+                Print("Sound debug unavailable.")
+                return
+            end
+
+            local function BoolStr(v)
+                return v and "ON" or "OFF"
+            end
+
+            if arg == "" or arg == "toggle" then
+                local cur = (type(ns.SoundSpy_IsEnabled) == "function") and ns.SoundSpy_IsEnabled() or false
+                ns.SoundSpy_SetEnabled(not cur)
+                Print("SoundDebug: " .. BoolStr(ns.SoundSpy_IsEnabled and ns.SoundSpy_IsEnabled() or false))
+                return
+            end
+            if arg == "on" or arg == "1" then
+                ns.SoundSpy_SetEnabled(true)
+                Print("SoundDebug: ON")
+                return
+            end
+            if arg == "off" or arg == "0" then
+                ns.SoundSpy_SetEnabled(false)
+                Print("SoundDebug: OFF")
+                return
+            end
+            if arg == "status" then
+                Print("SoundDebug: " .. BoolStr(ns.SoundSpy_IsEnabled and ns.SoundSpy_IsEnabled() or false))
+                local hs = (type(ns.SoundSpy_GetHookStatus) == "function") and ns.SoundSpy_GetHookStatus() or nil
+                if type(hs) == "table" then
+                    Print("SoundDebug hooks: installed=" .. BoolStr(hs.installed) .. ", hooksecurefunc=" .. BoolStr(hs.hooksecurefunc))
+                    Print(" - PlaySound=" .. BoolStr(hs.PlaySound) .. ", PlaySoundKitID=" .. BoolStr(hs.PlaySoundKitID) .. ", PlaySoundFile=" .. BoolStr(hs.PlaySoundFile))
+                    Print(" - C_Sound.PlaySound=" .. BoolStr(hs.C_Sound_PlaySound) .. ", C_Sound.PlaySoundKitID=" .. BoolStr(hs.C_Sound_PlaySoundKitID) .. ", C_Sound.PlaySoundFile=" .. BoolStr(hs.C_Sound_PlaySoundFile))
+                end
+                return
+            end
+            if arg == "last" then
+                local id = nil
+                local file = nil
+                if type(ns.SoundSpy_GetLast) == "function" then
+                    id = select(1, ns.SoundSpy_GetLast())
+                end
+                if type(ns.SoundSpy_GetLastFile) == "function" then
+                    file = select(1, ns.SoundSpy_GetLastFile())
+                end
+                Print("SoundDebug last kit/handle: " .. tostring(id or "(none yet)"))
+                if file and file ~= "" then
+                    Print("SoundDebug last file: " .. tostring(file))
+                end
+                return
+            end
+            local testID = arg:match("^test%s+(%d+)$")
+            if testID then
+                if type(ns.SoundSpy_TestPlay) ~= "function" then
+                    Print("SoundDebug test: unavailable")
+                    return
+                end
+                local ok, via = ns.SoundSpy_TestPlay(tonumber(testID))
+                if ok then
+                    Print("SoundDebug test: called via " .. tostring(via) .. " (watch for SoundKit(...) line)")
+                else
+                    Print("SoundDebug test failed: " .. tostring(via))
+                end
+                return
+            end
+
+            if arg == "dump" then
+                local hist = (type(ns.SoundSpy_GetHistory) == "function") and ns.SoundSpy_GetHistory() or nil
+                if type(hist) ~= "table" or #hist == 0 then
+                    Print("SoundDebug: no kit/handle history")
+                else
+                    Print("SoundDebug kit/handle history:")
+                    for i = 1, math.min(#hist, 12) do
+                        local e = hist[i]
+                        local sid = (type(e) == "table") and e.id or nil
+                        local kind = (type(e) == "table") and e.kind or nil
+                        Print(" - " .. tostring(sid or "?") .. (kind and (" (" .. tostring(kind) .. ")") or ""))
+                    end
+                    if #hist > 12 then
+                        Print(" - (" .. tostring(#hist - 12) .. " more)")
+                    end
+                end
+
+                local fh = (type(ns.SoundSpy_GetFileHistory) == "function") and ns.SoundSpy_GetFileHistory() or nil
+                if type(fh) == "table" and #fh > 0 then
+                    Print("SoundDebug file history:")
+                    for i = 1, math.min(#fh, 8) do
+                        local e = fh[i]
+                        local p = (type(e) == "table") and e.path or nil
+                        Print(" - " .. tostring(p or "?"))
+                    end
+                    if #fh > 8 then
+                        Print(" - (" .. tostring(#fh - 8) .. " more)")
+                    end
+                end
+                return
+            end
+
+            Print("Usage: /fgo sounddebug on|off|toggle|status|last|dump|test <soundKitID>")
             return
         end
 
@@ -3494,6 +3653,20 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
 
             Print("YumTest: active=" .. fmtBool(st.active) .. ", perChar=" .. fmtBool(st.macroPerChar) .. ", preferConjured=" .. fmtBool(st.preferConjured) .. ", pendingItemData=" .. fmtBool(st.pendingItemData))
             Print("YumTest: lvl=" .. tostring(st.level or "?") .. ", hpMax=" .. tostring(st.hpMax or "?") .. ", mpMax=" .. tostring(st.mpMax or "?"))
+
+            do
+                local p = (type(st.lastPick) == "table") and st.lastPick or nil
+                local pf = p and p.food or nil
+                local pd = p and p.drink or nil
+                if (tonumber(st.bestFoodID) or 0) <= 0 or (tonumber(st.bestDrinkID) or 0) <= 0 then
+                    if pf then
+                        Print(string.format("YumTest scan(food): bagMax=%s slots=%s items=%s foodDrink=%s usable=%s", tostring(pf.bagMax or "?"), tostring(pf.slots or "?"), tostring(pf.items or "?"), tostring(pf.foodDrinkItems or "?"), tostring(pf.usableFoodDrinkItems or "?")))
+                    end
+                    if pd then
+                        Print(string.format("YumTest scan(drink): bagMax=%s slots=%s items=%s foodDrink=%s usable=%s", tostring(pd.bagMax or "?"), tostring(pd.slots or "?"), tostring(pd.items or "?"), tostring(pd.foodDrinkItems or "?"), tostring(pd.usableFoodDrinkItems or "?")))
+                    end
+                end
+            end
 
             do
                 local e = st.bestFood
@@ -4468,6 +4641,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         Print("/fgo yum       - force-update FGO Food/Drink macros")
         Print("/fgo yump      - yum + print status")
         Print("/fgo yumd      - yum + dump best food/drink")
+        Print("/fgo sounddebug on|off|toggle|status|last|dump - print the last played SoundKit IDs")
+        Print("/fgo clickdebug on|off|toggle|status|dump - trace action bar pickup/place writes")
         Print("/fgo x ...     - exclusion macros (old /fgo m behavior)")
         Print("/fgo m ...     - macros (no character boxes)")
         Print("/fgo c ...     - faction macros (Both + Alliance/Horde)")

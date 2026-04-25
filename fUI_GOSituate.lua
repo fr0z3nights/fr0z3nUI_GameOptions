@@ -710,6 +710,8 @@ local DebugPrint
 local didInstallWriteTrace = false
 local internalWriteDepth = 0
 local lastWriteBySlot = {}
+local writeLog = {}
+local WRITE_LOG_MAX = 40
 local startupSyncUntil = 0
 
 -- During login / reload, Blizzard and bar addons can still be syncing action bars.
@@ -766,31 +768,40 @@ local function NormalizeOneLine(s)
     return s
 end
 
-local function GetShortStack()
+local function GetStackForWriteTrace()
     if type(debugstack) ~= "function" then
         return nil
     end
-    -- Try to skip a couple frames; fall back if signature differs.
-    local ok, st = pcall(debugstack, 3)
-    if not ok then
-        ok, st = pcall(debugstack)
+
+    -- We want enough frames to identify the *caller* of PickupAction/PlaceAction,
+    -- not our hook/trace code. Try increasing start depths.
+    local best = nil
+    local bestCulprit = nil
+
+    for start = 4, 12 do
+        local ok, st = pcall(debugstack, start, 12, 12)
+        if not ok then
+            ok, st = pcall(debugstack, start)
+        end
+        if ok and type(st) == "string" and st ~= "" then
+            local cul = st:match("Interface/AddOns/([^/]+)/")
+            if cul and cul ~= "" and cul ~= addonName then
+                return st, cul
+            end
+
+            if not best then
+                best = st
+                bestCulprit = cul
+            end
+        end
     end
-    if not ok then
-        return nil
-    end
-    st = NormalizeOneLine(st)
-    if #st > 240 then
-        st = st:sub(1, 240) .. "…"
-    end
-    return st
+
+    return best, bestCulprit
 end
 
 local function RecordSlotWrite(slot, op)
     slot = tonumber(slot)
     if not slot then
-        return
-    end
-    if (internalWriteDepth or 0) > 0 then
         return
     end
     if not GetBoolSetting("actionBarDebugAcc", false) then
@@ -803,14 +814,28 @@ local function RecordSlotWrite(slot, op)
             now = t
         end
     end
-    local st = GetShortStack()
-    local culprit = st and (st:match("Interface/AddOns/([^/]+)/") or st:match("Interface/AddOns/([^/]+)/")) or nil
+    local st, stackCulprit = GetStackForWriteTrace()
+    local culprit = stackCulprit
+    if not culprit and type(st) == "string" then
+        culprit = st:match("Interface/AddOns/([^/]+)/")
+    end
     lastWriteBySlot[slot] = {
         at = now,
         op = tostring(op or "?") ,
         culprit = culprit,
         stack = st,
     }
+
+    writeLog[#writeLog + 1] = {
+        at = now,
+        slot = slot,
+        op = tostring(op or "?"),
+        culprit = culprit,
+        stack = st,
+    }
+    if #writeLog > WRITE_LOG_MAX then
+        table.remove(writeLog, 1)
+    end
 end
 
 local function EnsureWriteTraceHooks()
@@ -831,6 +856,103 @@ local function EnsureWriteTraceHooks()
         pcall(hooksecurefunc, "PickupAction", function(slot)
             RecordSlotWrite(slot, "PickupAction")
         end)
+    end
+end
+
+local function PrintSituate(msg)
+    local frame = DEFAULT_CHAT_FRAME
+    msg = tostring(msg or "")
+    if msg:find("|", 1, true) then
+        msg = msg:gsub("|", "||")
+    end
+    if frame and frame.AddMessage then
+        frame:AddMessage("|cff00ccff[FGO]|r Situate: " .. msg)
+        return
+    end
+    print("|cff00ccff[FGO]|r Situate: " .. msg)
+end
+
+local function GetFirstStackLineForAddon(stackText, wantAddon)
+    if type(stackText) ~= "string" or stackText == "" then
+        return nil
+    end
+
+    wantAddon = tostring(wantAddon or "")
+    if wantAddon ~= "" then
+        local line = stackText:match("%[Interface/AddOns/" .. wantAddon .. "/[^\n]+")
+        if type(line) == "string" and line ~= "" then
+            return line
+        end
+
+        line = stackText:match("Interface/AddOns/" .. wantAddon .. "/[^\n]+")
+        if type(line) == "string" and line ~= "" then
+            return line
+        end
+    end
+
+    local any = stackText:match("%[Interface/AddOns/[^\n]+")
+    if type(any) == "string" and any ~= "" then
+        return any
+    end
+
+    any = stackText:match("Interface/AddOns/[^\n]+")
+    if type(any) == "string" and any ~= "" then
+        return any
+    end
+    return nil
+end
+
+function ns.ActionBar_SetWriteDebugEnabled(on)
+    InitSV()
+    local s = GetSettings()
+    if type(s) ~= "table" then
+        return false
+    end
+    EnsureWriteTraceHooks()
+    s.actionBarDebugAcc = on and true or false
+    return s.actionBarDebugAcc and true or false
+end
+
+function ns.ActionBar_IsWriteDebugEnabled()
+    return GetBoolSetting("actionBarDebugAcc", false) and true or false
+end
+
+function ns.ActionBar_DumpWriteLog(maxLines)
+    EnsureWriteTraceHooks()
+    local n = tonumber(maxLines) or 10
+    if n < 1 then n = 1 end
+    if n > 25 then n = 25 end
+
+    if not GetBoolSetting("actionBarDebugAcc", false) then
+        PrintSituate("WriteDebug is OFF (enable with /fgo clickdebug on)")
+        return
+    end
+
+    if #writeLog == 0 then
+        PrintSituate("No slot writes recorded yet")
+        return
+    end
+
+    PrintSituate("Recent slot writes (newest last):")
+    local start = #writeLog - n + 1
+    if start < 1 then start = 1 end
+    for i = start, #writeLog do
+        local e = writeLog[i]
+        local slot = (type(e) == "table") and e.slot or "?"
+        local op = (type(e) == "table") and e.op or "?"
+        local cul = (type(e) == "table") and (e.culprit or "?") or "?"
+        local at = (type(e) == "table") and tonumber(e.at) or nil
+        if at then
+            PrintSituate(string.format("t=%.2f %s slot=%s addon=%s", at, tostring(op), tostring(slot), tostring(cul)))
+        else
+            PrintSituate(tostring(op) .. " slot=" .. tostring(slot) .. " addon=" .. tostring(cul))
+        end
+
+        local st = (type(e) == "table") and e.stack or nil
+        local firstLine = GetFirstStackLineForAddon(st, cul)
+        if firstLine then
+            PrintSituate("  at " .. tostring(firstLine))
+        end
     end
 end
 

@@ -207,6 +207,10 @@ local function BuildMacrosPanel(parent)
     btnConjured:SetSize(90, 20)
     btnConjured:SetText("Conjured")
 
+    local btnMacroDebug = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnMacroDebug:SetSize(70, 20)
+    btnMacroDebug:SetText("FoodDbg")
+
     local btnFoodMacro = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
     btnFoodMacro:SetSize(BTN_W, BTN_H)
     btnFoodMacro:SetText("Food")
@@ -221,6 +225,12 @@ local function BuildMacrosPanel(parent)
     end
     UpdateConjuredButtonVisual()
 
+    local function UpdateFoodDebugButtonVisual()
+        local on = (type(M.FoodDrink_IsDebugEnabled) == "function") and M.FoodDrink_IsDebugEnabled() or false
+        btnMacroDebug:SetText(on and "|cFF00FF00FoodDbg|r" or "|cFF888888FoodDbg|r")
+    end
+    UpdateFoodDebugButtonVisual()
+
     SetButtonTooltip(btnFoodMacro, function()
         return "Food\n\nCreate/update the '" .. tostring(M and "FGO Food" or "FGO Food") .. "' macro to use your best bag food."
     end)
@@ -230,6 +240,10 @@ local function BuildMacrosPanel(parent)
     SetButtonTooltip(btnConjured, function()
         local on = (type(M.FoodDrink_GetPreferConjured) == "function") and M.FoodDrink_GetPreferConjured() or false
         return "Conjured\n\nPrefer conjured food/drinks when picking the best item.\n\nCurrent: " .. (on and "ON" or "OFF")
+    end)
+    SetButtonTooltip(btnMacroDebug, function()
+        local on = (type(M.FoodDrink_IsDebugEnabled) == "function") and M.FoodDrink_IsDebugEnabled() or false
+        return "FoodDbg\n\nToggle Food/Drink debug monitoring (concise logs on scan/defer/update events).\n\nCurrent: " .. (on and "ON" or "OFF")
     end)
 
     btnFoodMacro:SetScript("OnClick", function()
@@ -249,6 +263,18 @@ local function BuildMacrosPanel(parent)
         local cur = M.FoodDrink_GetPreferConjured() and true or false
         M.FoodDrink_SetPreferConjured(not cur)
         UpdateConjuredButtonVisual()
+    end)
+
+    btnMacroDebug:SetScript("OnClick", function()
+        if type(M.FoodDrink_IsDebugEnabled) ~= "function" or type(M.FoodDrink_SetDebugEnabled) ~= "function" then
+            return
+        end
+        local cur = M.FoodDrink_IsDebugEnabled() and true or false
+        local now = M.FoodDrink_SetDebugEnabled(not cur)
+        if type(M.Print) == "function" then
+            M.Print("FoodDbg: " .. (now and "ON" or "OFF"))
+        end
+        UpdateFoodDebugButtonVisual()
     end)
 
     -- Popout anchored OUTSIDE the tab (to the right) so it doesn't overlap the Home column.
@@ -1373,6 +1399,11 @@ local function BuildMacrosPanel(parent)
         btnConjured:SetPoint("LEFT", btnOptional, "RIGHT", 8, 0)
         btnConjured:SetPoint("BOTTOM", btnOptional, "BOTTOM", 0, 0)
         UpdateConjuredButtonVisual()
+
+        -- Bottom-left: Debug button (next to Conjured)
+        btnMacroDebug:ClearAllPoints()
+        btnMacroDebug:SetPoint("LEFT", btnConjured, "RIGHT", 8, 0)
+        btnMacroDebug:SetPoint("BOTTOM", btnOptional, "BOTTOM", 0, 0)
 
         -- Divider between columns (stop above the hearth location line)
         do

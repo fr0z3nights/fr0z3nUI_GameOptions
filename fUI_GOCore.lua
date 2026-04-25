@@ -58,6 +58,253 @@ local function Print(msg)
   end
 end
 
+-- ==========================================================================
+-- Sound debug helper
+-- Prints the soundKitID for sounds that finish playing (SOUNDKIT_FINISHED).
+-- Note: This only applies to SoundKit-based sounds (not arbitrary PlaySoundFile paths).
+-- ==========================================================================
+
+do
+  local spy = {
+    enabled = false,
+    max = 25,
+    history = {},
+    fileHistory = {},
+    lastID = nil,
+    lastAt = 0,
+    lastFile = nil,
+    lastFileAt = 0,
+    hooks = {
+      installed = false,
+      hooksecurefunc = false,
+      PlaySound = false,
+      PlaySoundKitID = false,
+      PlaySoundFile = false,
+      C_Sound_PlaySound = false,
+      C_Sound_PlaySoundKitID = false,
+      C_Sound_PlaySoundFile = false,
+    },
+  }
+
+  local f = CreateFrame("Frame")
+  f:Hide()
+
+  local function Now()
+    if type(GetTime) == "function" then
+      return GetTime() or 0
+    end
+    return 0
+  end
+
+  f:SetScript("OnEvent", function(_, event, arg1)
+    if not spy.enabled then
+      return
+    end
+    if event == "SOUNDKIT_FINISHED" then
+      -- NOTE: Many builds pass a sound *handle* here (not a kit ID), and some UI
+      -- sounds never trigger this event. Keep it as best-effort only.
+      local handle = tonumber(arg1)
+      if not handle then
+        return
+      end
+      spy.lastID = handle
+      spy.lastAt = Now()
+      table.insert(spy.history, 1, { id = handle, at = spy.lastAt, kind = "finished" })
+      if #spy.history > (spy.max or 25) then
+        table.remove(spy.history)
+      end
+      Print("SoundFinished(handle): " .. tostring(handle))
+    end
+  end)
+
+  -- Hook sound play calls so we can see the SoundKitID/file at the moment it's played.
+  -- This is the reliable way to catch UI sounds like action bar pickup/place.
+  do
+    local function PushKit(id, kind)
+      id = tonumber(id)
+      if not id then return end
+      spy.lastID = id
+      spy.lastAt = Now()
+      table.insert(spy.history, 1, { id = id, at = spy.lastAt, kind = kind or "play" })
+      if #spy.history > (spy.max or 25) then
+        table.remove(spy.history)
+      end
+      pcall(Print, "SoundKit(" .. tostring(kind or "play") .. "): " .. tostring(id))
+    end
+
+    local function PushFile(path)
+      path = tostring(path or "")
+      if path == "" then return end
+      spy.lastFile = path
+      spy.lastFileAt = Now()
+      table.insert(spy.fileHistory, 1, { path = path, at = spy.lastFileAt })
+      if #spy.fileHistory > (spy.max or 25) then
+        table.remove(spy.fileHistory)
+      end
+      pcall(Print, "SoundFile: " .. path)
+    end
+
+    local function TryInstallHooks()
+      spy.hooks.hooksecurefunc = (type(hooksecurefunc) == "function")
+      if not spy.hooks.hooksecurefunc then
+        return
+      end
+
+      local function TryHookGlobal(name, markKey, handler)
+        if spy.hooks[markKey] then
+          return
+        end
+        if type(name) ~= "string" or name == "" then
+          return
+        end
+        if type(rawget(_G, name)) ~= "function" then
+          return
+        end
+        local ok = pcall(hooksecurefunc, name, handler)
+        if ok then
+          spy.hooks[markKey] = true
+          spy.hooks.installed = true
+        end
+      end
+
+      local function TryHookMethod(tbl, method, markKey, handler)
+        if spy.hooks[markKey] then
+          return
+        end
+        if type(tbl) ~= "table" or type(method) ~= "string" or method == "" then
+          return
+        end
+        if type(rawget(tbl, method)) ~= "function" then
+          return
+        end
+        local ok = pcall(hooksecurefunc, tbl, method, handler)
+        if ok then
+          spy.hooks[markKey] = true
+          spy.hooks.installed = true
+        end
+      end
+
+      TryHookGlobal("PlaySound", "PlaySound", function(soundKitID)
+        if spy.enabled then
+          PushKit(soundKitID, "PlaySound")
+        end
+      end)
+
+      TryHookGlobal("PlaySoundKitID", "PlaySoundKitID", function(soundKitID)
+        if spy.enabled then
+          PushKit(soundKitID, "PlaySoundKitID")
+        end
+      end)
+
+      TryHookGlobal("PlaySoundFile", "PlaySoundFile", function(path)
+        if spy.enabled then
+          PushFile(path)
+        end
+      end)
+
+      local cSound = rawget(_G, "C_Sound")
+      if type(cSound) == "table" then
+        TryHookMethod(cSound, "PlaySound", "C_Sound_PlaySound", function(...)
+          if not spy.enabled then return end
+          local a1, a2 = ...
+          local sid = (type(a1) == "table") and a2 or a1
+          PushKit(sid, "C_Sound.PlaySound")
+        end)
+        TryHookMethod(cSound, "PlaySoundKitID", "C_Sound_PlaySoundKitID", function(...)
+          if not spy.enabled then return end
+          local a1, a2 = ...
+          local sid = (type(a1) == "table") and a2 or a1
+          PushKit(sid, "C_Sound.PlaySoundKitID")
+        end)
+        TryHookMethod(cSound, "PlaySoundFile", "C_Sound_PlaySoundFile", function(...)
+          if not spy.enabled then return end
+          local a1, a2 = ...
+          local path = (type(a1) == "table") and a2 or a1
+          PushFile(path)
+        end)
+      end
+    end
+
+    -- Try now, and retry after the UI is fully up.
+    TryInstallHooks()
+    if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+      C_Timer.After(1.0, TryInstallHooks)
+      C_Timer.After(5.0, TryInstallHooks)
+    end
+
+    local hookF = CreateFrame("Frame")
+    hookF:RegisterEvent("PLAYER_ENTERING_WORLD")
+    hookF:RegisterEvent("ADDON_LOADED")
+    hookF:SetScript("OnEvent", function()
+      TryInstallHooks()
+    end)
+  end
+
+  local function SetEnabled(on)
+    on = on and true or false
+    spy.enabled = on
+    if on then
+      f:RegisterEvent("SOUNDKIT_FINISHED")
+      f:Show()
+    else
+      f:UnregisterEvent("SOUNDKIT_FINISHED")
+      f:Hide()
+    end
+    return spy.enabled
+  end
+
+  local function IsEnabled()
+    return spy.enabled and true or false
+  end
+
+  local function GetLast()
+    return spy.lastID, spy.lastAt
+  end
+
+  local function GetLastFile()
+    return spy.lastFile, spy.lastFileAt
+  end
+
+  local function GetHistory()
+    return spy.history
+  end
+
+  local function GetFileHistory()
+    return spy.fileHistory
+  end
+
+  local function GetHookStatus()
+    return spy.hooks
+  end
+
+  local function TestPlay(soundKitID)
+    soundKitID = tonumber(soundKitID)
+    if not soundKitID then
+      return false, "invalid"
+    end
+    -- Try the most common entrypoints.
+    if type(rawget(_G, "PlaySound")) == "function" then
+      pcall(rawget(_G, "PlaySound"), soundKitID)
+      return true, "PlaySound"
+    end
+    local cSound = rawget(_G, "C_Sound")
+    if type(cSound) == "table" and type(rawget(cSound, "PlaySound")) == "function" then
+      pcall(rawget(cSound, "PlaySound"), soundKitID)
+      return true, "C_Sound.PlaySound"
+    end
+    return false, "no-api"
+  end
+
+  ns.SoundSpy_SetEnabled = SetEnabled
+  ns.SoundSpy_IsEnabled = IsEnabled
+  ns.SoundSpy_GetLast = GetLast
+  ns.SoundSpy_GetLastFile = GetLastFile
+  ns.SoundSpy_GetHistory = GetHistory
+  ns.SoundSpy_GetFileHistory = GetFileHistory
+  ns.SoundSpy_GetHookStatus = GetHookStatus
+  ns.SoundSpy_TestPlay = TestPlay
+end
+
 -- Loot core slash handling moved to fUI_GOLoot.lua
 LI.Loot = LI.Loot or {}
 

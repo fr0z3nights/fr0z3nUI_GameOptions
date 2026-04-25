@@ -149,7 +149,6 @@ SetZone("The Barrens, Kalimdor")
 
 SetZone("Darkshore, Kalimdor")
 
-    -- Zidormi
     t = NPC("Zidormi", 141489)
     t[49022] = { text = "Can you show me what Darkshore was like before the battle?" }
 
@@ -168,6 +167,9 @@ SetZone("Orgrimmar, Kalimdor")
    t = NPC("Trading Post", { 185473, 185472 })
    t[107825] = { text = "I'd like to see what you have to offer this month." }		-- Zen'kala (185473)
    t[107826] = { text = "I'd like to see what you have to offer this month." }		-- Shiri (185472)
+
+   t = NPC("Vanguard Battlemage", 149626)
+   t[ 51034] = { text = "I must help Khadgar. Send me to the Blasted Lands!",  }					-- Warlords of Draenor: The Dark Portal (34398) Vanguard Battlemage (149626)
 
 SetZone("Razorwind Shores, Kalimdor")
 

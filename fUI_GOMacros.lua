@@ -10,6 +10,10 @@ local function Print(msg)
     print(PREFIX .. tostring(msg or ""))
 end
 
+-- Forward declaration: Food/Drink state is initialized later, but debug helpers
+-- and early functions need a stable local upvalue.
+local FoodDrink
+
 local function InCombat()
     return InCombatLockdown and InCombatLockdown() or false
 end
@@ -25,6 +29,44 @@ local function GetHearthDB()
     root.hearth = root.hearth or {}
     root.hearth.window = root.hearth.window or { tab = "hearth", macroPerChar = false }
     return root.hearth, ""
+end
+
+local function GetFoodDrinkDebugEnabled()
+    local db = GetHearthDB()
+    db.window = db.window or {}
+    return db.window.foodDrinkDebug and true or false
+end
+
+local function SetFoodDrinkDebugEnabled(on)
+    local db = GetHearthDB()
+    db.window = db.window or {}
+    db.window.foodDrinkDebug = on and true or false
+    return db.window.foodDrinkDebug and true or false
+end
+
+local function FormatItemShort(itemID)
+    local id = tonumber(itemID) or 0
+    if id <= 0 then
+        return "none"
+    end
+    local link = (type(GetItemInfo) == "function") and select(2, GetItemInfo(id)) or nil
+    return link or ("item:" .. tostring(id))
+end
+
+local function FoodDrinkDbg(msg)
+    if not GetFoodDrinkDebugEnabled() then
+        return
+    end
+    local now = (type(GetTime) == "function") and (GetTime() or 0) or 0
+    local lastT = tonumber(FoodDrink.dbgLastAt) or 0
+    local lastM = FoodDrink.dbgLastMsg
+    msg = tostring(msg or "")
+    if msg ~= "" and msg == lastM and (now - lastT) < 1.25 then
+        return
+    end
+    FoodDrink.dbgLastAt = now
+    FoodDrink.dbgLastMsg = msg
+    Print("FoodDbg: " .. msg)
 end
 
 local function GetMacroPerCharSetting()
@@ -650,6 +692,8 @@ local FOOD_MACRO_NAME = "FGO Food"
 local DRINK_MACRO_NAME = "FGO Drink"
 
 local CLASS_CONSUMABLE = (Enum and Enum.ItemClass and Enum.ItemClass.Consumable) or 0
+local SUB_FOOD = (Enum and Enum.ItemConsumableSubclass and Enum.ItemConsumableSubclass.Food) or nil
+local SUB_DRINK = (Enum and Enum.ItemConsumableSubclass and Enum.ItemConsumableSubclass.Drink) or nil
 local SUB_FOOD_DRINK = (Enum and Enum.ItemConsumableSubclass and Enum.ItemConsumableSubclass.FoodAndDrink) or 5
 local foodDrinkSubclassIDs = { [SUB_FOOD_DRINK] = true }
 do
@@ -689,7 +733,7 @@ local function SetPreferConjured(on)
     fd.preferConjured = on and true or false
 end
 
-local FoodDrink = {
+FoodDrink = {
     pendingBags = {},
     itemsPending = {},
     itemInfoRequestAt = {},
@@ -705,6 +749,7 @@ local FoodDrink = {
     lastDrinkID = 0,
 
     lastBagScan = { anySlots = false, anyItems = false, at = 0 },
+    lastPick = {},
     retryAttempts = 0,
     retryTimerArmed = false,
 }
@@ -819,7 +864,11 @@ local function GetTooltipLinesByItemID(itemID)
                 lines[#lines + 1] = line.rightText
             end
         end
-        return lines
+        -- Sometimes C_TooltipInfo yields an object but with no surfaced text yet.
+        -- Fall back to the GameTooltip scan path in that case.
+        if #lines > 0 then
+            return lines
+        end
     end
 
     local tip = EnsureScanTip()
@@ -849,6 +898,41 @@ local function IsFoodDrinkSubclass(subID, subclassName)
         return true
     end
     return false
+end
+
+local function GetFoodDrinkFlags(subID, subclassName)
+    -- Returns: isFood, isDrink
+    if subID ~= nil then
+        if subID == SUB_FOOD_DRINK then
+            return true, true
+        end
+        if SUB_FOOD and subID == SUB_FOOD then
+            return true, false
+        end
+        if SUB_DRINK and subID == SUB_DRINK then
+            return false, true
+        end
+    end
+
+    if subclassName and subclassName ~= "" then
+        if _G.ITEM_SUBCLASS_CONSUMABLE_FOOD_AND_DRINK and subclassName == _G.ITEM_SUBCLASS_CONSUMABLE_FOOD_AND_DRINK then
+            return true, true
+        end
+        if _G.ITEM_SUBCLASS_CONSUMABLE_FOOD and subclassName == _G.ITEM_SUBCLASS_CONSUMABLE_FOOD then
+            return true, false
+        end
+        if _G.ITEM_SUBCLASS_CONSUMABLE_DRINK and subclassName == _G.ITEM_SUBCLASS_CONSUMABLE_DRINK then
+            return false, true
+        end
+    end
+
+    -- Conservative fallback: if we only know it's in the broader "food/drink" bucket,
+    -- treat it as eligible for both so we don't regress on localized clients.
+    if IsFoodDrinkSubclass(subID, subclassName) then
+        return true, true
+    end
+
+    return false, false
 end
 
 local function GetItemClassSubclassReq(itemID)
@@ -911,6 +995,8 @@ end
 local function ParseFoodDrinkRates(itemID)
     local lines = GetTooltipLinesByItemID(itemID)
     if not lines or #lines == 0 then
+        -- Treat missing tooltip text as pending item data; request a load and retry later.
+        RequestLoadItemDataByID_Throttled(itemID)
         return nil
     end
 
@@ -1179,8 +1265,15 @@ local function ClassifyFoodDrink(itemID)
         return nil
     end
 
+    local isFood, isDrink = GetFoodDrinkFlags(subID, subName)
+
     local cached = FoodDrink.tooltipCache[itemID]
     if cached then
+        if cached.isFood == nil or cached.isDrink == nil then
+            cached.isFood = isFood and true or false
+            cached.isDrink = isDrink and true or false
+            FoodDrink.tooltipCache[itemID] = cached
+        end
         if cached.isPercent and FoodDrink.percentRatesDirty then
             local st = ParseFoodDrinkRates(itemID)
             if st then
@@ -1207,6 +1300,8 @@ local function ClassifyFoodDrink(itemID)
         isPercent = st.isPercent and true or false,
         percentDuration = st.percentDuration,
         conjured = conjured,
+        isFood = isFood and true or false,
+        isDrink = isDrink and true or false,
     }
     FoodDrink.tooltipCache[itemID] = cached
     return cached
@@ -1218,35 +1313,68 @@ local function PickBestFromBags(kind)
     local lvl = UnitLevel("player") or 1
     local preferConjured = GetPreferConjured()
 
+    local stats = {
+        at = (type(GetTime) == "function") and (GetTime() or 0) or 0,
+        kind = tostring(kind or ""),
+        bagMax = GetHighestPlayerBagIndex(),
+        slots = 0,
+        items = 0,
+        foodDrinkItems = 0,
+        usableFoodDrinkItems = 0,
+        pendingItemData = HasPendingItemData() and true or false,
+    }
+
     for bag = 0, GetHighestPlayerBagIndex() do
         local n = C_Container and C_Container.GetContainerNumSlots and (C_Container.GetContainerNumSlots(bag) or 0) or 0
         if n and n > 0 then
             FoodDrink.lastBagScan.anySlots = true
         end
         for slot = 1, n do
+            stats.slots = stats.slots + 1
             local info = C_Container.GetContainerItemInfo(bag, slot)
             local id = info and info.itemID
             if id then
                 FoodDrink.lastBagScan.anyItems = true
+                stats.items = stats.items + 1
                 local qty = (GetItemCount and GetItemCount(id, false)) or 0
                 if qty and qty > 0 then
+                    -- Track whether we even *recognize* food/drink items.
+                    do
+                        local classID, subID, req, subName = GetItemClassSubclassReq(id)
+                        if classID == CLASS_CONSUMABLE and IsFoodDrinkSubclass(subID, subName) then
+                            stats.foodDrinkItems = stats.foodDrinkItems + 1
+                            if (tonumber(req) or 0) <= lvl then
+                                stats.usableFoodDrinkItems = stats.usableFoodDrinkItems + 1
+                            end
+                        end
+                    end
+
                     local e = ClassifyFoodDrink(id)
                     if e and (e.req or 0) <= lvl then
-                        local rate = (kind == "food") and (e.hRate or 0) or (e.mRate or 0)
-                        -- Fallback: if tooltip parsing yields 0, still pick the highest-tier usable item.
-                        -- Keep this score tiny so real parsed rates always win.
-                        local score = tonumber(rate) or 0
-                        if score <= 0 then
-                            score = (tonumber(e.req) or 0) * 0.0001
+                        local eligible = true
+                        if kind == "food" and not e.isFood then
+                            eligible = false
                         end
-                        if score > 0 then
-                            if preferConjured and e.conjured then
-                                -- Absolute priority when enabled.
-                                score = score + 1e12
+                        if kind == "drink" and not e.isDrink then
+                            eligible = false
+                        end
+                        if eligible then
+                            local rate = (kind == "food") and (e.hRate or 0) or (e.mRate or 0)
+                            -- Fallback: if tooltip parsing yields 0, still pick the highest-tier usable item.
+                            -- Keep this score tiny so real parsed rates always win.
+                            local score = tonumber(rate) or 0
+                            if score <= 0 then
+                                score = (tonumber(e.req) or 0) * 0.0001
                             end
-                            if score > bestScore or (score == bestScore and id < bestID) then
-                                bestScore = score
-                                bestID = id
+                            if score > 0 then
+                                if preferConjured and e.conjured then
+                                    -- Absolute priority when enabled.
+                                    score = score + 1e12
+                                end
+                                if score > bestScore or (score == bestScore and id < bestID) then
+                                    bestScore = score
+                                    bestID = id
+                                end
                             end
                         end
                     end
@@ -1254,6 +1382,9 @@ local function PickBestFromBags(kind)
             end
         end
     end
+
+    FoodDrink.lastPick = FoodDrink.lastPick or {}
+    FoodDrink.lastPick[kind] = stats
 
     return bestID
 end
@@ -1280,13 +1411,14 @@ local function BuildUseItemMacroBody(itemID, includeHealthstoneCombat, includeCo
     return out
 end
 
-local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateDrink)
+local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateDrink, reason)
     if not (GetMacroIndexByName and CreateMacro and EditMacro) then
         return false, "Macro API unavailable"
     end
 
     if InCombat() then
         FoodDrink.needsRewrite = true
+        FoodDrinkDbg("deferred (combat)" .. (reason and ("; reason=" .. tostring(reason)) or ""))
         return false, "in-combat"
     end
 
@@ -1297,6 +1429,12 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
     local bestFood = tonumber(PickBestFromBags("food")) or 0
     local bestDrink = tonumber(PickBestFromBags("drink")) or 0
 
+    if bestFood ~= (tonumber(FoodDrink.dbgLastBestFoodID) or 0) or bestDrink ~= (tonumber(FoodDrink.dbgLastBestDrinkID) or 0) then
+        FoodDrink.dbgLastBestFoodID = bestFood
+        FoodDrink.dbgLastBestDrinkID = bestDrink
+        FoodDrinkDbg("best food=" .. FormatItemShort(bestFood) .. ", drink=" .. FormatItemShort(bestDrink))
+    end
+
     -- Reset percent-derived dirty flag after a pass that re-classifies candidates.
     FoodDrink.percentRatesDirty = false
 
@@ -1304,12 +1442,15 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
     local drinkIdx = (GetMacroIndexByName(DRINK_MACRO_NAME) or 0)
 
     local blocked = false
+    local wroteFood = false
+    local wroteDrink = false
 
     if allowCreateFood or FoodDrink.createdFood or foodIdx > 0 then
         if forceRewrite or bestFood ~= (tonumber(FoodDrink.lastFoodID) or 0) or foodIdx == 0 then
             if bestFood > 0 then
                 FoodDrink.lastFoodID = bestFood
                 CreateOrUpdateNamedMacro_NoOptional(FOOD_MACRO_NAME, BuildUseItemMacroBody(bestFood, true, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+                wroteFood = true
             else
                 -- Never overwrite an existing macro with the placeholder body.
                 -- Defer until bags/tooltips are ready and we can pick a real item.
@@ -1323,6 +1464,7 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
             if bestDrink > 0 then
                 FoodDrink.lastDrinkID = bestDrink
                 CreateOrUpdateNamedMacro_NoOptional(DRINK_MACRO_NAME, BuildUseItemMacroBody(bestDrink, false, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+                wroteDrink = true
             else
                 blocked = true
             end
@@ -1332,24 +1474,38 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
     FoodDrink.needsRewrite = blocked
     if blocked then
         if not FoodDrink.lastBagScan.anySlots then
+            FoodDrinkDbg("blocked: bags not ready" .. (reason and ("; reason=" .. tostring(reason)) or ""))
             ScheduleFoodDrinkRetry("bags not ready")
             return false, "bags not ready"
         end
         if HasPendingItemData() then
+            FoodDrinkDbg("blocked: item data pending" .. (reason and ("; reason=" .. tostring(reason)) or ""))
             ScheduleFoodDrinkRetry("item data pending")
             return false, "item data pending"
         end
         FoodDrink.retryAttempts = 0
         FoodDrink.retryTimerArmed = false
+        FoodDrinkDbg("blocked: no valid food/drink" .. (reason and ("; reason=" .. tostring(reason)) or ""))
         return false, "no food/drink candidate"
     end
 
     FoodDrink.retryAttempts = 0
     FoodDrink.retryTimerArmed = false
+
+    if wroteFood or wroteDrink then
+        local parts = {}
+        if wroteFood then
+            parts[#parts + 1] = "Food=" .. FormatItemShort(FoodDrink.lastFoodID)
+        end
+        if wroteDrink then
+            parts[#parts + 1] = "Drink=" .. FormatItemShort(FoodDrink.lastDrinkID)
+        end
+        FoodDrinkDbg("updated " .. table.concat(parts, ", ") .. (reason and ("; reason=" .. tostring(reason)) or ""))
+    end
     return true
 end
 
-local function RunFoodDrinkScan(forceRewrite)
+local function RunFoodDrinkScan(forceRewrite, reason)
     FoodDrink.lastScanAt = GetTime()
 
     local active = (FoodDrink.createdFood or FoodDrink.createdDrink)
@@ -1358,11 +1514,11 @@ local function RunFoodDrinkScan(forceRewrite)
     end
 
     if active then
-        UpdateFoodDrinkMacros(forceRewrite, false, false)
+        UpdateFoodDrinkMacros(forceRewrite, false, false, reason)
     end
 end
 
-local function RequestFoodDrinkScan(forceRewrite)
+local function RequestFoodDrinkScan(forceRewrite, reason)
     FoodDrink.scanPending = true
     local now = GetTime()
     local elapsed = now - (FoodDrink.lastScanAt or 0)
@@ -1370,7 +1526,8 @@ local function RequestFoodDrinkScan(forceRewrite)
     if not FoodDrink.scanTimerArmed then
         if elapsed >= FOOD_DRINK_SCAN_COOLDOWN_SEC then
             FoodDrink.scanPending = false
-            RunFoodDrinkScan(forceRewrite)
+            FoodDrinkDbg("scan now" .. (forceRewrite and " (force)" or "") .. (reason and ("; reason=" .. tostring(reason)) or ""))
+            RunFoodDrinkScan(forceRewrite, reason)
             return
         end
 
@@ -1380,7 +1537,8 @@ local function RequestFoodDrinkScan(forceRewrite)
             FoodDrink.scanTimerArmed = false
             if not FoodDrink.scanPending then return end
             FoodDrink.scanPending = false
-            RunFoodDrinkScan(forceRewrite)
+            FoodDrinkDbg("scan (timer)" .. (forceRewrite and " (force)" or "") .. (reason and ("; reason=" .. tostring(reason)) or ""))
+            RunFoodDrinkScan(forceRewrite, reason)
         end)
     end
 end
@@ -1401,7 +1559,8 @@ ScheduleFoodDrinkRetry = function(_)
     C_Timer.After(delay, function()
         FoodDrink.retryTimerArmed = false
         if not IsFoodDrinkActive() then return end
-        RequestFoodDrinkScan(true)
+        FoodDrinkDbg("retry firing (attempt " .. tostring(FoodDrink.retryAttempts or 0) .. ")")
+        RequestFoodDrinkScan(true, "retry")
     end)
 end
 
@@ -1423,7 +1582,7 @@ do
         if event == "PLAYER_ENTERING_WORLD" then
             C_Timer.After(1.0, function()
                 if IsFoodDrinkActive() then
-                    RequestFoodDrinkScan(true)
+                    RequestFoodDrinkScan(true, "enter_world")
                 end
             end)
 
@@ -1431,7 +1590,7 @@ do
             -- after login/zone load even though BAG_UPDATE events already fired.
             C_Timer.After(4.0, function()
                 if IsFoodDrinkActive() then
-                    RequestFoodDrinkScan(true)
+                    RequestFoodDrinkScan(true, "enter_world_followup")
                 end
             end)
             return
@@ -1439,21 +1598,21 @@ do
 
         if event == "BAG_UPDATE" then
             if IsFoodDrinkActive() then
-                RequestFoodDrinkScan(false)
+                RequestFoodDrinkScan(false, "bag_update")
             end
             return
         end
 
         if event == "BAG_UPDATE_DELAYED" then
             if IsFoodDrinkActive() then
-                RequestFoodDrinkScan(false)
+                RequestFoodDrinkScan(false, "bag_update_delayed")
             end
             return
         end
 
         if event == "ITEM_PUSH" then
             if IsFoodDrinkActive() then
-                RequestFoodDrinkScan(false)
+                RequestFoodDrinkScan(false, "item_push")
             end
             return
         end
@@ -1465,7 +1624,7 @@ do
                 FoodDrink.itemInfoRequestAt[itemID] = nil
                 -- Force an update after new item info arrives.
                 if IsFoodDrinkActive() then
-                    RequestFoodDrinkScan(true)
+                    RequestFoodDrinkScan(true, "item_info_received")
                 end
             end
             return
@@ -1477,7 +1636,7 @@ do
                 FoodDrink.itemsPending[itemID] = nil
                 FoodDrink.itemInfoRequestAt[itemID] = nil
                 if IsFoodDrinkActive() then
-                    RequestFoodDrinkScan(true)
+                    RequestFoodDrinkScan(true, "item_data_load_result")
                 end
             end
             return
@@ -1485,21 +1644,22 @@ do
 
         if event == "MERCHANT_CLOSED" then
             if IsFoodDrinkActive() then
-                RequestFoodDrinkScan(false)
+                RequestFoodDrinkScan(false, "merchant_closed")
             end
             return
         end
 
         if event == "PLAYER_REGEN_ENABLED" then
             if FoodDrink.needsRewrite then
-                UpdateFoodDrinkMacros(true, false, false)
+                FoodDrinkDbg("after-combat apply")
+                UpdateFoodDrinkMacros(true, false, false, "after_combat")
             end
             return
         end
 
         if event == "PLAYER_LEVEL_UP" then
             if IsFoodDrinkActive() then
-                RequestFoodDrinkScan(true)
+                RequestFoodDrinkScan(true, "level_up")
             end
             return
         end
@@ -1509,7 +1669,7 @@ do
             if unit == "player" and IsFoodDrinkActive() then
                 -- Percent-based foods depend on max health.
                 FoodDrink.percentRatesDirty = true
-                RequestFoodDrinkScan(true)
+                RequestFoodDrinkScan(true, "max_health")
             end
             return
         end
@@ -1518,7 +1678,7 @@ do
             local unit, powerType = arg1, arg2
             if unit == "player" and (powerType == nil or powerType == "MANA" or powerType == 0) and IsFoodDrinkActive() then
                 FoodDrink.percentRatesDirty = true
-                RequestFoodDrinkScan(true)
+                RequestFoodDrinkScan(true, "max_power")
             end
             return
         end
@@ -1579,7 +1739,21 @@ ns.Macros.FoodDrink_ForceUpdate = function()
     -- Explicit user action: allow create if missing.
     FoodDrink.createdFood = true
     FoodDrink.createdDrink = true
-    return UpdateFoodDrinkMacros(true, true, true)
+    FoodDrinkDbg("force update")
+    return UpdateFoodDrinkMacros(true, true, true, "force")
+end
+
+ns.Macros.FoodDrink_IsDebugEnabled = function()
+    return GetFoodDrinkDebugEnabled()
+end
+
+ns.Macros.FoodDrink_SetDebugEnabled = function(on)
+    local v = SetFoodDrinkDebugEnabled(on)
+    FoodDrinkDbg("enabled")
+    if not v then
+        Print("FoodDbg: OFF")
+    end
+    return v
 end
 
 ns.Macros.FoodDrink_DebugStatus = function()
@@ -1618,6 +1792,11 @@ ns.Macros.FoodDrink_DebugStatus = function()
 
     return {
         inCombat = InCombat(),
+        needsRewrite = FoodDrink.needsRewrite and true or false,
+        scanPending = FoodDrink.scanPending and true or false,
+        scanTimerArmed = FoodDrink.scanTimerArmed and true or false,
+        retryAttempts = tonumber(FoodDrink.retryAttempts) or 0,
+        retryTimerArmed = FoodDrink.retryTimerArmed and true or false,
         level = lvl,
         hpMax = hpMax,
         mpMax = mpMax,
@@ -1636,6 +1815,7 @@ ns.Macros.FoodDrink_DebugStatus = function()
         bestDrink = drinkEntry,
         pendingItemData = HasPendingItemData() and true or false,
         lastScanAt = tonumber(FoodDrink.lastScanAt) or 0,
+        lastPick = FoodDrink.lastPick,
         lastBagScan = {
             anySlots = FoodDrink.lastBagScan.anySlots and true or false,
             anyItems = FoodDrink.lastBagScan.anyItems and true or false,
