@@ -380,6 +380,42 @@ local function CloseGossipWindow(isRetry)
     end
 end
 
+local function CloseMerchantWindow()
+    local function Try(fn, ...)
+        if type(fn) ~= "function" then
+            return false
+        end
+        local ok = pcall(fn, ...)
+        return ok and true or false
+    end
+
+    if _G and type(_G.CloseMerchant) == "function" then
+        Try(_G.CloseMerchant)
+    end
+
+    -- Clear the merchant interaction
+    if C_PlayerInteractionManager then
+        if type(C_PlayerInteractionManager.ClearInteraction) == "function" then
+            if _G and _G.Enum and _G.Enum.PlayerInteractionType and _G.Enum.PlayerInteractionType.Merchant then
+                Try(C_PlayerInteractionManager.ClearInteraction, _G.Enum.PlayerInteractionType.Merchant)
+            end
+            Try(C_PlayerInteractionManager.ClearInteraction)
+        end
+    end
+
+    if _G and _G.MerchantFrame then
+        local closeBtn = _G.MerchantFrame.CloseButton
+        if closeBtn and type(closeBtn.Click) == "function" then
+            Try(closeBtn.Click, closeBtn)
+        end
+        if type(_G.HideUIPanel) == "function" then
+            Try(_G.HideUIPanel, _G.MerchantFrame)
+        elseif type(_G.MerchantFrame.Hide) == "function" then
+            Try(_G.MerchantFrame.Hide, _G.MerchantFrame)
+        end
+    end
+end
+
 GetDbNpcTable = function(npcID)
     local rules = ns and ns.db and ns.db.rules
     if type(rules) ~= "table" then
@@ -777,6 +813,23 @@ function ns.Talk.TryAutoSelect(isRetry)
         end
         a = a:lower()
         return (a == "close" or a == "closegossip" or a == "closewindow")
+    end
+
+    local function EntryWantsXvendDelay(ruleEntry)
+        if type(ruleEntry) ~= "table" then
+            return nil
+        end
+        local x = ruleEntry.xvend
+        if type(x) == "number" and x > 0 then
+            return x
+        end
+        if type(x) == "string" then
+            local n = tonumber(x)
+            if n and n > 0 then
+                return n
+            end
+        end
+        return nil
     end
 
     local function ApplyMountUpSilentOff(ruleEntry)
@@ -1296,6 +1349,13 @@ function ns.Talk.TryAutoSelect(isRetry)
                             C_Timer.After(d, CloseGossipWindow)
                         else
                             CloseGossipWindow()
+                        end
+                    elseif EntryWantsXvendDelay(bestEntry) then
+                        local d = EntryWantsXvendDelay(bestEntry)
+                        if C_Timer and C_Timer.After then
+                            C_Timer.After(d, CloseMerchantWindow)
+                        else
+                            CloseMerchantWindow()
                         end
                     end
                     return true, "selected"

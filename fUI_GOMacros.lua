@@ -1324,15 +1324,18 @@ local function PickBestFromBags(kind)
         pendingItemData = HasPendingItemData() and true or false,
     }
 
+    local getNumSlots = (C_Container and C_Container.GetContainerNumSlots) or _G.GetContainerNumSlots
+    local getItemInfo = (C_Container and C_Container.GetContainerItemInfo)
+
     for bag = 0, GetHighestPlayerBagIndex() do
-        local n = C_Container and C_Container.GetContainerNumSlots and (C_Container.GetContainerNumSlots(bag) or 0) or 0
+        local n = getNumSlots and (getNumSlots(bag) or 0) or 0
         if n and n > 0 then
             FoodDrink.lastBagScan.anySlots = true
         end
         for slot = 1, n do
             stats.slots = stats.slots + 1
-            local info = C_Container.GetContainerItemInfo(bag, slot)
-            local id = info and info.itemID
+            local info = getItemInfo and getItemInfo(bag, slot) or nil
+            local id = (info and info.itemID) or ((type(_G.GetContainerItemID) == "function") and _G.GetContainerItemID(bag, slot)) or nil
             if id then
                 FoodDrink.lastBagScan.anyItems = true
                 stats.items = stats.items + 1
@@ -1364,7 +1367,8 @@ local function PickBestFromBags(kind)
                             -- Keep this score tiny so real parsed rates always win.
                             local score = tonumber(rate) or 0
                             if score <= 0 then
-                                score = (tonumber(e.req) or 0) * 0.0001
+                                -- NOTE: Many foods/drinks have reqLevel=0; ensure a non-zero score so we can still pick.
+                                score = ((tonumber(e.req) or 0) + 1) * 0.0001
                             end
                             if score > 0 then
                                 if preferConjured and e.conjured then
@@ -1566,9 +1570,11 @@ end
 
 do
     local f = CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_LOGIN")
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
     f:RegisterEvent("BAG_UPDATE")
     f:RegisterEvent("BAG_UPDATE_DELAYED")
+    f:RegisterEvent("UPDATE_MACROS")
     f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
     f:RegisterEvent("ITEM_DATA_LOAD_RESULT")
     f:RegisterEvent("ITEM_PUSH")
@@ -1579,6 +1585,21 @@ do
     f:RegisterEvent("UNIT_MAXPOWER")
 
     f:SetScript("OnEvent", function(_, event, arg1, arg2)
+        if event == "PLAYER_LOGIN" then
+            -- Some clients load the macro list slightly after addon init; try a couple times.
+            C_Timer.After(0.25, function()
+                if IsFoodDrinkActive() then
+                    RequestFoodDrinkScan(true, "player_login")
+                end
+            end)
+            C_Timer.After(2.00, function()
+                if IsFoodDrinkActive() then
+                    RequestFoodDrinkScan(true, "player_login_followup")
+                end
+            end)
+            return
+        end
+
         if event == "PLAYER_ENTERING_WORLD" then
             C_Timer.After(1.0, function()
                 if IsFoodDrinkActive() then
@@ -1593,6 +1614,20 @@ do
                     RequestFoodDrinkScan(true, "enter_world_followup")
                 end
             end)
+            return
+        end
+
+        if event == "UPDATE_MACROS" then
+            if IsFoodDrinkActive() then
+                RequestFoodDrinkScan(true, "update_macros")
+
+                -- Follow-up: catches cases where the macro list becomes available before bag/item data.
+                C_Timer.After(1.0, function()
+                    if IsFoodDrinkActive() then
+                        RequestFoodDrinkScan(true, "update_macros_followup")
+                    end
+                end)
+            end
             return
         end
 

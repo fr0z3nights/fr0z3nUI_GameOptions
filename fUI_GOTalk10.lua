@@ -140,6 +140,24 @@ local function NPC(npcName, npcIDs)
 		end,
 	})
 end
+
+SetZone("Amirdrassil, Dragon Isles")
+
+    t = NPC("Elder Verdantbark", { 251316, })
+    t[137249] = { text = "<Present throwing stones to Elder Verdantbark.>" }	-- Awaken the Ancient Protector (88927) Elder Verdantbark (251316)
+
+    t = NPC("First Arcanist Thalyssra", { 250853, })
+    t[135657] = { text = "Tell Shandris what has transpired." }	-- Children of the Stars (88923) First Arcanist Thalyssra (250853)
+
+    t = NPC("Lor'themar Theron", { 240335, })
+    t[135655] = { text = "Tell Shandris what has transpired." }	-- Children of the Stars (88923) Lor'themar Theron (240335)
+
+    t = NPC("Magister Umbric", { 253613, })
+    t[135656] = { text = "Tell Shandris what has transpired." }	-- Children of the Stars (88923) Magister Umbric (253613)
+
+    t = NPC("Malastral", { 255687, })
+    t[137236] = { text = "Give me the banner and I will gather the wisps." }	-- Awaken the Ancient of Lore (88937) Malastral (255687)
+
 SetZone("The Forbidden Reach, Dragon Isles")
 
     t = NPC("Zone NPCs", { 184165, 182610, 182611, })

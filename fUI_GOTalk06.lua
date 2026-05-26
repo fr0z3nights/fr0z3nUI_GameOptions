@@ -188,6 +188,8 @@ SetZone("Spires of Arak, Draenor")
     t = NPC("Vesharr", 87123)
     t[43292] = { text = "Lets do battle!", mount = true }
 
+SetZone("Warspear, Draenor")
+
 SetZone("Garrison, Draenor")
 
     t = NPC("Assistant Brightstone", 84455)

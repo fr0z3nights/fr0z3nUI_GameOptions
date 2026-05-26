@@ -717,39 +717,35 @@ do
     end
   end
 
-  local function ComputeEBExtraSplit(extra, guildMoneyCached, warMoneyCached)
+  -- When both bank XS toggles are enabled, route excess to the bank with the lower cached balance.
+  -- If balances are unavailable or tied, prefer the currently active bank.
+  local function ComputeEBExtraSplit(extra, guildMoneyCached, warMoneyCached, preferGuild)
     extra = math.floor(tonumber(extra) or 0)
     if extra <= 0 then return 0, 0 end
 
     local g = (type(guildMoneyCached) == "number") and math.floor(guildMoneyCached) or nil
     local w = (type(warMoneyCached) == "number") and math.floor(warMoneyCached) or nil
     if g == nil or w == nil then
-      local toGuild = math.floor(extra / 2)
-      return toGuild, (extra - toGuild)
+      if preferGuild == true then
+        return extra, 0
+      end
+      return 0, extra
     end
     if g < 0 then g = 0 end
     if w < 0 then w = 0 end
 
-    local lowIsGuild = (g < w)
-    local diff = w - g
-    if diff < 0 then diff = -diff end
-
-    if diff >= extra then
-      if lowIsGuild then
+    if g == w then
+      if preferGuild == true then
         return extra, 0
       end
       return 0, extra
     end
 
-    local toLow = math.floor((extra + diff) / 2)
-    if toLow < 0 then toLow = 0 end
-    if toLow > extra then toLow = extra end
-    local toHigh = extra - toLow
-
-    if lowIsGuild then
-      return toLow, toHigh
+    if g < w then
+      return extra, 0
     end
-    return toHigh, toLow
+
+    return 0, extra
   end
 
   local function MoneyToString(copper)
@@ -1238,7 +1234,7 @@ do
           local ct = EnsureCharTaxDB()
           local gMoney = (type(g) == "table") and g.guildBankMoneyCached or nil
           local wMoney = (type(ct) == "table") and ct.warBankMoneyCached or nil
-          local extraGuild, extraWar = ComputeEBExtraSplit(extra, gMoney, wMoney)
+          local extraGuild, extraWar = ComputeEBExtraSplit(extra, gMoney, wMoney, true)
           TaxDbg(cfg, string.format(
             "XS split: extra=%d gCached=%s wCached=%s -> gExtra=%d wExtra=%d",
             extra,
@@ -1473,7 +1469,7 @@ do
           local g = guildKey and EnsureGuildTaxDB(guildKey) or nil
           local gMoney = (type(g) == "table") and g.guildBankMoneyCached or nil
           local wMoney = (type(ct) == "table") and ct.warBankMoneyCached or nil
-          local _, extraWar = ComputeEBExtraSplit(extra, gMoney, wMoney)
+          local _, extraWar = ComputeEBExtraSplit(extra, gMoney, wMoney, false)
           local extraGuild = extra - math.floor(tonumber(extraWar) or 0)
           if extraGuild < 0 then extraGuild = 0 end
           TaxDbg(cfg, string.format(

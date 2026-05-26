@@ -142,10 +142,16 @@ local function NPC(npcName, npcIDs)
 end
 SetZone("Dalaran, Broken Isles")
 
-    t = NPC("Manapoof", 121602)
-	t[47010] = { prio = 10, text = "Stratholme", qil = 86839 }
+	t = NPC("Holgar Stormaxe", 4311)
+	t.__meta.stopIfQuestAvailable = { 44281, }                                  -- Quest Accept before Gossip (First NPCID)
+	t.__meta.stopIfQuestTurnIn = { 43926, }                               		-- Quest TurnIn before Gossip (First NPCID)
+	t[47485] = { text = "I've heard this tale before... <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, } }
+
+	t = NPC("Manapoof", 121602)
+	t[47010] = { prio = 10, text = "Stratholme", qil = {86839, 86841,} }
 	t[47009] = { prio = 09, text = "Gnomeregan", pcn = "Shadowspiner-Dath'Remar" }
---  t[47007] = { text = "Would you please send me to the Wailing Caverns?" }
---  t[47008] = { text = "Would you please send me to the Deadmines?" }
---  t[47011] = { text = "I'm ready, send me into Blackrock Depths!" }
+--  t[47007] = { prio = 09, text = "Wailing Caverns?" }
+--  t[47008] = { prio = 09, text = "Deadmines?" }
+--  t[47011] = { prio = 09, text = "Blackrock Depths!" }
+
 

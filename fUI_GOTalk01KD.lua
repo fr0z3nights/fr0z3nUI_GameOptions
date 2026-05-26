@@ -151,6 +151,7 @@ SetZone("Darkshore, Kalimdor")
 
     t = NPC("Zidormi", 141489)
     t[49022] = { text = "Can you show me what Darkshore was like before the battle?" }
+    t[49024] = { text = "Can you return me to the present time?" }
 
 SetZone("Orgrimmar, Kalimdor")
 

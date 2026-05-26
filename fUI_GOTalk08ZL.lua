@@ -147,11 +147,22 @@ SetZone("Dazar'alor, Zandalar")
 
    t = NPC("Brillin the Beauty", { 122690, })
    t[ 47954] = { text = "Let me browse your goods.", }     													-- Innkeeper Brillin the Beauty (122690)
+   t[109539] = { text = "Make this inn your home.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
    t = NPC("Examiner Alerinda", { 122701, })
    t[ 49309] = { text = "Train me in Archaeology.", }     													-- Examiner Alerinda (122701)
 
-   t = NPC("Pin'jin the Patient", { 122700, })
+   t = NPC("Jahden Fla", { 122704, })
+   t[ 48297] = { text = "Train me in Herbalism.", }     														-- Jahden Fla (122704)
+
+	t = NPC("Manapoof", 147642)
+	t[47010] = { prio = 10, text = "Stratholme", qil = {86839, 86841,} }
+	t[47009] = { prio = 09, text = "Gnomeregan", pcn = "Shadowspiner-Dath'Remar" }
+--  t[47007] = { prio = 09, text = "Wailing Caverns?" }
+--  t[47008] = { prio = 09, text = "Deadmines?" }
+--  t[47011] = { prio = 09, text = "Blackrock Depths!" }
+
+t = NPC("Pin'jin the Patient", { 122700, })
    t[ 50268] = { text = "Train me in Tailoring.", }     														-- Pin'jin the Patient (122700)
 
    t = NPC("Princess Talanji", { 135440, })

@@ -146,6 +146,7 @@ SetZone("Blasted Lands, Eastern Kingdoms")
 
    t = NPC("Zidormi", 88206)
    t[42958] = { text = "Show me the Blasted Lands before the invasion" }
+   t[42959] = { text = "Take me back to the present" }
 
 SetZone("Burning Steppes, Eastern Kingdoms")
 
@@ -180,6 +181,11 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 
    t = NPC("Arcanist Taemin", {249398, })
    t[135184] = { text = "What's on your mind?" }                               -- A Ranger's Spirit (91385)     Arcanist Taemin (249398)
+
+   t = NPC("Archmage Aethas Sunreaver", {240285, })
+   local INTRO_SEEN = "GOTalk:136655:133788"
+   t[133788] = { prio = 10, text = "We have come to negotiate in peace.", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
+   t[136655] = { prio = 10, text = "We don't have time for this <Skip>", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
    t = NPC("Grand Magister Rommath", {240532, })
    t[132750] = { text = "Begin the ritual." }
@@ -246,6 +252,9 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 
    t = NPC("Sheri", {251405, })
    t[136683] = { text = "I would like to see your wares", prio = 10, }                                   -- Sheri (251405)
+
+   t = NPC("Skymaster Sunwing", {238480, })
+   t[34101] = { text = "I'd like to fly back to Silvermoon City", prio = 5, }                            -- Skymaster Sunwing (238480)
 
    t = NPC("Solwin Brightstitch", {252156, })
    t[135911] = { text = "I'm ready for anything!" }                                                      -- Clothes Make the Man (91389)       Solwin Brightstitch (252156)
@@ -411,7 +420,7 @@ SetZone("Harandar, Eastern Kingdoms")
    t = NPC("Innkeeper Yinaa", 240404)
    t[132851] = { text = "What can you tell me about the Rift of Aln", prio = 10 }                        -- Watch the Den (86864) Innkeeper Yinaa (240404)
    t[132728] = { text = "I'd like to browse your goods.", prio = -5 }
-   t[132729] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+   t[132729] = { text = "Make this inn your home.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
    t = NPC("Keem", { 243930, })
    t[133684] = { text = "<Ask if they have Lightbloom in their village.>" }                              -- The Traveling Flowers (86956) Keem (243930) DEAD
@@ -487,7 +496,7 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 
    t = NPC("Arator", { 236959, 237502, })
    t[132388] = { text = "Your father sent me to find you." }                                             -- My Son (89271) Arator (236959)
-   local INTRO_SEEN = "GOTalk:237502:134861"
+   local INTRO_SEEN = "GOTalk:136469:134861"
    t[134861] = { prio = 10, text = "What are you going to do with the shield?", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
    t[136469] = { prio = 10, text = "Let's get back to Silvermoon.", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
@@ -543,11 +552,15 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 
 SetZone("Silvermoon City, Eastern Kingdoms")
 
-   t = NPC("Arator", { 244644, 237510, })
+   t = NPC("Arator", { 244644, 237510, 240267, })
    t[133853] = { text = "Alonsus Faol asks that we meet him at the Sunwell." }                           -- Meet at the Sunwell (86837)   Arator (244644)
    t[133856] = { text = "Let's go." }                                                                    -- Meet at the Sunwell (86837)   Arator (244644)
    t[133121] = { text = "I'm ready!" }                                                                   -- A Bulwark Remade (86833)      Arator (237510)
    t[136685] = { text = "What will you do next?" }                                                       -- A Bulwark Remade (86833)      Arator (237510)
+   t[133560] = { text = "Let's go. (Start Scenario)" }                                                   -- The Battle of the Bridge (88769) Arator (240267)
+   local INTRO_SEEN = "GOTalk:136564:136565"
+   t[136565] = { prio = 10, text = "Let's discuss the plan in full", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
+   t[136564] = { prio = 10, text = "I don't have time <Skip>", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
    t = NPC("Anduin Wrynn", { 249289, })
    t[135179] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>" }                         -- You Know This Evil? (91967) Anduin Wrynn (249289)
@@ -635,8 +648,22 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[134014] = { text = "A The Alliance will be staying longer than expected.", prio = 10 }              -- Paved in Ash (86735) Magistrix Nizara (240940)
    t[132845] = { text = "Let me browse your goods.", prio = -10 }                                        -- Quartermaster Magistrix Nizara (240940)
 
+   t = NPC("Maren Silverwing", 255473 )
+   t[139420] = { text = "I'd like to exchange Field Accolades for gear."  }                    -- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
+
    t = NPC("Miss Len'dali", { 244471, })
    t[133938] = { text = [[My employer sent me to purchase some "special" reagents]] }                    -- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
+
+   t = NPC("Naleidea Rivergleam", { 242398, })
+   t[138392] = { prio = 10, text = "Combine all of my Coffer Key Shards" }                               -- Coffer Keys
+   t[137445] = { prio = 09, text = "What does the Reliquary have to offer?" }                            -- Vendor Naleidea Rivergleam (242398)
+
+   t = NPC("Ranger Captain Lilatha", { 257411, })
+   t[139200] = { text = "<Show the Twilight's Blade missive" }                                           -- Torn Twilight Missive (95069) Ranger Captain Lilatha (957411)
+   t[139204] = { text = "I can do that.", close = true }                                                 -- Torn Twilight Missive (95069) Ranger Captain Lilatha (957411)
+
+   t = NPC("Reno Jackson", { 255103, })
+   t[137116] = { text = "Tell me what happened." }                                                       -- A Missing Member (39511) Riftblade Astre (249459)
 
    t = NPC("Riftblade Astre", { 249459, })
    t[135199] = { text = "I'll join you." }                                                               -- To Be Changed (91546) Riftblade Astre (249459)
@@ -655,8 +682,14 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t = NPC("Tarelin", { 244474, })
    t[134044] = { text = "I'm picking up a shipment for Zaen." }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
 
+   t = NPC("Telemancer Astrandis", { 242399, })
+   t[138619] = { text = "I wish to browse your wares." }                                                 -- Vendor Telemancer Astrandis (242399)
+
    t = NPC("Thiel", { 244470, })
    t[133946] = { text = "Where can I get more of these?" }                                               -- Murder Row: Acting the Part (90819) Thiel (244470)
+
+   t = NPC("Triam Dawnsetter", { 255476, })
+   t[138965] = { text = "What gear slots are available?" }                                               -- Murder Row: Acting the Part (90819) Thiel (244470)
 
    t = NPC("Valeera Sanguinar", 242381)
    t[133099] = { text = "Lor'themar will need the services of the Reliquary" }
@@ -670,6 +703,9 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t[135149] = { text = "<Ask how they would enter the Voidstorm without Umbric's help.>" }              -- You Know This Evil? (91967) War Chaplain Senn (248628)
 
 SetZone("Stormwind City, Eastern Kingdoms")
+
+   t = NPC("Brundia Braidhammer", 242651)
+   t[133249] = { text = "Let ne browse your goods." }
 
    t = NPC("High Inquisitor Whitemane", 171789)
    t[52725] = { text = "I have heard this tale before. <Skip the Maw introduction. Oribos awaits.>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "are you sure", "cannot be undone" }, within = 3, }, }
@@ -718,6 +754,13 @@ SetZone("Twilight Highlands, Eastern Kingdoms")
    t = NPC("Restlass Neophyte", { 248230, 248229, 248228 })
    t[135794] = { text = "<Challenge the cultist to a \"sparring match.\"" }
 
+SetZone("Voidspire, Eastern Kingdoms")
+
+   t = NPC("Arator", { 244297, })
+   t.__meta.stopIfQuestAvailable = { 90724, }                                                         -- First NPCID, Stops Gossip until quest is accepted
+   t.__meta.stopIfQuestTurnIn = { 88709, }                                                            -- First NPCID, Stops Gossip until quest is accepted
+   t[139331] = { text = "I am rady to return to Silvermoon" }                           -- The Broken Sky (90724) Arator (244297)
+
 SetZone("Voidstorm, Eastern Kingdoms")
 
    t = NPC("Alleria Windrunner", { 235521, 235502, 235763, })
@@ -750,6 +793,7 @@ SetZone("Voidstorm, Eastern Kingdoms")
 
    t = NPC("Hospitus", { 235701, })
    t[135474] = { text = "What do you have for sale?" }                                  -- Innkeeper Hospitus (235701)
+   t[132668] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
    t = NPC("Kifaan", { 244499, 244516, })
    t[136789] = { text = "<Hand Kifaan the Interrogated Data to interpret.>" }           -- Fits of Lucidity (90844) Kifaan (244499)
@@ -795,6 +839,9 @@ SetZone("Voidstorm, Eastern Kingdoms")
 
    t = NPC("Riftwalker Sideras", { 247594, })
    t[135020] = { text = "<Serve Hieron's tea.>" }                                       -- The Town Inside Me (91542) Riftwalker Sideras (247594)
+
+   t = NPC("Venzilion the Reality Cracker", { 253322, })
+   t[137728] = { text = "<Enter Voidspire in Story Mode>", qil = 88709 }                -- The Voidspire (88709) Venzilion the Reality Cracker (253322)
 
    t = NPC("Void Reasercher Anomander", { 248328, })
    t[138232] = { text = "<Inquire about Anomander's reaserch.>", prio = 10 }            -- Domus Penumbra (86510) Void Reasercher Anomander (248328)

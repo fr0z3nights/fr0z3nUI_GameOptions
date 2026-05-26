@@ -147,8 +147,17 @@ SetZone("Dread Wastes, Pandaria")
 
 SetZone("Jade Forest, Pandaria")
 
+    t = NPC("Grower Miao", 66980)
+    t[40742] = { "Train me in Herbalism.", }
+
     t = NPC("Hyuna", 66730)
     t[41814] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it!" }, within = 3, }, }
+
+    t = NPC("Stonebreaker Ruian", 66979)
+    t[40741] = { "Train me in Mining.", }
+
+    t = NPC("Trapper Ri", 66981)
+    t[40743] = { "Train me in Skinning.", }
 
     t = NPC("Whispering Pandaren Spirit", 68464)
     t[41953] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, }
