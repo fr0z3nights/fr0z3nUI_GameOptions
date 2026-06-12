@@ -162,21 +162,26 @@ SetZone("Darkmoon Island")
 	t[31263] = { text = "Mmm... food.", xvend = 15 }							-- A Delicious Recipe (29509) Stamp Thunderhorn (14845)
 	-- fix xvend so it closes vendor windows after the timer period
 SetZone("Timewalking")
-
-   t = NPC("Mistweaver Xia", 118828)											-- Pandaria Timewalking Vendor
-   t.__meta.stopIfQuestAvailable = { 86560, }                                   -- Quest Accept before Gossip (First NPCID)
-   t.__meta.stopIfQuestTurnIn = { 86560, 45563, }                               -- Quest TurnIn before Gossip (First NPCID)
-   t[46752] = { text = "I would like to buy from you." }						-- Vendor Mistweaver Xia (118828)
-
-   t = NPC("Kronnus", 151987)													-- Draenor Timewalking Vendor Horde
-   t.__meta.stopIfQuestAvailable = { 86563, }                                   -- Quest Accept before Gossip (First NPCID)
-   t.__meta.stopIfQuestTurnIn = { 86563, 55499, }                               -- Quest TurnIn before Gossip (First NPCID)
-   t[49471] = { text = "I would like to buy from you" }							-- Vendor Kronnus (151987)
-
-   t = NPC("Tempra", 151955)													-- Draenor Timewalking Vendor Alliance
-   t.__meta.stopIfQuestAvailable = { 86563, }                                   -- Quest Accept before Gossip (First NPCID)
-   t.__meta.stopIfQuestTurnIn = { 86563, 55498, }                               -- Quest TurnIn before Gossip (First NPCID)
-   t[49470] = { text = "I would like to buy from you" }							-- Vendor Tempra (151955)
+	-- 05 Pandaria Timewalking Vendor
+   	t = NPC("Mistweaver Xia", 118828)											
+   	t.__meta.stopIfQuestAvailable = { 86560, }                                  -- Quest Accept before Gossip (First NPCID)
+   	t.__meta.stopIfQuestTurnIn = { 86560, 45563, }                              -- Quest TurnIn before Gossip (First NPCID)
+   	t[46752] = { text = "I would like to buy from you." }						-- Mistweaver Xia (118828)
+	-- 06 Draenor Timewalking Vendor Horde
+   	t = NPC("Kronnus", 151987)													
+   	t.__meta.stopIfQuestAvailable = { 86563, }                                  -- Quest Accept before Gossip (First NPCID)
+   	t.__meta.stopIfQuestTurnIn = { 86563, 55499, }                              -- Quest TurnIn before Gossip (First NPCID)
+   	t[49471] = { text = "I would like to buy from you" }						-- Kronnus (151987)
+	-- 06 Draenor Timewalking Vendor Alliance
+   	t = NPC("Tempra", 151955)													
+   	t.__meta.stopIfQuestAvailable = { 86563, }                                  -- Quest Accept before Gossip (First NPCID)
+   	t.__meta.stopIfQuestTurnIn = { 86563, 55498, }                              -- Quest TurnIn before Gossip (First NPCID)
+   	t[49470] = { text = "I would like to buy from you" }						-- Tempra (151955)
+	-- 07 Legion Timewalking Vendor
+   	t = NPC("Aridormi", 180899)													
+   	t.__meta.stopIfQuestAvailable = { 86564, }                                  -- Quest Accept before Gossip (First NPCID)
+   	t.__meta.stopIfQuestTurnIn = { 86564, 64710, }                              -- Quest TurnIn before Gossip (First NPCID)
+   	t[46752] = { text = "I would like to buy from you" }						-- Aridormi (180899)
 
 SetZone("Nablegarden")
 

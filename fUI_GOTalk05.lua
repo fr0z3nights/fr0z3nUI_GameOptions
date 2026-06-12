@@ -147,17 +147,47 @@ SetZone("Dread Wastes, Pandaria")
 
 SetZone("Jade Forest, Pandaria")
 
+    t = NPC("Ancient Statue", { 212182, 212183, 212184, 212186 })
+    t[39082] = { text = "<Create a sketch of the statue piece.>", }
+    t[39083] = { text = "<Create a sketch of the statue piece.>", }
+    t[39808] = { text = "<Create a sketch of the statue piece.>", }
+    t[40006] = { text = "<Create a sketch of the statue piece.>", }
+
+    t = NPC("Chief Kah Kah", 56336)
+    t[40464] = { text = "Will you help us?", close = true, }
+
     t = NPC("Grower Miao", 66980)
-    t[40742] = { "Train me in Herbalism.", }
+    t[40742] = { text = "Train me in Herbalism.", }
 
     t = NPC("Hyuna", 66730)
     t[41814] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it!" }, within = 3, }, }
 
+    t = NPC("Kofa the Swift", 66219)
+    t[40610] = { text = "What do you currently have for sale?", }
+
+    t = NPC("Pandaren Volunteer", 65974)
+    t[41756] = { text = "You can go home now. I'll cover your back.", }
+
+    t = NPC("Rivet Clutchpop", 55146)
+    t[39686] = { text = "Quit messing around and use your knife!", }
+
+    t = NPC("Sergeant Gorrok", {55162, 56477,} )
+    t[39687] = { text = "We need to regroup, Sergeant!", }
+    t[40186] = { text = "Nazgrim has assigned you...", close = true, }
+
+    t = NPC("Shademaster Kiryn", {55141, 56478} )
+    t[39490] = { text = "Snap out of it! You're alive!", }
+    t[40187] = { text = "Nazgrim has assigned you", close = true, }
+
+    t = NPC("Shokia", {55170, 56340,})
+    t[39688] = { text = "On your feet!", }
+    t[40184] = { text = "Nazgrim has assigned you...", close = true, }
+
     t = NPC("Stonebreaker Ruian", 66979)
-    t[40741] = { "Train me in Mining.", }
+    t[40741] = { text = "Train me in Mining.", }
 
     t = NPC("Trapper Ri", 66981)
-    t[40743] = { "Train me in Skinning.", }
+    t[40743] = { text = "Train me in Skinning.", }
 
     t = NPC("Whispering Pandaren Spirit", 68464)
     t[41953] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, }

@@ -765,6 +765,7 @@ local EAT_DRINK_IDS = {
     1277461, 1291831, -- Restoring Mana (specific)
     1291952, -- Restoring Health (specific)
     1291955, -- Tea consumption
+    124036, -- Fishing Craft
 }
 
 local EAT_DRINK_IDSET = {}

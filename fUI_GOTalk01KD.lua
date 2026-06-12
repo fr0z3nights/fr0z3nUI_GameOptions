@@ -142,10 +142,16 @@ local function NPC(npcName, npcIDs)
 		end,
 	})
 end
+
 SetZone("The Barrens, Kalimdor")
 
     t = NPC("Crysa", 115286)
     t[47298] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
+
+SetZone("Durotar, Kalimdor")
+
+    t = NPC("General Nazgrim", 55054)
+    t[41023] = { text = "I'm ready to go, General.", }
 
 SetZone("Darkshore, Kalimdor")
 
@@ -154,6 +160,10 @@ SetZone("Darkshore, Kalimdor")
     t[49024] = { text = "Can you return me to the present time?" }
 
 SetZone("Orgrimmar, Kalimdor")
+
+   t = NPC("Doras", 3310)
+   t[30402] = { prio = 10, text = "I need a flight to Hellscream's Fist", qil = 31853, }
+   t[30395] = { prio = 05, text = "I need a ride.", }
 
    t = NPC("Nathanos Blightcaller", 135205)
    t[ 49081] = { text = "I have heard this story before. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure?" }, within = 3, },  }					-- Shadowlands: A Chilling Summons (61874) Nathanos Blightcaller (135205)

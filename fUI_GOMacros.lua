@@ -1370,6 +1370,26 @@ local function PickBestFromBags(kind)
                                 -- NOTE: Many foods/drinks have reqLevel=0; ensure a non-zero score so we can still pick.
                                 score = ((tonumber(e.req) or 0) + 1) * 0.0001
                             end
+                            -- Prefer pure-category items over dual food/drink items.
+                            -- Give a large bonus to pure matches so a mana drink that is also flagged
+                            -- as food won't outscore a real food candidate.
+                            do
+                                local bonus = 0
+                                if kind == "food" then
+                                    if e.isFood and not e.isDrink then
+                                        bonus = 1e9
+                                    elseif e.isFood and e.isDrink then
+                                        bonus = 1e3
+                                    end
+                                elseif kind == "drink" then
+                                    if e.isDrink and not e.isFood then
+                                        bonus = 1e9
+                                    elseif e.isDrink and e.isFood then
+                                        bonus = 1e3
+                                    end
+                                end
+                                score = score + bonus
+                            end
                             if score > 0 then
                                 if preferConjured and e.conjured then
                                     -- Absolute priority when enabled.

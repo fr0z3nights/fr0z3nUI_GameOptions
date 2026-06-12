@@ -404,7 +404,7 @@ do
                         end
                         return
                     end
-                    Print("|cFFFFD707Home Set To |r" .. txt)
+                    Print("|cFFFFD707Hearth  |r" .. txt)
                 end
             end
 
