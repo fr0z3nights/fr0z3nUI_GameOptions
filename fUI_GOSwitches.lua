@@ -5,6 +5,195 @@ if type(ns) ~= "table" then
     ns = {}
 end
 
+-- ===== Instance Reset (moved from fUI_GOSwitchesIR.lua) =====
+do
+    ns.SwitchesIR = ns.SwitchesIR or {}
+    local IR = ns.SwitchesIR
+
+    local function InitSV_IR()
+        if ns and type(ns._InitSV) == "function" then
+            ns._InitSV()
+        end
+
+        if type(AutoGossip_Settings) == "table" then
+            if AutoGossip_Settings.instanceResetEnabledAcc == nil then
+                AutoGossip_Settings.instanceResetEnabledAcc = true
+            end
+        end
+        if type(AutoGossip_CharSettings) == "table" then
+            if AutoGossip_CharSettings.instanceResetEnabledChar == nil then
+                AutoGossip_CharSettings.instanceResetEnabledChar = false
+            end
+        end
+    end
+
+    local function GetAccountEnabled()
+        InitSV_IR()
+        return (AutoGossip_Settings and AutoGossip_Settings.instanceResetEnabledAcc and true) or false
+    end
+
+    local function GetCharEnabled()
+        InitSV_IR()
+        return (AutoGossip_CharSettings and AutoGossip_CharSettings.instanceResetEnabledChar and true) or false
+    end
+
+    local function SetAccountEnabled(enabled)
+        InitSV_IR()
+        if type(AutoGossip_Settings) ~= "table" then
+            return
+        end
+        AutoGossip_Settings.instanceResetEnabledAcc = (enabled and true) or false
+    end
+
+    local function SetCharEnabled(enabled)
+        InitSV_IR()
+        if type(AutoGossip_CharSettings) ~= "table" then
+            return
+        end
+        AutoGossip_CharSettings.instanceResetEnabledChar = (enabled and true) or false
+    end
+
+    function IR.GetEffectiveEnabled()
+        return GetCharEnabled()
+    end
+
+    function IR.GetText()
+        return GetCharEnabled() and "|cff55ff55ON|r" or "|cffff5555OFF|r"
+    end
+
+    function IR.UpdateLDBText()
+        if IR.LDB and type(IR.LDB) == "table" then
+            IR.LDB.text = IR.GetText()
+        end
+    end
+
+    function IR.ToggleAccountEnabled()
+        SetAccountEnabled(not GetAccountEnabled())
+        IR.UpdateLDBText()
+    end
+
+    function IR.ToggleCharEnabled()
+        SetCharEnabled(not GetCharEnabled())
+        IR.UpdateLDBText()
+        if IR.UpdateUI and type(IR.UpdateUI) == "function" then
+            IR.UpdateUI()
+        end
+    end
+
+    function IR.OpenConfigPopup()
+        -- Prefer the in-addon options window if present; fall back to Blizzard Interface Options.
+        -- If the hosted helper is available, use it to create/select the window/tab.
+        if type(_G.FGO_OpenOptionsTab) == "function" then
+            pcall(_G.FGO_OpenOptionsTab, 4, true)
+            return
+        end
+        if AutoGameOptions and type(AutoGameOptions.Show) == "function" then
+            if AutoGameOptions:IsShown() then
+                AutoGameOptions:Hide()
+            end
+            AutoGameOptions:Show()
+            return
+        end
+        if type(InterfaceOptionsFrame_OpenToCategory) == "function" then
+            pcall(InterfaceOptionsFrame_OpenToCategory, "GameOptions")
+        end
+    end
+
+    function IR.OnSettingsChanged()
+        IR.UpdateLDBText()
+    end
+
+    local function CreateLDB()
+        if IR.LDB then
+            return IR.LDB
+        end
+
+        if type(LibStub) ~= "table" then
+            return nil
+        end
+
+        local ok, ldb = pcall(function()
+            return LibStub:GetLibrary("LibDataBroker-1.1")
+        end)
+        if not ok or type(ldb) ~= "table" then
+            return nil
+        end
+
+        IR.LDB = ldb:NewDataObject("Instance Reset", {
+            type = "data source",
+            text = IR.GetText(),
+            icon = "Interface\\FriendsFrame\\SocialQueuing",
+            iconCoords = {0.74609375, 0.79296875, 0.2265625, 0.421875},
+            OnClick = function(_, button)
+                if button == "LeftButton" then
+                    IR.ToggleCharEnabled()
+                    if IR.GetEffectiveEnabled() then
+                        print("|cff00ccff[FGO] Instance|r  |cff55ff55Resets|r")
+                    else
+                        print("|cff00ccff[FGO] Instance|r  |cffff5555Disabled|r")
+                    end
+                elseif button == "RightButton" then
+                    IR.OpenConfigPopup()
+                end
+            end,
+            OnTooltipShow = function(tooltip)
+                if tooltip.AddLine then
+                    tooltip:AddLine("|cff0080FFInstance Reset|r")
+                    tooltip:AddLine("Left-click to toggle Instance Reset.")
+                    tooltip:AddLine("Right-click to open GameOptions.")
+                end
+            end,
+        })
+
+        return IR.LDB
+    end
+
+    local function OnEvent(self, event)
+        if not IR.GetEffectiveEnabled() then
+            IR.wasInInstance = IR.wasInInstance or false
+            return
+        end
+
+        if event == "PLAYER_LOGIN" or event == "ZONE_CHANGED_NEW_AREA" or event == "PLAYER_ENTERING_WORLD" then
+            local inInstance = (IsInInstance() and true) or false
+            local isGroup = (IsInGroup() and true) or false
+
+            if IR.wasInInstance and not inInstance then
+                if type(ResetInstances) == "function" then
+                    ResetInstances()
+                    print("|cff00ccff[FGO] Instance|r  |cff55ff55Reset Successful!|r")
+                end
+            end
+
+            IR.wasInInstance = inInstance
+
+            if not inInstance and not isGroup then
+                if type(ResetInstances) == "function" then
+                    ResetInstances()
+                end
+            end
+        end
+    end
+
+    local function InitializeIR()
+        if IR.initialized then
+            return
+        end
+        IR.initialized = true
+
+        local frame = CreateFrame("Frame")
+        frame:RegisterEvent("PLAYER_LOGIN")
+        frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+        frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+        frame:SetScript("OnEvent", OnEvent)
+
+        CreateLDB()
+        IR.UpdateLDBText()
+    end
+
+    InitializeIR()
+end
+
 -- ============================================================================
 -- Floating Reload UI button (text-only, draggable)
 -- ============================================================================

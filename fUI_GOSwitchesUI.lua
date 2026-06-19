@@ -778,10 +778,70 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     end)
     btnTutorial:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
+    local function SetSegGreenGrey(btn, label, enabled)
+        if enabled then
+            btn:SetText("|cff00ff00" .. label .. "|r")
+        else
+            btn:SetText("|cff888888" .. label .. "|r")
+        end
+    end
+
+    -- Instance Reset segments (below Action / NPC Name / Tutorial)
+    local irSegContainer = CreateFrame("Frame", nil, panel)
+    irSegContainer:SetSize(BTN_W, BTN_H)
+    irSegContainer:SetPoint("TOP", actionRow, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.instanceResetSegContainer = irSegContainer
+    end
+
+    -- Single Instance Reset button (character-level, disabled by default).
+    local segInstanceReset = CreateFrame("Button", nil, irSegContainer, "UIPanelButtonTemplate")
+    segInstanceReset:SetSize(SEG_W, BTN_H)
+    segInstanceReset:SetPoint("LEFT", irSegContainer, "LEFT", 0, 0)
+    if frame then
+        frame.btnInstanceResetSegMain = segInstanceReset
+    end
+
+    local function UpdateInstanceResetSegments()
+        InitSV()
+        local enabledChar = (AutoGossip_CharSettings and AutoGossip_CharSettings.instanceResetEnabledChar) and true or false
+        SetSegGreenGrey(segInstanceReset, "|cff00ccffInstance Reset|r", enabledChar)
+    end
+
+    -- Expose refresh hook for the IR/LDB module so toggles from LDB update this UI.
+    if ns and ns.SwitchesIR then
+        ns.SwitchesIR.UpdateUI = UpdateInstanceResetSegments
+    end
+
+    local function InstanceResetSettingsChanged()
+        if ns and ns.SwitchesIR and ns.SwitchesIR.OnSettingsChanged then
+            ns.SwitchesIR.OnSettingsChanged()
+        end
+    end
+
+    segInstanceReset:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_CharSettings.instanceResetEnabledChar = not (AutoGossip_CharSettings.instanceResetEnabledChar and true or false)
+        UpdateInstanceResetSegments()
+        InstanceResetSettingsChanged()
+    end)
+    segInstanceReset:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segInstanceReset, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Instance Reset")
+            GameTooltip:AddLine("Green: enabled on this character.", 1, 1, 1, true)
+            GameTooltip:AddLine("Grey: disabled on this character.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segInstanceReset:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    UpdateInstanceResetSegments()
+
     -- Pet Walk segments (above Chromie)
     local petSegContainer = CreateFrame("Frame", nil, panel)
     petSegContainer:SetSize(BTN_W, BTN_H)
-    petSegContainer:SetPoint("TOP", actionRow, "BOTTOM", 0, -GAP_Y)
+    petSegContainer:SetPoint("TOP", irSegContainer, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.petWalkSegContainer = petSegContainer
     end
@@ -805,14 +865,6 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     segPetConfig:SetPoint("LEFT", segPetDisable, "RIGHT", SEG_GAP, 0)
     if frame then
         frame.btnPetWalkSegConfig = segPetConfig
-    end
-
-    local function SetSegGreenGrey(btn, label, enabled)
-        if enabled then
-            btn:SetText("|cff00ff00" .. label .. "|r")
-        else
-            btn:SetText("|cff888888" .. label .. "|r")
-        end
     end
 
     local function UpdatePetWalkSegments()
@@ -996,7 +1048,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
     -- Chromie segments
     local segContainer = CreateFrame("Frame", nil, panel)
     segContainer:SetSize(BTN_W, BTN_H)
-    segContainer:SetPoint("TOP", mountSegContainer, "BOTTOM", 0, -GAP_Y)
+    segContainer:SetPoint("TOP", panel, "TOP", RIGHT_X, START_Y)
     if frame then
         frame.chromieSegContainer = segContainer
     end

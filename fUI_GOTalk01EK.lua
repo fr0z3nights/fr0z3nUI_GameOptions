@@ -223,6 +223,9 @@ SetZone("Eversong Woods, Eastern Kingdoms")
    t = NPC("Magistrix Silanna", {251539, })
    t[132680] = { text = " - I'll cover your escape." }                                                   -- What's Left (86639) Magistrix Silanna (251539)
 
+   t = NPC("Magistrix Umbric", {264067, })
+   t[139725] = { text = "Seems easy enough." }                                                           -- The Shadowed Spire (96228) Magistrix Umbric (264067)
+
    t = NPC("Matron Narsilla", {242568, })
    t[133913] = { text = "What problems ail the people of Tranquillien?" }                                -- Rational Explanation (86624) Matron Narsilla (242568)      KILLED
 
@@ -500,7 +503,12 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
    t[134861] = { prio = 10, text = "What are you going to do with the shield?", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
    t[136469] = { prio = 10, text = "Let's get back to Silvermoon.", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
-   t = NPC("Commander Koruth Mountainfist", { 247304, })
+   t = NPC("Belo'vir's Security Ward", { 651990, 651991, 651992, })
+   t[140404] = { text = "<Unravel the wards>" }                                                          -- Unravelling the Wards (96230) Belo'vir's Security Ward (651990)
+   t[140408] = { text = "<Unravel the wards>" }                                                          -- Unravelling the Wards (96230) Belo'vir's Security Ward (651991)
+   t[140406] = { text = "<Unravel the wards>" }                                                          -- Unravelling the Wards (96230) Belo'vir's Security Ward (651992)
+
+  t = NPC("Commander Koruth Mountainfist", { 247304, })
    t[134577] = { text = "Are the warframes prepared, Commander?" }                                       -- Feeding the Flame (90777) Commander Koruth Mountainfist (247304)
 
    t = NPC("Commander Venel Lightblood", { 247305, })
@@ -508,6 +516,12 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 
    t = NPC("Faerin Lothar", { 237211, })
    t[132513] = { text = "The Vanguard rallies at Sunstrider Rise." }                                     -- Champions of Quel'Danas (68770)  Faerin Lothar (237211)
+
+   t = NPC("Grand Magister Rommath", { 264068, 264066, 264070, })
+   t[139813] = { text = "I can do that." }                                                               -- Unravelling the Wards (96230)  Grand Magister Rommath (264068)
+   t[139847] = { text = "I am ready." }                                                                  -- The Omnium Reawakens (96233)  Grand Magister Rommath (264068)
+   t[139871] = { text = "Powerful runic enchantments? Count me in." }                                    -- Seeking Knowledge (96410)  Grand Magister Rommath (264070)
+   t[139890] = { text = "<Take the Omnium Folio from Rommath.>" }                                        -- Seeking Knowledge (96410)  Grand Magister Rommath (264070)
 
    t = NPC("High Exarch Turalyon", 237255)
    t[133285] = { text = "Let's drive this threat back!" }
@@ -565,6 +579,9 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    t = NPC("Anduin Wrynn", { 249289, })
    t[135179] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>" }                         -- You Know This Evil? (91967) Anduin Wrynn (249289)
    t[135178] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>" }                 -- You Know This Evil? (91967) Anduin Wrynn (249289)
+
+   t = NPC("Astalor Bloodsworn", { 258221, })
+   t[135889] = { text = "I'm ready." }                                                                   -- Practical Magic (92178) Astalor Bloodsworn (258221)
 
    t = NPC("General Amias Bellamy", { 248629, 250587, })
    t[135224] = { text = "<Offer Greeting.>" }                                                            -- Paved in Ash (86735) General Amias Bellamy (248629)
@@ -902,8 +919,9 @@ SetZone("Zul'Aman, Eastern Kingdoms")
    t[137968] = { text = "Let's have a tea party.", close = true }                       -- Temple and a Teapot (93181) Kanza (258363)
 
    t = NPC("Kel'vujo", { 253999, })
-   t[137663] = { text = "HN Good luck fighting with your legs frozen to the ground." }  -- Amani Honor (93096) Kel'vujo (253999)
-   t[137655] = { text = "DH I may be \"blind,\" but I see you intend to betray me." }   -- Amani Honor (93096) Kel'vujo (253999)
+   t[137655] = { text = "DH I may be \"blind,\" but I see you intend to betray me." }     -- Amani Honor (93096) Kel'vujo (253999)
+   t[137663] = { text = "HN Good luck fighting with your legs frozen to the ground." }    -- Amani Honor (93096) Kel'vujo (253999)
+   t[138683] = { text = "MK Your stance displays your traitorous intentions." }           -- Amani Honor (93096) Kel'vujo (253999)
 
    t = NPC("Kovu", { 257807, })
    t[137451] = { text = "<Tell Kovu to demonstrate his combat...>" }                    -- Got No Rhythm (93048) Kovu (257807)

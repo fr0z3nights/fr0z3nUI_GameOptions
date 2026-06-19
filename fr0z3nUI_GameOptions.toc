@@ -31,6 +31,7 @@ fUI_GOSwitchesCT.lua
 fUI_GOSwitchesBP.lua
 fUI_GOSwitchesMU.lua
 
+
 fUI_GOTale.lua
 fUI_GOTaleUI.lua
 

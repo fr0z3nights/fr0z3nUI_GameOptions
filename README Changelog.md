@@ -4,6 +4,10 @@ Format: `YYYY.MM.DD.NN` (TOC `## Version`) — short summary. Newest at the top.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+## 2026.06.14.01
+- Files: `fUI_GOSwitchesIR.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`, `README Changelog.md`
+- Switches: Add new Instance Reset row with account/character enable toggles and LDB-style broker support.
+
 ## 2026.04.13.18
 - Files: `fUI_GOSwitchesMU.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
 - MountUp: Treat aura/spellID `1269922` as Food (eating) so MU won't interrupt/attempt mount while the buff is active.

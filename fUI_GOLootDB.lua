@@ -10,9 +10,15 @@ ns.LootIt = LI
 fr0z3nUI_LootIt = LI
 LI.ADDON = LI.ADDON or addonName
 
+fr0z3nUI_LootItDB = fr0z3nUI_LootItDB or {}
+fr0z3nUI_LootItDB.ignoredItemIDs = fr0z3nUI_LootItDB.ignoredItemIDs or {
+    [71096] = true, -- Grisly Trophy should be hidden by default via alias DB seed
+}
+
 fr0z3nUI_LootIt_AddonAliases = fr0z3nUI_LootIt_AddonAliases or {
-  [116415] = "TW Token", -- Timewarped Badge
-  [ 67151] = "Poseidus", -- Reins of Poseidus
+    [116415] = "TW Token", -- Timewarped Badge
+    [ 67151] = "Poseidus", -- Reins of Poseidus
+    [ 71096] = "Darkmoon Trophy", -- default alias seed for ignored item
   -- Add itemID aliases here (not currencies).
 }
 

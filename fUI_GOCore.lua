@@ -1254,6 +1254,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
     end
   elseif event == "PLAYER_ENTERING_WORLD" then
     UpdateSeenGuilds("PLAYER_ENTERING_WORLD")
+    do
+      local tax = LI and LI.Tax
+      if tax and tax.RefreshLDB then
+        C_Timer.After(0.5, function() tax.RefreshLDB() end)
+      end
+    end
     ApplyFiltersSoon(0.5)
     BootstrapMailNotifier()
     do

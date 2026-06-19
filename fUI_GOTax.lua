@@ -186,6 +186,28 @@ do
 
     if t.autoPayOnGuildBankOpen == nil then t.autoPayOnGuildBankOpen = true end
 
+    -- Warband bank cache is account-wide; migrate any legacy character-scoped values once.
+    if t.warBankMoneyCached == nil and type(CHARDB) == "table" and type(CHARDB.tax) == "table" then
+      local legacyWar = tonumber(CHARDB.tax.warBankMoneyCached)
+      if legacyWar and legacyWar >= 0 then
+        t.warBankMoneyCached = math.floor(legacyWar)
+      end
+    end
+    if t.warBankMoneyCached ~= nil then
+      t.warBankMoneyCached = math.floor(tonumber(t.warBankMoneyCached) or 0)
+      if t.warBankMoneyCached < 0 then t.warBankMoneyCached = 0 end
+    end
+    if t.warBankMoneyCachedTS == nil and type(CHARDB) == "table" and type(CHARDB.tax) == "table" then
+      local legacyWarTS = tonumber(CHARDB.tax.warBankMoneyCachedTS)
+      if legacyWarTS and legacyWarTS >= 0 then
+        t.warBankMoneyCachedTS = math.floor(legacyWarTS)
+      end
+    end
+    if t.warBankMoneyCachedTS ~= nil then
+      t.warBankMoneyCachedTS = math.floor(tonumber(t.warBankMoneyCachedTS) or 0)
+      if t.warBankMoneyCachedTS < 0 then t.warBankMoneyCachedTS = 0 end
+    end
+
     -- Normalize: enabled tracks whether the rate is > 0.
     if t.rate <= 0 then
       t.enabled = false
@@ -335,11 +357,11 @@ do
     --   detail=> compact owed/XS explanation
     --   full  => multi-line explanation
     if g.bankPrintMode == nil or g.bankPrintMode == "" then
-      g.bankPrintMode = (g.bankPrintEnabled == true) and "basic" or "off"
+      g.bankPrintMode = (g.bankPrintEnabled == true) and "detail" or "off"
     end
     g.bankPrintMode = tostring(g.bankPrintMode or "basic"):lower()
     if g.bankPrintMode ~= "off" and g.bankPrintMode ~= "basic" and g.bankPrintMode ~= "detail" and g.bankPrintMode ~= "full" then
-      g.bankPrintMode = (g.bankPrintEnabled == true) and "basic" or "off"
+      g.bankPrintMode = (g.bankPrintEnabled == true) and "detail" or "off"
     end
     g.bankPrintEnabled = (g.bankPrintMode ~= "off")
 
@@ -487,11 +509,11 @@ do
     cfg.bankPrintEnabled = (cfg.bankPrintEnabled == true)
 
     if cfg.bankPrintMode == nil or cfg.bankPrintMode == "" then
-      cfg.bankPrintMode = (cfg.bankPrintEnabled == true) and "basic" or "off"
+      cfg.bankPrintMode = (cfg.bankPrintEnabled == true) and "detail" or "off"
     end
     cfg.bankPrintMode = tostring(cfg.bankPrintMode or "basic"):lower()
     if cfg.bankPrintMode ~= "off" and cfg.bankPrintMode ~= "basic" and cfg.bankPrintMode ~= "detail" and cfg.bankPrintMode ~= "full" then
-      cfg.bankPrintMode = (cfg.bankPrintEnabled == true) and "basic" or "off"
+      cfg.bankPrintMode = (cfg.bankPrintEnabled == true) and "detail" or "off"
     end
     cfg.bankPrintEnabled = (cfg.bankPrintMode ~= "off")
 
@@ -577,16 +599,6 @@ do
     if ct.warBal.due < 0 then ct.warBal.due = 0 end
     if ct.warBal.paidToDate < 0 then ct.warBal.paidToDate = 0 end
 
-    -- Cached bank balances (best-effort; used for XS balancing).
-    if ct.warBankMoneyCached ~= nil then
-      ct.warBankMoneyCached = math.floor(tonumber(ct.warBankMoneyCached) or 0)
-      if ct.warBankMoneyCached < 0 then ct.warBankMoneyCached = 0 end
-    end
-    if ct.warBankMoneyCachedTS ~= nil then
-      ct.warBankMoneyCachedTS = math.floor(tonumber(ct.warBankMoneyCachedTS) or 0)
-      if ct.warBankMoneyCachedTS < 0 then ct.warBankMoneyCachedTS = 0 end
-    end
-
     return ct
   end
 
@@ -635,6 +647,115 @@ do
     return 0
   end
 
+  local function FormatIntWithCommas(v)
+    v = math.floor(tonumber(v) or 0)
+    local sign = ""
+    if v < 0 then
+      sign = "-"
+      v = -v
+    end
+    local s = tostring(v)
+    while true do
+      local newS, k = s:gsub("^(%d+)(%d%d%d)", "%1,%2")
+      s = newS
+      if k == 0 then break end
+    end
+    return sign .. s
+  end
+
+  local function FormatGoldIconFromCopper(copper)
+    copper = math.floor(tonumber(copper) or 0)
+    if copper < 0 then copper = 0 end
+    local gold = math.floor(copper / (COPPER_PER_GOLD or 10000))
+    if gold < 0 then gold = 0 end
+    return FormatIntWithCommas(gold) .. " |TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
+  end
+
+  local function GetCachedGuildAndWarbankMoney()
+    local guildMoney = 0
+    local warMoney = 0
+
+    local guildKey = select(1, GetCurrentGuildKeyAndName())
+    if guildKey then
+      local g = EnsureGuildTaxDB(guildKey)
+      guildMoney = math.floor(tonumber(g and g.guildBankMoneyCached) or 0)
+      if guildMoney < 0 then guildMoney = 0 end
+    end
+
+    local t = EnsureTaxDB()
+    warMoney = math.floor(tonumber(t and t.warBankMoneyCached) or 0)
+    if warMoney < 0 then warMoney = 0 end
+
+    return guildMoney, warMoney
+  end
+
+  local function GetTaxLDBText()
+    local guildMoney, warMoney = GetCachedGuildAndWarbankMoney()
+    return FormatGoldIconFromCopper(guildMoney) .. "  |  " .. FormatGoldIconFromCopper(warMoney)
+  end
+
+  local function UpdateTaxLDBText()
+    if type(Tax.LDB) == "table" then
+      Tax.LDB.text = GetTaxLDBText()
+    end
+  end
+
+  -- Re-read the cached values and push the latest text to the LDB broker.
+  -- Called from Core on PLAYER_ENTERING_WORLD so the correct guild GUID key
+  -- is available (guild data is not guaranteed to be ready at PLAYER_LOGIN).
+  function Tax.RefreshLDB()
+    UpdateTaxLDBText()
+  end
+
+  local function OpenTaxOptionsTab()
+    if type(_G) == "table" and type(_G.FGO_OpenOptionsTab) == "function" then
+      pcall(_G.FGO_OpenOptionsTab, 10, true)
+      return
+    end
+    if AutoGameOptions and type(AutoGameOptions.Show) == "function" then
+      pcall(function()
+        AutoGameOptions:Show()
+        if type(AutoGameOptions.SelectTab) == "function" then
+          AutoGameOptions:SelectTab(10)
+        end
+      end)
+    end
+  end
+
+  local function EnsureTaxLDB()
+    if type(Tax.LDB) == "table" then
+      return Tax.LDB
+    end
+    if type(LibStub) ~= "table" then
+      return nil
+    end
+
+    local ok, ldb = pcall(function()
+      return LibStub:GetLibrary("LibDataBroker-1.1")
+    end)
+    if not ok or type(ldb) ~= "table" then
+      return nil
+    end
+
+    Tax.LDB = ldb:NewDataObject("Tax Banks", {
+      type = "data source",
+      text = GetTaxLDBText(),
+      icon = "Interface\\MoneyFrame\\UI-GoldIcon",
+      OnClick = function(_, button)
+        if button == "LeftButton" then
+          OpenTaxOptionsTab()
+        end
+      end,
+      OnTooltipShow = function(tooltip)
+        if not (tooltip and tooltip.AddLine) then return end
+        tooltip:AddLine("|cff0080FFTax Bank Gold|r")
+        tooltip:AddLine("Left-click: Open Tax tab")
+      end,
+    })
+
+    return Tax.LDB
+  end
+
   local function CacheGuildBankMoneyFromAPI()
     local guildKey = select(1, GetCurrentGuildKeyAndName())
     if not guildKey then return end
@@ -647,31 +768,73 @@ do
     if type(money) == "number" and money >= 0 then
       g.guildBankMoneyCached = money
       g.guildBankMoneyCachedTS = NowTS()
+      UpdateTaxLDBText()
     end
   end
 
   local function CacheWarbankMoneyFromAPI()
-    local ct = EnsureCharTaxDB()
-    if type(ct) ~= "table" then return end
+    local t = EnsureTaxDB()
+    if type(t) ~= "table" then return end
 
     local bankType = (Enum and Enum.BankType) and Enum.BankType or nil
-    if not (bankType and bankType.Account) then return end
     local cBank = _G and rawget(_G, "C_Bank")
     if type(cBank) ~= "table" then return end
 
+    if type(cBank.FetchDepositedMoney) == "function" and bankType and bankType.Account ~= nil then
+      local ok, v = pcall(cBank.FetchDepositedMoney, bankType.Account)
+      local money = ok and math.floor(tonumber(v) or 0) or nil
+      if type(money) == "number" and money >= 0 then
+        t.warBankMoneyCached = money
+        t.warBankMoneyCachedTS = NowTS()
+        UpdateTaxLDBText()
+        return
+      end
+    end
+
+    local typeCandidates = {}
+    if type(bankType) == "table" then
+      if bankType.Account ~= nil then typeCandidates[#typeCandidates + 1] = bankType.Account end
+      if bankType.AccountBank ~= nil then typeCandidates[#typeCandidates + 1] = bankType.AccountBank end
+      if bankType.Warband ~= nil then typeCandidates[#typeCandidates + 1] = bankType.Warband end
+      if bankType.WarbandBank ~= nil then typeCandidates[#typeCandidates + 1] = bankType.WarbandBank end
+    end
+
+    local function TryMoneyCall(fn)
+      if type(fn) ~= "function" then return nil end
+
+      -- API signatures vary by client build. Try typed calls first, then no-arg fallback.
+      for i = 1, #typeCandidates do
+        local ok, v = pcall(fn, typeCandidates[i])
+        if ok then
+          local n = tonumber(v)
+          if type(n) == "number" and n >= 0 then
+            return math.floor(n)
+          end
+        end
+      end
+
+      local okNoArg, vNoArg = pcall(fn)
+      if okNoArg then
+        local n = tonumber(vNoArg)
+        if type(n) == "number" and n >= 0 then
+          return math.floor(n)
+        end
+      end
+
+      return nil
+    end
+
     local money = nil
-    -- Best-effort: API names vary by client build; only call when present.
-    if type(cBank.GetBankMoney) == "function" then
-      local ok, v = pcall(cBank.GetBankMoney, bankType.Account)
-      if ok then money = math.floor(tonumber(v) or 0) end
-    elseif type(cBank.GetMoney) == "function" then
-      local ok, v = pcall(cBank.GetMoney, bankType.Account)
-      if ok then money = math.floor(tonumber(v) or 0) end
+    -- Best-effort: API names/signatures vary by client build.
+    money = TryMoneyCall(cBank.GetBankMoney)
+    if money == nil then
+      money = TryMoneyCall(cBank.GetMoney)
     end
 
     if type(money) == "number" and money >= 0 then
-      ct.warBankMoneyCached = money
-      ct.warBankMoneyCachedTS = NowTS()
+      t.warBankMoneyCached = money
+      t.warBankMoneyCachedTS = NowTS()
+      UpdateTaxLDBText()
     end
   end
 
@@ -696,23 +859,25 @@ do
       if cur < 0 then cur = 0 end
       g.guildBankMoneyCached = cur
       g.guildBankMoneyCachedTS = NowTS()
+      UpdateTaxLDBText()
       return
     end
 
     if bankKind == "warbank" then
-      local ct = EnsureCharTaxDB()
-      if type(ct) ~= "table" then return end
+      local t = EnsureTaxDB()
+      if type(t) ~= "table" then return end
 
-      if ct.warBankMoneyCached == nil then
+      if t.warBankMoneyCached == nil then
         CacheWarbankMoneyFromAPI()
       end
-      local cur = tonumber(ct.warBankMoneyCached)
+      local cur = tonumber(t.warBankMoneyCached)
       if type(cur) ~= "number" then return end
       cur = math.floor(cur)
       cur = cur + bankDelta
       if cur < 0 then cur = 0 end
-      ct.warBankMoneyCached = cur
-      ct.warBankMoneyCachedTS = NowTS()
+      t.warBankMoneyCached = cur
+      t.warBankMoneyCachedTS = NowTS()
+      UpdateTaxLDBText()
       return
     end
   end
@@ -1231,9 +1396,9 @@ do
         if scope == "guild" and cfg.warBankEnabled == true and cfg.warBankXS == true then
           local guildKey = select(1, GetCurrentGuildKeyAndName())
           local g = guildKey and EnsureGuildTaxDB(guildKey) or nil
-          local ct = EnsureCharTaxDB()
           local gMoney = (type(g) == "table") and g.guildBankMoneyCached or nil
-          local wMoney = (type(ct) == "table") and ct.warBankMoneyCached or nil
+          local t = EnsureTaxDB()
+          local wMoney = (type(t) == "table") and t.warBankMoneyCached or nil
           local extraGuild, extraWar = ComputeEBExtraSplit(extra, gMoney, wMoney, true)
           TaxDbg(cfg, string.format(
             "XS split: extra=%d gCached=%s wCached=%s -> gExtra=%d wExtra=%d",
@@ -1468,7 +1633,8 @@ do
           local guildKey = select(1, GetCurrentGuildKeyAndName())
           local g = guildKey and EnsureGuildTaxDB(guildKey) or nil
           local gMoney = (type(g) == "table") and g.guildBankMoneyCached or nil
-          local wMoney = (type(ct) == "table") and ct.warBankMoneyCached or nil
+          local t = EnsureTaxDB()
+          local wMoney = (type(t) == "table") and t.warBankMoneyCached or nil
           local _, extraWar = ComputeEBExtraSplit(extra, gMoney, wMoney, false)
           local extraGuild = extra - math.floor(tonumber(extraWar) or 0)
           if extraGuild < 0 then extraGuild = 0 end
@@ -1601,6 +1767,9 @@ do
     end
 
     EnsureTaxDB()
+  EnsureCharTaxDB()
+  EnsureTaxLDB()
+  UpdateTaxLDBText()
 
     -- Reset any stale "open" state that could cause login-time PLAYER_MONEY to be treated as a bank move.
     state.guildBankOpen = false
@@ -1904,6 +2073,12 @@ do
         Print("Tax warbank sync (ticker): " .. ((nowOpen and "open") or "closed"))
       end
       Tax.OnWarbankFrame(nowOpen)
+      return
+    end
+
+    if nowOpen == true then
+      -- Keep cache warm while Warbank is visible; first-frame reads can be nil.
+      CacheWarbankMoneyFromAPI()
     end
   end
 
