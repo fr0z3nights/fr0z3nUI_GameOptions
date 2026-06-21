@@ -334,10 +334,31 @@ function ns.TaleUI_Build(frame, panel, helpers)
     HideFauxScrollBarAndEnableWheel(scrollFrame, RULE_ROW_H)
 
     local function SetRowVisible(row, visible)
-        if visible then
-            row:Show()
-        else
-            row:Hide()
+        if not row then
+            return
+        end
+
+        local target = visible and true or false
+        local current = (row.IsShown and row:IsShown()) and true or false
+        if current == target then
+            return
+        end
+
+        local ok = false
+        if row.SetShown then
+            ok = pcall(row.SetShown, row, target)
+        end
+        if not ok then
+            if target then
+                ok = row.Show and pcall(row.Show, row)
+            else
+                ok = row.Hide and pcall(row.Hide, row)
+            end
+        end
+
+        if not ok and not row._fgoSetShownWarned then
+            row._fgoSetShownWarned = true
+            Print("Tale row visibility update skipped due to Blizzard taint/backdrop restriction.")
         end
     end
 
@@ -653,7 +674,7 @@ function ns.TaleUI_Build(frame, panel, helpers)
             return fs:GetText() or ""
         end)
 
-        row:Hide()
+        SetRowVisible(row, false)
         optRows[i] = row
     end
 
@@ -662,7 +683,7 @@ function ns.TaleUI_Build(frame, panel, helpers)
             self._currentOptions = {}
             optEmpty:SetText("Gossip API not available")
             optEmpty:Show()
-            for i = 1, OPT_ROWS do optRows[i]:Hide() end
+            for i = 1, OPT_ROWS do SetRowVisible(optRows[i], false) end
             return
         end
 
@@ -689,9 +710,9 @@ function ns.TaleUI_Build(frame, panel, helpers)
             local row = optRows[i]
             local opt = options[idx]
             if not opt then
-                row:Hide()
+                SetRowVisible(row, false)
             else
-                row:Show()
+                SetRowVisible(row, true)
                 local zebra = (idx % 2) == 0
                 row.bg:SetShown(zebra)
                 row.bg:SetColorTexture(1, 1, 1, zebra and 0.05 or 0)
@@ -817,6 +838,22 @@ function ns.TaleUI_Build(frame, panel, helpers)
         return ""
     end
 
+    local function GetPlayerBestMapIDForHeader()
+        if not (C_Map and C_Map.GetBestMapForUnit) then
+            return nil
+        end
+        local mapID = C_Map.GetBestMapForUnit("player")
+        mapID = tonumber(mapID)
+        if not mapID then
+            return nil
+        end
+        mapID = math.floor(mapID)
+        if mapID <= 0 then
+            return nil
+        end
+        return mapID
+    end
+
     function f:UpdateFromInput()
         InitSV()
         local npcID = GetCurrentNpcID() or f.selectedNpcID
@@ -828,10 +865,12 @@ function ns.TaleUI_Build(frame, panel, helpers)
                 zone = (GetRealZoneText and GetRealZoneText()) or ((GetZoneText and GetZoneText()) or "")
             end
             local continent = GetPlayerContinentNameForHeader()
+            local bestMapID = GetPlayerBestMapIDForHeader()
+            local mapSuffix = bestMapID and (" (" .. tostring(bestMapID) .. ")") or ""
             if zone ~= "" and continent ~= "" then
-                f.zoneContinentLabel:SetText(zone .. ", " .. continent)
+                f.zoneContinentLabel:SetText(zone .. ", " .. continent .. mapSuffix)
             else
-                f.zoneContinentLabel:SetText(zone ~= "" and zone or (continent ~= "" and continent or ""))
+                f.zoneContinentLabel:SetText((zone ~= "" and zone or (continent ~= "" and continent or "")) .. mapSuffix)
             end
         end
 

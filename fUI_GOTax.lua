@@ -742,14 +742,19 @@ do
       text = GetTaxLDBText(),
       icon = "Interface\\MoneyFrame\\UI-GoldIcon",
       OnClick = function(_, button)
-        if button == "LeftButton" then
+        if button == "RightButton" then
+          OpenTaxOptionsTab()
+        end
+      end,
+      OnMouseDown = function(_, button)
+        if button == "RightButton" then
           OpenTaxOptionsTab()
         end
       end,
       OnTooltipShow = function(tooltip)
         if not (tooltip and tooltip.AddLine) then return end
         tooltip:AddLine("|cff0080FFTax Bank Gold|r")
-        tooltip:AddLine("Left-click: Open Tax tab")
+        tooltip:AddLine("Right-click: Open Tax tab")
       end,
     })
 
@@ -780,10 +785,31 @@ do
     local cBank = _G and rawget(_G, "C_Bank")
     if type(cBank) ~= "table" then return end
 
+    local function HasWarbankAccess()
+      local canDeposit = nil
+      local canWithdraw = nil
+
+      if bankType and bankType.Account ~= nil then
+        if type(cBank.CanDepositMoney) == "function" then
+          local ok, can = pcall(cBank.CanDepositMoney, bankType.Account)
+          if ok then canDeposit = can end
+        end
+        if type(cBank.CanWithdrawMoney) == "function" then
+          local ok, can = pcall(cBank.CanWithdrawMoney, bankType.Account)
+          if ok then canWithdraw = can end
+        end
+      end
+
+      return canDeposit ~= false or canWithdraw ~= false
+    end
+
     if type(cBank.FetchDepositedMoney) == "function" and bankType and bankType.Account ~= nil then
       local ok, v = pcall(cBank.FetchDepositedMoney, bankType.Account)
       local money = ok and math.floor(tonumber(v) or 0) or nil
       if type(money) == "number" and money >= 0 then
+        if money == 0 and t.warBankMoneyCached ~= nil and not HasWarbankAccess() then
+          return
+        end
         t.warBankMoneyCached = money
         t.warBankMoneyCachedTS = NowTS()
         UpdateTaxLDBText()
@@ -832,6 +858,9 @@ do
     end
 
     if type(money) == "number" and money >= 0 then
+      if money == 0 and t.warBankMoneyCached ~= nil and not HasWarbankAccess() then
+        return
+      end
       t.warBankMoneyCached = money
       t.warBankMoneyCachedTS = NowTS()
       UpdateTaxLDBText()

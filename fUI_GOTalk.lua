@@ -137,6 +137,7 @@ ns.Talk.PlayerIsCharacter = PlayerIsCharacter
 -- Forward-declare helpers used by EnsureEngineInitialized() hooks.
 -- Without this, Lua closures would resolve to nil globals at runtime.
 local GetCurrentNpcID
+local GetCurrentRuleID
 local GetDbNpcTable
 
 function ns.Talk.EnsureEngineInitialized()
@@ -158,7 +159,7 @@ function ns.Talk.EnsureEngineInitialized()
                 if optionID == nil then
                     return
                 end
-                local npcID = GetCurrentNpcID()
+                local npcID = GetCurrentRuleID()
                 if not npcID then
                     return
                 end
@@ -236,6 +237,58 @@ local function GetCurrentNpcName()
         return ns.GetCurrentNpcName()
     end
     return nil
+end
+
+local function NormalizeMapNpcName(name)
+    if IsSecretString(name) then
+        return "unknown"
+    end
+
+    if type(name) ~= "string" then
+        name = tostring(name or "")
+    end
+
+    local ok, normalized = pcall(function()
+        local v = name
+        v = v:gsub("^%s+", ""):gsub("%s+$", "")
+        v = v:lower()
+        v = v:gsub("[^%w]+", "_")
+        v = v:gsub("_+", "_")
+        v = v:gsub("^_+", ""):gsub("_+$", "")
+        return v
+    end)
+
+    if (not ok) or type(normalized) ~= "string" or normalized == "" then
+        return "unknown"
+    end
+    return normalized
+end
+
+local function BuildMapRuleKey(mapID, npcName)
+    mapID = math.floor(tonumber(mapID) or 0)
+    if mapID <= 0 then
+        return nil
+    end
+    local n = NormalizeMapNpcName(npcName)
+    return "map:" .. tostring(mapID) .. ":" .. n
+end
+
+GetCurrentRuleID = function()
+    local npcID = GetCurrentNpcID()
+    if npcID ~= nil then
+        return npcID
+    end
+
+    if not (C_Map and type(C_Map.GetBestMapForUnit) == "function") then
+        return nil
+    end
+
+    local mapID = C_Map.GetBestMapForUnit("player")
+    if not mapID then
+        return nil
+    end
+
+    return BuildMapRuleKey(mapID, GetCurrentNpcName())
 end
 
 local function CloseGossipWindow(isRetry)
@@ -429,6 +482,25 @@ GetDbNpcTable = function(npcID)
             local n = tonumber(npcID)
             if n then
                 npcTable = rules[n]
+            else
+                -- Fallback for protected gossip names in instances:
+                -- runtime key becomes map:<id>:unknown while DB uses map:<id>:<npc-name>.
+                local mapID = npcID:match("^map:(%d+):unknown$")
+                mapID = tonumber(mapID)
+                if mapID and mapID > 0 then
+                    local prefix = "map:" .. tostring(mapID) .. ":"
+                    local bestKey = nil
+                    for k, v in pairs(rules) do
+                        if type(k) == "string" and type(v) == "table" and k:sub(1, #prefix) == prefix then
+                            if not bestKey or k < bestKey then
+                                bestKey = k
+                            end
+                        end
+                    end
+                    if bestKey then
+                        npcTable = rules[bestKey]
+                    end
+                end
             end
         end
     end
@@ -626,9 +698,9 @@ function ns.Talk.TryAutoSelect(isRetry)
         return false, "no-api"
     end
 
-    local npcID = GetCurrentNpcID()
+    local npcID = GetCurrentRuleID()
     if not npcID then
-        Debug("Blocked (could not resolve NPC ID)")
+        Debug("Blocked (could not resolve NPC/map key)")
         return false, "no-npc"
     end
 
@@ -718,7 +790,7 @@ function ns.Talk.TryAutoSelect(isRetry)
             end
 
             local function SameGossipStillOpen()
-                local curNpcID = GetCurrentNpcID()
+                local curNpcID = GetCurrentRuleID()
                 if not curNpcID or curNpcID ~= contextNpcID then
                     return false
                 end
@@ -868,7 +940,7 @@ function ns.Talk.TryAutoSelect(isRetry)
         local token = selectConfirmToken
 
         local function SameGossipStillOpen()
-            local curNpcID = GetCurrentNpcID()
+            local curNpcID = GetCurrentRuleID()
             if not curNpcID or curNpcID ~= contextNpcID then
                 return false
             end

@@ -1860,19 +1860,49 @@ local function CreateOptionsWindow()
     end
 
     local function SelectTab(self, tabID)
+        local function SafeSetPanelShown(panel, shouldShow)
+            if not panel then
+                return
+            end
+
+            local target = shouldShow and true or false
+            local isShown = (panel.IsShown and panel:IsShown()) and true or false
+            if isShown == target then
+                return
+            end
+
+            local ok = false
+            if panel.SetShown then
+                ok = pcall(panel.SetShown, panel, target)
+            end
+
+            if not ok then
+                if target then
+                    ok = panel.Show and pcall(panel.Show, panel)
+                else
+                    ok = panel.Hide and pcall(panel.Hide, panel)
+                end
+            end
+
+            if not ok and not panel._fgoSetShownWarned then
+                panel._fgoSetShownWarned = true
+                Print("Tab panel visibility update skipped due to Blizzard taint/backdrop restriction.")
+            end
+        end
+
         f.activeTab = tabID
         -- Tab IDs (panel mapping): 1 Macro, 2 Macro CMD, 3 Situate, 4 Switches, 5 Tabard, 6 Tale, 7 Talk, 8 Textures, 9 Loot, 10 Tax, 11 Trade
-        if f.macrosPanel then f.macrosPanel:SetShown(tabID == 1) end
-        if f.macroPanel then f.macroPanel:SetShown(tabID == 2) end
-        if f.actionBarPanel then f.actionBarPanel:SetShown(tabID == 3) end
-        if f.togglesPanel then f.togglesPanel:SetShown(tabID == 4) end
-        if f.tabardPanel then f.tabardPanel:SetShown(tabID == 5) end
-        if f.editPanel then f.editPanel:SetShown(tabID == 6) end
-        if f.browserPanel then f.browserPanel:SetShown(tabID == 7) end
-        if f.texturesPanel then f.texturesPanel:SetShown(tabID == 8) end
-        if f.lootItPanel then f.lootItPanel:SetShown(tabID == 9) end
-        if f.lootTaxPanel then f.lootTaxPanel:SetShown(tabID == 10) end
-        if f.lootTradePanel then f.lootTradePanel:SetShown(tabID == 11) end
+        SafeSetPanelShown(f.macrosPanel, tabID == 1)
+        SafeSetPanelShown(f.macroPanel, tabID == 2)
+        SafeSetPanelShown(f.actionBarPanel, tabID == 3)
+        SafeSetPanelShown(f.togglesPanel, tabID == 4)
+        SafeSetPanelShown(f.tabardPanel, tabID == 5)
+        SafeSetPanelShown(f.editPanel, tabID == 6)
+        SafeSetPanelShown(f.browserPanel, tabID == 7)
+        SafeSetPanelShown(f.texturesPanel, tabID == 8)
+        SafeSetPanelShown(f.lootItPanel, tabID == 9)
+        SafeSetPanelShown(f.lootTaxPanel, tabID == 10)
+        SafeSetPanelShown(f.lootTradePanel, tabID == 11)
 
         if tabID == 2 and f.UpdateMacroButtons then
             f.UpdateMacroButtons()
