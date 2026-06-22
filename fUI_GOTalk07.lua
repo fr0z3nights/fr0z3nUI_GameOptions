@@ -125,4 +125,17 @@ SetZone("Dalaran, Broken Isles")
 --  t[47008] = { prio = 09, text = "Deadmines?" }
 --  t[47011] = { prio = 09, text = "Blackrock Depths!" }
 
+SetZone("Highmountain, Broken Isles")
+
+	t = MAP("Dungeon: Neltharion's Lair", 1472)
+   	t[49796] = { text = "I am ready." }
+   	t[49828] = { text = "I am ready to go." }
+
+	t = NPC("Navarrogg", 151643)
+	t[51054] = { text = "I am ready to go." }
+
+	t = NPC("Spiritwalker Ebonhorn", 151641)
+	t[51053] = { text = "I'm investigating unusual magical activity in the area.", qil = 55374 }
+
+
 

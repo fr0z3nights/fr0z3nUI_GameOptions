@@ -112,6 +112,12 @@ end,
 })
 end
 
+SetZone("Arathi Highlands, Eastern Kingdoms")
+
+   t = NPC("Zidormi", 141649)
+   t[49008] = { text = "Can you show me what Arathi Highlands was like before war broke out?" }
+   t[49009] = { text = "Can you return me to the Highlands during the Fourth War?" }
+
 SetZone("Blasted Lands, Eastern Kingdoms")
 
    t = NPC("Zidormi", 88206)

@@ -1216,6 +1216,8 @@ end
 
 do
     local didInit = false
+    local MIDNIGHT_FISHING_ITEM_ID = 262649
+    local MIDNIGHT_FISHING_SKILL_LINE_ID = 2911
 
     local function InitSV()
         if ns and type(ns._InitSV) == "function" then
@@ -1270,6 +1272,115 @@ do
         end
     end
 
+    local function ExtractItemIDFromLink(link)
+        if type(link) ~= "string" then
+            return nil
+        end
+        local id = link:match("item:(%d+)")
+        return tonumber(id)
+    end
+
+    local function ResolveTooltipItemID(tooltip, data)
+        if type(data) == "table" then
+            local dataID = tonumber(data.id)
+            if dataID and dataID > 0 then
+                return dataID
+            end
+
+            local dataLink = data.hyperlink or data.itemLink or data.link
+            local linkedID = ExtractItemIDFromLink(dataLink)
+            if linkedID then
+                return linkedID
+            end
+        end
+
+        if tooltip and tooltip.GetItem then
+            local _, itemLink = tooltip:GetItem()
+            local itemID = ExtractItemIDFromLink(itemLink)
+            if itemID then
+                return itemID
+            end
+        end
+
+        return nil
+    end
+
+    local function ResolveMidnightFishingFromProfessionsList()
+        if not (type(GetProfessions) == "function" and type(GetProfessionInfo) == "function") then
+            return nil, nil
+        end
+
+        local p1, p2, p3, p4, p5 = GetProfessions()
+        local indices = { p1, p2, p3, p4, p5 }
+        for i = 1, 5 do
+            local p = indices[i]
+            if p ~= nil then
+                local ok,
+                    a1, a2, a3, a4, a5,
+                    a6, a7, a8, a9, a10,
+                    a11, a12, a13, a14, a15 = pcall(GetProfessionInfo, p)
+
+                if ok then
+                    local info = { a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15 }
+                    local rank = tonumber(info[3])
+                    local maxRank = tonumber(info[4])
+                    local skillLine = tonumber(info[7])
+
+                    if skillLine == MIDNIGHT_FISHING_SKILL_LINE_ID then
+                        return rank or 0, maxRank or 300
+                    end
+
+                    for j = 1, 15 do
+                        local v = info[j]
+                        if type(v) == "string" and not (issecretvalue and issecretvalue(v)) then
+                            local s = v:lower()
+                            if s:find("midnight", 1, true) and s:find("fishing", 1, true) then
+                                return rank or 0, maxRank or 300
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        return nil, nil
+    end
+
+    local function AddMidnightFishingSkillLine(tooltip)
+        if not (tooltip and tooltip.AddLine and tooltip.AddDoubleLine) then
+            return
+        end
+
+        local data = tooltip.GetTooltipData and tooltip:GetTooltipData() or nil
+        local itemID = ResolveTooltipItemID(tooltip, data)
+        if itemID ~= MIDNIGHT_FISHING_ITEM_ID then
+            return
+        end
+
+        local currentSkill, maxSkill = ResolveMidnightFishingFromProfessionsList()
+        currentSkill = tonumber(currentSkill) or 0
+        maxSkill = tonumber(maxSkill) or 300
+
+        local professions = C_Professions
+        local getProfessionInfoBySkillLineID = professions and professions.GetProfessionInfoBySkillLineID
+        if type(getProfessionInfoBySkillLineID) == "function" then
+            local skillInfo = getProfessionInfoBySkillLineID(MIDNIGHT_FISHING_SKILL_LINE_ID)
+            if type(skillInfo) == "table" then
+                currentSkill = tonumber(skillInfo.skillLevel)
+                    or tonumber(skillInfo.currentSkillLevel)
+                    or tonumber(skillInfo.currentLevel)
+                    or currentSkill
+                maxSkill = tonumber(skillInfo.maxSkillLevel)
+                    or tonumber(skillInfo.maxLevel)
+                    or tonumber(skillInfo.maxSkill)
+                    or maxSkill
+            end
+        end
+
+        tooltip:AddLine(" ")
+        tooltip:AddDoubleLine("Current Midnight Fishing:", currentSkill .. "/" .. maxSkill, 1, 0.82, 0, 1, 1, 1)
+    end
+
     local function HookTooltipByName(globalName)
         local tt = _G and _G[globalName]
         if not (tt and tt.HookScript) then
@@ -1317,6 +1428,10 @@ do
                 if type(tooltipDataType) == "number" then
                     TooltipDataProcessor.AddTooltipPostCall(tooltipDataType, ApplyBorderState)
                 end
+            end
+
+            if type(Enum.TooltipDataType.Item) == "number" then
+                TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, AddMidnightFishingSkillLine)
             end
         end
     end

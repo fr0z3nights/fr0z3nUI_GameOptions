@@ -124,6 +124,7 @@ SetZone("Boralus, Kul Tiras")
     t = NPC("Cyrus Crestfall", 122370)
    	t.__meta.stopIfQuestAvailable = { 52194, }                                                         -- First NPCID, Stops Gossip until quest is accepted
     t[48242] = { text = "<Shake his hand.>" }
+    t[48244] = { text = "I am ready to set sail." }
 
     t = NPC("Declan Senal", 136096)
     t[48295] = { text = "Train me in Herbalism." }
@@ -136,5 +137,10 @@ SetZone("Boralus, Kul Tiras")
 
     t = NPC("Wesley Rockhold", 135153)
     t[48279] = { text = "Let me browse your goods" }
+
+SetZone("Nazjatar, Kul Tiras")
+
+    t = NPC("Lady Jaina Proudmoore", 150101)
+    t[49509] = { text = "Jaina, can you show us the area around the palace?" }
 
 

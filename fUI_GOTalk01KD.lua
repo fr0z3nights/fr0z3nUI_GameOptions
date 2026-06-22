@@ -129,6 +129,11 @@ SetZone("Darkshore, Kalimdor")
     t[49022] = { text = "Can you show me what Darkshore was like before the battle?" }
     t[49024] = { text = "Can you return me to the present time?" }
 
+SetZone("Feralas, Kalimdor")
+
+   t = NPC("Irela Moonfeather", 41383)
+   t[38509] = { text = "Show me where I can fly." }
+
 SetZone("Orgrimmar, Kalimdor")
 
    t = NPC("Doras", 3310)
@@ -162,6 +167,23 @@ SetZone("Razorwind Shores, Kalimdor")
 
     t = NPC("Spirit Healer", 6491)
     t[29005] = { text = "Return me to life.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "If you find your corpse", "If you return to your corpse", "return to your corpse", "lose experience", "resurrection sickness" }, within = 3, } }
+
+SetZone("Silithus, Kalimdor")
+
+    t = NPC("Magni Bronzebeard", 136907)
+    t[48175] = { text = "What does Azeroth want of me, Magni?" }        -- The Heart of Azeroth (51211) Magni Bronzebeard (136907)
+
+    t = NPC("MOTHER", 152194)
+    t[51120] = { text = "What have you discovered?", qil = 55533 }                      -- MOTHER Knows Best (55533) MOTHER (152194)
+    t[51119] = { text = "I am ready to travel to Highmountain", qil = 55374 }           -- A Disturbance Beneath the Earth (55374) MOTHER (152194)
+    t[51123] = { text = "Begin the activation sequence.", qil = 55618 }                 -- The Heart Forge (55618) MOTHER (152194)
+
+    t = NPC("Spiritwalker Ebonhorn", 151964)
+    t[49616] = { text = "Let's go meet Magni." }                                     -- A Friendly Face (55497) Spiritwalker Ebonhorn (151964)
+
+    t = NPC("Zidormi", 128607)
+    t[47635] = { text = "Can you return me to the present time?" }
+    t[47634] = { text = "Can you show me what Silithus was like before the Wound in the World?" }
 
 SetZone("Tanaris, Kalimdor")
 

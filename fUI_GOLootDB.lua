@@ -67,6 +67,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X01:JaneyAnship",      text = "Janey Anship says" },
     { key = "X01:LisanPierce",      text = "Lisan Pierce says" },
     { key = "X01:Suzanne",          text = "Suzanne says" },
+    { key = "X01:Channel",          text = "Changed Channel" },
 --Addon
     { key = "ANG:Awake",            text = "Is awake. To temporarily disable" },
     { key = "ANG:Config",           text = "To access the configuration menu," },
