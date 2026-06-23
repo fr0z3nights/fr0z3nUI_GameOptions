@@ -1361,6 +1361,19 @@ local function PickBestFromBags(kind)
                         if kind == "drink" and not e.isDrink then
                             eligible = false
                         end
+
+                        -- Guard against dual-bucket items being picked for the wrong macro.
+                        -- If an item is classified as both food/drink, require signal for the target side.
+                        if eligible and e.isFood and e.isDrink then
+                            local hRate = tonumber(e.hRate) or 0
+                            local mRate = tonumber(e.mRate) or 0
+                            if kind == "food" and hRate <= 0 and mRate > 0 then
+                                eligible = false
+                            elseif kind == "drink" and mRate <= 0 and hRate > 0 then
+                                eligible = false
+                            end
+                        end
+
                         if eligible then
                             local rate = (kind == "food") and (e.hRate or 0) or (e.mRate or 0)
                             -- Fallback: if tooltip parsing yields 0, still pick the highest-tier usable item.

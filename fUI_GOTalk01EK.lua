@@ -229,6 +229,7 @@ SetZone("Tirisfal Glades, Eastern Kingdoms")
 
    t = NPC("Zidormi", 141488)
    t[49018] = { text = "Can you show me what Tirisfal Glades was like before the Battle for Lordaeron." } -- No Quest (XXXXX) Zidormi (141488)
+   t[49019] = { text = "Can you return me to the present time?" } -- No Quest (XXXXX) Zidormi (141488)
 
 SetZone("Twilight Highlands, Eastern Kingdoms")
 

@@ -43,6 +43,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 --07 Legion
     { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
 --06 Draenor
+    { key = "X06:PBTaralune",       text = "Taralune says" },
     { key = "X06:PhilHinbrd",       text = "Phillip Hillenbrand says" },
     { key = "X06:StphnHckln",       text = "Stephen Hicklin says" },
 --05 Mists of Pandaria
