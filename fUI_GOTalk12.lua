@@ -747,6 +747,11 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    		t = NPC("Valeera Sanguinar", 242381)
    		t[133099] = { text = "Lor'themar will need the services of the Reliquary" }
 
+   		t = NPC("Vaultkeeper Elysa", 239670)
+   		t.__meta.stopIfQuestAvailable = { 93696, }                                                            -- Waits for Quest Accepted (First NPCID Only)
+   		t.__meta.stopIfQuestTurnIn = { 93730, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
+   		t[37161] = { text = "I want to browse your goods" }
+
    		t = NPC("Vira Bloodsong", { 244472, })
    		t[133969] = { text = "I'm looking to purchase more of these?" }                                       -- Murder Row: Acting the Part (90819) Vira Bloodsong (244472)
 

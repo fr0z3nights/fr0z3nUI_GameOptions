@@ -700,7 +700,7 @@ do
 
     local link = GetMerchantItemLinkSafe(i)
     if type(link) == "string" and link ~= "" then
-      local id = link:match("Hitem:(%d+):")
+      local id = link:match("item:(%d+)")
       id = id and tonumber(id) or nil
       if id and id > 0 then
         return id
@@ -1232,10 +1232,19 @@ do
       _liMerchantWantsCache = true
       return nil
     end
+    local wantedName = GetItemNameSafe(itemID)
+    wantedName = (type(wantedName) == "string" and wantedName ~= "") and wantedName:lower() or nil
+
     for i = 1, n do
       local id = GetMerchantItemIDSafe(i)
       if id == nil then
         _liMerchantWantsCache = true
+        if wantedName and type(GetMerchantItemInfo) == "function" then
+          local ok, name = pcall(GetMerchantItemInfo, i)
+          if ok and type(name) == "string" and name ~= "" and name:lower() == wantedName then
+            return i
+          end
+        end
       elseif id == itemID then
         return i
       end
