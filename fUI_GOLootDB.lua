@@ -10,17 +10,42 @@ ns.LootIt = LI
 fr0z3nUI_LootIt = LI
 LI.ADDON = LI.ADDON or addonName
 
+local addonIgnoredItemIDs = {}
+
+local function NormalizeAddonAliasSeeds(aliases)
+    local ignored = {}
+    if type(aliases) ~= "table" then
+        return ignored
+    end
+
+    for itemID, entry in pairs(aliases) do
+        if type(entry) == "table" then
+            local text = entry.text or entry.alias or entry.name
+            if type(text) == "string" and text ~= "" then
+                aliases[itemID] = text
+            else
+                aliases[itemID] = nil
+            end
+
+            if entry.ignore == true then
+                ignored[itemID] = true
+            end
+        end
+    end
+
+    return ignored
+end
+
 fr0z3nUI_LootItDB = fr0z3nUI_LootItDB or {}
-fr0z3nUI_LootItDB.ignoredItemIDs = fr0z3nUI_LootItDB.ignoredItemIDs or {
-    [71096] = true, -- Grisly Trophy should be hidden by default via alias DB seed
-}
 
 fr0z3nUI_LootIt_AddonAliases = fr0z3nUI_LootIt_AddonAliases or {
     [116415] = "TW Token", -- Timewarped Badge
     [ 67151] = "Poseidus", -- Reins of Poseidus
-    [ 71096] = "Darkmoon Trophy", -- default alias seed for ignored item
+    [ 71096] = { text = "DM Test", ignore = true }, -- ignore state lives with the alias seed
   -- Add itemID aliases here (not currencies).
 }
+
+addonIgnoredItemIDs = NormalizeAddonAliasSeeds(fr0z3nUI_LootIt_AddonAliases)
 
 -- Built-in currency aliases shipped with the addon.
 -- Keyed by currencyID; values are display-only text (link remains the original currency).
@@ -99,5 +124,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 }
 
 LI.AddonLinkAliases = fr0z3nUI_LootIt_AddonAliases
+fr0z3nUI_LootIt_AddonIgnoredItemIDs = addonIgnoredItemIDs
+LI.AddonIgnoredItemIDs = addonIgnoredItemIDs
 LI.AddonCurrencyAliases = fr0z3nUI_LootIt_AddonCurrencyAliases
 LI.AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds

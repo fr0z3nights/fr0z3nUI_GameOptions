@@ -136,8 +136,9 @@ SetZone("Jade Forest, Pandaria")
     t = NPC("Kofa the Swift", 66219)
     t[40610] = { text = "What do you currently have for sale?", }
 
-    t = NPC("Pandaren Volunteer", 65974)
+    t = NPC("Pandaren Volunteer", {65974, 67090,})
     t[41756] = { text = "You can go home now. I'll cover your back.", }
+    t[41782] = { text = "You can go home now. I'll cover your back.", }
 
     t = NPC("Rivet Clutchpop", 55146)
     t[39686] = { text = "Quit messing around and use your knife!", }
@@ -164,6 +165,12 @@ SetZone("Jade Forest, Pandaria")
     t[41953] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, }
 
 SetZone("Krasarang Wilds, Pandaria")
+
+    t = NPC("Elder Shiao", 63535)
+    t[41465] = { text = "We're here to save you and rebuild your village.", }   -- Horde
+
+    t = NPC("Farmhand Ko", 63751)
+    t[41283] = { text = "We're here to save you and rebuild your village.", }   -- Horde
 
     t = NPC("Mo'ruk", 66733)
     t[41816] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, }

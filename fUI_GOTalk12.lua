@@ -197,6 +197,9 @@ SetZone("Midnight Intro")
 
 SetZone("Eversong Woods, Eastern Kingdoms")
 
+		t = MAP("Delve: The Shadow Enclave", 2502)
+   		t[137580] = { text = "Use the mirrors to spread the light. Got it." }
+
    		t = NPC("Alesil Dawnblood", {252599, })
    		t[136288] = { text = "I'll defend the runestone" }      -- And Then They Came (92398) Alesil Dawnblood (252599)
 

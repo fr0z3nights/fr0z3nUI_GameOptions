@@ -694,6 +694,21 @@ do
     return FormatGoldIconFromCopper(guildMoney) .. "  |  " .. FormatGoldIconFromCopper(warMoney)
   end
 
+  local function GetCurrentMapID()
+    if not (C_Map and type(C_Map.GetBestMapForUnit) == "function") then
+      return nil
+    end
+    local ok, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+    if not ok then
+      return nil
+    end
+    mapID = tonumber(mapID)
+    if not mapID or mapID <= 0 then
+      return nil
+    end
+    return math.floor(mapID)
+  end
+
   local function UpdateTaxLDBText()
     if type(Tax.LDB) == "table" then
       Tax.LDB.text = GetTaxLDBText()
@@ -754,6 +769,12 @@ do
       OnTooltipShow = function(tooltip)
         if not (tooltip and tooltip.AddLine) then return end
         tooltip:AddLine("|cff0080FFTax Bank Gold|r")
+        local mapID = GetCurrentMapID()
+        if mapID then
+          tooltip:AddLine("MapID: " .. tostring(mapID), 0.8, 0.8, 0.8)
+        else
+          tooltip:AddLine("MapID: unknown", 0.8, 0.8, 0.8)
+        end
         tooltip:AddLine("Right-click: Open Tax tab")
       end,
     })

@@ -345,11 +345,13 @@ end
 -- Built-in aliases shipped with the addon (account aliases override these).
 -- Keyed by itemID; values are display-only text (link remains the original item).
 local ADDON_LINK_ALIASES = (type(rawget(_G, "fr0z3nUI_LootIt_AddonAliases")) == "table") and rawget(_G, "fr0z3nUI_LootIt_AddonAliases") or {}
+local ADDON_IGNORED_ITEM_IDS = (type(rawget(_G, "fr0z3nUI_LootIt_AddonIgnoredItemIDs")) == "table") and rawget(_G, "fr0z3nUI_LootIt_AddonIgnoredItemIDs") or {}
 -- Built-in currency aliases shipped with the addon.
 -- Keyed by currencyID; values are display-only text (link remains the original currency).
 local ADDON_CURRENCY_ALIASES = (type(rawget(_G, "fr0z3nUI_LootIt_AddonCurrencyAliases")) == "table") and rawget(_G, "fr0z3nUI_LootIt_AddonCurrencyAliases") or {}
 
 LI.AddonLinkAliases = ADDON_LINK_ALIASES
+LI.AddonIgnoredItemIDs = ADDON_IGNORED_ITEM_IDS
 LI.AddonCurrencyAliases = ADDON_CURRENCY_ALIASES
 
 local DEFAULTS = {
@@ -359,7 +361,7 @@ local DEFAULTS = {
   showItemLevel = true, -- append (ilvl N) for equippable items
   lootQualityIconEnabled = true, -- show DF+ profession quality (rank) icon embedded in some gathered item links
   lootQualityIconPosition = "before", -- before | after (relative to item name)
-  ignoredItemIDs = {}, -- [itemID] = true hides the item from chat (suppresses both original + LootIt output)
+  ignoredItemIDs = ADDON_IGNORED_ITEM_IDS, -- [itemID] = true hides the item from chat (suppresses both original + LootIt output)
   linkAliases = {}, -- [itemID] = "Short Name" (display only, keeps original link)
   linkAliasDisabledAddon = {}, -- [itemID] = true disables addon built-in alias
   linkAliasDisabledAccount = {}, -- [itemID] = true disables account alias

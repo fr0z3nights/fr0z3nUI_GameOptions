@@ -52,7 +52,7 @@ fUI_GOMacroXCMDUI.lua
 
 fUI_GOMacroHearth.lua
 
-fUI_GOMacros.lua
+fUI_GOMacro.lua
 fUI_GOMacroUI.lua
 
 fUI_GOMacroHome.lua

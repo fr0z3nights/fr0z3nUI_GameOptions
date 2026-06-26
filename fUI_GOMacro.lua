@@ -1355,22 +1355,27 @@ local function PickBestFromBags(kind)
                     local e = ClassifyFoodDrink(id)
                     if e and (e.req or 0) <= lvl then
                         local eligible = true
-                        if kind == "food" and not e.isFood then
+                        local hRate = tonumber(e.hRate) or 0
+                        local mRate = tonumber(e.mRate) or 0
+
+                        if kind == "food" and (not e.isFood or hRate <= 0) then
                             eligible = false
                         end
-                        if kind == "drink" and not e.isDrink then
+                        if kind == "drink" and (not e.isDrink or mRate <= 0) then
                             eligible = false
                         end
 
                         -- Guard against dual-bucket items being picked for the wrong macro.
                         -- If an item is classified as both food/drink, require signal for the target side.
                         if eligible and e.isFood and e.isDrink then
-                            local hRate = tonumber(e.hRate) or 0
-                            local mRate = tonumber(e.mRate) or 0
-                            if kind == "food" and hRate <= 0 and mRate > 0 then
-                                eligible = false
-                            elseif kind == "drink" and mRate <= 0 and hRate > 0 then
-                                eligible = false
+                            if kind == "food" then
+                                if hRate <= 0 then
+                                    eligible = false
+                                end
+                            elseif kind == "drink" then
+                                if mRate <= 0 then
+                                    eligible = false
+                                end
                             end
                         end
 

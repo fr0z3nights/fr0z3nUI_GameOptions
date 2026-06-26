@@ -1873,14 +1873,30 @@ local function CreateOptionsWindow()
 
             local ok = false
             if panel.SetShown then
-                ok = pcall(panel.SetShown, panel, target)
+                if type(securecallfunction) == "function" then
+                    ok = pcall(securecallfunction, panel.SetShown, panel, target)
+                else
+                    ok = pcall(panel.SetShown, panel, target)
+                end
             end
 
             if not ok then
                 if target then
-                    ok = panel.Show and pcall(panel.Show, panel)
+                    if panel.Show then
+                        if type(securecallfunction) == "function" then
+                            ok = pcall(securecallfunction, panel.Show, panel)
+                        else
+                            ok = pcall(panel.Show, panel)
+                        end
+                    end
                 else
-                    ok = panel.Hide and pcall(panel.Hide, panel)
+                    if panel.Hide then
+                        if type(securecallfunction) == "function" then
+                            ok = pcall(securecallfunction, panel.Hide, panel)
+                        else
+                            ok = pcall(panel.Hide, panel)
+                        end
+                    end
                 end
             end
 
