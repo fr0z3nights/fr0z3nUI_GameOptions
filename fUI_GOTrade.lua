@@ -769,6 +769,12 @@ do
     local manaPct = low:match("restores%s+(%d+)%s*%%%s*of your mana")
     manaPct = manaPct and tonumber(manaPct) or nil
 
+    local function ToNum(v)
+      if type(v) ~= "string" then return nil end
+      v = v:gsub(",", "")
+      return tonumber(v)
+    end
+
     local hasHealth = (healthPct ~= nil)
     local hasMana = (manaPct ~= nil)
 
@@ -785,6 +791,50 @@ do
       if mentionsMana then manaPct = pct end
       hasHealth = (healthPct ~= nil)
       hasMana = (manaPct ~= nil)
+    end
+
+    -- Flat restore fallback used by most modern vendor food/drink.
+    if (not hasHealth) and (not hasMana) then
+      local mentionsHealth = (low:find("health", 1, true) ~= nil)
+      local mentionsMana = (low:find("mana", 1, true) ~= nil)
+      if mentionsHealth or mentionsMana then
+        local flatHealth = low:match("restores%s+(%d[%d,%.]*)%s+health")
+        local flatMana = low:match("restores%s+(%d[%d,%.]*)%s+mana")
+
+        if flatHealth == nil then
+          flatHealth = low:match("and%s+(%d[%d,%.]*)%s+health")
+        end
+        if flatMana == nil then
+          flatMana = low:match("and%s+(%d[%d,%.]*)%s+mana")
+        end
+
+        local sharedFlat = nil
+        if flatHealth == nil and flatMana == nil then
+          sharedFlat = ToNum(low:match("restores%s+(%d[%d,%.]*)"))
+        end
+
+        local hpMax = (type(UnitHealthMax) == "function") and (tonumber(UnitHealthMax("player")) or 0) or 0
+        if hpMax <= 0 then hpMax = 1 end
+
+        local manaType = 0
+        if Enum and type(Enum.PowerType) == "table" and type(Enum.PowerType.Mana) == "number" then
+          manaType = Enum.PowerType.Mana
+        end
+        local manaMax = (type(UnitPowerMax) == "function") and (tonumber(UnitPowerMax("player", manaType)) or 0) or 0
+
+        local flatHealthNum = ToNum(flatHealth) or ((mentionsHealth and sharedFlat) or nil)
+        local flatManaNum = ToNum(flatMana) or ((mentionsMana and sharedFlat) or nil)
+
+        if flatHealthNum and flatHealthNum > 0 then
+          healthPct = (flatHealthNum / hpMax) * 100
+        end
+        if flatManaNum and flatManaNum > 0 and manaMax > 0 then
+          manaPct = (flatManaNum / manaMax) * 100
+        end
+
+        hasHealth = (healthPct ~= nil)
+        hasMana = (manaPct ~= nil)
+      end
     end
 
     if (not hasHealth) and (not hasMana) then return nil end

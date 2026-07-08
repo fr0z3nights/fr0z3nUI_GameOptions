@@ -297,6 +297,43 @@ do
         end
     end
 
+    local function RunAltCommand()
+        if InCombatLockdown and InCombatLockdown() then
+            return
+        end
+
+        local runner = rawget(_G, "FQT_RunQuestXKeepListAbandonNoConfirm")
+        if type(runner) == "function" then
+            pcall(runner)
+            return
+        end
+
+        if type(RunMacroText) == "function" then
+            pcall(RunMacroText, "/fqt aaqs")
+            return
+        end
+
+        if type(ChatFrame_OpenChat) == "function" then
+            ChatFrame_OpenChat("/fqt aaqs")
+            return
+        end
+    end
+
+    local function GetCurrentMapID()
+        if not (C_Map and type(C_Map.GetBestMapForUnit) == "function") then
+            return nil
+        end
+        local ok, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+        if not ok then
+            return nil
+        end
+        mapID = tonumber(mapID)
+        if not mapID or mapID <= 0 then
+            return nil
+        end
+        return math.floor(mapID)
+    end
+
     function ns.EnsureReloadFloatButton()
         if btn and btn.SetText then
             return btn
@@ -312,6 +349,7 @@ do
         btn:SetFrameStrata("DIALOG")
         btn:EnableMouse(true)
         btn:SetMovable(true)
+        btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         btn:RegisterForDrag("RightButton")
 
         local fs = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -325,18 +363,35 @@ do
 
         ApplySavedPosition(btn)
 
-        btn:SetScript("OnClick", function()
+        btn:SetScript("OnMouseDown", function(_, button)
+        end)
+        btn:SetScript("OnMouseUp", function(_, button)
+            if button == "RightButton" then
+                local ctrl = IsControlKeyDown and IsControlKeyDown() and true or false
+                local shift = IsShiftKeyDown and IsShiftKeyDown() and true or false
+                if ctrl and shift then
+                    RunAltCommand()
+                end
+            end
+        end)
+        btn:SetScript("OnClick", function(_, button)
+            if button == "RightButton" and IsControlKeyDown and IsShiftKeyDown and IsControlKeyDown() and IsShiftKeyDown() then
+                RunAltCommand()
+                return
+            end
             local r = _G and _G["ReloadUI"]
             if type(r) == "function" then
                 r()
             end
         end)
         btn:SetScript("OnDragStart", function(self)
+            DebugReloadFloat("drag start")
             if self and self.StartMoving then
                 self:StartMoving()
             end
         end)
         btn:SetScript("OnDragStop", function(self)
+            DebugReloadFloat("drag stop")
             if self and self.StopMovingOrSizing then
                 self:StopMovingOrSizing()
             end
@@ -362,6 +417,12 @@ do
                 GameTooltip:SetText("|cff00ccff[FGO]|r Reload UI")
                 GameTooltip:AddLine("Left-click: reload", 1, 1, 1, true)
                 GameTooltip:AddLine("Right-drag: move", 1, 1, 1, true)
+                local mapID = GetCurrentMapID()
+                if mapID then
+                    GameTooltip:AddLine("MapID: " .. tostring(mapID), 0.8, 0.8, 0.8, true)
+                else
+                    GameTooltip:AddLine("MapID: unknown", 0.8, 0.8, 0.8, true)
+                end
                 Tooltip_ApplyFontDelta(GameTooltip, -1, "FGO_ReloadFloat")
                 GameTooltip:Show()
             end

@@ -746,6 +746,30 @@ do
     manualBtn:ClearAllPoints()
     manualBtn:SetPoint("TOP", minEdit, "BOTTOM", 0, -GAP_Y)
 
+    -- LDB display selector (single segmented control): Player / Guild / Warbank
+    local SEG_W = 24
+    local ldbSegFrame = CreateFrame("Frame", nil, panel)
+    ldbSegFrame:SetSize((SEG_W * 3) + 2, BTN_H)
+    ldbSegFrame:SetPoint("BOTTOMRIGHT", reloadBtn, "BOTTOMLEFT", -BTN_GAP, 0)
+
+    local ldbPBtn = CreateFrame("Button", nil, ldbSegFrame, "UIPanelButtonTemplate")
+    ldbPBtn:SetSize(SEG_W, BTN_H)
+    ldbPBtn:SetPoint("LEFT", ldbSegFrame, "LEFT", 0, 0)
+    ldbPBtn:SetText("P")
+    ldbPBtn._fs = (ldbPBtn.GetFontString and ldbPBtn:GetFontString()) or nil
+
+    local ldbGBtn = CreateFrame("Button", nil, ldbSegFrame, "UIPanelButtonTemplate")
+    ldbGBtn:SetSize(SEG_W, BTN_H)
+    ldbGBtn:SetPoint("LEFT", ldbPBtn, "RIGHT", 1, 0)
+    ldbGBtn:SetText("G")
+    ldbGBtn._fs = (ldbGBtn.GetFontString and ldbGBtn:GetFontString()) or nil
+
+    local ldbWBtn = CreateFrame("Button", nil, ldbSegFrame, "UIPanelButtonTemplate")
+    ldbWBtn:SetSize(SEG_W, BTN_H)
+    ldbWBtn:SetPoint("LEFT", ldbGBtn, "RIGHT", 1, 0)
+    ldbWBtn:SetText("W")
+    ldbWBtn._fs = (ldbWBtn.GetFontString and ldbWBtn:GetFontString()) or nil
+
     panel:HookScript("OnHide", function() end)
 
     Refresh = function()
@@ -1014,6 +1038,25 @@ do
       SetToggleText(guildXSBtn, "XS", (type(viewCfg) == "table") and (viewCfg.guildBankXS == true))
       SetToggleText(debugBtn, "Debug", (ct and ct.debug == true))
       do
+        local t = db.tax
+        t.ldbDisplay = (type(t.ldbDisplay) == "table") and t.ldbDisplay or {}
+        if t.ldbDisplay.player == nil then t.ldbDisplay.player = true end
+        if t.ldbDisplay.guild == nil then t.ldbDisplay.guild = true end
+        if t.ldbDisplay.war == nil then t.ldbDisplay.war = true end
+        t.ldbDisplay.player = (t.ldbDisplay.player == true)
+        t.ldbDisplay.guild = (t.ldbDisplay.guild == true)
+        t.ldbDisplay.war = (t.ldbDisplay.war == true)
+        if not t.ldbDisplay.player and not t.ldbDisplay.guild and not t.ldbDisplay.war then
+          t.ldbDisplay.player = true
+          t.ldbDisplay.guild = true
+          t.ldbDisplay.war = true
+        end
+
+        SetToggleText(ldbPBtn, "P", t.ldbDisplay.player == true)
+        SetToggleText(ldbGBtn, "G", t.ldbDisplay.guild == true)
+        SetToggleText(ldbWBtn, "W", t.ldbDisplay.war == true)
+      end
+      do
         local mode = (type(viewCfg) == "table") and tostring(viewCfg.bankPrintMode or "") or ""
         mode = mode:lower()
         if mode ~= "off" and mode ~= "basic" and mode ~= "detail" and mode ~= "full" then
@@ -1219,6 +1262,9 @@ do
       if debugBtn and debugBtn.SetEnabled then debugBtn:SetEnabled(true) end
       if bankPrintBtn and bankPrintBtn.SetEnabled then bankPrintBtn:SetEnabled(cfgControlsEnabled) end
       if manualBtn and manualBtn.SetEnabled then manualBtn:SetEnabled(cfgControlsEnabled) end
+      if ldbPBtn and ldbPBtn.SetEnabled then ldbPBtn:SetEnabled(true) end
+      if ldbGBtn and ldbGBtn.SetEnabled then ldbGBtn:SetEnabled(true) end
+      if ldbWBtn and ldbWBtn.SetEnabled then ldbWBtn:SetEnabled(true) end
       if clearGuildBtn and clearGuildBtn.SetEnabled then clearGuildBtn:SetEnabled(dueTax > 0) end
       if clearWarBtn and clearWarBtn.SetEnabled then clearWarBtn:SetEnabled(showWarbank and (warDueTax > 0)) end
     end
@@ -1660,6 +1706,65 @@ do
       GameTooltip:Show()
     end)
     manualBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
+
+    local function ToggleLDBSegment(which)
+      EnsureDB()
+      local db = GetDB()
+      if type(db) ~= "table" then return end
+      db.tax = (type(db.tax) == "table") and db.tax or {}
+      db.tax.ldbDisplay = (type(db.tax.ldbDisplay) == "table") and db.tax.ldbDisplay or {}
+      local d = db.tax.ldbDisplay
+      if d.player == nil then d.player = true end
+      if d.guild == nil then d.guild = true end
+      if d.war == nil then d.war = true end
+
+      if which == "player" then
+        d.player = not (d.player == true)
+      elseif which == "guild" then
+        d.guild = not (d.guild == true)
+      elseif which == "war" then
+        d.war = not (d.war == true)
+      end
+
+      if not (d.player == true) and not (d.guild == true) and not (d.war == true) then
+        if which == "player" then d.player = true end
+        if which == "guild" then d.guild = true end
+        if which == "war" then d.war = true end
+      end
+
+      if type(Tax.RefreshLDB) == "function" then
+        Tax.RefreshLDB()
+      end
+      Refresh()
+    end
+
+    ldbPBtn:SetScript("OnClick", function() ToggleLDBSegment("player") end)
+    ldbGBtn:SetScript("OnClick", function() ToggleLDBSegment("guild") end)
+    ldbWBtn:SetScript("OnClick", function() ToggleLDBSegment("war") end)
+
+    ldbPBtn:SetScript("OnEnter", function(self)
+      if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("LDB display: Player gold")
+      GameTooltip:Show()
+    end)
+    ldbPBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
+
+    ldbGBtn:SetScript("OnEnter", function(self)
+      if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("LDB display: Guild Bank balance")
+      GameTooltip:Show()
+    end)
+    ldbGBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
+
+    ldbWBtn:SetScript("OnEnter", function(self)
+      if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("LDB display: Warband Bank balance")
+      GameTooltip:Show()
+    end)
+    ldbWBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
 
     withdrawBtn:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end

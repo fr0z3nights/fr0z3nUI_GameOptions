@@ -44,15 +44,59 @@ do
     end
 
     local function EnsureInit()
-        _G.AutoGame_UI = _G.AutoGame_UI or {}
-        local root = _G.AutoGame_UI
+        local charKey = GetCharKey()
+
+        -- Store hearth data per character (SavedVariablesPerCharacter: AutoGame_CharSettings).
+        _G.AutoGame_CharSettings = _G.AutoGame_CharSettings or {}
+        local root = _G.AutoGame_CharSettings
         root.hearth = root.hearth or {}
         local db = root.hearth
 
+        -- One-time migration from legacy account-wide storage.
+        if not db._migratedFromAutoGameUI then
+            local legacyRoot = _G.AutoGame_UI
+            local legacy = type(legacyRoot) == "table" and legacyRoot.hearth or nil
+            if type(legacy) == "table" then
+                if db.selectedUseItemID == nil and legacy.selectedUseItemID ~= nil then
+                    db.selectedUseItemID = legacy.selectedUseItemID
+                end
+                if db.autoRotate == nil and legacy.autoRotate ~= nil then
+                    db.autoRotate = legacy.autoRotate
+                end
+                if db.toyShowAll == nil and legacy.toyShowAll ~= nil then
+                    db.toyShowAll = legacy.toyShowAll
+                end
+                if db.toyFilter == nil and legacy.toyFilter ~= nil then
+                    db.toyFilter = tostring(legacy.toyFilter or "")
+                end
+                if type(db.window) ~= "table" and type(legacy.window) == "table" then
+                    db.window = {
+                        tab = legacy.window.tab,
+                        macroPerChar = legacy.window.macroPerChar,
+                    }
+                end
+
+                local lZone = type(legacy.homeZoneByChar) == "table" and legacy.homeZoneByChar[charKey] or nil
+                local lCont = type(legacy.homeContinentByChar) == "table" and legacy.homeContinentByChar[charKey] or nil
+                local lCapture = type(legacy.zoneByChar) == "table" and legacy.zoneByChar[charKey] or nil
+
+                if (db.homeZone == nil or db.homeZone == "") and lZone and lZone ~= "" then
+                    db.homeZone = tostring(lZone)
+                end
+                if (db.homeContinent == nil or db.homeContinent == "") and lCont and lCont ~= "" then
+                    db.homeContinent = tostring(lCont)
+                end
+                if (db.zoneCaptured == nil or db.zoneCaptured == "") and lCapture and lCapture ~= "" then
+                    db.zoneCaptured = tostring(lCapture)
+                end
+            end
+            db._migratedFromAutoGameUI = true
+        end
+
         db.window = db.window or { tab = "hearth", macroPerChar = false }
-        db.zoneByChar = db.zoneByChar or {}
-        db.homeZoneByChar = db.homeZoneByChar or {}
-        db.homeContinentByChar = db.homeContinentByChar or {}
+        if db.homeZone ~= nil then db.homeZone = tostring(db.homeZone or "") end
+        if db.homeContinent ~= nil then db.homeContinent = tostring(db.homeContinent or "") end
+        if db.zoneCaptured ~= nil then db.zoneCaptured = tostring(db.zoneCaptured or "") end
         db.customUseItems = db.customUseItems or {}
 
         if db.selectedUseItemID ~= nil then
@@ -75,7 +119,7 @@ do
             db.toyFilter = ""
         end
 
-        return db, GetCharKey()
+        return db, charKey
     end
 
     local function IsDraeneiPlayer()
@@ -343,9 +387,9 @@ do
     end
 
     local function GetHomeZoneContinentText()
-        local db, charKey = EnsureInit()
-        local zone = (db.homeZoneByChar and db.homeZoneByChar[charKey]) or ""
-        local continent = (db.homeContinentByChar and db.homeContinentByChar[charKey]) or ""
+        local db = EnsureInit()
+        local zone = db.homeZone or ""
+        local continent = db.homeContinent or ""
         zone = tostring(zone or "")
         continent = tostring(continent or "")
 
@@ -356,9 +400,9 @@ do
     end
 
     local function GetCurrentDisplayText()
-        local db, charKey = EnsureInit()
-        local zone = (db.homeZoneByChar and db.homeZoneByChar[charKey]) or ""
-        local continent = (db.homeContinentByChar and db.homeContinentByChar[charKey]) or ""
+        local db = EnsureInit()
+        local zone = db.homeZone or ""
+        local continent = db.homeContinent or ""
         zone = tostring(zone or "")
         continent = tostring(continent or "")
 
@@ -511,18 +555,24 @@ do
                 return
             end
 
-            local db, charKey = EnsureInit()
+            local db = EnsureInit()
             if event == "HEARTHSTONE_BOUND" then
-                db.zoneByChar = db.zoneByChar or {}
-                db.homeZoneByChar = db.homeZoneByChar or {}
-                db.homeContinentByChar = db.homeContinentByChar or {}
-
                 local z = GetPlayerZoneName() or ""
                 local c = GetPlayerContinentName() or ""
-                db.homeZoneByChar[charKey] = tostring(z or "")
-                db.homeContinentByChar[charKey] = tostring(c or "")
 
-                db.zoneByChar[charKey] = GetHearthZoneCaptureText()
+                z = tostring(z or "")
+                c = tostring(c or "")
+                if z ~= "" then
+                    db.homeZone = z
+                end
+                if c ~= "" then
+                    db.homeContinent = c
+                end
+
+                local cap = tostring(GetHearthZoneCaptureText() or "")
+                if cap ~= "" then
+                    db.zoneCaptured = cap
+                end
                 return
             end
 

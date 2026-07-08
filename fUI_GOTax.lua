@@ -136,6 +136,19 @@ do
     db.tax = (type(db.tax) == "table") and db.tax or {}
     local t = db.tax
 
+    t.ldbDisplay = (type(t.ldbDisplay) == "table") and t.ldbDisplay or {}
+    if t.ldbDisplay.player == nil then t.ldbDisplay.player = true end
+    if t.ldbDisplay.guild == nil then t.ldbDisplay.guild = true end
+    if t.ldbDisplay.war == nil then t.ldbDisplay.war = true end
+    t.ldbDisplay.player = (t.ldbDisplay.player == true)
+    t.ldbDisplay.guild = (t.ldbDisplay.guild == true)
+    t.ldbDisplay.war = (t.ldbDisplay.war == true)
+    if not t.ldbDisplay.player and not t.ldbDisplay.guild and not t.ldbDisplay.war then
+      t.ldbDisplay.player = true
+      t.ldbDisplay.guild = true
+      t.ldbDisplay.war = true
+    end
+
     -- Guild-scoped settings/balances.
     t.guilds = (type(t.guilds) == "table") and t.guilds or {}
 
@@ -690,8 +703,28 @@ do
   end
 
   local function GetTaxLDBText()
+    local t = EnsureTaxDB()
+    local disp = (type(t) == "table" and type(t.ldbDisplay) == "table") and t.ldbDisplay or { player = true, guild = true, war = true }
+
+    local parts = {}
+    if disp.player == true then
+      local playerMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+      if playerMoney < 0 then playerMoney = 0 end
+      parts[#parts + 1] = FormatGoldIconFromCopper(playerMoney)
+    end
+
     local guildMoney, warMoney = GetCachedGuildAndWarbankMoney()
-    return FormatGoldIconFromCopper(guildMoney) .. "  |  " .. FormatGoldIconFromCopper(warMoney)
+    if disp.guild == true then
+      parts[#parts + 1] = FormatGoldIconFromCopper(guildMoney)
+    end
+    if disp.war == true then
+      parts[#parts + 1] = FormatGoldIconFromCopper(warMoney)
+    end
+
+    if #parts == 0 then
+      return FormatGoldIconFromCopper(guildMoney) .. "  |  " .. FormatGoldIconFromCopper(warMoney)
+    end
+    return table.concat(parts, "  |  ")
   end
 
   local function GetCurrentMapID()
@@ -707,6 +740,33 @@ do
       return nil
     end
     return math.floor(mapID)
+  end
+
+  local function GetCurrentHearthLocationText()
+    local hearth = (type(ns) == "table") and ns.Hearth or nil
+    if type(hearth) == "table" then
+      if type(hearth.GetCurrentDisplayText) == "function" then
+        local a, b = hearth.GetCurrentDisplayText()
+        a = tostring(a or "")
+        b = tostring(b or "")
+        if a ~= "" and b ~= "" then
+          return a .. ", " .. b
+        end
+        if a ~= "" then
+          return a
+        end
+        if b ~= "" then
+          return b
+        end
+      end
+      if type(hearth.GetHomeZoneContinentText) == "function" then
+        local txt = tostring(hearth.GetHomeZoneContinentText() or "")
+        if txt ~= "" then
+          return txt
+        end
+      end
+    end
+    return "unknown"
   end
 
   local function UpdateTaxLDBText()
@@ -769,12 +829,7 @@ do
       OnTooltipShow = function(tooltip)
         if not (tooltip and tooltip.AddLine) then return end
         tooltip:AddLine("|cff0080FFTax Bank Gold|r")
-        local mapID = GetCurrentMapID()
-        if mapID then
-          tooltip:AddLine("MapID: " .. tostring(mapID), 0.8, 0.8, 0.8)
-        else
-          tooltip:AddLine("MapID: unknown", 0.8, 0.8, 0.8)
-        end
+        tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
         tooltip:AddLine("Right-click: Open Tax tab")
       end,
     })

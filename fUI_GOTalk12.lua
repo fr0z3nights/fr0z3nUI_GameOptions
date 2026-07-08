@@ -751,8 +751,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    		t[133099] = { text = "Lor'themar will need the services of the Reliquary" }
 
    		t = NPC("Vaultkeeper Elysa", 239670)
-   		t.__meta.stopIfQuestAvailable = { 93696, }                                                            -- Waits for Quest Accepted (First NPCID Only)
-   		t.__meta.stopIfQuestTurnIn = { 93730, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
+   		t.__meta.stopIfQuestAvailable = { 93696, 94474, }                                                    -- Waits for Quest Accepted (First NPCID Only)
+   		t.__meta.stopIfQuestTurnIn = { 93730, 94474, }                                                       -- Waits for Quest Hand-Ins (First NPCID Only)
    		t[37161] = { text = "I want to browse your goods" }
 
    		t = NPC("Vira Bloodsong", { 244472, })

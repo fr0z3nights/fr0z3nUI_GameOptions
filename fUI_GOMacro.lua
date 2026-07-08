@@ -687,6 +687,9 @@ local FOOD_DRINK_SCAN_MIN_DELAY_SEC = 0.10
 local FOOD_DRINK_RETRY_MAX_ATTEMPTS = 8
 local FOOD_DRINK_RETRY_INITIAL_DELAY_SEC = 0.50
 local FOOD_DRINK_RETRY_MAX_DELAY_SEC = 3.00
+local FOOD_DRINK_STARTUP_MAX_ATTEMPTS = 12
+local FOOD_DRINK_STARTUP_INTERVAL_SEC = 1.00
+local FOOD_DRINK_BAG_OPEN_COOLDOWN_SEC = 300
 
 local FOOD_MACRO_NAME = "FGO Food"
 local DRINK_MACRO_NAME = "FGO Drink"
@@ -749,6 +752,7 @@ FoodDrink = {
     lastDrinkID = 0,
 
     lastBagScan = { anySlots = false, anyItems = false, at = 0 },
+    lastBagOpenRefreshAt = 0,
     lastPick = {},
     retryAttempts = 0,
     retryTimerArmed = false,
@@ -1358,10 +1362,13 @@ local function PickBestFromBags(kind)
                         local hRate = tonumber(e.hRate) or 0
                         local mRate = tonumber(e.mRate) or 0
 
-                        if kind == "food" and (not e.isFood or hRate <= 0) then
+                        -- Base eligibility: correct category match.
+                        -- Do not require parsed rates here so pure food/drink still work when
+                        -- tooltip data is late or sparse; score fallback handles ranking.
+                        if kind == "food" and (not e.isFood) then
                             eligible = false
                         end
-                        if kind == "drink" and (not e.isDrink or mRate <= 0) then
+                        if kind == "drink" and (not e.isDrink) then
                             eligible = false
                         end
 
@@ -1585,6 +1592,34 @@ local function RequestFoodDrinkScan(forceRewrite, reason)
     end
 end
 
+local function StartFoodDrinkStartupChecks(reason)
+    if FoodDrink.startupTimerArmed then
+        return
+    end
+
+    FoodDrink.startupTimerArmed = true
+    FoodDrink.startupAttempts = 0
+
+    local function tick()
+        FoodDrink.startupAttempts = (FoodDrink.startupAttempts or 0) + 1
+
+        if IsFoodDrinkActive() then
+            FoodDrink.startupTimerArmed = false
+            RequestFoodDrinkScan(true, reason or "startup")
+            return
+        end
+
+        if (FoodDrink.startupAttempts or 0) >= FOOD_DRINK_STARTUP_MAX_ATTEMPTS then
+            FoodDrink.startupTimerArmed = false
+            return
+        end
+
+        C_Timer.After(FOOD_DRINK_STARTUP_INTERVAL_SEC, tick)
+    end
+
+    C_Timer.After(FOOD_DRINK_SCAN_MIN_DELAY_SEC, tick)
+end
+
 ScheduleFoodDrinkRetry = function(_)
     if FoodDrink.retryTimerArmed then return end
     if (FoodDrink.retryAttempts or 0) >= FOOD_DRINK_RETRY_MAX_ATTEMPTS then return end
@@ -1612,6 +1647,7 @@ do
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
     f:RegisterEvent("BAG_UPDATE")
     f:RegisterEvent("BAG_UPDATE_DELAYED")
+    f:RegisterEvent("BAG_OPEN")
     f:RegisterEvent("UPDATE_MACROS")
     f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
     f:RegisterEvent("ITEM_DATA_LOAD_RESULT")
@@ -1635,6 +1671,7 @@ do
                     RequestFoodDrinkScan(true, "player_login_followup")
                 end
             end)
+            StartFoodDrinkStartupChecks("player_login_startup")
             return
         end
 
@@ -1652,6 +1689,7 @@ do
                     RequestFoodDrinkScan(true, "enter_world_followup")
                 end
             end)
+            StartFoodDrinkStartupChecks("enter_world_startup")
             return
         end
 
@@ -1666,6 +1704,7 @@ do
                     end
                 end)
             end
+            StartFoodDrinkStartupChecks("update_macros_startup")
             return
         end
 
@@ -1679,6 +1718,20 @@ do
         if event == "BAG_UPDATE_DELAYED" then
             if IsFoodDrinkActive() then
                 RequestFoodDrinkScan(false, "bag_update_delayed")
+            end
+            return
+        end
+
+        if event == "BAG_OPEN" then
+            if IsFoodDrinkActive() then
+                local now = (type(GetTime) == "function") and (GetTime() or 0) or 0
+                local last = tonumber(FoodDrink.lastBagOpenRefreshAt) or 0
+                if (now - last) >= FOOD_DRINK_BAG_OPEN_COOLDOWN_SEC then
+                    FoodDrink.lastBagOpenRefreshAt = now
+                    RequestFoodDrinkScan(true, "bag_open")
+                else
+                    FoodDrinkDbg("bag open cooldown")
+                end
             end
             return
         end
