@@ -726,6 +726,9 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    		t = NPC("Row Rat", { 241425, })
    		t[132989] = { text = "I'm looking for Jaeth. Do you know where he is?" }                              -- Stir the Nest (89202) Row Rat (241425)
 
+   		t = NPC("Sergeant Vornin", { 255503, })
+   		t[138966] = { text = "Do you have any mounts or pets available now?" }                           -- Deepening Shadows (91854) Sin'dorei Vendor (249174)
+
    		t = NPC("Sin'dorei Vendor", { 249174, })
    		t[135112] = { text = "<Explain the events of the Sunwell.>" }                                         -- Deepening Shadows (91854) Sin'dorei Vendor (249174)
 

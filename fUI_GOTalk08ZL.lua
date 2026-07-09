@@ -141,4 +141,8 @@ t = NPC("Pin'jin the Patient", { 122700, })
    t = NPC("Secott the Goldsmith", { 122694, })
    t[ 49216] = { text = "Train me in Mining.", }     														-- Secott the Goldsmith (122694)
 
+SetZone("Voldun, Zandalar")
+
+	t = MAP("Dungeon: Temple of Sethraliss", 1043)
+   	t[48126] = { text = "We will restore you!", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, prio = -10 }
 

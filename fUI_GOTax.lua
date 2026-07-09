@@ -828,8 +828,16 @@ do
       end,
       OnTooltipShow = function(tooltip)
         if not (tooltip and tooltip.AddLine) then return end
-        tooltip:AddLine("|cff0080FFTax Bank Gold|r")
         tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
+        tooltip:AddLine("|cff0080FFTax Bank Gold|r")
+        local _, _, bal = GetActiveScopeCfgAndBal()
+        local guildOwed = (type(bal) == "table") and math.floor(tonumber(bal.due) or 0) or 0
+        if guildOwed < 0 then guildOwed = 0 end
+        local ct = EnsureCharTaxDB()
+        local wb = ct and ct.warBal
+        local warOwed = (type(wb) == "table") and math.floor(tonumber(wb.due) or 0) or 0
+        if warOwed < 0 then warOwed = 0 end
+        tooltip:AddLine("Tax:  " .. FormatGoldIconFromCopper(guildOwed) .. "  |  " .. FormatGoldIconFromCopper(warOwed), 1, 1, 1)
         tooltip:AddLine("Right-click: Open Tax tab")
       end,
     })

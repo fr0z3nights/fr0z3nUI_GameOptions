@@ -1278,6 +1278,17 @@ local function ClassifyFoodDrink(itemID)
             cached.isDrink = isDrink and true or false
             FoodDrink.tooltipCache[itemID] = cached
         end
+        if (tonumber(cached.hRate) or 0) <= 0 and (tonumber(cached.mRate) or 0) <= 0 then
+            -- Recover from first-pass sparse tooltips: retry parse for cached unknown-rate entries.
+            local st = ParseFoodDrinkRates(itemID)
+            if st then
+                cached.hRate = st.hRate or cached.hRate or 0
+                cached.mRate = st.mRate or cached.mRate or 0
+                cached.isPercent = st.isPercent and true or cached.isPercent
+                cached.percentDuration = st.percentDuration or cached.percentDuration
+                FoodDrink.tooltipCache[itemID] = cached
+            end
+        end
         if cached.isPercent and FoodDrink.percentRatesDirty then
             local st = ParseFoodDrinkRates(itemID)
             if st then
@@ -1373,14 +1384,15 @@ local function PickBestFromBags(kind)
                         end
 
                         -- Guard against dual-bucket items being picked for the wrong macro.
-                        -- If an item is classified as both food/drink, require signal for the target side.
+                        -- If an item is classified as both food/drink and we have parsed a signal,
+                        -- prefer matching side. If neither side parsed yet, keep it eligible as fallback.
                         if eligible and e.isFood and e.isDrink then
                             if kind == "food" then
-                                if hRate <= 0 then
+                                if hRate <= 0 and mRate > 0 then
                                     eligible = false
                                 end
                             elseif kind == "drink" then
-                                if mRate <= 0 then
+                                if mRate <= 0 and hRate > 0 then
                                     eligible = false
                                 end
                             end

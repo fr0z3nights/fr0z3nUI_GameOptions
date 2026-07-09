@@ -115,8 +115,7 @@ end
 
 SetZone("Dornogal, Khaz Algar")
 
-   -- Delver's Guide
-	   --t = NPC("Delver's Guide", 227675)
-        --t[123493] = { text = "<Review information on your current delve progress.>" }
+    t = NPC("Skymaster Sunwing", 16189)
+    t[34101] = { text = "I'd like to fly back to Silvermoon City." }
 
 

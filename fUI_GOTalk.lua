@@ -1700,8 +1700,17 @@ function ns.Talk.PrintCurrentOptions(debounce)
 
     -- Print-on-show is primarily used for building rules; if we don't have the NPC ID yet,
     -- skip so we don't double-print when the ID becomes available a fraction later.
+    -- Exception: in instances NPC IDs are no longer visible in GUIDs, so the ID will
+    -- never arrive — proceed so the map-ID fallback can still print.
     if debounce and not npcID then
-        return
+        local inInstance = false
+        if type(IsInInstance) == "function" then
+            local ok, inst = pcall(IsInInstance)
+            inInstance = ok and inst == true
+        end
+        if not inInstance then
+            return
+        end
     end
 
     -- Debounce only for Print-on-show. Both GOSSIP_SHOW and
@@ -1725,8 +1734,16 @@ function ns.Talk.PrintCurrentOptions(debounce)
         lastPrintOnShowAt = now
     end
 
+    local mapIDFallback = nil
+    if not npcID and C_Map and type(C_Map.GetBestMapForUnit) == "function" then
+        local ok, mid = pcall(C_Map.GetBestMapForUnit, "player")
+        if ok then mapIDFallback = tonumber(mid) end
+    end
+
     if npcID then
         PrintPrefixed(string.format("NPC:  %s (%d)", npcName, npcID))
+    elseif mapIDFallback then
+        PrintPrefixed(string.format("MAP:  %s (map:%d)", npcName ~= "" and npcName or "?", math.floor(mapIDFallback)))
     end
 
     do

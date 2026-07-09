@@ -65,6 +65,8 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X12:SlvrmnCitzn",      text = "Silvermoon Citizen says" },
     { key = "X12:TwilightInv",      text = "Twilight Invader says" },
     { key = "X12:Valeera",          text = "Valeera Sanguinar says" },
+--07 LegionTidesage Initiate attempts to run away in fear!
+    { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
 --07 Legion
     { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
 --06 Draenor
@@ -113,6 +115,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 --EV Darkmoon 
     { key = "DMF:PBJeremy",         text = "Jeremy Feasel says" },
     { key = "DMF:PBChristoph",      text = "Christoph VonFeasel says" },
+    { key = "DMF:Morja",            text = "Morja says" },
 --Blizzard
     { key = "BLZ:Discovery",        text = "You have made a new discovery" },
     { key = "BLZ:Finesse",          text = "Your Finesse helps you gather something extra" },
@@ -120,6 +123,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "BLZ:NLAway",           text = "You are no longer Away" },
     { key = "BLZ:NLRested",         text = "You are no longer Rested" },
     { key = "BLZ:Responsibly",      text = "Remember to act responsibly, protect" },
+    { key = "BLZ:RServicesDC",      text = "Blizzard services" },
 
 }
 

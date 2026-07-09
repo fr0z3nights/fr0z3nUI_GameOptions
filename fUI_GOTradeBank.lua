@@ -1625,6 +1625,203 @@ local function CountItemInContainerBags(sourceBags, itemID)
   return total
 end
 
+local function ScheduleGuildDepositQueue(tab, targets, storeHave)
+  -- Collect all deposit items first, then schedule them with delays.
+  local queue = {}
+  local moved = 0
+  local movedLines = {}
+  local skippedSoulbound = 0
+  local skippedWarbound = 0
+  local maxMoves = 200
+
+  local bags = GetPlayerBagIDs()
+  for iB = 1, #bags do
+    local bag = bags[iB]
+    local n = 0
+    if C_Container and type(C_Container.GetContainerNumSlots) == "function" then
+      local ok, v = pcall(C_Container.GetContainerNumSlots, bag)
+      n = ok and tonumber(v) or 0
+    end
+    if n and n > 0 then
+      for slot = 1, n do
+        if moved >= maxMoves then break end
+
+        local info = nil
+        if C_Container and type(C_Container.GetContainerItemInfo) == "function" then
+          local ok, v = pcall(C_Container.GetContainerItemInfo, bag, slot)
+          info = ok and v or nil
+        end
+        local itemID = info and tonumber(info.itemID) or nil
+        if itemID and targets[itemID] == true then
+          local stack = (info and tonumber(info.stackCount)) or 1
+          local depositCount = stack
+          local keep = GetEffectiveKeepAmount(itemID)
+          if keep > 0 then
+            local scope = GetEffectiveKeepScope(itemID)
+            if scope == "S" then
+              local have = tonumber(storeHave[itemID]) or 0
+              local need = keep - have
+              if need <= 0 then
+                depositCount = 0
+              elseif need < depositCount then
+                depositCount = need
+              end
+            else
+              local current = CountItemInPlayerBags(itemID)
+              local excess = (current or 0) - keep
+              if excess <= 0 then
+                depositCount = 0
+              elseif excess < depositCount then
+                depositCount = excess
+              end
+            end
+          end
+
+          if depositCount and depositCount > 0 then
+            local link = nil
+            if C_Container and type(C_Container.GetContainerItemLink) == "function" then
+              local okL, vL = pcall(C_Container.GetContainerItemLink, bag, slot)
+              link = okL and vL or nil
+            end
+
+            local flags = GetDepositItemFlagsFromLink(link or ("item:" .. tostring(itemID)))
+            local isBound = false
+            do
+              local loc = CreateItemLocationFromBagSlot(bag, slot)
+              if loc and C_Item and type(C_Item.IsBound) == "function" then
+                local okB, vB = pcall(C_Item.IsBound, loc)
+                isBound = okB and vB == true
+              end
+            end
+            if flags.soulbound or isBound then
+              skippedSoulbound = skippedSoulbound + 1
+              Print("Skipped (soulbound, can't deposit to guild bank): " .. tostring(link or itemID))
+            elseif flags.warbound then
+              skippedWarbound = skippedWarbound + 1
+            else
+              queue[#queue + 1] = {
+                bag = bag,
+                slot = slot,
+                tab = tab,
+                depositCount = depositCount ~= stack and depositCount or nil,
+                link = link,
+                itemID = itemID,
+                keep = keep,
+              }
+              moved = moved + 1
+              if moved <= 15 then
+                movedLines[#movedLines + 1] = tostring(link or itemID) .. " x" .. tostring(depositCount)
+              end
+            end
+          end
+        end
+      end
+    end
+    if moved >= maxMoves then break end
+  end
+
+  return false, movedLines, skippedSoulbound, skippedWarbound, queue
+end
+
+local function ProcessGuildDepositQueue(queue, tab, storeHave, movedLines, skippedSoulbound, skippedWarbound)
+  if not queue or #queue == 0 then
+    return 0, movedLines, skippedSoulbound, skippedWarbound
+  end
+
+  local moved = #movedLines > 0 and 15 or 0  -- Already printed up to 15
+  local idx = 1
+
+  local function ProcessNextItem()
+    if not IsGuildBankOpen() then
+      return
+    end
+    if idx > #queue then
+      -- All done, process store scope withdrawals
+      local storeMoved = 0
+      for itemID in pairs(storeHave) do
+        itemID = tonumber(itemID)
+        if itemID and itemID > 0 then
+          local keep = GetEffectiveKeepAmount(itemID)
+          if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
+            local have = tonumber(storeHave[itemID])
+            if have == nil then
+              have = CountItemInGuildBankTab(tab, itemID)
+            end
+            local excess = (have or 0) - keep
+            if excess > 0 then
+              local did, why = WithdrawFromGuildBankToBags(tab, itemID, excess)
+              if why then
+                if tostring(why) == "No bag space" then
+                  Print("Store withdraw blocked (guild): bags are full (free bag space and retry deposit)")
+                else
+                  Print("Store withdraw blocked (guild): " .. tostring(why))
+                end
+                return
+              end
+              did = tonumber(did) or 0
+              if did > 0 then
+                storeMoved = storeMoved + did
+                storeHave[itemID] = (have or 0) - did
+              end
+            end
+          end
+        end
+      end
+
+      moved = moved + #queue
+      if moved > 0 then
+        Print("Deposited: " .. tostring(moved) .. " move(s)")
+        for i = 1, #movedLines do
+          Print("  " .. movedLines[i])
+        end
+        if moved > #movedLines then
+          Print("  (and " .. tostring(moved - #movedLines) .. " more)")
+        end
+        if skippedSoulbound > 0 then
+          Print("Skipped soulbound: " .. tostring(skippedSoulbound))
+        end
+        if storeMoved > 0 then
+          Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
+        end
+      end
+      return
+    end
+
+    local item = queue[idx]
+    idx = idx + 1
+
+    -- Query the tab to ensure slot data is current before finding a slot
+    QueryGuildBankTabIfNeeded(item.tab)
+
+    -- Find best slot dynamically (not pre-calculated) to handle slot shifting as items deposit
+    local bankSlot = FindBestGuildBankSlot(item.tab, item.itemID)
+    if not bankSlot then
+      Print("Guild bank tab is full.")
+      return
+    end
+
+    local okMove, why = DepositToGuildBankOnce(item.bag, item.slot, item.tab, bankSlot, item.depositCount)
+    if okMove then
+      if item.keep > 0 and GetEffectiveKeepScope(item.itemID) == "S" then
+        storeHave[item.itemID] = (tonumber(storeHave[item.itemID]) or 0) + (tonumber(item.depositCount or 1) or 0)
+      end
+    else
+      Print("Deposit blocked (guild): " .. tostring(why or "unknown"))
+      return
+    end
+
+    -- Schedule next item with small delay to let UI update
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0.15, ProcessNextItem)
+    else
+      ProcessNextItem()
+    end
+  end
+
+  ProcessNextItem()
+  return moved, movedLines, skippedSoulbound, skippedWarbound
+end
+
 local function RunDepositGuild(destWanted)
   if not IsGuildBankOpen() then
     return false
@@ -1737,156 +1934,17 @@ local function RunDepositGuild(destWanted)
     end
   end
 
-  local moved = 0
-  local movedLines = {}
-  local skippedSoulbound = 0
-  local skippedWarbound = 0
-  local maxMoves = 200
-
-  local bags = GetPlayerBagIDs()
-  for iB = 1, #bags do
-    local bag = bags[iB]
-    local n = 0
-    if C_Container and type(C_Container.GetContainerNumSlots) == "function" then
-      local ok, v = pcall(C_Container.GetContainerNumSlots, bag)
-      n = ok and tonumber(v) or 0
-    end
-    if n and n > 0 then
-      for slot = 1, n do
-        if moved >= maxMoves then break end
-
-        local info = nil
-        if C_Container and type(C_Container.GetContainerItemInfo) == "function" then
-          local ok, v = pcall(C_Container.GetContainerItemInfo, bag, slot)
-          info = ok and v or nil
-        end
-        local itemID = info and tonumber(info.itemID) or nil
-        if itemID and targets[itemID] == true then
-          local stack = (info and tonumber(info.stackCount)) or 1
-          local depositCount = stack
-          local keep = GetEffectiveKeepAmount(itemID)
-          if keep > 0 then
-            local scope = GetEffectiveKeepScope(itemID)
-            if scope == "S" then
-              local have = tonumber(storeHave[itemID]) or 0
-              local need = keep - have
-              if need <= 0 then
-                depositCount = 0
-              elseif need < depositCount then
-                depositCount = need
-              end
-            else
-              local current = CountItemInPlayerBags(itemID)
-              local excess = (current or 0) - keep
-              if excess <= 0 then
-                depositCount = 0
-              elseif excess < depositCount then
-                depositCount = excess
-              end
-            end
-          end
-
-          if depositCount and depositCount > 0 then
-            local link = nil
-            if C_Container and type(C_Container.GetContainerItemLink) == "function" then
-              local okL, vL = pcall(C_Container.GetContainerItemLink, bag, slot)
-              link = okL and vL or nil
-            end
-
-            local flags = GetDepositItemFlagsFromLink(link or ("item:" .. tostring(itemID)))
-            local isBound = false
-            do
-              local loc = CreateItemLocationFromBagSlot(bag, slot)
-              if loc and C_Item and type(C_Item.IsBound) == "function" then
-                local okB, vB = pcall(C_Item.IsBound, loc)
-                isBound = okB and vB == true
-              end
-            end
-            if flags.soulbound or isBound then
-              skippedSoulbound = skippedSoulbound + 1
-              Print("Skipped (soulbound, can't deposit to guild bank): " .. tostring(link or itemID))
-            elseif flags.warbound then
-              skippedWarbound = skippedWarbound + 1
-            else
-              local bankSlot = FindBestGuildBankSlot(tab, itemID)
-              if not bankSlot then
-                Print("Guild bank tab is full.")
-                return moved > 0
-              end
-              local okMove, why = DepositToGuildBankOnce(bag, slot, tab, bankSlot, depositCount ~= stack and depositCount or nil)
-              if okMove then
-                moved = moved + 1
-                if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
-                  storeHave[itemID] = (tonumber(storeHave[itemID]) or 0) + (tonumber(depositCount) or 0)
-                end
-                if moved <= 15 then
-                  movedLines[#movedLines + 1] = tostring(link or itemID) .. " x" .. tostring(depositCount)
-                end
-              else
-                Print("Deposit blocked (guild): " .. tostring(why or "unknown"))
-                return moved > 0
-              end
-            end
-          end
-        end
-      end
-    end
-    if moved >= maxMoves then break end
+  -- Collect deposit items and schedule them with delays for UI sync.
+  local earlyReturn, movedLines, skippedSoulbound, skippedWarbound, queue = ScheduleGuildDepositQueue(tab, targets, storeHave)
+  if earlyReturn then
+    return earlyReturn
   end
 
-  local storeMoved = 0
-  do
-    for itemID in pairs(targets) do
-      itemID = tonumber(itemID)
-      if itemID and itemID > 0 then
-        local keep = GetEffectiveKeepAmount(itemID)
-        if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
-          local have = tonumber(storeHave[itemID])
-          if have == nil then
-            have = CountItemInGuildBankTab(tab, itemID)
-          end
-          local excess = (have or 0) - keep
-          if excess > 0 then
-            local did, why = WithdrawFromGuildBankToBags(tab, itemID, excess)
-            if why then
-              if tostring(why) == "No bag space" then
-                Print("Store withdraw blocked (guild): bags are full (free bag space and retry deposit)")
-              else
-                Print("Store withdraw blocked (guild): " .. tostring(why))
-              end
-              return moved > 0
-            end
-            did = tonumber(did) or 0
-            if did > 0 then
-              storeMoved = storeMoved + did
-              storeHave[itemID] = (have or 0) - did
-            end
-          end
-        end
-      end
-    end
-  end
-
-  if moved > 0 then
-    Print("Deposited: " .. tostring(moved) .. " move(s)")
-    for i = 1, #movedLines do
-      Print("  " .. movedLines[i])
-    end
-    if moved > #movedLines then
-      Print("  (and " .. tostring(moved - #movedLines) .. " more)")
-    end
-    if skippedSoulbound > 0 then
-      Print("Skipped soulbound: " .. tostring(skippedSoulbound))
-    end
-    if storeMoved > 0 then
-      Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
-    end
+  if #queue > 0 then
+    ProcessGuildDepositQueue(queue, tab, storeHave, movedLines, skippedSoulbound, skippedWarbound)
     return true
   end
-  if storeMoved > 0 then
-    Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
-    return true
-  end
+
   -- Nothing left to deposit; run a cleanup pass like BankStack /sort guild.
   RunDepositCleanupOncePerReset("guild", TryAutoSortGuildBank, "account", "daily")
   return false
@@ -2122,6 +2180,176 @@ local function DepositToPersonalBankOnce(bag, slot, amount)
   return true
 end
 
+local function SchedulePersonalBankDepositQueue(targets, bankBags, storeHave)
+  -- Collect all deposit items first, then schedule them with delays.
+  local queue = {}
+  local moved = 0
+  local movedLines = {}
+  local maxMoves = 200
+  local skippedBlocked = 0
+
+  local bags = GetPlayerBagIDs()
+  for iB = 1, #bags do
+    local bag = bags[iB]
+    local n = 0
+    if C_Container and type(C_Container.GetContainerNumSlots) == "function" then
+      local ok, v = pcall(C_Container.GetContainerNumSlots, bag)
+      n = ok and tonumber(v) or 0
+    end
+    if n and n > 0 then
+      for slot = 1, n do
+        if moved >= maxMoves then break end
+
+        local info = nil
+        if C_Container and type(C_Container.GetContainerItemInfo) == "function" then
+          local ok, v = pcall(C_Container.GetContainerItemInfo, bag, slot)
+          info = ok and v or nil
+        end
+        local itemID = info and tonumber(info.itemID) or nil
+        if itemID and targets[itemID] == true then
+          local stack = (info and tonumber(info.stackCount)) or 1
+          local depositCount = stack
+          local keep = GetEffectiveKeepAmount(itemID)
+          if keep > 0 then
+            local scope = GetEffectiveKeepScope(itemID)
+            if scope == "S" then
+              local have = tonumber(storeHave[itemID]) or 0
+              local need = keep - have
+              if need <= 0 then
+                depositCount = 0
+              elseif need < depositCount then
+                depositCount = need
+              end
+            else
+              local current = CountItemInPlayerBags(itemID)
+              local excess = (current or 0) - keep
+              if excess <= 0 then
+                depositCount = 0
+              elseif excess < depositCount then
+                depositCount = excess
+              end
+            end
+          end
+
+          if depositCount and depositCount > 0 then
+            local link = nil
+            if C_Container and type(C_Container.GetContainerItemLink) == "function" then
+              local okL, vL = pcall(C_Container.GetContainerItemLink, bag, slot)
+              link = okL and vL or nil
+            end
+
+            queue[#queue + 1] = {
+              bag = bag,
+              slot = slot,
+              depositCount = depositCount ~= stack and depositCount or nil,
+              link = link,
+              itemID = itemID,
+              keep = keep,
+            }
+            moved = moved + 1
+            if moved <= 15 then
+              movedLines[#movedLines + 1] = tostring(link or itemID) .. " x" .. tostring(depositCount)
+            end
+          end
+        end
+      end
+    end
+    if moved >= maxMoves then break end
+  end
+
+  return movedLines, skippedBlocked, queue
+end
+
+local function ProcessPersonalBankDepositQueue(queue, bankBags, storeHave, movedLines, skippedBlocked)
+  if not queue or #queue == 0 then
+    return 0, movedLines, skippedBlocked
+  end
+
+  local moved = #movedLines > 0 and 15 or 0
+  local idx = 1
+
+  local function ProcessNextItem()
+    if not IsPersonalBankOpen() then
+      return
+    end
+    if idx > #queue then
+      -- All done, process store scope withdrawals
+      local storeMoved = 0
+      if type(bankBags) == "table" and #bankBags > 0 then
+        for itemID in pairs(storeHave) do
+          itemID = tonumber(itemID)
+          if itemID and itemID > 0 then
+            local keep = GetEffectiveKeepAmount(itemID)
+            if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
+              local have = tonumber(storeHave[itemID])
+              if have == nil then
+                have = CountItemInContainerBags(bankBags, itemID)
+              end
+              local excess = (have or 0) - keep
+              if excess > 0 then
+                local did, why = WithdrawFromContainerBagsToBags(bankBags, itemID, excess)
+                if why then
+                  if tostring(why) == "No bag space" then
+                    Print("Store withdraw blocked (bank): bags are full (free bag space and retry deposit)")
+                  else
+                    Print("Store withdraw blocked (bank): " .. tostring(why))
+                  end
+                  return
+                end
+                did = tonumber(did) or 0
+                if did > 0 then
+                  storeMoved = storeMoved + did
+                  storeHave[itemID] = (have or 0) - did
+                end
+              end
+            end
+          end
+        end
+      end
+
+      moved = moved + #queue
+      if moved > 0 then
+        Print("Deposited: " .. tostring(moved) .. " move(s)")
+        for i = 1, #movedLines do
+          Print("  " .. movedLines[i])
+        end
+        if moved > #movedLines then
+          Print("  (and " .. tostring(moved - #movedLines) .. " more)")
+        end
+        if storeMoved > 0 then
+          Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
+        end
+      end
+      return
+    end
+
+    local item = queue[idx]
+    idx = idx + 1
+
+    local okMove, whyMove = DepositToPersonalBankOnce(item.bag, item.slot, item.depositCount)
+    if okMove then
+      if item.keep > 0 and GetEffectiveKeepScope(item.itemID) == "S" then
+        storeHave[item.itemID] = (tonumber(storeHave[item.itemID]) or 0) + (tonumber(item.depositCount or 1) or 0)
+      end
+    else
+      skippedBlocked = skippedBlocked + 1
+      if skippedBlocked <= 15 then
+        Print("Skipped (personal bank): " .. tostring(item.link or item.itemID) .. " — " .. tostring(whyMove or "blocked"))
+      end
+    end
+
+    -- Schedule next item with small delay to let UI update
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0.15, ProcessNextItem)
+    else
+      ProcessNextItem()
+    end
+  end
+
+  ProcessNextItem()
+  return moved, movedLines, skippedBlocked
+end
+
 local function RunDepositPersonalBank(destWanted)
   if not IsPersonalBankOpen() then
     return false
@@ -2136,11 +2364,6 @@ local function RunDepositPersonalBank(destWanted)
   end
 
   local bankBags = GetPersonalBankBagIDs and GetPersonalBankBagIDs() or nil
-
-  local moved = 0
-  local movedLines = {}
-  local maxMoves = 200
-  local skippedBlocked = 0
 
   -- Optional Stack Pull: withdraw a partial stack from the bank first (per item), but only
   -- when the player has enough in bags to fill it.
@@ -2209,131 +2432,14 @@ local function RunDepositPersonalBank(destWanted)
     end
   end
 
-  local bags = GetPlayerBagIDs()
-  for iB = 1, #bags do
-    local bag = bags[iB]
-    local n = 0
-    if C_Container and type(C_Container.GetContainerNumSlots) == "function" then
-      local ok, v = pcall(C_Container.GetContainerNumSlots, bag)
-      n = ok and tonumber(v) or 0
-    end
-    if n and n > 0 then
-      for slot = 1, n do
-        if moved >= maxMoves then break end
+  -- Collect deposit items and schedule them with delays for UI sync.
+  local movedLines, skippedBlocked, queue = SchedulePersonalBankDepositQueue(targets, bankBags, storeHave)
 
-        local info = nil
-        if C_Container and type(C_Container.GetContainerItemInfo) == "function" then
-          local ok, v = pcall(C_Container.GetContainerItemInfo, bag, slot)
-          info = ok and v or nil
-        end
-        local itemID = info and tonumber(info.itemID) or nil
-        if itemID and targets[itemID] == true then
-          local stack = (info and tonumber(info.stackCount)) or 1
-          local depositCount = stack
-          local keep = GetEffectiveKeepAmount(itemID)
-          if keep > 0 then
-            local scope = GetEffectiveKeepScope(itemID)
-            if scope == "S" then
-              local have = tonumber(storeHave[itemID]) or 0
-              local need = keep - have
-              if need <= 0 then
-                depositCount = 0
-              elseif need < depositCount then
-                depositCount = need
-              end
-            else
-              local current = CountItemInPlayerBags(itemID)
-              local excess = (current or 0) - keep
-              if excess <= 0 then
-                depositCount = 0
-              elseif excess < depositCount then
-                depositCount = excess
-              end
-            end
-          end
-
-          if depositCount and depositCount > 0 then
-            local link = nil
-            if C_Container and type(C_Container.GetContainerItemLink) == "function" then
-              local okL, vL = pcall(C_Container.GetContainerItemLink, bag, slot)
-              link = okL and vL or nil
-            end
-
-            local okMove, whyMove = DepositToPersonalBankOnce(bag, slot, depositCount ~= stack and depositCount or nil)
-            if okMove then
-              moved = moved + 1
-              if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
-                storeHave[itemID] = (tonumber(storeHave[itemID]) or 0) + (tonumber(depositCount) or 0)
-              end
-              if moved <= 15 then
-                movedLines[#movedLines + 1] = tostring(link or itemID) .. " x" .. tostring(depositCount)
-              end
-            else
-              skippedBlocked = skippedBlocked + 1
-              if skippedBlocked <= 15 then
-                Print("Skipped (personal bank): " .. tostring(link or itemID) .. " — " .. tostring(whyMove or "blocked"))
-              end
-              -- Don't abort the entire run just because one item can't move (e.g., Hearthstone).
-            end
-          end
-        end
-      end
-    end
-    if moved >= maxMoves then break end
-  end
-
-  local storeMoved = 0
-  do
-    if type(bankBags) == "table" and #bankBags > 0 then
-      for itemID in pairs(targets) do
-        itemID = tonumber(itemID)
-        if itemID and itemID > 0 then
-          local keep = GetEffectiveKeepAmount(itemID)
-          if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
-            local have = tonumber(storeHave[itemID])
-            if have == nil then
-              have = CountItemInContainerBags(bankBags, itemID)
-            end
-            local excess = (have or 0) - keep
-            if excess > 0 then
-              local did, why = WithdrawFromContainerBagsToBags(bankBags, itemID, excess)
-              if why then
-                if tostring(why) == "No bag space" then
-                  Print("Store withdraw blocked (bank): bags are full (free bag space and retry deposit)")
-                else
-                  Print("Store withdraw blocked (bank): " .. tostring(why))
-                end
-                return moved > 0
-              end
-              did = tonumber(did) or 0
-              if did > 0 then
-                storeMoved = storeMoved + did
-                storeHave[itemID] = (have or 0) - did
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-
-  if moved > 0 then
-    Print("Deposited: " .. tostring(moved) .. " move(s)")
-    for i = 1, #movedLines do
-      Print("  " .. movedLines[i])
-    end
-    if moved > #movedLines then
-      Print("  (and " .. tostring(moved - #movedLines) .. " more)")
-    end
-    if storeMoved > 0 then
-      Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
-    end
+  if #queue > 0 then
+    ProcessPersonalBankDepositQueue(queue, bankBags, storeHave, movedLines, skippedBlocked)
     return true
   end
-  if storeMoved > 0 then
-    Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
-    return true
-  end
+
   -- Nothing left to deposit; run a cleanup pass like BankStack /sort bank.
   RunDepositCleanupOncePerReset("bank", TryAutoSortBankPanel, "char", "daily")
   return false
@@ -2699,6 +2805,179 @@ local function WithdrawWarbankPartialStacksToBags(itemID, maxStack)
   return true
 end
 
+local function ScheduleWarbankDepositQueue(targets, warbankBags, storeHave)
+  -- Collect all deposit items first, then schedule them with delays.
+  local queue = {}
+  local moved = 0
+  local movedLines = {}
+  local maxMoves = 200
+
+  local bags = GetPlayerBagIDs()
+  for iB = 1, #bags do
+    local bag = bags[iB]
+    local n = 0
+    if C_Container and type(C_Container.GetContainerNumSlots) == "function" then
+      local ok, v = pcall(C_Container.GetContainerNumSlots, bag)
+      n = ok and tonumber(v) or 0
+    end
+    if n and n > 0 then
+      for slot = 1, n do
+        if moved >= maxMoves then break end
+
+        local info = nil
+        if C_Container and type(C_Container.GetContainerItemInfo) == "function" then
+          local ok, v = pcall(C_Container.GetContainerItemInfo, bag, slot)
+          info = ok and v or nil
+        end
+        local itemID = info and tonumber(info.itemID) or nil
+        if itemID and targets[itemID] == true then
+          local stack = (info and tonumber(info.stackCount)) or 1
+          local depositCount = stack
+          local keep = GetEffectiveKeepAmount(itemID)
+          if keep > 0 then
+            local scope = GetEffectiveKeepScope(itemID)
+            if scope == "S" then
+              local have = tonumber(storeHave[itemID]) or 0
+              local need = keep - have
+              if need <= 0 then
+                depositCount = 0
+              elseif need < depositCount then
+                depositCount = need
+              end
+            else
+              local current = CountItemInPlayerBags(itemID)
+              local excess = (current or 0) - keep
+              if excess <= 0 then
+                depositCount = 0
+              elseif excess < depositCount then
+                depositCount = excess
+              end
+            end
+          end
+
+          if depositCount and depositCount > 0 then
+            local link = nil
+            if C_Container and type(C_Container.GetContainerItemLink) == "function" then
+              local okL, vL = pcall(C_Container.GetContainerItemLink, bag, slot)
+              link = okL and vL or nil
+            end
+
+            queue[#queue + 1] = {
+              bag = bag,
+              slot = slot,
+              itemID = itemID,
+              depositCount = depositCount ~= stack and depositCount or nil,
+              link = link,
+              keep = keep,
+            }
+            moved = moved + 1
+            if moved <= 15 then
+              movedLines[#movedLines + 1] = tostring(link or itemID) .. " x" .. tostring(depositCount)
+            end
+          end
+        end
+      end
+    end
+    if moved >= maxMoves then break end
+  end
+
+  return movedLines, queue
+end
+
+local function ProcessWarbankDepositQueue(queue, warbankBags, storeHave, movedLines)
+  if not queue or #queue == 0 then
+    return 0, movedLines
+  end
+
+  local moved = #movedLines > 0 and 15 or 0
+  local idx = 1
+
+  local function ProcessNextItem()
+    if not IsWarbankOpen() then
+      return
+    end
+    if idx > #queue then
+      -- All done, process store scope withdrawals
+      local storeMoved = 0
+      if type(warbankBags) == "table" and #warbankBags > 0 then
+        for itemID in pairs(storeHave) do
+          itemID = tonumber(itemID)
+          if itemID and itemID > 0 then
+            local keep = GetEffectiveKeepAmount(itemID)
+            if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
+              local have = tonumber(storeHave[itemID])
+              if have == nil then
+                have = CountItemInContainerBags(warbankBags, itemID)
+              end
+              local excess = (have or 0) - keep
+              if excess > 0 then
+                local did, why = WithdrawFromContainerBagsToBags(warbankBags, itemID, excess)
+                if why then
+                  if tostring(why) == "No bag space" then
+                    Print("Store withdraw blocked (warbank): bags are full (free bag space and retry deposit)")
+                  else
+                    Print("Store withdraw blocked (warbank): " .. tostring(why))
+                  end
+                  return
+                end
+                did = tonumber(did) or 0
+                if did > 0 then
+                  storeMoved = storeMoved + did
+                  storeHave[itemID] = (have or 0) - did
+                end
+              end
+            end
+          end
+        end
+      end
+
+      moved = moved + #queue
+      if moved > 0 then
+        Print("Deposited: " .. tostring(moved) .. " move(s)")
+        for i = 1, #movedLines do
+          Print("  " .. movedLines[i])
+        end
+        if moved > #movedLines then
+          Print("  (and " .. tostring(moved - #movedLines) .. " more)")
+        end
+        if storeMoved > 0 then
+          Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
+        end
+      end
+      return
+    end
+
+    local item = queue[idx]
+    idx = idx + 1
+
+    -- For warbank, we may need slightly longer to let the server sync slot allocation
+    -- Try to refresh the current warbank tab before depositing
+    if type(QueryAccountBankIfNeeded) == "function" then
+      pcall(QueryAccountBankIfNeeded)
+    end
+
+    local okMove, why = DepositToWarbankOnce(item.bag, item.slot, item.itemID, item.depositCount)
+    if okMove then
+      if item.keep > 0 and GetEffectiveKeepScope(item.itemID) == "S" then
+        storeHave[item.itemID] = (tonumber(storeHave[item.itemID]) or 0) + (tonumber(item.depositCount or 1) or 0)
+      end
+    else
+      Print("Deposit blocked (warbank): " .. tostring(why or "unknown"))
+      return
+    end
+
+    -- Schedule next item with longer delay for warbank (server-side slot sync)
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0.25, ProcessNextItem)
+    else
+      ProcessNextItem()
+    end
+  end
+
+  ProcessNextItem()
+  return moved, movedLines
+end
+
 local function RunDepositWarband(destWanted)
   if not IsWarbankOpen() then
     return false
@@ -2803,10 +3082,6 @@ local function RunDepositWarband(destWanted)
     end
   end
 
-  local moved = 0
-  local movedLines = {}
-  local maxMoves = 200
-
   -- Store scope (S): keep amount in warbank; deposit up to Keep, withdraw excess.
   local storeHave = {}
   do
@@ -2822,128 +3097,15 @@ local function RunDepositWarband(destWanted)
       end
     end
   end
-  local bags = GetPlayerBagIDs()
-  for iB = 1, #bags do
-    local bag = bags[iB]
-    local n = 0
-    if C_Container and type(C_Container.GetContainerNumSlots) == "function" then
-      local ok, v = pcall(C_Container.GetContainerNumSlots, bag)
-      n = ok and tonumber(v) or 0
-    end
-    if n and n > 0 then
-      for slot = 1, n do
-        if moved >= maxMoves then break end
 
-        local info = nil
-        if C_Container and type(C_Container.GetContainerItemInfo) == "function" then
-          local ok, v = pcall(C_Container.GetContainerItemInfo, bag, slot)
-          info = ok and v or nil
-        end
-        local itemID = info and tonumber(info.itemID) or nil
-        if itemID and targets[itemID] == true then
-          local stack = (info and tonumber(info.stackCount)) or 1
-          local depositCount = stack
-          local keep = GetEffectiveKeepAmount(itemID)
-          if keep > 0 then
-            local scope = GetEffectiveKeepScope(itemID)
-            if scope == "S" then
-              local have = tonumber(storeHave[itemID]) or 0
-              local need = keep - have
-              if need <= 0 then
-                depositCount = 0
-              elseif need < depositCount then
-                depositCount = need
-              end
-            else
-              local current = CountItemInPlayerBags(itemID)
-              local excess = (current or 0) - keep
-              if excess <= 0 then
-                depositCount = 0
-              elseif excess < depositCount then
-                depositCount = excess
-              end
-            end
-          end
+  -- Collect deposit items and schedule them with delays for UI sync.
+  local movedLines, queue = ScheduleWarbankDepositQueue(targets, warbankBags, storeHave)
 
-          if depositCount and depositCount > 0 then
-            local link = nil
-            if C_Container and type(C_Container.GetContainerItemLink) == "function" then
-              local okL, vL = pcall(C_Container.GetContainerItemLink, bag, slot)
-              link = okL and vL or nil
-            end
-
-            local okMove, why = DepositToWarbankOnce(bag, slot, itemID, depositCount ~= stack and depositCount or nil)
-            if okMove then
-              moved = moved + 1
-              if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
-                storeHave[itemID] = (tonumber(storeHave[itemID]) or 0) + (tonumber(depositCount) or 0)
-              end
-              if moved <= 15 then
-                movedLines[#movedLines + 1] = tostring(link or itemID) .. " x" .. tostring(depositCount)
-              end
-            else
-              Print("Deposit blocked (warbank): " .. tostring(why or "unknown"))
-              return moved > 0
-            end
-          end
-        end
-      end
-    end
-    if moved >= maxMoves then break end
-  end
-
-  local storeMoved = 0
-  do
-    if type(warbankBags) == "table" and #warbankBags > 0 then
-      for itemID in pairs(targets) do
-        itemID = tonumber(itemID)
-        if itemID and itemID > 0 then
-          local keep = GetEffectiveKeepAmount(itemID)
-          if keep > 0 and GetEffectiveKeepScope(itemID) == "S" then
-            local have = tonumber(storeHave[itemID])
-            if have == nil then
-              have = CountItemInContainerBags(warbankBags, itemID)
-            end
-            local excess = (have or 0) - keep
-            if excess > 0 then
-              local did, why = WithdrawFromContainerBagsToBags(warbankBags, itemID, excess)
-              if why then
-                if tostring(why) == "No bag space" then
-                  Print("Store withdraw blocked (warbank): bags are full (free bag space and retry deposit)")
-                else
-                  Print("Store withdraw blocked (warbank): " .. tostring(why))
-                end
-                return moved > 0
-              end
-              did = tonumber(did) or 0
-              if did > 0 then
-                storeMoved = storeMoved + did
-                storeHave[itemID] = (have or 0) - did
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-
-  if moved > 0 then
-    Print("Deposited: " .. tostring(moved) .. " move(s)")
-    for i = 1, #movedLines do
-      Print("  " .. movedLines[i])
-    end
-    if moved > #movedLines then
-      Print("  (and " .. tostring(moved - #movedLines) .. " more)")
-    end
-    if storeMoved > 0 then
-      Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
-    end
+  if #queue > 0 then
+    ProcessWarbankDepositQueue(queue, warbankBags, storeHave, movedLines)
     return true
   end
-  if storeMoved > 0 then
-    Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
-    return true
-  end
+
   -- Nothing left to deposit; run a cleanup pass like BankStack /sort account.
   RunDepositCleanupOncePerReset("warbank", TryAutoSortBankPanel, "account", "daily")
   return false
