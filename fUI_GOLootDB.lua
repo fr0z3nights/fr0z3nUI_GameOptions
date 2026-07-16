@@ -132,3 +132,8 @@ fr0z3nUI_LootIt_AddonIgnoredItemIDs = addonIgnoredItemIDs
 LI.AddonIgnoredItemIDs = addonIgnoredItemIDs
 LI.AddonCurrencyAliases = fr0z3nUI_LootIt_AddonCurrencyAliases
 LI.AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds
+
+
+
+--    { item = 163497,  note = "Wicker Pup" },
+

@@ -2992,8 +2992,36 @@ do
                 PrintHelpLine("/fgo capture on|off|status|dump|clear|max|stacks")
                 PrintHelpLine("/fgo chatdebug on|off|toggle|status|dump")
                 PrintHelpLine("/fgo delayflush on|off|toggle|status")
+                PrintHelpLine("/fgo qc12345")
                 PrintHelpLine("/fgo status")
                 return
+            end
+
+            do
+                local qid = nil
+                if cmd == "qc" then
+                    qid = tonumber((tostring(rest or ""):match("^(%d+)")))
+                    if not qid then
+                        UIVSafeCall(Print, "Usage: /fgo qc12345")
+                        return
+                    end
+                else
+                    qid = tonumber((cmd:match("^qc(%d+)$")))
+                end
+
+                if qid then
+                    local done = QuestIsCompleted(qid)
+                    local ready = QuestReadyForTurnIn(qid)
+                    local onQuest = PlayerIsOnQuestID(qid)
+                    UIVSafeCall(Print, string.format(
+                        "Quest %d: %s (onQuest=%s, readyForTurnIn=%s)",
+                        qid,
+                        done and "Complete" or "Not complete",
+                        onQuest and "yes" or "no",
+                        ready and "yes" or "no"
+                    ))
+                    return
+                end
             end
 
             if cmd == "status" then

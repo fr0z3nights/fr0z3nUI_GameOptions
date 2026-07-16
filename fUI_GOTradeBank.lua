@@ -34,6 +34,15 @@ local function Print(msg)
   end
 end
 
+local function IsDepositDebugOnCfg()
+  if LI and LI.Trade and LI.Trade._debugOn == true then
+    return true
+  end
+  EnsureDB()
+  local dep = (type(DB) == "table" and type(DB.deposit) == "table") and DB.deposit or nil
+  return (type(dep) == "table" and dep.tradeDebug == true) and true or false
+end
+
 local function IsTradeDebugEnabled(env)
   local e = env or {}
   local DB2 = SafeCall(e.GetDB)
@@ -1770,7 +1779,7 @@ local function ProcessGuildDepositQueue(queue, tab, storeHave, movedLines, skipp
 
       moved = moved + #queue
       if moved > 0 then
-        Print("Deposited: " .. tostring(moved) .. " move(s)")
+        Print("Deposited: " .. tostring(moved) .. " item(s)")
         for i = 1, #movedLines do
           Print("  " .. movedLines[i])
         end
@@ -2309,7 +2318,7 @@ local function ProcessPersonalBankDepositQueue(queue, bankBags, storeHave, moved
 
       moved = moved + #queue
       if moved > 0 then
-        Print("Deposited: " .. tostring(moved) .. " move(s)")
+        Print("Deposited: " .. tostring(moved) .. " item(s)")
         for i = 1, #movedLines do
           Print("  " .. movedLines[i])
         end
@@ -2487,7 +2496,21 @@ CreateItemLocationFromBagSlot = function(bag, slot)
   return nil
 end
 
+local function WarbankDebug(msg)
+  if IsDepositDebugOnCfg() then
+    Print("Warbank debug: " .. tostring(msg or ""))
+  end
+end
+
+local function FormatBagSlot(bag, slot)
+  return "bag=" .. tostring(bag) .. " slot=" .. tostring(slot)
+end
+
 local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
+  WarbankDebug("DepositToWarbankOnce request " .. FormatBagSlot(bag, slot)
+    .. " item=" .. tostring(sourceItemID)
+    .. " amount=" .. tostring(amount))
+
   local function TryDepositViaCursor()
     if not (C_Container and type(C_Container.PickupContainerItem) == "function") then
       return false, "No container pickup API"
@@ -2523,6 +2546,8 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
       return false, "No AccountBank tab is available/selected"
     end
 
+    WarbankDebug("Cursor move target tab candidates=" .. tostring(#targetBags))
+
     -- Optional pre-check: is the item allowed in Account bank.
     local loc = CreateItemLocationFromBagSlot(bag, slot)
     local bankTypeAccount = (Enum and Enum.BankType) and Enum.BankType.Account or nil
@@ -2538,7 +2563,7 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
       end
     end
 
-    local function findBestSlot(tBag)
+    local function findBestSlot(tBag, moveCount)
       local n = 0
       if type(C_Container.GetContainerNumSlots) == "function" then
         local ok, v = pcall(C_Container.GetContainerNumSlots, tBag)
@@ -2547,6 +2572,10 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
       if not (n and n > 0) then return nil end
 
       local firstEmpty
+      local firstPartialCap
+      local firstPartialSlot
+      local need = tonumber(moveCount)
+      if need and need < 1 then need = nil end
       for tSlot = 1, n do
         local info = nil
         if type(C_Container.GetContainerItemInfo) == "function" then
@@ -2558,7 +2587,20 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
           local count = tonumber(info.stackCount)
           local locked = info.isLocked
           if id and id == wantID and count and count > 0 and count < maxStack and locked ~= true then
-            return tSlot
+            local cap = maxStack - count
+            if cap and cap > 0 then
+              if need and need > 0 then
+                if cap >= need then
+                  return tSlot, cap
+                elseif not firstPartialSlot then
+                  firstPartialSlot = tSlot
+                  firstPartialCap = cap
+                end
+              else
+                -- Unknown/full pickup size: prefer any matching partial stack.
+                return tSlot, cap
+              end
+            end
           end
         end
         if info == nil and not firstEmpty then
@@ -2566,15 +2608,37 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
         end
       end
 
-      return firstEmpty
+      if firstEmpty then
+        return firstEmpty, nil
+      end
+      -- For explicit move counts, never downgrade to a partial-cap target;
+      -- this avoids hidden split moves that can over-deposit keep-tracked items.
+      if need and need > 0 then
+        return nil
+      end
+      if firstPartialSlot then
+        return firstPartialSlot, firstPartialCap
+      end
+      return nil
     end
 
-    local targetBag, targetSlot
+    local moveAmount = tonumber(amount)
+    if not moveAmount or moveAmount < 1 then
+      local srcInfo = nil
+      if type(C_Container.GetContainerItemInfo) == "function" then
+        local ok, v = pcall(C_Container.GetContainerItemInfo, bag, slot)
+        srcInfo = ok and v or nil
+      end
+      moveAmount = srcInfo and tonumber(srcInfo.stackCount) or nil
+      if moveAmount and moveAmount < 1 then moveAmount = nil end
+    end
+
+    local targetBag, targetSlot, targetCap
     for i = 1, #targetBags do
       local tBag = targetBags[i]
-      local tSlot = findBestSlot(tBag)
+      local tSlot, cap = findBestSlot(tBag, moveAmount)
       if tSlot then
-        targetBag, targetSlot = tBag, tSlot
+        targetBag, targetSlot, targetCap = tBag, tSlot, cap
         break
       end
     end
@@ -2582,17 +2646,34 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
       return false, "Warbank tab full"
     end
 
+    WarbankDebug("Cursor target selected " .. FormatBagSlot(targetBag, targetSlot)
+      .. " targetCap=" .. tostring(targetCap)
+      .. " moveAmount=" .. tostring(moveAmount))
+
     if GetCursorInfo and GetCursorInfo() == "item" and ClearCursor then
+      WarbankDebug("Cursor had item before pickup; clearing")
       ClearCursor()
     end
 
-    local okPick, errPick = SplitPickupContainerItemSafe(bag, slot, amount)
+    local pickAmount = tonumber(amount)
+    if not pickAmount or pickAmount < 1 then
+      pickAmount = moveAmount
+    end
+    if targetCap and targetCap > 0 and (not pickAmount or pickAmount > targetCap) then
+      pickAmount = targetCap
+    end
+
+    WarbankDebug("Picking up " .. tostring(pickAmount) .. " from " .. FormatBagSlot(bag, slot))
+
+    local okPick, errPick = SplitPickupContainerItemSafe(bag, slot, pickAmount)
     if not okPick then
       return false, "Pickup failed: " .. tostring(errPick)
     end
     if GetCursorInfo and GetCursorInfo() ~= "item" then
       return false, "Pickup did not put item on cursor"
     end
+
+    WarbankDebug("Placing cursor item into " .. FormatBagSlot(targetBag, targetSlot))
 
     local okPlace, errPlace = pcall(C_Container.PickupContainerItem, targetBag, targetSlot)
     if not okPlace then
@@ -2604,6 +2685,10 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
       return false, "Place was blocked"
     end
 
+    WarbankDebug("Cursor move success " .. tostring(sourceItemID)
+      .. " -> " .. FormatBagSlot(targetBag, targetSlot)
+      .. " count=" .. tostring(pickAmount))
+
     return true
   end
 
@@ -2612,6 +2697,8 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
   if okCursor then
     return true
   end
+
+  WarbankDebug("Cursor path failed: " .. tostring(whyCursor))
 
   if amount and tonumber(amount) and tonumber(amount) > 0 then
     -- For partial-stack deposits we must not fall back to any opaque API
@@ -2625,6 +2712,8 @@ local function DepositToWarbankOnce(bag, slot, sourceItemID, amount)
   if type(f) ~= "function" then
     return false, tostring(whyCursor or "No Warbank deposit API")
   end
+
+  WarbankDebug("Trying fallback callable: " .. tostring(fnName or "unknown"))
 
   -- Try common signatures (API differs by build).
   local loc = CreateItemLocationFromBagSlot(bag, slot)
@@ -2811,6 +2900,7 @@ local function ScheduleWarbankDepositQueue(targets, warbankBags, storeHave)
   local moved = 0
   local movedLines = {}
   local maxMoves = 200
+  local remainingByItem = {}
 
   local bags = GetPlayerBagIDs()
   for iB = 1, #bags do
@@ -2837,21 +2927,35 @@ local function ScheduleWarbankDepositQueue(targets, warbankBags, storeHave)
           if keep > 0 then
             local scope = GetEffectiveKeepScope(itemID)
             if scope == "S" then
-              local have = tonumber(storeHave[itemID]) or 0
-              local need = keep - have
+              local key = "S:" .. tostring(itemID)
+              local need = remainingByItem[key]
+              if need == nil then
+                local have = tonumber(storeHave[itemID]) or 0
+                need = keep - have
+                if need < 0 then need = 0 end
+                remainingByItem[key] = need
+              end
               if need <= 0 then
                 depositCount = 0
               elseif need < depositCount then
                 depositCount = need
               end
+              remainingByItem[key] = math.max(0, (remainingByItem[key] or 0) - (tonumber(depositCount) or 0))
             else
-              local current = CountItemInPlayerBags(itemID)
-              local excess = (current or 0) - keep
+              local key = "B:" .. tostring(itemID)
+              local excess = remainingByItem[key]
+              if excess == nil then
+                local current = CountItemInPlayerBags(itemID)
+                excess = (current or 0) - keep
+                if excess < 0 then excess = 0 end
+                remainingByItem[key] = excess
+              end
               if excess <= 0 then
                 depositCount = 0
               elseif excess < depositCount then
                 depositCount = excess
               end
+              remainingByItem[key] = math.max(0, (remainingByItem[key] or 0) - (tonumber(depositCount) or 0))
             end
           end
 
@@ -2871,6 +2975,12 @@ local function ScheduleWarbankDepositQueue(targets, warbankBags, storeHave)
               keep = keep,
             }
             moved = moved + 1
+            WarbankDebug("Queue add #" .. tostring(moved)
+              .. " item=" .. tostring(link or itemID)
+              .. " src=" .. FormatBagSlot(bag, slot)
+              .. " stack=" .. tostring(stack)
+              .. " deposit=" .. tostring(depositCount)
+              .. " keep=" .. tostring(keep))
             if moved <= 15 then
               movedLines[#movedLines + 1] = tostring(link or itemID) .. " x" .. tostring(depositCount)
             end
@@ -2881,19 +2991,274 @@ local function ScheduleWarbankDepositQueue(targets, warbankBags, storeHave)
     if moved >= maxMoves then break end
   end
 
+  WarbankDebug("Queue planned total=" .. tostring(#queue)
+    .. " previewLines=" .. tostring(#movedLines))
+
   return movedLines, queue
 end
 
+local _warbankQueueActive = false
+
 local function ProcessWarbankDepositQueue(queue, warbankBags, storeHave, movedLines)
   if not queue or #queue == 0 then
+    _warbankQueueActive = false
     return 0, movedLines
   end
 
-  local moved = #movedLines > 0 and 15 or 0
+  local moved = 0
+  local movedPreview = {}
   local idx = 1
+  local postCommitDelay = 0.30
 
-  local function ProcessNextItem()
+  local function GetWarbankItemTotal(itemID)
+    if type(warbankBags) ~= "table" or #warbankBags <= 0 then
+      return nil
+    end
+    return CountItemInContainerBags(warbankBags, itemID)
+  end
+
+  local function RecordWarbankMoveSuccess(item, tag)
+    moved = moved + 1
+    if IsDepositDebugOnCfg() then
+      local itemLabel = tostring(item.link or item.itemID)
+      local countShown = tonumber(item.depositCount)
+      if countShown and countShown > 0 then
+        Print("Warbank moved: " .. itemLabel .. " x" .. tostring(countShown)
+          .. ((tag and tag ~= "") and (" (" .. tostring(tag) .. ")") or ""))
+      else
+        Print("Warbank moved: " .. itemLabel .. " xfull"
+          .. ((tag and tag ~= "") and (" (" .. tostring(tag) .. ")") or ""))
+      end
+    end
+    if #movedPreview < 15 then
+      local countShown = tonumber(item.depositCount)
+      if countShown and countShown > 0 then
+        movedPreview[#movedPreview + 1] = tostring(item.link or item.itemID) .. " x" .. tostring(countShown)
+      else
+        movedPreview[#movedPreview + 1] = tostring(item.link or item.itemID) .. " xfull"
+      end
+    end
+    if item.keep > 0 and GetEffectiveKeepScope(item.itemID) == "S" then
+      storeHave[item.itemID] = (tonumber(storeHave[item.itemID]) or 0) + (tonumber(item.depositCount or 1) or 0)
+    end
+  end
+
+  local function FindCurrentSourceForItem(item)
+    if type(item) ~= "table" then return nil, nil, nil end
+
+    local wantID = tonumber(item.itemID)
+    local wantCount = tonumber(item.depositCount)
+    if wantCount and wantCount < 1 then
+      wantCount = nil
+    end
+
+    local function SlotMatches(bag, slot)
+      if not (C_Container and type(C_Container.GetContainerItemInfo) == "function") then
+        return false, nil
+      end
+      local ok, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
+      info = ok and info or nil
+      if not info then return false, nil end
+      local id = tonumber(info.itemID)
+      if not (id and wantID and id == wantID) then return false, nil end
+      local stack = tonumber(info.stackCount) or 1
+      if stack < 1 then stack = 1 end
+      if wantCount and wantCount > 0 then
+        return true, math.min(stack, wantCount)
+      end
+      -- Use explicit full-stack amount to avoid implicit API behavior that can
+      -- degrade into single-item moves when depositing into empty warbank slots.
+      return true, stack
+    end
+
+    do
+      local bag = tonumber(item.bag)
+      local slot = tonumber(item.slot)
+      if bag and slot then
+        local okSlot, count = SlotMatches(bag, slot)
+        if okSlot then
+          return bag, slot, count
+        end
+      end
+    end
+
+    local bags = GetPlayerBagIDs()
+    for iB = 1, #bags do
+      local bag = tonumber(bags[iB])
+      local n = 0
+      if C_Container and type(C_Container.GetContainerNumSlots) == "function" then
+        local ok, v = pcall(C_Container.GetContainerNumSlots, bag)
+        n = ok and tonumber(v) or 0
+      end
+      if n and n > 0 then
+        for slot = 1, n do
+          local okSlot, count = SlotMatches(bag, slot)
+          if okSlot then
+            return bag, slot, count
+          end
+        end
+      end
+    end
+
+    return nil, nil, nil
+  end
+
+  if IsDepositDebugOnCfg() then
+    Print("Warbank queue start: " .. tostring(#queue) .. " item(s)")
+    WarbankDebug("Processing queue with storeHave items=" .. tostring(type(storeHave) == "table" and #storeHave or 0))
+  end
+
+  local ProcessNextItem
+
+  local function ContinueQueueAfter(delay)
+    delay = tonumber(delay) or 0
+    if delay < 0 then delay = 0 end
+    if C_Timer and C_Timer.After then
+      C_Timer.After(delay, ProcessNextItem)
+    else
+      ProcessNextItem()
+    end
+  end
+
+  local function WaitForSourceSlotCommit(item, beforeCount, beforeBagTotal, beforeWarTotal, expectedMoved, onDone)
+    local tries = 0
+    local maxTries = 32
+
+    local function bagTotalCommitted()
+      local wantID = tonumber(item and item.itemID)
+      local beforeTotal = tonumber(beforeBagTotal)
+      local expect = tonumber(expectedMoved) or tonumber(item and item.depositCount) or 1
+      if not wantID or not beforeTotal then return false end
+      if expect < 1 then expect = 1 end
+
+      local nowTotal = CountItemInPlayerBags(wantID)
+      nowTotal = tonumber(nowTotal)
+      if not nowTotal then return false end
+      return nowTotal <= (beforeTotal - expect)
+    end
+
+    local function warbankTotalCommitted()
+      local wantID = tonumber(item and item.itemID)
+      local beforeTotal = tonumber(beforeWarTotal)
+      local expect = tonumber(expectedMoved) or tonumber(item and item.depositCount) or 1
+      if not wantID or beforeTotal == nil then return nil end
+      if expect < 1 then expect = 1 end
+
+      local nowTotal = GetWarbankItemTotal(wantID)
+      nowTotal = tonumber(nowTotal)
+      if nowTotal == nil then return false end
+      return nowTotal >= (beforeTotal + expect)
+    end
+
+    local function isCommitted()
+      if not (item and item.bag and item.slot) then return true end
+      if not (C_Container and type(C_Container.GetContainerItemInfo) == "function") then return true end
+
+      local ok, info = pcall(C_Container.GetContainerItemInfo, item.bag, item.slot)
+      info = ok and info or nil
+
+      if not info then
+        if bagTotalCommitted() then
+          local warOk = warbankTotalCommitted()
+          if warOk == nil or warOk == true then
+            return true, "source slot empty + bag total decreased"
+          end
+          return false, "source slot empty + bag total decreased; waiting warbank total"
+        end
+        return false, "source slot empty but bag total unchanged"
+      end
+
+      local id = tonumber(info.itemID)
+      if id ~= tonumber(item.itemID) then
+        if bagTotalCommitted() then
+          local warOk = warbankTotalCommitted()
+          if warOk == nil or warOk == true then
+            return true, "source item changed + bag total decreased"
+          end
+          return false, "source item changed + bag total decreased; waiting warbank total"
+        end
+        return false, "source item changed but bag total unchanged"
+      end
+
+      local nowCount = tonumber(info.stackCount) or 1
+      local before = tonumber(beforeCount)
+      if before and before > 0 and nowCount < before then
+        if bagTotalCommitted() then
+          local warOk = warbankTotalCommitted()
+          if warOk == nil or warOk == true then
+            return true, "source stack decreased + bag total decreased"
+          end
+          return false, "source stack decreased + bag total decreased; waiting warbank total"
+        end
+        return false, "source stack decreased but bag total unchanged"
+      end
+
+      if bagTotalCommitted() then
+        local warOk = warbankTotalCommitted()
+        if warOk == nil or warOk == true then
+          return true, "bag total decreased"
+        end
+        return false, "bag total decreased; waiting warbank total"
+      end
+
+      return false, "unchanged (still " .. tostring(nowCount) .. ")"
+    end
+
+    local function step()
+      tries = tries + 1
+
+      if type(QueryAccountBankIfNeeded) == "function" and (tries == 1 or tries == 4 or tries == 8 or tries % 3 == 0) then
+        pcall(QueryAccountBankIfNeeded)
+      end
+
+      local committed, reason = isCommitted()
+      if committed then
+        WarbankDebug("Commit confirmed " .. tostring((item and item.link) or (item and item.itemID) or "?")
+          .. " tries=" .. tostring(tries)
+          .. " reason=" .. tostring(reason))
+        onDone(true)
+        return
+      end
+      if tries == 1 or tries == 4 or tries == 8 then
+        WarbankDebug("Commit wait " .. tostring((item and item.link) or (item and item.itemID) or "?")
+          .. " try=" .. tostring(tries)
+          .. " before=" .. tostring(beforeCount)
+          .. " state=" .. tostring(reason))
+      end
+      if tries >= maxTries then
+        local bagOk = bagTotalCommitted()
+        local warOk = warbankTotalCommitted()
+        if bagOk and (warOk == nil or warOk == true) then
+          local itemLabel = tostring((item and item.link) or (item and item.itemID) or "?")
+          WarbankDebug("Commit confirmed after timeout window for " .. itemLabel .. " via bag total delta")
+          onDone(true)
+          return
+        end
+        if IsDepositDebugOnCfg() then
+          local itemLabel = tostring((item and item.link) or (item and item.itemID) or "?")
+          if bagOk and warOk == false then
+            Print("Warbank commit timeout: " .. itemLabel .. " (source changed, warbank total unchanged)")
+          else
+            Print("Warbank commit timeout: " .. itemLabel .. " (continuing)")
+          end
+        end
+        WarbankDebug("Commit wait exhausted for " .. tostring((item and item.link) or (item and item.itemID) or "?"))
+        onDone(false)
+        return
+      end
+      if C_Timer and C_Timer.After then
+        C_Timer.After(0.10, step)
+      else
+        step()
+      end
+    end
+
+    step()
+  end
+
+  ProcessNextItem = function()
     if not IsWarbankOpen() then
+      _warbankQueueActive = false
       return
     end
     if idx > #queue then
@@ -2918,6 +3283,7 @@ local function ProcessWarbankDepositQueue(queue, warbankBags, storeHave, movedLi
                   else
                     Print("Store withdraw blocked (warbank): " .. tostring(why))
                   end
+                  _warbankQueueActive = false
                   return
                 end
                 did = tonumber(did) or 0
@@ -2931,24 +3297,111 @@ local function ProcessWarbankDepositQueue(queue, warbankBags, storeHave, movedLi
         end
       end
 
-      moved = moved + #queue
       if moved > 0 then
-        Print("Deposited: " .. tostring(moved) .. " move(s)")
-        for i = 1, #movedLines do
-          Print("  " .. movedLines[i])
+        Print("Deposited: " .. tostring(moved) .. " item(s)")
+        for i = 1, #movedPreview do
+          Print("  " .. movedPreview[i])
         end
-        if moved > #movedLines then
-          Print("  (and " .. tostring(moved - #movedLines) .. " more)")
+        if moved > #movedPreview then
+          Print("  (and " .. tostring(moved - #movedPreview) .. " more)")
         end
         if storeMoved > 0 then
           Print("Withdrew (store): " .. tostring(storeMoved) .. " item(s)")
         end
       end
+      _warbankQueueActive = false
       return
     end
 
     local item = queue[idx]
     idx = idx + 1
+
+    local srcBag, srcSlot, srcCount = FindCurrentSourceForItem(item)
+    if not (srcBag and srcSlot) then
+      local expected = tonumber(item and item._verifyExpected) or tonumber(item and item.depositCount) or 1
+      if expected < 1 then expected = 1 end
+      local beforeWar = tonumber(item and item._verifyBeforeWarTotal)
+      if beforeWar ~= nil then
+        if type(QueryAccountBankIfNeeded) == "function" then
+          pcall(QueryAccountBankIfNeeded)
+        end
+        local nowWar = tonumber(GetWarbankItemTotal(item.itemID))
+        if nowWar and nowWar >= (beforeWar + expected) then
+          WarbankDebug("Late destination confirm item=" .. tostring(item.itemID)
+            .. " beforeWar=" .. tostring(beforeWar)
+            .. " nowWar=" .. tostring(nowWar)
+            .. " expected=" .. tostring(expected))
+          RecordWarbankMoveSuccess(item, "late confirm")
+          if type(QueryAccountBankIfNeeded) == "function" then
+            pcall(QueryAccountBankIfNeeded)
+          end
+          ContinueQueueAfter(postCommitDelay)
+          return
+        end
+      end
+
+      if IsDepositDebugOnCfg() then
+        local itemLabel = tostring((item and item.link) or (item and item.itemID) or "?")
+        Print("Warbank skip missing source: " .. itemLabel)
+        WarbankDebug("Missing source item=" .. tostring(item.itemID)
+          .. " expected=" .. FormatBagSlot(item.bag, item.slot)
+          .. " depositCount=" .. tostring(item.depositCount))
+      end
+      if C_Timer and C_Timer.After then
+        C_Timer.After(0.25, ProcessNextItem)
+      else
+        ProcessNextItem()
+      end
+      return
+    end
+
+    item.bag = srcBag
+    item.slot = srcSlot
+    local beforeMoveCount = tonumber(srcCount)
+    local beforeBagTotal = CountItemInPlayerBags(item.itemID)
+    local expectedMoved = tonumber(item.depositCount) or tonumber(srcCount) or 1
+    if expectedMoved < 1 then expectedMoved = 1 end
+
+    -- Re-evaluate keep constraints on every attempt so partial fills/retries
+    -- cannot over-deposit and violate bag/store keep targets.
+    do
+      local keep = tonumber(item.keep) or 0
+      if keep > 0 then
+        local scope = GetEffectiveKeepScope(item.itemID)
+        if scope == "B" then
+          local excess = (tonumber(beforeBagTotal) or 0) - keep
+          if excess < 0 then excess = 0 end
+          if excess < expectedMoved then expectedMoved = excess end
+        elseif scope == "S" then
+          local haveStore = GetWarbankItemTotal(item.itemID)
+          haveStore = tonumber(haveStore)
+          if haveStore == nil then
+            haveStore = tonumber(storeHave[item.itemID]) or 0
+          end
+          local need = keep - haveStore
+          if need < 0 then need = 0 end
+          if need < expectedMoved then expectedMoved = need end
+        end
+      end
+    end
+
+    if beforeMoveCount and beforeMoveCount > 0 and expectedMoved > beforeMoveCount then
+      expectedMoved = beforeMoveCount
+    end
+    expectedMoved = math.floor(tonumber(expectedMoved) or 0)
+
+    if expectedMoved < 1 then
+      WarbankDebug("Skip after live keep clamp item=" .. tostring(item.itemID)
+        .. " beforeBagTotal=" .. tostring(beforeBagTotal)
+        .. " keep=" .. tostring(item.keep)
+        .. " scope=" .. tostring(GetEffectiveKeepScope(item.itemID)))
+      ContinueQueueAfter(0.15)
+      return
+    end
+
+    item.depositCount = expectedMoved
+    item._verifyBeforeWarTotal = GetWarbankItemTotal(item.itemID)
+    item._verifyExpected = expectedMoved
 
     -- For warbank, we may need slightly longer to let the server sync slot allocation
     -- Try to refresh the current warbank tab before depositing
@@ -2956,22 +3409,89 @@ local function ProcessWarbankDepositQueue(queue, warbankBags, storeHave, movedLi
       pcall(QueryAccountBankIfNeeded)
     end
 
+    WarbankDebug("Move begin idx=" .. tostring(idx - 1) .. "/" .. tostring(#queue)
+      .. " item=" .. tostring(item.link or item.itemID)
+      .. " src=" .. FormatBagSlot(item.bag, item.slot)
+      .. " count=" .. tostring(item.depositCount)
+      .. " beforeCount=" .. tostring(beforeMoveCount)
+      .. " beforeBagTotal=" .. tostring(beforeBagTotal)
+      .. " beforeWarTotal=" .. tostring(item._verifyBeforeWarTotal)
+      .. " expectedMoved=" .. tostring(expectedMoved))
+
     local okMove, why = DepositToWarbankOnce(item.bag, item.slot, item.itemID, item.depositCount)
     if okMove then
-      if item.keep > 0 and GetEffectiveKeepScope(item.itemID) == "S" then
-        storeHave[item.itemID] = (tonumber(storeHave[item.itemID]) or 0) + (tonumber(item.depositCount or 1) or 0)
-      end
-    else
-      Print("Deposit blocked (warbank): " .. tostring(why or "unknown"))
+      WaitForSourceSlotCommit(item, beforeMoveCount, beforeBagTotal, item._verifyBeforeWarTotal, expectedMoved, function(committed)
+        if committed then
+          RecordWarbankMoveSuccess(item)
+          if type(QueryAccountBankIfNeeded) == "function" then
+            pcall(QueryAccountBankIfNeeded)
+          end
+          ContinueQueueAfter(postCommitDelay)
+          return
+        end
+
+        local itemLabel = tostring(item.link or item.itemID)
+        item._tries = (tonumber(item._tries) or 0) + 1
+        local maxCommitRetries = 5
+
+        if item._tries < maxCommitRetries then
+          if IsDepositDebugOnCfg() then
+            Print("Warbank retry " .. tostring(item._tries) .. "/" .. tostring(maxCommitRetries)
+              .. ": " .. itemLabel .. " (commit not observed)")
+          end
+          -- Re-run the same queue entry after a fresh query; source will be re-resolved.
+          idx = idx - 1
+          if type(QueryAccountBankIfNeeded) == "function" then
+            pcall(QueryAccountBankIfNeeded)
+          end
+          ContinueQueueAfter(0.55)
+          return
+        end
+
+        if IsDepositDebugOnCfg() then
+          Print("Warbank give up after " .. tostring(item._tries) .. "/" .. tostring(maxCommitRetries)
+            .. ": " .. itemLabel .. " (commit not observed)")
+        end
+        Print("Deposit blocked (warbank): commit not observed")
+        ContinueQueueAfter(0.25)
+      end)
       return
+    else
+      local whyText = tostring(why or "unknown")
+      item._tries = (tonumber(item._tries) or 0) + 1
+      WarbankDebug("Move failed idx=" .. tostring(idx - 1)
+        .. " item=" .. tostring(item.link or item.itemID)
+        .. " try=" .. tostring(item._tries)
+        .. " why=" .. tostring(whyText))
+
+      local isTransient = false
+      if whyText:find("blocked", 1, true) then isTransient = true end
+      if whyText:find("No AccountBank tab is available/selected", 1, true) then isTransient = true end
+      if whyText:find("Warbank tab full", 1, true) then isTransient = true end
+      if whyText:find("Pickup failed", 1, true) then isTransient = true end
+      if whyText:find("Pickup did not put item on cursor", 1, true) then isTransient = true end
+      if whyText:find("Place failed", 1, true) then isTransient = true end
+
+      local maxTries = isTransient and 5 or 1
+      if item._tries < maxTries then
+        if IsDepositDebugOnCfg() then
+          local itemLabel = tostring(item.link or item.itemID)
+          Print("Warbank retry " .. tostring(item._tries) .. "/" .. tostring(maxTries) .. ": " .. itemLabel .. " (" .. whyText .. ")")
+        end
+        idx = idx - 1
+        ContinueQueueAfter(0.45)
+        return
+      end
+
+      if IsDepositDebugOnCfg() then
+        local itemLabel = tostring(item.link or item.itemID)
+        Print("Warbank give up after " .. tostring(item._tries) .. "/" .. tostring(maxTries) .. ": " .. itemLabel .. " (" .. whyText .. ")")
+      end
+      Print("Deposit blocked (warbank): " .. whyText)
     end
 
     -- Schedule next item with longer delay for warbank (server-side slot sync)
-    if C_Timer and C_Timer.After then
-      C_Timer.After(0.25, ProcessNextItem)
-    else
-      ProcessNextItem()
-    end
+    ContinueQueueAfter(0.25)
   end
 
   ProcessNextItem()
@@ -2983,6 +3503,13 @@ local function RunDepositWarband(destWanted)
     return false
   end
 
+  if _warbankQueueActive == true then
+    if IsDepositDebugOnCfg() then
+      Print("Warbank queue busy: waiting for current run")
+    end
+    return true
+  end
+
   local targets = GetEffectiveDepositItemIDs(destWanted)
   local hasAny = false
   for _ in pairs(targets) do hasAny = true break end
@@ -2991,13 +3518,22 @@ local function RunDepositWarband(destWanted)
     return false
   end
 
+  if IsDepositDebugOnCfg() then
+    local nTargets = 0
+    for _ in pairs(targets) do nTargets = nTargets + 1 end
+    Print("Warbank deposit begin: " .. tostring(nTargets) .. " configured target item(s)")
+  end
+
   local warbankBags = {}
   do
+    _warbankQueueActive = true
     local selectedTab = GetSelectedAccountBankTabBagID()
     local all = {}
     if selectedTab then
       all[1] = selectedTab
     elseif Enum and Enum.BagIndex then
+
+    _warbankQueueActive = false
       local e = Enum.BagIndex
       all = { e.AccountBankTab_1, e.AccountBankTab_2, e.AccountBankTab_3, e.AccountBankTab_4, e.AccountBankTab_5 }
     end

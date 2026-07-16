@@ -26,6 +26,7 @@ fUI_GOTalk01KD.lua
 fUI_GOTalkEV.lua
 
 fUI_GOSwitches.lua
+fUI_GOSwitchesLDB.lua
 fUI_GOSwitchesQA.lua
 fUI_GOSwitchesCT.lua
 fUI_GOSwitchesBP.lua

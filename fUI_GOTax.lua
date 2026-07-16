@@ -702,6 +702,23 @@ do
     return guildMoney, warMoney
   end
 
+  local function HasWarbankControl()
+    local bankType = (Enum and Enum.BankType) and Enum.BankType or nil
+    local cBank = _G and rawget(_G, "C_Bank")
+    if type(cBank) ~= "table" or type(bankType) ~= "table" or bankType.Account == nil then
+      return false
+    end
+
+    -- Broker_Everything-style gate: fetched value exists and > 0.
+    if type(cBank.FetchDepositedMoney) ~= "function" then
+      return false
+    end
+
+    local ok, v = pcall(cBank.FetchDepositedMoney, bankType.Account)
+    local money = ok and tonumber(v) or nil
+    return (type(money) == "number" and money > 0)
+  end
+
   local function GetTaxLDBText()
     local t = EnsureTaxDB()
     local disp = (type(t) == "table" and type(t.ldbDisplay) == "table") and t.ldbDisplay or { player = true, guild = true, war = true }
@@ -714,15 +731,19 @@ do
     end
 
     local guildMoney, warMoney = GetCachedGuildAndWarbankMoney()
+    local warText = FormatGoldIconFromCopper(warMoney)
+    if HasWarbankControl() then
+      warText = "|cffffd100" .. warText .. "|r"
+    end
     if disp.guild == true then
       parts[#parts + 1] = FormatGoldIconFromCopper(guildMoney)
     end
     if disp.war == true then
-      parts[#parts + 1] = FormatGoldIconFromCopper(warMoney)
+      parts[#parts + 1] = warText
     end
 
     if #parts == 0 then
-      return FormatGoldIconFromCopper(guildMoney) .. "  |  " .. FormatGoldIconFromCopper(warMoney)
+      return FormatGoldIconFromCopper(guildMoney) .. "  |  " .. warText
     end
     return table.concat(parts, "  |  ")
   end
@@ -828,8 +849,7 @@ do
       end,
       OnTooltipShow = function(tooltip)
         if not (tooltip and tooltip.AddLine) then return end
-        tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
-        tooltip:AddLine("|cff0080FFTax Bank Gold|r")
+        local title = "|cff0080FFTax Owed|r"
         local _, _, bal = GetActiveScopeCfgAndBal()
         local guildOwed = (type(bal) == "table") and math.floor(tonumber(bal.due) or 0) or 0
         if guildOwed < 0 then guildOwed = 0 end
@@ -837,8 +857,10 @@ do
         local wb = ct and ct.warBal
         local warOwed = (type(wb) == "table") and math.floor(tonumber(wb.due) or 0) or 0
         if warOwed < 0 then warOwed = 0 end
-        tooltip:AddLine("Tax:  " .. FormatGoldIconFromCopper(guildOwed) .. "  |  " .. FormatGoldIconFromCopper(warOwed), 1, 1, 1)
-        tooltip:AddLine("Right-click: Open Tax tab")
+        local owedLine = FormatGoldIconFromCopper(guildOwed) .. "  |  " .. FormatGoldIconFromCopper(warOwed)
+        tooltip:AddLine(title .. "    " .. owedLine)
+        tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
+        tooltip:AddLine("Right-click: Open Tax tab", 0.8, 0.8, 0.8)
       end,
     })
 

@@ -363,39 +363,7 @@ do
 
         ApplySavedPosition(btn)
 
-        btn:SetScript("OnMouseDown", function(_, button)
-        end)
-        btn:SetScript("OnMouseUp", function(_, button)
-            if button == "RightButton" then
-                local ctrl = IsControlKeyDown and IsControlKeyDown() and true or false
-                local shift = IsShiftKeyDown and IsShiftKeyDown() and true or false
-                if ctrl and shift then
-                    RunAltCommand()
-                end
-            end
-        end)
-        btn:SetScript("OnClick", function(_, button)
-            if button == "RightButton" and IsControlKeyDown and IsShiftKeyDown and IsControlKeyDown() and IsShiftKeyDown() then
-                RunAltCommand()
-                return
-            end
-            local r = _G and _G["ReloadUI"]
-            if type(r) == "function" then
-                r()
-            end
-        end)
-        btn:SetScript("OnDragStart", function(self)
-            DebugReloadFloat("drag start")
-            if self and self.StartMoving then
-                self:StartMoving()
-            end
-        end)
-        btn:SetScript("OnDragStop", function(self)
-            DebugReloadFloat("drag stop")
-            if self and self.StopMovingOrSizing then
-                self:StopMovingOrSizing()
-            end
-
+        local function SaveCurrentPosition(self)
             local ui = GetUI()
             if not ui then
                 return
@@ -406,6 +374,88 @@ do
             ui.reloadFloatPos.relativePoint = relPoint
             ui.reloadFloatPos.x = x
             ui.reloadFloatPos.y = y
+        end
+
+        local function GetAnchorXY(self)
+            if not self then
+                return 0, 0
+            end
+            local _, _, _, x, y = self:GetPoint(1)
+            x = tonumber(x) or 0
+            y = tonumber(y) or 0
+            return x, y
+        end
+
+        btn:SetScript("OnMouseDown", function(self, button)
+            if button ~= "RightButton" or not self then
+                return
+            end
+            self._fgoRightHold = true
+            self._fgoDidDrag = nil
+            self._fgoDragStartX, self._fgoDragStartY = GetAnchorXY(self)
+            if self.StartMoving then
+                self:StartMoving()
+            end
+        end)
+        btn:SetScript("OnMouseUp", function(self, button)
+            if button ~= "RightButton" or not self or not self._fgoRightHold then
+                return
+            end
+            self._fgoRightHold = nil
+
+            if self.StopMovingOrSizing then
+                self:StopMovingOrSizing()
+            end
+
+            local sx = tonumber(self._fgoDragStartX) or 0
+            local sy = tonumber(self._fgoDragStartY) or 0
+            local ex, ey = GetAnchorXY(self)
+            self._fgoDragStartX, self._fgoDragStartY = nil, nil
+
+            local moved = (math.abs(ex - sx) > 1) or (math.abs(ey - sy) > 1) or (self._fgoDidDrag == true)
+            if moved then
+                self._fgoSuppressClick = true
+                SaveCurrentPosition(self)
+            end
+            self._fgoDidDrag = nil
+        end)
+        btn:SetScript("OnClick", function(self, button)
+            if self and self._fgoSuppressClick then
+                self._fgoSuppressClick = nil
+                return
+            end
+            if button == "RightButton" then
+                if IsControlKeyDown and IsShiftKeyDown and IsControlKeyDown() and IsShiftKeyDown() then
+                    RunAltCommand()
+                end
+                return
+            end
+            if button == "LeftButton" then
+                local r = _G and _G["ReloadUI"]
+                if type(r) == "function" then
+                    r()
+                end
+            end
+        end)
+        btn:SetScript("OnDragStart", function(self)
+            DebugReloadFloat("drag start")
+            if self then
+                self._fgoDidDrag = true
+            end
+        end)
+        btn:SetScript("OnDragStop", function(self)
+            DebugReloadFloat("drag stop")
+            if self and self.StopMovingOrSizing then
+                self:StopMovingOrSizing()
+            end
+            if self then
+                if self._fgoDidDrag then
+                    self._fgoSuppressClick = true
+                end
+                self._fgoDidDrag = nil
+                self._fgoRightHold = nil
+                SaveCurrentPosition(self)
+            end
         end)
 
         btn:SetScript("OnEnter", function(self)

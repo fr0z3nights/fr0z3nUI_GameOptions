@@ -178,9 +178,9 @@ SetZone("Timewalking")
    		t[46752] = { text = "I would like to buy from you" }						-- Churbro (238320)
 	--	09	Shadowlands Timewalking Vendor
    		t = NPC("Collector Ta'steld", 252687)
-   		t.__meta.stopIfQuestAvailable = { 92647, 92649, }		-- LVL/MAX          -- Quest Accept before Gossip (First NPCID)
+   		t.__meta.stopIfQuestAvailable = { 92647, 93628, }		-- LVL/MAX          -- Quest Accept before Gossip (First NPCID)
    		t.__meta.stopIfQuestTurnIn = { 92647, 92650, }      	-- LVL/TKN     	    -- Quest TurnIn before Gossip (First NPCID)
-   		t[46752] = { text = "I would like to buy from you" }						-- Collector Ta'steld (252687)
+   		t[136178] = { text = "I would like to buy from you" }						-- Collector Ta'steld (252687)
 	--	10	Dragonflight Timewalking Vendor
    		t = NPC("Xydan", 255019)
    		t.__meta.stopIfQuestAvailable = { 93495, 93497, }		-- LVL/MAX          -- Quest Accept before Gossip (First NPCID)
