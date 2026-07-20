@@ -135,4 +135,23 @@ SetZone("The Forbidden Reach, Dragon Isles")
     t[51849] = { text = "Come with me. I will get you to safety." }	-- Final Orders (65100)	Scalecommander Viridia (182610)
     t[51850] = { text = "<Relay what Nozdormu told you.>" }			-- Final Orders (65100)	Scalecommander Sarkareth (182611)
 
+SetZone("The Waking Shores, Dragon Isles")
+
+	t = NPC("Danielle Anglers", { 191150, })
+	t[107425] = { text = "Train me in Fishing." }
+
+	t = NPC("Grun Ashbeard", { 187261, })
+	t.__meta.stopIfQuestAvailable = { 70028, }                                                     		  -- Waits for Quest Accepted (First NPCID Only)
+	t[107293] = { text = "Train me in Mining." }
+
+	t = NPC("Head Chef Stacks", { 198094, })
+	t.__meta.stopIfQuestAvailable = { 72250, }                                                     		  -- Waits for Quest Accepted (First NPCID Only)
+	t[107418] = { text = "Can you, um... teach me how to cook?" }
+
+	t = NPC("Tixxa Mixxa", { 192490, })
+	t[34833] = { text = "Show me where I can fly." }
+
+	t = NPC("Toninaar", { 192558, })
+	t[56062] = { text = "Train me in Fishing." }
+
 

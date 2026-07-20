@@ -76,6 +76,74 @@ local function Print(msg)
     print("|cff00ccff[FGO]|r " .. tostring(msg))
 end
 
+local function GetPopupButtonText(btn)
+    if type(btn) ~= "table" then
+        return ""
+    end
+    if type(btn.GetText) == "function" then
+        local ok, txt = pcall(btn.GetText, btn)
+        if ok and type(txt) == "string" and txt ~= "" then
+            return txt
+        end
+    end
+    if type(btn.Text) == "table" and type(btn.Text.GetText) == "function" then
+        local ok, txt = pcall(btn.Text.GetText, btn.Text)
+        if ok and type(txt) == "string" and txt ~= "" then
+            return txt
+        end
+    end
+    return ""
+end
+
+local function GetPopupBodyText(popup)
+    if type(popup) ~= "table" then
+        return ""
+    end
+    if type(popup.GetText) == "function" then
+        local ok, txt = pcall(popup.GetText, popup)
+        if ok and type(txt) == "string" and txt ~= "" then
+            return txt
+        end
+    end
+    if type(popup.text) == "table" and type(popup.text.GetText) == "function" then
+        local ok, txt = pcall(popup.text.GetText, popup.text)
+        if ok and type(txt) == "string" and txt ~= "" then
+            return txt
+        end
+    end
+    return ""
+end
+
+local function DumpActivePopupDebug(which)
+    local dbg = AutoGossip_Settings and (AutoGossip_Settings.debugPetPopupsAcc or AutoGossip_Settings.debugAcc)
+    if not dbg then return end
+    if not (which and C_Timer and C_Timer.After) then return end
+
+    C_Timer.After(0, function()
+        local seen = false
+        for i = 1, 4 do
+            local popup = _G["StaticPopup" .. i]
+            if popup and popup.IsShown and popup:IsShown() and popup.which == which then
+                seen = true
+                local popupText = GetPopupBodyText(popup)
+                local b1 = GetPopupButtonText(popup.button1)
+                local b2 = GetPopupButtonText(popup.button2)
+                Print(string.format(
+                    "TalkUP: Popup dump: which=%s text=%s b1=%s b2=%s",
+                    tostring(which),
+                    tostring(popupText),
+                    tostring(b1),
+                    tostring(b2)
+                ))
+                break
+            end
+        end
+        if not seen then
+            Print("TalkUP: Popup dump: which=" .. tostring(which) .. " (no matching visible popup)")
+        end
+    end)
+end
+
 local function GetShortStack(skip)
     if not debugstack then
         return ""
@@ -244,7 +312,7 @@ M.MaybePrintRuleHint = MaybePrintRuleHint
 local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dialogText)
     InitSV()
 
-    local dbg = AutoGossip_Settings and AutoGossip_Settings.debugPetPopupsAcc
+    local dbg = AutoGossip_Settings and (AutoGossip_Settings.debugPetPopupsAcc or AutoGossip_Settings.debugAcc)
     local function D(msg)
         if dbg then
             Print("TalkUP: " .. tostring(msg))
@@ -257,7 +325,7 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
     -- Note: Spirit Healer resurrect confirmations can be shown as the "DEATH" or "XP_LOSS" popup
     -- on some clients/flows, even though they conceptually behave like a gossip confirm.
     local whichStr = tostring(which or "")
-    if whichStr ~= "GOSSIP_CONFIRM" and whichStr ~= "CONFIRM_BINDER" and whichStr ~= "DEATH" and whichStr ~= "XP_LOSS" then
+    if whichStr ~= "GOSSIP_CONFIRM" and whichStr ~= "CONFIRM_BINDER" and whichStr ~= "SPELL_CONFIRMATION_PROMPT" and whichStr ~= "DEATH" and whichStr ~= "XP_LOSS" then
         D("Skip popup (which=" .. whichStr .. ")")
         return
     end
@@ -401,6 +469,16 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         return
     end
 
+    D(string.format(
+        "Popup debug: which=%s a1=%s a2=%s rendered=%s",
+        whichStr,
+        tostring(a1),
+        tostring(a2),
+        tostring(text)
+    ))
+
+    DumpActivePopupDebug(which)
+
     local norm = text:gsub("’", "'"):lower()
 
     local function IsSpiritHealerResPopupText()
@@ -491,6 +569,9 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         -- Back-compat: treat GOSSIP_CONFIRM as a generic confirm bucket.
         if expectedWhich == "GOSSIP_CONFIRM" then
             if whichStr == "CONFIRM_BINDER" then
+                return true
+            end
+            if whichStr == "SPELL_CONFIRMATION_PROMPT" then
                 return true
             end
             -- Spirit Healer resurrect confirmation.
@@ -655,6 +736,18 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         for i = 1, 4 do
             local popup = _G["StaticPopup" .. i]
             if popup and popup.IsShown and popup:IsShown() and popup.which == which then
+                if dbg then
+                    local popupText = GetPopupBodyText(popup)
+                    local b1 = GetPopupButtonText(popup.button1)
+                    local b2 = GetPopupButtonText(popup.button2)
+                    Print(string.format(
+                        "TalkUP: Popup match: which=%s text=%s b1=%s b2=%s",
+                        tostring(which),
+                        tostring(popupText),
+                        tostring(b1),
+                        tostring(b2)
+                    ))
+                end
                 local ok = false
                 if popup.button1 and popup.button1.Click then
                     ok = pcall(popup.button1.Click, popup.button1)
@@ -1009,6 +1102,8 @@ function M.Setup()
             if stack ~= "" then
                 Print("StaticPopup stack: " .. stack)
             end
+
+            DumpActivePopupDebug(which)
 
             TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dialogText)
         end)

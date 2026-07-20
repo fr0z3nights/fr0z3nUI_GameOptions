@@ -149,6 +149,14 @@ do
       t.ldbDisplay.war = true
     end
 
+    -- Warbank control indicator mode in Tax LDB:
+    --   text => current behavior (tint whole war value when controlled)
+    --   icon => keep text white and tint only the gold icon (gold/gray)
+    t.ldbWarControlStyle = tostring(t.ldbWarControlStyle or "text"):lower()
+    if t.ldbWarControlStyle ~= "text" and t.ldbWarControlStyle ~= "icon" then
+      t.ldbWarControlStyle = "text"
+    end
+
     -- Guild-scoped settings/balances.
     t.guilds = (type(t.guilds) == "table") and t.guilds or {}
 
@@ -681,7 +689,36 @@ do
     if copper < 0 then copper = 0 end
     local gold = math.floor(copper / (COPPER_PER_GOLD or 10000))
     if gold < 0 then gold = 0 end
-    return FormatIntWithCommas(gold) .. " |TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
+    return FormatIntWithCommas(gold) .. "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
+  end
+
+  local function FormatGoldFromCopperNoIcon(copper)
+    copper = math.floor(tonumber(copper) or 0)
+    if copper < 0 then copper = 0 end
+    local gold = math.floor(copper / (COPPER_PER_GOLD or 10000))
+    if gold < 0 then gold = 0 end
+    return FormatIntWithCommas(gold)
+  end
+
+  local function FormatGoldIconFromCopperWithIcon(copper, iconPath)
+    copper = math.floor(tonumber(copper) or 0)
+    if copper < 0 then copper = 0 end
+    local gold = math.floor(copper / (COPPER_PER_GOLD or 10000))
+    if gold < 0 then gold = 0 end
+
+    local tex = tostring(iconPath or "Interface\\MoneyFrame\\UI-GoldIcon")
+    if tex == "" then tex = "Interface\\MoneyFrame\\UI-GoldIcon" end
+    return FormatIntWithCommas(gold) .. "|T" .. tex .. ":0:0:2:0|t"
+  end
+
+  local function GetWarbankControlStyle()
+    local t = EnsureTaxDB()
+    if type(t) ~= "table" then return "text" end
+    t.ldbWarControlStyle = tostring(t.ldbWarControlStyle or "text"):lower()
+    if t.ldbWarControlStyle ~= "text" and t.ldbWarControlStyle ~= "icon" then
+      t.ldbWarControlStyle = "text"
+    end
+    return t.ldbWarControlStyle
   end
 
   local function GetCachedGuildAndWarbankMoney()
@@ -731,9 +768,19 @@ do
     end
 
     local guildMoney, warMoney = GetCachedGuildAndWarbankMoney()
-    local warText = FormatGoldIconFromCopper(warMoney)
-    if HasWarbankControl() then
-      warText = "|cffffd100" .. warText .. "|r"
+    local warText
+    local hasWarControl = HasWarbankControl()
+    if GetWarbankControlStyle() == "icon" then
+      if hasWarControl then
+        warText = FormatGoldIconFromCopperWithIcon(warMoney, "Interface\\MoneyFrame\\UI-GoldIcon")
+      else
+        warText = FormatGoldFromCopperNoIcon(warMoney)
+      end
+    else
+      warText = FormatGoldIconFromCopper(warMoney)
+      if hasWarControl then
+        warText = "|cffffd100" .. warText .. "|r"
+      end
     end
     if disp.guild == true then
       parts[#parts + 1] = FormatGoldIconFromCopper(guildMoney)
@@ -743,9 +790,9 @@ do
     end
 
     if #parts == 0 then
-      return FormatGoldIconFromCopper(guildMoney) .. "  |  " .. warText
+      return FormatGoldIconFromCopper(guildMoney) .. "    " .. warText
     end
-    return table.concat(parts, "  |  ")
+    return table.concat(parts, "    ")
   end
 
   local function GetCurrentMapID()
@@ -833,7 +880,7 @@ do
       return nil
     end
 
-    Tax.LDB = ldb:NewDataObject("Tax Banks", {
+    Tax.LDB = ldb:NewDataObject("FGO Money", {
       type = "data source",
       text = GetTaxLDBText(),
       icon = "Interface\\MoneyFrame\\UI-GoldIcon",
@@ -860,7 +907,6 @@ do
         local owedLine = FormatGoldIconFromCopper(guildOwed) .. "  |  " .. FormatGoldIconFromCopper(warOwed)
         tooltip:AddLine(title .. "    " .. owedLine)
         tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
-        tooltip:AddLine("Right-click: Open Tax tab", 0.8, 0.8, 0.8)
       end,
     })
 
@@ -2060,10 +2106,13 @@ do
       if IsTaxDebugEnabled() then
         Print("Tax interaction: GuildBanker " .. ((isShow and "show") or "hide"))
       end
+      local wasOpen = (state.guildBankOpen == true)
       state.guildBankOpen = (isShow == true)
       if state.guildBankOpen then
-        state._manualPrevMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
-        state._pendingGuildDeltas = {}
+        if not wasOpen then
+          state._manualPrevMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+          state._pendingGuildDeltas = {}
+        end
 
         -- Seed cached money (used for XS balancing).
         CacheGuildBankMoneyFromAPI()
@@ -2071,7 +2120,7 @@ do
         state._manualPrevMoney = nil
         state._pendingGuildDeltas = {}
       end
-      if isShow then
+      if isShow and not wasOpen then
         -- Guild bank APIs/permissions can be briefly unavailable on the first frame.
         -- A small delay here makes auto-pay/borrow consistent across client paths.
         if C_Timer and C_Timer.After then
@@ -2094,8 +2143,10 @@ do
         state._warbankOpenToken = (tonumber(state._warbankOpenToken) or 0) + 1
       end
       if state.warbankOpen then
-        state._manualPrevMoneyWar = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
-        state._pendingWarbankDeltas = {}
+        if not wasOpen then
+          state._manualPrevMoneyWar = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+          state._pendingWarbankDeltas = {}
+        end
 
         -- Seed cached money (used for XS balancing).
         CacheWarbankMoneyFromAPI()
@@ -2106,7 +2157,7 @@ do
         state._warbankAutoLockToken = 0
         state._warbankAutoLockUntil = 0
       end
-      if isShow then
+      if isShow and not wasOpen then
         ScheduleTryPayWarbankAuto()
       end
       RequestUIRefresh()
@@ -2118,20 +2169,23 @@ do
   -- not PlayerInteractionManager. Expose a dedicated entrypoint so the core event handler can
   -- keep Tax in sync without needing Enum.PlayerInteractionType.
   function Tax.OnGuildBankFrame(isOpen)
+    local wasOpen = (state.guildBankOpen == true)
     state.guildBankOpen = (isOpen == true)
     if IsTaxDebugEnabled() then
       Print("Tax guild bank: " .. ((state.guildBankOpen and "open") or "closed"))
     end
     if state.guildBankOpen then
-      state._manualPrevMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
-      state._pendingGuildDeltas = {}
+      if not wasOpen then
+        state._manualPrevMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+        state._pendingGuildDeltas = {}
+      end
 
       CacheGuildBankMoneyFromAPI()
     else
       state._manualPrevMoney = nil
       state._pendingGuildDeltas = {}
     end
-    if state.guildBankOpen then
+    if state.guildBankOpen and not wasOpen then
       if C_Timer and C_Timer.After then
         C_Timer.After(0.25, function() TryPayGuildBank(true) end)
       else
@@ -2172,8 +2226,10 @@ do
       Print("Tax warbank: " .. ((state.warbankOpen and "open") or "closed"))
     end
     if state.warbankOpen then
-      state._manualPrevMoneyWar = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
-      state._pendingWarbankDeltas = {}
+      if not wasOpen then
+        state._manualPrevMoneyWar = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+        state._pendingWarbankDeltas = {}
+      end
 
       CacheWarbankMoneyFromAPI()
     else
@@ -2183,7 +2239,7 @@ do
       state._warbankAutoLockToken = 0
       state._warbankAutoLockUntil = 0
     end
-    if state.warbankOpen then
+    if state.warbankOpen and not wasOpen then
       ScheduleTryPayWarbankAuto()
     end
     RequestUIRefresh()

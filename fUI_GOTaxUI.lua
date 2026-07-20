@@ -750,7 +750,7 @@ do
     local SEG_W = 24
     local ldbSegFrame = CreateFrame("Frame", nil, panel)
     ldbSegFrame:SetSize((SEG_W * 3) + 2, BTN_H)
-    ldbSegFrame:SetPoint("BOTTOMRIGHT", reloadBtn, "BOTTOMLEFT", -BTN_GAP, 0)
+    ldbSegFrame:SetPoint("BOTTOMRIGHT", reloadBtn, "BOTTOMLEFT", -(BTN_GAP + SEG_W + 1), 0)
 
     local ldbPBtn = CreateFrame("Button", nil, ldbSegFrame, "UIPanelButtonTemplate")
     ldbPBtn:SetSize(SEG_W, BTN_H)
@@ -769,6 +769,18 @@ do
     ldbWBtn:SetPoint("LEFT", ldbGBtn, "RIGHT", 1, 0)
     ldbWBtn:SetText("W")
     ldbWBtn._fs = (ldbWBtn.GetFontString and ldbWBtn:GetFontString()) or nil
+
+    local warCtrlStyleBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    warCtrlStyleBtn:SetSize(SEG_W, BTN_H)
+    warCtrlStyleBtn:SetPoint("LEFT", ldbWBtn, "RIGHT", 1, 0)
+    warCtrlStyleBtn:SetText("")
+    warCtrlStyleBtn._fs = (warCtrlStyleBtn.GetFontString and warCtrlStyleBtn:GetFontString()) or nil
+    if not warCtrlStyleBtn._fs then
+      local fs = warCtrlStyleBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      fs:SetPoint("CENTER", warCtrlStyleBtn, "CENTER", 0, 0)
+      warCtrlStyleBtn._fs = fs
+    end
+    SetFontStringSize(warCtrlStyleBtn._fs, 15)
 
     panel:HookScript("OnHide", function() end)
 
@@ -1055,6 +1067,19 @@ do
         SetToggleText(ldbPBtn, "P", t.ldbDisplay.player == true)
         SetToggleText(ldbGBtn, "G", t.ldbDisplay.guild == true)
         SetToggleText(ldbWBtn, "W", t.ldbDisplay.war == true)
+
+        t.ldbWarControlStyle = tostring(t.ldbWarControlStyle or "text"):lower()
+        if t.ldbWarControlStyle ~= "text" and t.ldbWarControlStyle ~= "icon" then
+          t.ldbWarControlStyle = "text"
+        end
+        if warCtrlStyleBtn and warCtrlStyleBtn._fs and warCtrlStyleBtn._fs.SetText and warCtrlStyleBtn._fs.SetTextColor then
+          if t.ldbWarControlStyle == "icon" then
+            warCtrlStyleBtn._fs:SetText("|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t")
+          else
+            warCtrlStyleBtn._fs:SetText("$")
+          end
+          warCtrlStyleBtn._fs:SetTextColor(1.0, 0.82, 0.0, 1)
+        end
       end
       do
         local mode = (type(viewCfg) == "table") and tostring(viewCfg.bankPrintMode or "") or ""
@@ -1265,6 +1290,7 @@ do
       if ldbPBtn and ldbPBtn.SetEnabled then ldbPBtn:SetEnabled(true) end
       if ldbGBtn and ldbGBtn.SetEnabled then ldbGBtn:SetEnabled(true) end
       if ldbWBtn and ldbWBtn.SetEnabled then ldbWBtn:SetEnabled(true) end
+      if warCtrlStyleBtn and warCtrlStyleBtn.SetEnabled then warCtrlStyleBtn:SetEnabled(true) end
       if clearGuildBtn and clearGuildBtn.SetEnabled then clearGuildBtn:SetEnabled(dueTax > 0) end
       if clearWarBtn and clearWarBtn.SetEnabled then clearWarBtn:SetEnabled(showWarbank and (warDueTax > 0)) end
     end
@@ -1742,6 +1768,25 @@ do
     ldbGBtn:SetScript("OnClick", function() ToggleLDBSegment("guild") end)
     ldbWBtn:SetScript("OnClick", function() ToggleLDBSegment("war") end)
 
+    warCtrlStyleBtn:SetScript("OnClick", function()
+      EnsureDB()
+      local db = GetDB()
+      if type(db) ~= "table" then return end
+      db.tax = (type(db.tax) == "table") and db.tax or {}
+      local t = db.tax
+      t.ldbWarControlStyle = tostring(t.ldbWarControlStyle or "text"):lower()
+      if t.ldbWarControlStyle ~= "icon" then
+        t.ldbWarControlStyle = "icon"
+      else
+        t.ldbWarControlStyle = "text"
+      end
+
+      if type(Tax.RefreshLDB) == "function" then
+        Tax.RefreshLDB()
+      end
+      Refresh()
+    end)
+
     ldbPBtn:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1765,6 +1810,14 @@ do
       GameTooltip:Show()
     end)
     ldbWBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
+
+    warCtrlStyleBtn:SetScript("OnEnter", function(self)
+      if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("Warbank control marker in Tax LDB\nW Text: keep current text coloring\nW Icon: text stays white, icon is gold/gray")
+      GameTooltip:Show()
+    end)
+    warCtrlStyleBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
 
     withdrawBtn:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end

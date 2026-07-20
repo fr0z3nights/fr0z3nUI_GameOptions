@@ -119,7 +119,7 @@ do
             return nil
         end
 
-        IR.LDB = ldb:NewDataObject("Instance Reset", {
+        IR.LDB = ldb:NewDataObject("FGO Instance Reset", {
             type = "data source",
             text = IR.GetText(),
             icon = "Interface\\FriendsFrame\\SocialQueuing",

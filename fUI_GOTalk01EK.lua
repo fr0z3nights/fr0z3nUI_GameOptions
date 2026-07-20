@@ -186,6 +186,9 @@ SetZone("Hammerfall, Eastern Kingdoms")
 
 SetZone("Stormwind City, Eastern Kingdoms")
 
+   t = NPC("Archmage Khadgar", {193450,})
+   t[55739] = { text = "<Ask Khadgar what happened.>" }                                                 -- Whispers on the Winds (66596) Archmage Khadgar (193450)
+
    t = NPC("Brundia Braidhammer", 242651)
    t[133249] = { text = "Let ne browse your goods." }
 
@@ -204,10 +207,28 @@ SetZone("Stormwind City, Eastern Kingdoms")
    t.__meta.stopIfQuestTurnIn = { 86556, 40786, 40787, }                                              -- Stops auto-select if any of these quests are turn-in ready
    t[ 45067] = { text = "I would like to buy from you." }                                             -- Vendor () Kiatke (101759)
 
-   t = NPC("Recruiter Lee", 107934)
+   t = NPC("Loretta Banks", {165505,})
+   t[ 54294] = { text = "I need a flight to The Skyfire." }                                           -- The Mission (29548) Loretta Banks (165505)
+
+   t = NPC("Pathfinder Jeb", {189763,})
+   t[ 55649] = { text = "We need explorers for an expedition..." }                                    -- Expeditionary Coordination (66589) Pathfinder Jeb (189763)
+
+   t = NPC("Dervishian", {198401,})
+   t[107417] = { text = "Scalecommander Azurathel would like you to meet him at the docks." }         -- Expeditionary Coordination (66589) Dervishian (198401)
+
+   t = NPC("Thaelin Darkanvil", {189767,})
+   t[ 55651] = { text = "We need artisans for an expedition to the Dragon Isles." }                    -- Expeditionary Coordination (66589) Thaelin Darkanvil (189767)
+
+   t = NPC("Cataloger Wulferd", {189765,})
+   t[ 55650] = { text = "We need scholars for an expedition to the Dragon Isles." }                    -- Expeditionary Coordination (66589) Cataloger Wulferd (189765)
+
+   t = NPC("Recruiter Lee", {107934,})
    t.__meta.stopIfQuestAvailable = { 42782, }                                                         -- First NPCID, Stops Gossip until quest is accepted
    t.__meta.stopIfQuestTurnIn = { 40519, }                                                            -- First NPCID, Stops Gossip until quest is accepted
    t[ 47484] = { text = "I've heard this tale before... <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, } }                                   -- To Be Prepared (42782) Recruiter Lee (107934)
+
+   t = NPC("Sky Admiral Rogers", {66292,})
+   t[ 40614] = { text = "I am ready to depart." }                                                     -- The Mission (29548) Sky Admiral Rogers (66292)
 
    t = NPC("Tawny Seabraid", 185468)
    t[107827] = { text = "I'd like to see what you have to off this month." }                          -- Venndor () Tawny Seabraid (185468)

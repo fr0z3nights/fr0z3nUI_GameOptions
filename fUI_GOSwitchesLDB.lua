@@ -181,6 +181,52 @@ do
         return ok and type(C_WeeklyRewards) == "table"
     end
 
+    local ORB_ICON_REWARD_WAITING = "Interface\\Icons\\ability_monk_healthsphere"
+
+    local function GetVaultStatusIconTag()
+        if not EnsureWeeklyRewardsLoaded() then
+            return ""
+        end
+
+        local hasReward = nil
+
+        if type(C_WeeklyRewards.HasAvailableRewards) == "function" then
+            local ok, has = pcall(C_WeeklyRewards.HasAvailableRewards)
+            if ok and type(has) == "boolean" then
+                hasReward = has
+            end
+        end
+
+        if hasReward == nil and type(C_WeeklyRewards.CanClaimRewards) == "function" then
+            local ok, can = pcall(C_WeeklyRewards.CanClaimRewards)
+            if ok and type(can) == "boolean" then
+                hasReward = can
+            end
+        end
+
+        if hasReward == nil and type(C_WeeklyRewards.GetActivities) == "function" then
+            local ok, activities = pcall(C_WeeklyRewards.GetActivities)
+            if ok and type(activities) == "table" then
+                hasReward = false
+                for i = 1, #activities do
+                    local row = activities[i]
+                    if type(row) == "table" then
+                        if row.hasReward == true or row.hasAvailableReward == true or row.rewardAvailable == true then
+                            hasReward = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        if hasReward == true then
+            return string.format("|T%s:14|t", ORB_ICON_REWARD_WAITING)
+        end
+
+        return ""
+    end
+
     local function ClampProgress(progress, threshold)
         progress = tonumber(progress) or 0
         threshold = tonumber(threshold) or 0
@@ -209,6 +255,23 @@ do
         end
         table.sort(out, TierSortFunc)
         return out
+    end
+
+    local function InitSV()
+        if ns and type(ns._InitSV) == "function" then
+            ns._InitSV()
+        end
+    end
+
+    local function GetUISettingsTable()
+        InitSV()
+        if type(AutoGame_UI) == "table" then
+            return AutoGame_UI
+        end
+        if type(AutoGossip_UI) == "table" then
+            return AutoGossip_UI
+        end
+        return nil
     end
 
     local function GetTierColorHex(activeTier, isFullyComplete)
@@ -256,9 +319,41 @@ do
         return string.format("%d/%d", p, t), GetTierColorHex(activeTier, fullyComplete)
     end
 
+    local function IsPipeLayoutEnabled()
+        local ui = GetUISettingsTable()
+        if type(ui) == "table" then
+            if ui.greatVaultLdbUsePipeLayout == nil then
+                ui.greatVaultLdbUsePipeLayout = false
+            end
+            return (ui.greatVaultLdbUsePipeLayout == true)
+        end
+
+        if LDBMod._gvUsePipeLayout == nil then
+            LDBMod._gvUsePipeLayout = false
+        end
+        return (LDBMod._gvUsePipeLayout == true)
+    end
+
+    local function ToggleProgressLayout()
+        local nextValue = not IsPipeLayoutEnabled()
+        local ui = GetUISettingsTable()
+        if type(ui) == "table" then
+            ui.greatVaultLdbUsePipeLayout = nextValue
+            return
+        end
+        LDBMod._gvUsePipeLayout = nextValue
+    end
+
     local function GetProgressText()
+        local sep = IsPipeLayoutEnabled() and " | " or "   "
+        local statusOrb = GetVaultStatusIconTag()
+        local statusSuffix = (statusOrb ~= "") and (sep .. statusOrb) or ""
+
         if not EnsureWeeklyRewardsLoaded() then
-            return "-/- | -/- | -/-"
+            if IsPipeLayoutEnabled() then
+                return string.format("-/- | -/- | -/-%s", statusSuffix)
+            end
+            return string.format("-/-   -/-   -/-%s", statusSuffix)
         end
 
         local raid = C_WeeklyRewards.GetActivities and C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Raid) or nil
@@ -269,7 +364,7 @@ do
         local dngPair, dngColor = ComputeLanePair(dng)
         local worldPair, worldColor = ComputeLanePair(world)
 
-        return string.format("|c%s%s|r | |c%s%s|r | |c%s%s|r", raidColor, raidPair, dngColor, dngPair, worldColor, worldPair)
+        return string.format("|c%s%s|r%s|c%s%s|r%s|c%s%s|r%s", raidColor, raidPair, sep, dngColor, dngPair, sep, worldColor, worldPair, statusSuffix)
     end
 
     local function AddGvLines(tooltip, rewardTable)
@@ -301,7 +396,15 @@ do
             end
 
             if progress == threshold then
-                r, g, b = 0, 1, 0
+                if tier == 2 then
+                    -- Match LDB lane coloring for completed tier 2.
+                    r, g, b = 0.2, 0.6, 1
+                elseif tier == 3 then
+                    -- Match LDB lane coloring for completed tier 3.
+                    r, g, b = 0.7, 0.4, 1
+                else
+                    r, g, b = 0, 1, 0
+                end
             else
                 r, g, b = 1, 1, 1
             end
@@ -427,6 +530,9 @@ do
             OnClick = function(_, button)
                 if button == "LeftButton" then
                     ToggleVaultFrame()
+                elseif button == "RightButton" then
+                    ToggleProgressLayout()
+                    LDBMod.RefreshGreatVaultLDB()
                 end
             end,
             OnTooltipShow = OnTooltipShow,

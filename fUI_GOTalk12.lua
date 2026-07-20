@@ -712,9 +712,10 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[133938] = { text = [[My employer sent me to purchase some "special" reagents]] }                    -- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
 
 	t = NPC("Naleidea Rivergleam", { 242398, })
-	t.__meta.stopIfQuestTurnIn = { 93386, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 93372, 93386, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
 	t[138392] = { prio = 10, text = "Combine all of my Coffer Key Shards" }                               -- Coffer Keys
 	t[137442] = { prio = 01, text = "What does the Reliquary have to offer?" }                            -- Vendor Naleidea Rivergleam (242398)
+	t[137445] = { prio = 01, text = "What does the Reliquary have to offer?" }                            -- Vendor Naleidea Rivergleam (242398)
 
 	t = NPC("Ranger Captain Lilatha", { 257411, })
 	t[139200] = { text = "<Show the Twilight's Blade missive" }                                           -- Torn Twilight Missive (95069) Ranger Captain Lilatha (957411)
@@ -725,6 +726,11 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 
 	t = NPC("Riftblade Astre", { 249459, })
 	t[135199] = { text = "I'll join you." }                                                               -- To Be Changed (91546) Riftblade Astre (249459)
+
+	t = NPC("Riftblade Maella", { 263479, })
+--	t.__meta.stopIfQuestAvailable = { 96049, 96703, }                                                     -- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96048, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
+	t[140757] = { text = "I have already ventured to the mana-bogs of Naigtal." }   -- Doesnt Click Yes   -- 
 
 	t = NPC("Row Rat", { 241425, })
 	t[132989] = { text = "I'm looking for Jaeth. Do you know where he is?" }                              -- Stir the Nest (89202) Row Rat (241425)
@@ -742,6 +748,13 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[132674] = { text = "H Lor'themar has requested that we be allowed...", prio = 10 }                  -- Paved in Ash (86735) Skymaster Skyles (239639)
 	t[134010] = { text = "A The Alliance will be staying here temporarily...", prio = 9 }                 -- Paved in Ash (86735) Skymaster Skyles (239639)
 	t[132675] = { text = "Show me where I can fly.", prio = -10 }
+
+	t = NPC("Soridormi", { 259153, })
+	t.__meta.stopIfQuestAvailable = { 95008, }                                                     		  -- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96245, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
+	t[138326] = { prio = -1, text = "Can you untangle my timelines?" }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
+	t[138328] = { prio = -2, text = "I've already defended the Sunwell.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
+	t[138327] = { prio = -3, text = "I stopped the Voidstorm.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
 
 	t = NPC("Tarelin", { 244474, })
 	t[134044] = { text = "I'm picking up a shipment for Zaen." }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)

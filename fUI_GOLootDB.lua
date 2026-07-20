@@ -65,6 +65,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X12:SlvrmnCitzn",      text = "Silvermoon Citizen says" },
     { key = "X12:TwilightInv",      text = "Twilight Invader says" },
     { key = "X12:Valeera",          text = "Valeera Sanguinar says" },
+    { key = "X12:Zuljarra",         text = "Zul'jarra says" },
 --07 LegionTidesage Initiate attempts to run away in fear!
     { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
 --07 Legion
