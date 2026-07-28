@@ -113,6 +113,11 @@ end
 
 SetZone("Dalaran, Broken Isles")
 
+	t = NPC("Archmage Khadgar", {90417,})
+	t.__meta.stopIfQuestAvailable = { 45727, }                                  -- Quest Accept before Gossip (First NPCID)
+	t.__meta.stopIfQuestTurnIn = { 45727, }                               		-- Quest TurnIn before Gossip (First NPCID)
+	t[134576] = { text = "Argus Intro Skip", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, } }
+
 	t = NPC("Holgar Stormaxe", 4311)
 	t.__meta.stopIfQuestAvailable = { 44281, }                                  -- Quest Accept before Gossip (First NPCID)
 	t.__meta.stopIfQuestTurnIn = { 43926, }                               		-- Quest TurnIn before Gossip (First NPCID)

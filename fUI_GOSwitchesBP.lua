@@ -25,15 +25,30 @@ local function IsEnabled()
 end
 
 local function NormalizeMode(m)
-    if m == "favorite" or m == "specific" or m == "random" then
-        return m
+    if type(m) ~= "string" then
+        return "random"
+    end
+
+    local mode = string.lower(m)
+    if mode == "favorite" or mode == "favorites" or mode == "favourite" or mode == "favourites" then
+        return "favorite"
+    end
+    if mode == "specific" then
+        return "specific"
+    end
+    if mode == "random" then
+        return "random"
     end
     return "random"
 end
 
 local function GetMode()
     InitSV()
-    return NormalizeMode(AutoGossip_Settings and AutoGossip_Settings.petWalkModeAcc)
+    local mode = NormalizeMode(AutoGossip_Settings and AutoGossip_Settings.petWalkModeAcc)
+    if AutoGossip_Settings and type(AutoGossip_Settings.petWalkModeAcc) == "string" and AutoGossip_Settings.petWalkModeAcc ~= mode then
+        AutoGossip_Settings.petWalkModeAcc = mode
+    end
+    return mode
 end
 
 local function GetDelay()

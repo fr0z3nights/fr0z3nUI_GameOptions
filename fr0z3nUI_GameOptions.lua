@@ -152,6 +152,27 @@ local function NormalizeID(value)
     return value
 end
 
+local function NormalizeMapNpcName(name)
+    if type(name) ~= "string" then
+        name = tostring(name or "")
+    end
+
+    local ok, normalized = pcall(function()
+        local v = name
+        v = v:gsub("^%s+", ""):gsub("%s+$", "")
+        v = v:lower()
+        v = v:gsub("[^%w]+", "_")
+        v = v:gsub("_+", "_")
+        v = v:gsub("^_+", ""):gsub("_+$", "")
+        return v
+    end)
+
+    if (not ok) or type(normalized) ~= "string" or normalized == "" then
+        return "unknown"
+    end
+    return normalized
+end
+
 local function MigrateDisabledFlatToNested(disabled)
     if type(disabled) ~= "table" then
         return {}
@@ -851,6 +872,8 @@ local function GetNpcIDFromGuid(guid)
     return tonumber(npcID)
 end
 
+local GetCurrentNpcName
+
 local function GetCurrentNpcID()
     local guid = UnitGUID("npc") or UnitGUID("target")
     local npcID = GetNpcIDFromGuid(guid)
@@ -866,10 +889,25 @@ local function GetCurrentNpcID()
             return npcID
         end
     end
+
+    -- Map-based gossip interactions still need a synthetic rule key so the talk engine
+    -- can match green/active rules even when no NPC GUID is available.
+    if C_Map and type(C_Map.GetBestMapForUnit) == "function" then
+        local ok, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+        if ok and mapID then
+            mapID = tonumber(mapID)
+            if mapID and mapID > 0 then
+                local npcName = GetCurrentNpcName() or ""
+                local normalized = NormalizeMapNpcName(npcName)
+                return "map:" .. tostring(mapID) .. ":" .. normalized
+            end
+        end
+    end
+
     return nil
 end
 
-local function GetCurrentNpcName()
+GetCurrentNpcName = function()
     return UnitName("npc") or UnitName("target")
 end
 
@@ -1286,6 +1324,55 @@ GetDbNpcTable = function(npcID)
     if type(rules) ~= "table" then
         return nil
     end
+
+    local function MatchMapRuleTable(id)
+        if type(id) ~= "string" then
+            return nil
+        end
+
+        local mapID, tail = id:match("^map:(%d+):?(.*)$")
+        if not mapID then
+            return nil
+        end
+
+        mapID = tonumber(mapID)
+        if not mapID or mapID <= 0 then
+            return nil
+        end
+
+        local prefix = "map:" .. tostring(mapID) .. ":"
+        local normalizedTail = NormalizeMapNpcName(tail)
+
+        local exactKey = nil
+        if normalizedTail ~= "" and normalizedTail ~= "unknown" then
+            exactKey = prefix .. normalizedTail
+            local exactTable = rules[exactKey]
+            if type(exactTable) == "table" then
+                return exactTable
+            end
+        end
+
+        local unknownKey = prefix .. "unknown"
+        local unknownTable = rules[unknownKey]
+        if type(unknownTable) == "table" then
+            return unknownTable
+        end
+
+        local bestKey = nil
+        for k, v in pairs(rules) do
+            if type(k) == "string" and type(v) == "table" and k:sub(1, #prefix) == prefix then
+                if not bestKey or k < bestKey then
+                    bestKey = k
+                end
+            end
+        end
+
+        if bestKey then
+            return rules[bestKey]
+        end
+        return nil
+    end
+
     local npcTable = rules[npcID]
     if type(npcTable) ~= "table" then
         if type(npcID) == "number" then
@@ -1294,6 +1381,8 @@ GetDbNpcTable = function(npcID)
             local n = tonumber(npcID)
             if n then
                 npcTable = rules[n]
+            else
+                npcTable = MatchMapRuleTable(npcID)
             end
         end
     end

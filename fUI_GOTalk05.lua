@@ -166,6 +166,10 @@ SetZone("Jade Forest, Pandaria")
 
 SetZone("Krasarang Wilds, Pandaria")
 
+    t = NPC("Cranfur the Noodler", 62872)
+    t[33557] = { prio = -5, text = "I would like to buy from you."}
+    t[33558] = { prio = -9, text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, noAuto = true }
+
     t = NPC("Mo'ruk", 66733)
     t[41816] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, }
 
@@ -178,11 +182,11 @@ SetZone("Kun-Lai Summit, Pandaria")
     t[41820] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance!" }, within = 3, }, }
 
     t = NPC("Elder Shiao", {63535,})
-	t.__meta.stopIfQuestTurnIn = { 30515, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
+    t.__meta.stopIfQuestTurnIn = { 30515, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
     t[41465] = { text = "We're here to save you and rebuild your village.", }   -- Horde
 
     t = NPC("Elder Tsulan", {63542,})
-	t.__meta.stopIfQuestTurnIn = { 30514, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
+    t.__meta.stopIfQuestTurnIn = { 30514, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
     t[41467] = { text = "I'm from the Alliance. We're here to save you and rebuild your village.", }   -- Alliance
 
     t = NPC("Farmhand Bo", {63754,})
@@ -195,7 +199,7 @@ SetZone("Kun-Lai Summit, Pandaria")
     t[32394] = { text = "Let me browse your goods."}
 
     t = NPC("Master Lao", 61651)
-	t[40512] = { text = "Please, sit and make yourself comfortable.", manual = true, }
+    t[40512] = { text = "Please, sit and make yourself comfortable.", manual = true, }
 
     t = NPC("Puli the Even Handed <Innkeeper>", 62871)
     t[37168] = { text = "Let me browse your goods.", }

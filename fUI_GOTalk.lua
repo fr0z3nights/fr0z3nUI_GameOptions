@@ -273,9 +273,30 @@ local function BuildMapRuleKey(mapID, npcName)
     return "map:" .. tostring(mapID) .. ":" .. n
 end
 
+local function IsMapRuleKey(value)
+    return type(value) == "string" and value:match("^map:%d+:") ~= nil
+end
+
+local function GetCurrentDisplayNpcID()
+    local id = GetCurrentNpcID()
+    if type(id) == "number" then
+        return id
+    end
+    if type(id) == "string" then
+        if IsMapRuleKey(id) then
+            return nil
+        end
+        local n = tonumber(id)
+        if n then
+            return n
+        end
+    end
+    return nil
+end
+
 GetCurrentRuleID = function()
     local npcID = GetCurrentNpcID()
-    if npcID ~= nil then
+    if npcID ~= nil and not IsMapRuleKey(npcID) then
         return npcID
     end
 
@@ -474,6 +495,55 @@ GetDbNpcTable = function(npcID)
     if type(rules) ~= "table" then
         return nil
     end
+
+    local function MatchMapRuleTable(id)
+        if type(id) ~= "string" then
+            return nil
+        end
+
+        local mapID, tail = id:match("^map:(%d+):?(.*)$")
+        if not mapID then
+            return nil
+        end
+
+        mapID = tonumber(mapID)
+        if not mapID or mapID <= 0 then
+            return nil
+        end
+
+        local prefix = "map:" .. tostring(mapID) .. ":"
+        local normalizedTail = NormalizeMapNpcName(tail)
+
+        local exactKey = nil
+        if normalizedTail ~= "" and normalizedTail ~= "unknown" then
+            exactKey = prefix .. normalizedTail
+            local exactTable = rules[exactKey]
+            if type(exactTable) == "table" then
+                return exactTable
+            end
+        end
+
+        local unknownKey = prefix .. "unknown"
+        local unknownTable = rules[unknownKey]
+        if type(unknownTable) == "table" then
+            return unknownTable
+        end
+
+        local bestKey = nil
+        for k, v in pairs(rules) do
+            if type(k) == "string" and type(v) == "table" and k:sub(1, #prefix) == prefix then
+                if not bestKey or k < bestKey then
+                    bestKey = k
+                end
+            end
+        end
+
+        if bestKey then
+            return rules[bestKey]
+        end
+        return nil
+    end
+
     local npcTable = rules[npcID]
     if type(npcTable) ~= "table" then
         if type(npcID) == "number" then
@@ -483,24 +553,7 @@ GetDbNpcTable = function(npcID)
             if n then
                 npcTable = rules[n]
             else
-                -- Fallback for protected gossip names in instances:
-                -- runtime key becomes map:<id>:unknown while DB uses map:<id>:<npc-name>.
-                local mapID = npcID:match("^map:(%d+):unknown$")
-                mapID = tonumber(mapID)
-                if mapID and mapID > 0 then
-                    local prefix = "map:" .. tostring(mapID) .. ":"
-                    local bestKey = nil
-                    for k, v in pairs(rules) do
-                        if type(k) == "string" and type(v) == "table" and k:sub(1, #prefix) == prefix then
-                            if not bestKey or k < bestKey then
-                                bestKey = k
-                            end
-                        end
-                    end
-                    if bestKey then
-                        npcTable = rules[bestKey]
-                    end
-                end
+                npcTable = MatchMapRuleTable(npcID)
             end
         end
     end
@@ -1691,7 +1744,7 @@ function ns.Talk.PrintCurrentOptions(debounce)
         return zone ~= "" and zone or (continent ~= "" and continent or "")
     end
 
-    local npcID = GetCurrentNpcID()
+    local npcID = GetCurrentDisplayNpcID()
     local npcName = GetCurrentNpcName()
     if IsSecretString(npcName) then
         npcName = ""
@@ -1735,15 +1788,24 @@ function ns.Talk.PrintCurrentOptions(debounce)
     end
 
     local mapIDFallback = nil
+    local mapLabel = ""
     if not npcID and C_Map and type(C_Map.GetBestMapForUnit) == "function" then
         local ok, mid = pcall(C_Map.GetBestMapForUnit, "player")
-        if ok then mapIDFallback = tonumber(mid) end
+        if ok then
+            mapIDFallback = tonumber(mid)
+            if mapIDFallback and mapIDFallback > 0 then
+                local ok2, info = pcall(C_Map.GetMapInfo, mapIDFallback)
+                if ok2 and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then
+                    mapLabel = info.name
+                end
+            end
+        end
     end
 
     if npcID then
         PrintPrefixed(string.format("NPC:  %s (%d)", npcName, npcID))
     elseif mapIDFallback then
-        PrintPrefixed(string.format("MAP:  %s (map:%d)", npcName ~= "" and npcName or "?", math.floor(mapIDFallback)))
+        PrintPrefixed(string.format("MAP:  %s (%d)", mapLabel ~= "" and mapLabel or (npcName ~= "" and npcName or "?"), math.floor(mapIDFallback)))
     end
 
     do
@@ -1803,7 +1865,7 @@ function ns.Talk.PrintDebugOptionsOnShow(skipOptionLines)
 
     local options = C_GossipInfo.GetOptions() or {}
 
-    local npcID = GetCurrentNpcID()
+    local npcID = GetCurrentDisplayNpcID()
     local npcName = GetCurrentNpcName()
     if IsSecretString(npcName) then
         npcName = ""

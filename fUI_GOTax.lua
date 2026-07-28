@@ -2117,6 +2117,15 @@ do
         -- Seed cached money (used for XS balancing).
         CacheGuildBankMoneyFromAPI()
       else
+        if wasOpen and state._manualPrevMoney ~= nil then
+          local nowMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+          local delta = nowMoney - math.floor(tonumber(state._manualPrevMoney) or 0)
+          if delta ~= 0 then
+            ApplyBankDeltaToCaches("guild", delta)
+          end
+        end
+        -- Best-effort close snapshot while the APIs may still be warm.
+        CacheGuildBankMoneyFromAPI()
         state._manualPrevMoney = nil
         state._pendingGuildDeltas = {}
       end
@@ -2151,6 +2160,15 @@ do
         -- Seed cached money (used for XS balancing).
         CacheWarbankMoneyFromAPI()
       else
+        if wasOpen and state._manualPrevMoneyWar ~= nil then
+          local nowMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+          local delta = nowMoney - math.floor(tonumber(state._manualPrevMoneyWar) or 0)
+          if delta ~= 0 then
+            ApplyBankDeltaToCaches("warbank", delta)
+          end
+        end
+        -- Best-effort close snapshot while the APIs may still be warm.
+        CacheWarbankMoneyFromAPI()
         state._manualPrevMoneyWar = nil
         state._pendingWarbankDeltas = {}
         state._warbankAutoScheduledToken = 0
@@ -2182,6 +2200,14 @@ do
 
       CacheGuildBankMoneyFromAPI()
     else
+      if wasOpen and state._manualPrevMoney ~= nil then
+        local nowMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+        local delta = nowMoney - math.floor(tonumber(state._manualPrevMoney) or 0)
+        if delta ~= 0 then
+          ApplyBankDeltaToCaches("guild", delta)
+        end
+      end
+      CacheGuildBankMoneyFromAPI()
       state._manualPrevMoney = nil
       state._pendingGuildDeltas = {}
     end
@@ -2233,6 +2259,14 @@ do
 
       CacheWarbankMoneyFromAPI()
     else
+      if wasOpen and state._manualPrevMoneyWar ~= nil then
+        local nowMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+        local delta = nowMoney - math.floor(tonumber(state._manualPrevMoneyWar) or 0)
+        if delta ~= 0 then
+          ApplyBankDeltaToCaches("warbank", delta)
+        end
+      end
+      CacheWarbankMoneyFromAPI()
       state._manualPrevMoneyWar = nil
       state._pendingWarbankDeltas = {}
       state._warbankAutoScheduledToken = 0
@@ -2305,6 +2339,9 @@ do
 
   function Tax.OnPlayerMoney()
     local money = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
+
+    -- Keep the player-gold segment live for all money deltas, not only bank flows.
+    UpdateTaxLDBText()
 
     -- Safety: if our state claims a bank is open but the UI isn't actually shown, clear it.
     if state.guildBankOpen == true then

@@ -131,6 +131,9 @@ SetZone("Darkshore, Kalimdor")
 
 SetZone("Feralas, Kalimdor")
 
+    t = MAP("Dungeon: Feralas", 240)
+    t[29281] = { prio = 10, text = "Thank you, Ironbark. We are ready for you to open the door."}
+
    t = NPC("Irela Moonfeather", 41383)
    t[38509] = { text = "Show me where I can fly." }
 
@@ -187,6 +190,9 @@ SetZone("Silithus, Kalimdor")
 
 SetZone("Tanaris, Kalimdor")
 
+	t = MAP("Dungeon: Dire Maul", 219)
+    t[31883] = {"Will you blow up that door now?"}
+
     t = NPC("Time Transit Device", { 209437, 209438, 209439, 209441, 209442, 209443, })
     t[40865] = { prio = 10, text = "Bronze Dragonshrine" }
     t[40863] = { prio = 04, text = "Azure Dragonshrine" }
@@ -199,7 +205,6 @@ SetZone("Uldum, Kalimdor")
 
     t = NPC("Zidormi", 162419)
     t[51282] = { text = "Can you show me what Uldum was like during the time of the Cataclysm?" }
-
 
 
 

@@ -189,11 +189,11 @@ end
 
 SetZone("Midnight Intro")
 
-		t = NPC("Image of Lady Liadrin", 241677)
-		t.__meta.stopIfQuestAvailable = { 91281, 88719, }                                                         -- First NPCID, Stops Gossip until quest is accepted
-		t.__meta.stopIfQuestTurnIn = { 91281, }                                                            -- First NPCID, Stops Gossip until quest is accepted
-		t[138201] = { prio = 10, text = "I have heard this tale before. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, }  }
-		t[133523] = { prio = 05, text = "Please summon me to the Isle of Quel'Danas." }
+	t = NPC("Image of Lady Liadrin", 241677)
+	t.__meta.stopIfQuestAvailable = { 91281, 88719, }                                                         -- First NPCID, Stops Gossip until quest is accepted
+	t.__meta.stopIfQuestTurnIn = { 91281, }                                                            -- First NPCID, Stops Gossip until quest is accepted
+	t[138201] = { prio = 10, text = "I have heard this tale before. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, }  }
+	t[133523] = { prio = 05, text = "Please summon me to the Isle of Quel'Danas." }
 
 SetZone("Eversong Woods, Eastern Kingdoms")
 
@@ -605,18 +605,14 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    	t = NPC("Astalor Bloodsworn", { 258221, })
    	t[135889] = { text = "I'm ready." }                                                                   -- Practical Magic (92178) Astalor Bloodsworn (258221)
 
-   	t = NPC("Delver's Guide", 254565)
-   	t[136916] = { text = "<Review information on your current delve progress.>" }                         -- Delver's Guide (254565)
-
-   	t = NPC("General Amias Bellamy", { 248629, 250587, })
-   	t[135224] = { text = "<Offer Greeting.>" }                                                            -- Paved in Ash (86735) General Amias Bellamy (248629)
-   	t[135530] = { text = "Lor'themar requires a report." }                                                -- Rising Storm (92061) General Amias Bellamy (250587)
+   	t = NPC("Botanist Nathera", { 243355, })
+   	t[138589] = { text = "Train me in Herbalism." }                                                       -- Practical Magic (92178) Botanist Nathera (243355)
 
    	t = NPC("Baraat the Longshot", { 263520, })
-   	t[139901] = { text = "Are you joining Riftblade Maella's strike team?", close = true}        	-- Veterans of the Great Dark (96703) Baraat the Longshot (263520)
+   	t[139901] = { text = "Are you joining Riftblade Maella's strike team?", close = true}        		-- Veterans of the Great Dark (96703) Baraat the Longshot (263520)
 
    	t = NPC("Belath Dawnblade", { 263523, })
-   	t[139484] = { text = "Riftblade Maella is ready. She awaits ...", close = true}  	-- Stalkers of the Stars (96049) Belath Dawnblade (263523)
+   	t[139484] = { text = "Riftblade Maella is ready. She awaits ...", close = true}  					-- Stalkers of the Stars (96049) Belath Dawnblade (263523)
 
 	t = NPC("Belil", 241455)
    	t[133290] = { text = "I've never seen a rock in my life...", prio = 10 }                              -- Five Finger Discount (89204) Belil (241455)
@@ -636,6 +632,9 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t = NPC("Commander Venei Lightblood", { 248630, })
    	t[135203] = { text = "Why are you seizing people?" }                                                  -- Deepening Shadows (91854) Commander Venei Lightblood (248630)
    	t[135204] = { text = "Arresting citizens is not why the Vanguard are here." }                         -- Deepening Shadows (91854) Commander Venei Lightblood (248630)
+
+   	t = NPC("Delver's Guide", 254565)
+   	t[136916] = { text = "<Review information on your current delve progress.>" }                         -- Delver's Guide (254565)
 
    	t = NPC("Denorin", { 244469, })
    	t[133942] = { text = "My employer asked me to look for some unique mana wyrms." }                     -- Murder Row: Acting the Part (90819) Denorin (244469)
@@ -657,6 +656,10 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    	t.__meta.stopIfQuestTurnIn = { 93730, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
    	t[138587] = { text = "Train me in Tailoring." }                                                       -- Tailoring Trainer Galana (243352)
 
+   	t = NPC("General Amias Bellamy", { 248629, 250587, })
+   	t[135224] = { text = "<Offer Greeting.>" }                                                            -- Paved in Ash (86735) General Amias Bellamy (248629)
+   	t[135530] = { text = "Lor'themar requires a report." }                                                -- Rising Storm (92061) General Amias Bellamy (250587)
+
 	t = NPC("Grand Magister Rommath", 249270)
    	t[135139] = { text = "<Explain that Lor'themar wants to see Umbric freed.>" }                         -- You Know This Evil? (91967) Grand Magister Rommath (249270)
    	t[135140] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>" }                 -- You Know This Evil? (91967) Grand Magister Rommath (249270)
@@ -677,82 +680,82 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    	t[132668] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
    	t = NPC("Lendranil", { 242200, })
-   	t[133247] = { text = "I have some very specific upgrade needs for these gloves..." }                  -- Five Finger Discount (89204) Lendranil (242200)
+   	t[133247] = { text = "I have some very specific upgrade needs for these gloves..." }					-- Five Finger Discount (89204) Lendranil (242200)
 
 	t = NPC("Leona Darkstrider", { 263525, })
-   	t[139507] = { text = "Grant me Spectral Sight and I will attune the Ward." }            	-- Stalkers of the Stars (96049) Leona Darkstrider (263525)
+   	t[139507] = { text = "Grant me Spectral Sight and I will attune the Ward." }							-- Stalkers of the Stars (96049) Leona Darkstrider (263525)
 
    	t = NPC("Lor'themar Theron", 235787)
-   	t[132632] = { text = "<Skip conversation> I expect you'll sort things out." }                         -- Unknown Quest (XXXXX) Lor'themar Theron (235787)
-   	t[134143] = { text = "What now?" }                                                                    -- Fractured (86650) Lor'themar Theron (235787)
+   	t[132632] = { text = "<Skip conversation> I expect you'll sort things out." }							-- Unknown Quest (XXXXX) Lor'themar Theron (235787)
+   	t[134143] = { text = "What now?" }																		-- Fractured (86650) Lor'themar Theron (235787)
 
    	t = NPC("Lothene", 241458)
-   	t[133298] = { text = "I have a bag full of creature parts ...", prio = 10 }                           -- Five Finger Discount (89204) Lothene (241458)
+   	t[133298] = { text = "I have a bag full of creature parts ...", prio = 10 }								-- Five Finger Discount (89204) Lothene (241458)
    	t[133299] = { text = "What do you have for sale?", prio = -5 }
 
    	t = NPC("Lothraxion", { 249268, })
-   	t[135157] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>" }                         -- You Know This Evil? (91967) Lothraxion (249268)
-   	t[135156] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>" }                 -- You Know This Evil? (91967) Lothraxion (249268)
+   	t[135157] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>" }							-- You Know This Evil? (91967) Lothraxion (249268)
+   	t[135156] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>" }					-- You Know This Evil? (91967) Lothraxion (249268)
 
    	t = NPC("Magister Dawnblaze", { 241490, })
-   	t[133545] = { text = "We killed Aradis and freed the people he too from Murder Row." }                -- What We're Owed (89208) Magister Dawnblaze (241490)
+   	t[133545] = { text = "We killed Aradis and freed the people he too from Murder Row." }					-- What We're Owed (89208) Magister Dawnblaze (241490)
 
    	t = NPC("Magistrix Narinth", 239673)
-   	t[132678] = { text = "H Lor'themar has has allowed us to stay in the city...", prio = 10 }            -- Paved in Ash (86735) Magistrix Narinth (239673)
-   	t[134011] = { text = "A The Alliance will be staying longer than expected.", prio = 10 }              -- Paved in Ash (86735) Magistrix Narinth (239673)
+   	t[132678] = { text = "H Lor'themar has has allowed us to stay in the city...", prio = 10 }				-- Paved in Ash (86735) Magistrix Narinth (239673)
+   	t[134011] = { text = "A The Alliance will be staying longer than expected.", prio = 10 }				-- Paved in Ash (86735) Magistrix Narinth (239673)
 
    	t = NPC("Magistrix Nizara", 240940)
-   	t[134014] = { text = "A The Alliance will be staying longer than expected.", prio = 10 }              -- Paved in Ash (86735) Magistrix Nizara (240940)
-   	t[132845] = { text = "Let me browse your goods.", prio = -10 }                                        -- Quartermaster Magistrix Nizara (240940)
+   	t[134014] = { text = "A The Alliance will be staying longer than expected.", prio = 10 }				-- Paved in Ash (86735) Magistrix Nizara (240940)
+   	t[132845] = { text = "Let me browse your goods.", prio = -10 }											-- Quartermaster Magistrix Nizara (240940)
 
    	t = NPC("Maren Silverwing", 255473 )
-   	t[139420] = { text = "I'd like to exchange Field Accolades for gear."  }              	-- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
+   	t[139420] = { text = "I'd like to exchange Field Accolades for gear."  }								-- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
 
 	t = NPC("Miss Len'dali", { 244471, })
-	t[133938] = { text = [[My employer sent me to purchase some "special" reagents]] }                    -- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
+	t[133938] = { text = [[My employer sent me to purchase some "special" reagents]] }						-- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
 
 	t = NPC("Naleidea Rivergleam", { 242398, })
-	t.__meta.stopIfQuestTurnIn = { 93372, 93386, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
-	t[138392] = { prio = 10, text = "Combine all of my Coffer Key Shards" }                               -- Coffer Keys
-	t[137442] = { prio = 01, text = "What does the Reliquary have to offer?" }                            -- Vendor Naleidea Rivergleam (242398)
-	t[137445] = { prio = 01, text = "What does the Reliquary have to offer?" }                            -- Vendor Naleidea Rivergleam (242398)
+	t.__meta.stopIfQuestTurnIn = { 93372, 93386, }															-- Waits for Quest Hand-Ins (First NPCID Only)
+	t[138392] = { prio = 10, text = "Combine all of my Coffer Key Shards" }									-- Coffer Keys
+	t[137442] = { prio = 01, text = "What does the Reliquary have to offer?" }								-- Vendor Naleidea Rivergleam (242398)
+	t[137445] = { prio = 01, text = "What does the Reliquary have to offer?" }								-- Vendor Naleidea Rivergleam (242398)
 
 	t = NPC("Ranger Captain Lilatha", { 257411, })
-	t[139200] = { text = "<Show the Twilight's Blade missive" }                                           -- Torn Twilight Missive (95069) Ranger Captain Lilatha (957411)
-	t[139204] = { text = "I can do that.", close = true }                                                 -- Torn Twilight Missive (95069) Ranger Captain Lilatha (957411)
+	t[139200] = { text = "<Show the Twilight's Blade missive" }												-- Torn Twilight Missive (95069) Ranger Captain Lilatha (957411)
+	t[139204] = { text = "I can do that.", close = true }													-- Torn Twilight Missive (95069) Ranger Captain Lilatha (957411)
 
 	t = NPC("Reno Jackson", { 255103, })
-	t[137116] = { text = "Tell me what happened." }                                                       -- A Missing Member (39511) Riftblade Astre (249459)
+	t[137116] = { text = "Tell me what happened." }															-- A Missing Member (39511) Riftblade Astre (249459)
 
 	t = NPC("Riftblade Astre", { 249459, })
-	t[135199] = { text = "I'll join you." }                                                               -- To Be Changed (91546) Riftblade Astre (249459)
+	t[135199] = { text = "I'll join you." }																	-- To Be Changed (91546) Riftblade Astre (249459)
 
 	t = NPC("Riftblade Maella", { 263479, })
---	t.__meta.stopIfQuestAvailable = { 96049, 96703, }                                                     -- Waits for Quest Accepted (First NPCID Only)
-	t.__meta.stopIfQuestTurnIn = { 96048, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
-	t[140757] = { text = "I have already ventured to the mana-bogs of Naigtal." }   -- Doesnt Click Yes   -- 
+--	t.__meta.stopIfQuestAvailable = { 96049, 96703, }														-- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96048, }																	-- Waits for Quest Hand-Ins (First NPCID Only)
+	t[140757] = { text = "I have already ventured to the mana-bogs of Naigtal." }							-- Doesnt Click Yes As It Is A Phaze
 
 	t = NPC("Row Rat", { 241425, })
-	t[132989] = { text = "I'm looking for Jaeth. Do you know where he is?" }                              -- Stir the Nest (89202) Row Rat (241425)
+	t[132989] = { text = "I'm looking for Jaeth. Do you know where he is?" }								-- Stir the Nest (89202) Row Rat (241425)
 
 	t = NPC("Sandee Seabraid", { 249041, })
-	t[121665] = { text = "I'd like to see what you have to offer this month." }                           -- Trading Post Vendor Sandee Seabraid (249041)
+	t[121665] = { text = "I'd like to see what you have to offer this month." }								-- Trading Post Vendor Sandee Seabraid (249041)
 
 	t = NPC("Sergeant Vornin", { 255503, })
-	t[138966] = { text = "Do you have any mounts or pets available now?" }                           	-- Deepening Shadows (91854) Sin'dorei Vendor (249174)
+	t[138966] = { text = "Do you have any mounts or pets available now?" }									-- Deepening Shadows (91854) Sin'dorei Vendor (249174)
 
 	t = NPC("Sin'dorei Vendor", { 249174, })
-	t[135112] = { text = "<Explain the events of the Sunwell.>" }                                         -- Deepening Shadows (91854) Sin'dorei Vendor (249174)
+	t[135112] = { text = "<Explain the events of the Sunwell.>" }											-- Deepening Shadows (91854) Sin'dorei Vendor (249174)
 
 	t = NPC("Skymaster Skyles", 239639)
-	t[132674] = { text = "H Lor'themar has requested that we be allowed...", prio = 10 }                  -- Paved in Ash (86735) Skymaster Skyles (239639)
-	t[134010] = { text = "A The Alliance will be staying here temporarily...", prio = 9 }                 -- Paved in Ash (86735) Skymaster Skyles (239639)
+	t[132674] = { text = "H Lor'themar has requested that we be allowed...", prio = 10 }					-- Paved in Ash (86735) Skymaster Skyles (239639)
+	t[134010] = { text = "A The Alliance will be staying here temporarily...", prio = 9 }					-- Paved in Ash (86735) Skymaster Skyles (239639)
 	t[132675] = { text = "Show me where I can fly.", prio = -10 }
 
 	t = NPC("Soridormi", { 259153, })
-	t.__meta.stopIfQuestAvailable = { 95008, }                                                     		  -- Waits for Quest Accepted (First NPCID Only)
-	t.__meta.stopIfQuestTurnIn = { 96245, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
-	t[138326] = { prio = -1, text = "Can you untangle my timelines?" }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
+	t.__meta.stopIfQuestAvailable = { 95008, }																-- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96245, }																	-- Waits for Quest Hand-Ins (First NPCID Only)
+	t[138326] = { prio = -1, text = "Can you untangle my timelines?" }										-- Murder Row: Harbored Secrets (90821) Tarelin (244474)
 	t[138328] = { prio = -2, text = "I've already defended the Sunwell.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
 	t[138327] = { prio = -3, text = "I stopped the Voidstorm.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
 

@@ -263,7 +263,10 @@ SetZone("Westfall, Eastern Kingdoms")
    t = NPC("Thor", 523)
    t[32677] = { text = "I need a ride." }
 
-
+	t = MAP("Dungeon: Deadmines", 291)
+   t[39500] = { prio = 10, text = "Portal 3"}
+   t[39499] = { prio = 08, text = "Portal 2"}
+   t[39498] = { prio = 06, text = "Portal 1"}
 
 
 
