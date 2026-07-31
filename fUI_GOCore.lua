@@ -423,6 +423,9 @@ local DEFAULTS = {
       enabled = true,
       learnedItems = true,
     },
+    instance = {
+      enabled = true,
+    },
   },
 
   -- Debug capture: stores recent raw chat events and LootIt output decisions.

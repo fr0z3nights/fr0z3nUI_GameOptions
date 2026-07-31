@@ -1078,10 +1078,16 @@ function LI.LootTab.BuildTab(lootPanel, env)
     -- The Debug button is anchored to the true bottom separately.
     bottomRow:SetPoint("TOPLEFT", resetRow, "BOTTOMLEFT", 0, -14)
     bottomRow:SetPoint("TOPRIGHT", resetRow, "BOTTOMRIGHT", 0, -14)
-    bottomRow:SetHeight(78)
+    bottomRow:SetHeight(104)
+
+    local ROW1_Y = -2
+    local ROW_STEP = 26
+    local ROW2_Y = ROW1_Y - ROW_STEP
+    local ROW3_Y = ROW2_Y - ROW_STEP
+    local ROW4_Y = ROW3_Y - ROW_STEP
 
     local achBtn = CreateTextToggleButton(bottomRow, 120, 20)
-    achBtn:SetPoint("BOTTOMLEFT", bottomRow, "BOTTOMLEFT", 0, 44)
+    achBtn:SetPoint("TOPLEFT", bottomRow, "TOPLEFT", 0, ROW1_Y - 2)
     achBtn:SetScript("OnClick", function()
       EnsureDB()
       local DB = GetDB()
@@ -1096,7 +1102,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
     local achOutputDD = CreateFrame("Frame", nil, bottomRow, "UIDropDownMenuTemplate")
     achOutputDD:ClearAllPoints()
     achOutputDD:SetPoint("LEFT", outputDD, "LEFT", 0, 0)
-    achOutputDD:SetPoint("TOP", bottomRow, "TOP", 0, -8)
+    achOutputDD:SetPoint("TOP", bottomRow, "TOP", 0, ROW1_Y)
     CompactDropDown(achOutputDD, 64)
     AttachChatFrameDropDown(
       achOutputDD,
@@ -1114,7 +1120,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
     )
 
     local xpBtn = CreateTextToggleButton(bottomRow, 120, 20)
-    xpBtn:SetPoint("TOPLEFT", achBtn, "BOTTOMLEFT", 0, -6)
+    xpBtn:SetPoint("TOPLEFT", achBtn, "BOTTOMLEFT", 0, -8)
     xpBtn:SetScript("OnClick", function()
       EnsureDB()
       local DB = GetDB()
@@ -1129,7 +1135,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
     local xpOutputDD = CreateFrame("Frame", nil, bottomRow, "UIDropDownMenuTemplate")
     xpOutputDD:ClearAllPoints()
     xpOutputDD:SetPoint("LEFT", outputDD, "LEFT", 0, 0)
-    xpOutputDD:SetPoint("TOP", bottomRow, "TOP", 0, -34)
+    xpOutputDD:SetPoint("TOP", bottomRow, "TOP", 0, ROW2_Y)
     CompactDropDown(xpOutputDD, 64)
     AttachChatFrameDropDown(
       xpOutputDD,
@@ -1260,8 +1266,42 @@ function LI.LootTab.BuildTab(lootPanel, env)
       RefreshXPPosButton(DB)
     end)
 
+    local instBtn = CreateTextToggleButton(bottomRow, 120, 20)
+    instBtn:SetPoint("TOPLEFT", xpBtn, "BOTTOMLEFT", 0, -6)
+    instBtn:SetScript("OnClick", function()
+      EnsureDB()
+      local DB = GetDB()
+      if not DB then return end
+      DB.other = (type(DB.other) == "table") and DB.other or {}
+      DB.other.instance = (type(DB.other.instance) == "table") and DB.other.instance or {}
+      if DB.other.instance.enabled == nil then DB.other.instance.enabled = true end
+      DB.other.instance.enabled = not (DB.other.instance.enabled == true)
+      SetToggleText(instBtn, "Instance", DB.other.instance.enabled == true)
+      ApplyFilters()
+    end)
+
+    local instOutputDD = CreateFrame("Frame", nil, bottomRow, "UIDropDownMenuTemplate")
+    instOutputDD:ClearAllPoints()
+    instOutputDD:SetPoint("LEFT", outputDD, "LEFT", 0, 0)
+    instOutputDD:SetPoint("TOP", bottomRow, "TOP", 0, ROW3_Y)
+    CompactDropDown(instOutputDD, 64)
+    AttachChatFrameDropDown(
+      instOutputDD,
+      "Instance Output",
+      function(DB)
+        local v = DB and DB.other and DB.other.instance and DB.other.instance.outputChatFrame
+        if v == nil then v = GetFallbackOtherOutputChatFrame(DB) end
+        return v
+      end,
+      function(DB, i)
+        DB.other = (type(DB.other) == "table") and DB.other or {}
+        DB.other.instance = (type(DB.other.instance) == "table") and DB.other.instance or {}
+        DB.other.instance.outputChatFrame = i
+      end
+    )
+
     local profBtn = CreateTextToggleButton(bottomRow, 120, 20)
-    profBtn:SetPoint("TOPLEFT", xpBtn, "BOTTOMLEFT", 0, -6)
+    profBtn:SetPoint("TOPLEFT", instBtn, "BOTTOMLEFT", 0, -6)
     profBtn:SetScript("OnClick", function()
       EnsureDB()
       local DB = GetDB()
@@ -1276,7 +1316,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
     local profOutputDD = CreateFrame("Frame", nil, bottomRow, "UIDropDownMenuTemplate")
     profOutputDD:ClearAllPoints()
     profOutputDD:SetPoint("LEFT", outputDD, "LEFT", 0, 0)
-    profOutputDD:SetPoint("TOP", bottomRow, "TOP", 0, -60)
+    profOutputDD:SetPoint("TOP", bottomRow, "TOP", 0, ROW4_Y)
     CompactDropDown(profOutputDD, 64)
     AttachChatFrameDropDown(
       profOutputDD,
@@ -1725,6 +1765,7 @@ function LI.LootTab.BuildTab(lootPanel, env)
       DB.other.achievement = (type(DB.other.achievement) == "table") and DB.other.achievement or {}
       DB.other.experience = (type(DB.other.experience) == "table") and DB.other.experience or {}
       DB.other.profession = (type(DB.other.profession) == "table") and DB.other.profession or {}
+      DB.other.instance = (type(DB.other.instance) == "table") and DB.other.instance or {}
 
       SetToggleText(achBtn, "Achievement", DB.other.achievement.enabled == true)
       SetToggleText(xpBtn, "Experience", DB.other.experience.enabled == true)
@@ -1734,6 +1775,9 @@ function LI.LootTab.BuildTab(lootPanel, env)
 
       if DB.other.profession.learnedItems == nil then DB.other.profession.learnedItems = true end
       SetToggleText(profLearnedBtn, "Learned", DB.other.profession.learnedItems == true)
+
+      if DB.other.instance.enabled == nil then DB.other.instance.enabled = true end
+      SetToggleText(instBtn, "Instance", DB.other.instance.enabled == true)
 
       local outA = DB.other.achievement.outputChatFrame
       if outA == nil then outA = GetFallbackOtherOutputChatFrame(DB) end
@@ -1753,6 +1797,10 @@ function LI.LootTab.BuildTab(lootPanel, env)
       local outP = DB.other.profession.outputChatFrame
       if outP == nil then outP = GetFallbackOtherOutputChatFrame(DB) end
       SetDropDownSelection(profOutputDD, outP or 1)
+
+      local outI = DB.other.instance.outputChatFrame
+      if outI == nil then outI = GetFallbackOtherOutputChatFrame(DB) end
+      SetDropDownSelection(instOutputDD, outI or 1)
 
       SetXPDebugState(DB)
       if DB.other.hidePlayed == nil then DB.other.hidePlayed = false end

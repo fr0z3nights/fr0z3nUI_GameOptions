@@ -58,7 +58,7 @@ fr0z3nUI_LootIt_AddonCurrencyAliases = fr0z3nUI_LootIt_AddonCurrencyAliases or {
 -- Each entry is a case-insensitive substring match.
 fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 
---12 Midnight
+--  12  Midnight
     { key = "X12:AmaniDef",         text = "Amani Defender says" },
     { key = "X12:Juljarra",         text = "Jul'jarra says" },
     { key = "X12:Juljan",           text = "Jul'jan says" },
@@ -66,15 +66,20 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X12:TwilightInv",      text = "Twilight Invader says" },
     { key = "X12:Valeera",          text = "Valeera Sanguinar says" },
     { key = "X12:Zuljarra",         text = "Zul'jarra says" },
---07 LegionTidesage Initiate attempts to run away in fear!
     { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
---07 Legion
+--  10  Dragonflight
+    { key = "X10:ArchmageKhadgar",  text = "Archmage Khadgar says" },
+    { key = "X10:Kalecgos",         text = "Kalecgos says" },
+    { key = "X10:Kalecgos",         text = "Kalecgos yells" },
+    { key = "X10:EminentEarthshpr", text = "Eminent Earthshaper yells" },
+    { key = "X10:QuarryEarthshapr", text = "Quarry Earthshaper yells" },
+--  07  Legion
     { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
---06 Draenor
+--  06  Draenor
     { key = "X06:PBTaralune",       text = "Taralune says" },
     { key = "X06:PhilHinbrd",       text = "Phillip Hillenbrand says" },
     { key = "X06:StphnHckln",       text = "Stephen Hicklin says" },
---05 Mists of Pandaria
+--  05  Mists of Pandaria
     { key = "X05:DGStormbring",     text = "Stormbringers react to your presence" },
     { key = "X05:DGSnowdrift",      text = "Master Snowdrift yells" },
     { key = "X05:PBAki",            text = "Aki the Chosen says" },
@@ -92,17 +97,33 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X05:TIOrdos",          text = "Ordos yells" },
     { key = "X05:TIXuen",           text = "Xuen yells" },
     { key = "X05:TIYulon",          text = "Yu'lon yells" },
---01 Stormwind
+--  02  Outland
+    { key = "X05:Underbog01",       text = "Underbog Lurker" },
+    { key = "X05:Underbog02",       text = "Bog Giant" },
+    { key = "X05:Underbog03",       text = "Wrathfin Warrior" },
+    { key = "X05:Underbog04",       text = "Murkblood" },
+    { key = "X05:ShatteredHand",    text = "Shattered Hand" },
+    { key = "X05:ShadowmoonAdept",  text = "Shadowmoon Adept" },
+    { key = "X05:ShadowmoonChanl",  text = "Shadowmoon Channeler" },
+    { key = "X05:ShadowmoonTechn",  text = "Shadowmoon Technician" },
+    { key = "X05:BloodwarderFlcnr", text = "Bloodwarder Falconer yells" },
+
+--  01  Stormwind
     { key = "X01:JaneyAnship",      text = "Janey Anship says" },
     { key = "X01:LisanPierce",      text = "Lisan Pierce says" },
     { key = "X01:Suzanne",          text = "Suzanne says" },
     { key = "X01:Channel",          text = "Changed Channel" },
---Addon
+--  00  Event 
+    { key = "DMF:PBJeremy",         text = "Jeremy Feasel says" },
+    { key = "DMF:PBChristoph",      text = "Christoph VonFeasel says" },
+    { key = "DMF:Morja",            text = "Morja says" },
+--  Addon
     { key = "ANG:Awake",            text = "Is awake. To temporarily disable" },
     { key = "ANG:Config",           text = "To access the configuration menu," },
     { key = "ANG:Thank",            text = "Thank you for using Angleur" },
     { key = "ANG:Visual",           text = "the Visual Button." },
     { key = "DJK:NoJunk",           text = "No junk items to destroy" },
+    { key = "ELV:LuaError",         text = "ElvUI: Lua error recieved." },
     { key = "ERG:RecGearCmbt",      text = "Cannot recommend gear while in combat" },
     { key = "RMB:NoKeybind",        text = "Hey Bud! You're seeing this because" },
     { key = "SLH:LootBindAprv",     text = "Auto Approved Loot Bind" },
@@ -113,12 +134,9 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "ZYG:ActvGuide",        text = "Activated guide:" },
     { key = "ZYG:GoldGuide",        text = "Gold Guide:" },
     { key = "ZYG:GuidesLoad",       text = "guides are loaded" },
---EV Darkmoon 
-    { key = "DMF:PBJeremy",         text = "Jeremy Feasel says" },
-    { key = "DMF:PBChristoph",      text = "Christoph VonFeasel says" },
-    { key = "DMF:Morja",            text = "Morja says" },
---Blizzard
+--  Blizzard
     { key = "BLZ:Discovery",        text = "You have made a new discovery" },
+    { key = "BLZ:FindPlayer",       text = "Cannot find player" },
     { key = "BLZ:Finesse",          text = "Your Finesse helps you gather something extra" },
     { key = "BLZ:HouseXP",          text = "House XP increased" },
     { key = "BLZ:NLAway",           text = "You are no longer Away" },

@@ -567,13 +567,14 @@ SetZone("Naigtal, Eastern Kingdoms")
 
 	t = NPC("Archmage Y'mera", { 266034, })
 	t[140098] = { text = "I found these crystals on ethereal devices ...", close = true }           -- Conductive Crystals (96569)  Archmage Y'mera (266034)
+	t[140110] = { text = "What's the plan?", close = true }           								-- Soul Lattice Revealed (96573)  Archmage Y'mera (266034)
 
 	t = NPC("Coorina Brightblade", { 268804, })
 	t[140860] = { text = "I want to browse your goods."}  						-- Vendor  Coorina Brightblade (268804)
 
 	t = NPC("Kifaan", { 265559, })
 	t.__meta.stopIfQuestAvailable = { 96569, }                                                      -- Waits for Quest Accepted (First NPCID Only)
-	t.__meta.stopIfQuestTurnIn = { 96569, }                                                        	-- Waits for Quest Hand-Ins (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96569, 96809, }                                                 	-- Waits for Quest Hand-Ins (First NPCID Only)
 	t[139928] = { text = "May I browse your wares?"}  							-- Vendor  Kifaan (265559)
 
 		t = NPC("Encrypted Data Collator", { 266038, 266038, })
@@ -892,11 +893,14 @@ SetZone("Voidstorm, Eastern Kingdoms")
 
 SetZone("Zul'Aman, Eastern Kingdoms")
 
-		t = MAP("Delve: Atal'Aman", 2535)
+	t = MAP("Delve: Atal'Aman", 2535)
 	t[136385] = { text = "(Delve) I'll break the hexes and set your kin free." }
 	t[138496] = { text = "<Help me reach Spiritflayer Jin'Ma.>" }
 
-		t = NPC("Altar of Blessings", { 237653, })
+	t = MAP("Delve: Twilight Crypts", 2535)
+	t[135239] = { text = "Alright... pardon! I'll just step around you..." }
+
+	t = NPC("Altar of Blessings", { 237653, })
 	t[133887] = { text = "<Worship the loa.>" }                                          -- Blessings of the Loa (93792) Altar of Blessings (237653)
 
 	t = NPC("Assistant Grgl-Grgl", { 250292, })

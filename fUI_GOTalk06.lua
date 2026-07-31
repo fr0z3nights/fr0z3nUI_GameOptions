@@ -163,6 +163,12 @@ SetZone("Garrison, Draenor")
     t = NPC("Assistant Brightstone", 84455)
     t[42666] = { text = "Time to get back to work.", close = true }					-- Keeping it Together (35176) Assistant Brightstone (84455)
 
+    t = NPC("Assistant Brightstone", 84455)
+    t[42666] = { text = "Time to get back to work.", close = true }					-- Keeping it Together (35176) Assistant Brightstone (84455)
+
+    t = NPC("Dungar Longdrink", 81103)												-- Alliance
+    t[42834] = { text = "Show me where I can fly." }
+
     t = NPC("Rachelle Black", 81348)
     t[42786] = { text = "Let me browse your goods." }								-- Vendor Rachelle Black (81348)
 
@@ -173,5 +179,6 @@ SetZone("Garrison, Draenor")
     -- NOTE: This uses a fake NPC ID so it will never match real gossip.
     t = NPC("Garrison Mission Table", -32000)
     t[1] = { text = "Auto-start first mission (tutorial quest)" }
+
 
 

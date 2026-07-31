@@ -140,7 +140,7 @@ SetZone("Timewalking")
 		t[131294] = { text = "Let me browse your goods." }							-- Bobadormu (226162) Vendor Only
 	--	02	Outland Timewalking Vendor
 		t = NPC("Cupri", 98685)
-		t.__meta.stopIfQuestAvailable = { 85948, 83363, }		-- LVL/MAX          -- Quest Accept before Gossip (First NPCID)
+		t.__meta.stopIfQuestAvailable = { 85948, 93608, }		-- LVL/MAX          -- Quest Accept before Gossip (First NPCID)
 		t.__meta.stopIfQuestTurnIn = { 85948, 40168, }      	-- LVL/TKN          -- Quest TurnIn before Gossip (First NPCID)
 		t[46752] = { text = "I would like to buy from you." }						-- Cupri (98685)
 	--	03	Wrath Timewalking Vendor

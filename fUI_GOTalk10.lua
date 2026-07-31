@@ -116,7 +116,7 @@ SetZone("Amirdrassil, Dragon Isles")
     t = NPC("Elder Verdantbark", { 251316, })
     t[137249] = { text = "<Present throwing stones to Elder Verdantbark.>" }	-- Awaken the Ancient Protector (88927) Elder Verdantbark (251316)
 
-    t = NPC("First Arcanist Thalyssra", { 250853, })
+	t = NPC("First Arcanist Thalyssra", { 250853, })
     t[135657] = { text = "Tell Shandris what has transpired." }	-- Children of the Stars (88923) First Arcanist Thalyssra (250853)
 
     t = NPC("Lor'themar Theron", { 240335, })
@@ -127,6 +127,26 @@ SetZone("Amirdrassil, Dragon Isles")
 
     t = NPC("Malastral", { 255687, })
     t[137236] = { text = "Give me the banner and I will gather the wisps." }	-- Awaken the Ancient of Lore (88937) Malastral (255687)
+
+SetZone("Thaldraszus, Dragon Isles")
+
+	t = MAP("Vault of the Incarnates", { 2119, })
+	t[107543] = { text = "We have need of your aid." }
+	t[107544] = { text = "Carry me into battle." }
+	t[107545] = { text = "Carry me into battle." }
+	t[107546] = { text = "We have need of your aid." }
+	t[107548] = { text = "<You gently prod the dragon awake.>" }
+	t[107549] = { text = "Carry me into battle." }
+	t[107550] = { text = "We have need of your aid." }
+	t[107551] = { text = "Carry me into battle." }
+	t[107552] = { text = "We have need of your aid." }
+	t[107553] = { text = "Carry me into battle." }
+    t[ 55981] = { text = "Begin the assault.", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "This will begin the assault" }, within = 3, }, }
+
+SetZone("The Azure Span, Dragon Isles")
+
+	t = NPC("Tattukiaka", { 199448, })
+	t[107742] = { text = "Let's see what you have on offer." }	-- Awaken the Ancient Protector (88927) Tattukiaka (199448)
 
 SetZone("The Forbidden Reach, Dragon Isles")
 
