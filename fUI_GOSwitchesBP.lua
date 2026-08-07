@@ -36,10 +36,125 @@ local function NormalizeMode(m)
     if mode == "specific" then
         return "specific"
     end
+    if mode == "list" then
+        return "list"
+    end
     if mode == "random" then
         return "random"
     end
     return "random"
+end
+
+local function GetPetWalkListAcc()
+    InitSV()
+    if type(AutoGossip_Settings) ~= "table" then
+        return nil
+    end
+
+    local src = AutoGossip_Settings.petWalkListAcc
+    if type(src) ~= "table" then
+        AutoGossip_Settings.petWalkListAcc = {}
+        return AutoGossip_Settings.petWalkListAcc
+    end
+
+    -- Keep the list dense and duplicate-free so row/index operations remain stable.
+    local out, seen = {}, {}
+    for _, guid in pairs(src) do
+        if type(guid) == "string" and guid ~= "" and not seen[guid] then
+            seen[guid] = true
+            out[#out + 1] = guid
+        end
+    end
+
+    AutoGossip_Settings.petWalkListAcc = out
+    return out
+end
+
+local function AddPetWalkListGUID(guid)
+    if type(guid) ~= "string" or guid == "" then
+        return false, "invalid"
+    end
+
+    local list = GetPetWalkListAcc()
+    if type(list) ~= "table" then
+        return false, "invalid"
+    end
+
+    for i = 1, #list do
+        if list[i] == guid then
+            return false, "duplicate"
+        end
+    end
+
+    list[#list + 1] = guid
+    return true, "added"
+end
+
+local function GetPetWalkListNamesAcc()
+    InitSV()
+    if type(AutoGossip_Settings) ~= "table" then
+        return nil
+    end
+
+    local src = AutoGossip_Settings.petWalkListNamesAcc
+    if type(src) ~= "table" then
+        AutoGossip_Settings.petWalkListNamesAcc = {}
+        return AutoGossip_Settings.petWalkListNamesAcc
+    end
+
+    return src
+end
+
+local function TrimName(text)
+    text = tostring(text or "")
+    text = string.gsub(text, "^%s+", "")
+    text = string.gsub(text, "%s+$", "")
+    return text
+end
+
+local function GetPetWalkCustomName(guid)
+    if type(guid) ~= "string" or guid == "" then
+        return nil
+    end
+
+    local names = GetPetWalkListNamesAcc()
+    if type(names) ~= "table" then
+        return nil
+    end
+
+    local v = names[guid]
+    if type(v) ~= "string" then
+        return nil
+    end
+
+    v = TrimName(v)
+    if v == "" then
+        names[guid] = nil
+        return nil
+    end
+
+    names[guid] = v
+    return v
+end
+
+local function SetPetWalkCustomName(guid, name)
+    if type(guid) ~= "string" or guid == "" then
+        return false
+    end
+
+    local names = GetPetWalkListNamesAcc()
+    if type(names) ~= "table" then
+        return false
+    end
+
+    local t = TrimName(name)
+    if t == "" then
+        names[guid] = nil
+        return true
+    end
+
+    names[guid] = t
+    return true
 end
 
 local function GetMode()
@@ -160,27 +275,151 @@ local function GetPetNameByGUID(guid)
     if type(guid) ~= "string" or guid == "" then
         return nil
     end
-    if not (C_PetJournal and C_PetJournal.GetPetInfoByPetID) then
+
+    local function NameFromSpecies(speciesID)
+        if not (C_PetJournal and C_PetJournal.GetPetInfoBySpeciesID) then
+            return nil
+        end
+        local speciesName = SafeCall(C_PetJournal.GetPetInfoBySpeciesID, speciesID)
+        if type(speciesName) == "string" and speciesName ~= "" then
+            return speciesName
+        end
         return nil
     end
 
-    local petID, speciesID, isOwned, customName, level, favorite
-    petID, speciesID, isOwned, customName, level, favorite = SafeCall(C_PetJournal.GetPetInfoByPetID, guid)
+    -- Fast path: direct query by pet GUID.
+    if C_PetJournal and C_PetJournal.GetPetInfoByPetID then
+        local petID, speciesID, isOwned, customName
+        petID, speciesID, isOwned, customName = SafeCall(C_PetJournal.GetPetInfoByPetID, guid)
 
-    if type(customName) == "string" and customName ~= "" then
-        return customName
+        if type(customName) == "string" and customName ~= "" then
+            return customName
+        end
+
+        local speciesName = NameFromSpecies(speciesID)
+        if type(speciesName) == "string" and speciesName ~= "" then
+            return speciesName
+        end
     end
 
-    if not (C_PetJournal and C_PetJournal.GetPetInfoBySpeciesID) then
-        return nil
-    end
-
-    local speciesName = SafeCall(C_PetJournal.GetPetInfoBySpeciesID, speciesID)
-    if type(speciesName) == "string" and speciesName ~= "" then
-        return speciesName
+    -- Fallback: scan the journal list (works even when the direct query is flaky).
+    if C_PetJournal and C_PetJournal.GetNumPets and C_PetJournal.GetPetInfoByIndex then
+        local numPetsRaw = SafeCall(C_PetJournal.GetNumPets)
+        local numPets = tonumber(numPetsRaw) or 0
+        for i = 1, numPets do
+            local petID, speciesID, isOwned, customName
+            petID, speciesID, isOwned, customName = SafeCall(C_PetJournal.GetPetInfoByIndex, i)
+            if petID == guid then
+                if type(customName) == "string" and customName ~= "" then
+                    return customName
+                end
+                local speciesName = NameFromSpecies(speciesID)
+                if type(speciesName) == "string" and speciesName ~= "" then
+                    return speciesName
+                end
+                break
+            end
+        end
     end
 
     return nil
+end
+
+local function GetPetDisplayName(guid)
+    local custom = GetPetWalkCustomName(guid)
+    if type(custom) == "string" and custom ~= "" then
+        return custom
+    end
+
+    local name = GetPetNameByGUID(guid)
+    if type(name) == "string" and name ~= "" then
+        return name
+    end
+
+    if type(guid) == "string" and guid ~= "" then
+        local short = string.match(guid, "([^-]+)$") or guid
+        return "GUID " .. tostring(short)
+    end
+
+    return "Unknown"
+end
+
+local function IsUsablePetGUID(guid)
+    if type(guid) ~= "string" or guid == "" then
+        return false
+    end
+    if not string.match(guid, "^BattlePet%-%d+%-%x+$") then
+        return false
+    end
+
+    -- Config capture should still work even if the journal query is unavailable.
+    if not (C_PetJournal and C_PetJournal.GetPetInfoByPetID) then
+        return true
+    end
+
+    local petID, _, isOwned
+    petID, _, isOwned = SafeCall(C_PetJournal.GetPetInfoByPetID, guid)
+
+    -- In some states this API can fail transiently for a valid summoned GUID.
+    if not petID then
+        return true
+    end
+
+    -- If ownership is unknown (nil), keep the GUID usable for config/list purposes.
+    if type(isOwned) == "boolean" then
+        return isOwned
+    end
+
+    return true
+end
+
+local function GetSelectedPetGUID()
+    if C_PetJournal and C_PetJournal.GetSelectedPet then
+        local selected = SafeCall(C_PetJournal.GetSelectedPet)
+        if type(selected) == "string" and selected ~= "" then
+            return selected
+        end
+    end
+    return nil
+end
+
+local function GetCurrentPetGUIDForConfig()
+    local summoned = GetSummonedGUID()
+    if type(summoned) == "string" and summoned ~= "" then
+        return summoned
+    end
+
+    local selected = GetSelectedPetGUID()
+    if type(selected) == "string" and selected ~= "" then
+        return selected
+    end
+
+    local specific = AutoGossip_Settings and AutoGossip_Settings.petWalkSpecificGUIDAcc
+    if IsUsablePetGUID(specific) then
+        return specific
+    end
+
+    return nil
+end
+
+local function IsDebugEnabled()
+    InitSV()
+    return (AutoGossip_Settings and AutoGossip_Settings.petWalkDebugAcc) and true or false
+end
+
+local function SetDebugEnabled(v)
+    InitSV()
+    if type(AutoGossip_Settings) ~= "table" then
+        return
+    end
+    AutoGossip_Settings.petWalkDebugAcc = (v and true or false)
+end
+
+local function DebugPrint(msg)
+    if not IsDebugEnabled() then
+        return
+    end
+    print("|cff00ccff[FGO]|r PW Debug: " .. tostring(msg or ""))
 end
 
 local function PickFavoritePetGUID()
@@ -223,6 +462,28 @@ local function TrySummon(reason)
         end
 
         -- Fallback: if specific is not set/valid, behave like favorite.
+        mode = "favorite"
+    end
+
+    if mode == "list" then
+        local list = GetPetWalkListAcc()
+        if type(list) == "table" and #list > 0 and C_PetJournal and C_PetJournal.SummonPetByGUID then
+            local candidates = {}
+            for i = 1, #list do
+                local guid = list[i]
+                if IsUsablePetGUID(guid) then
+                    candidates[#candidates + 1] = guid
+                end
+            end
+
+            if #candidates > 0 then
+                local idx = math.random(1, #candidates)
+                SafeCall(C_PetJournal.SummonPetByGUID, candidates[idx])
+                return true
+            end
+        end
+
+        -- Fallback: if list is empty/invalid, behave like favorite.
         mode = "favorite"
     end
 
@@ -706,7 +967,7 @@ local function EnsureConfigPopup()
     end
 
     local p = CreateFrame("Frame", "FGO_PetWalkConfigPopup", UIParent, "BackdropTemplate")
-    p:SetSize(360, 220)
+    p:SetSize(560, 250)
     do
         local main = _G and rawget(_G, "AutoGameOptions")
         if main and main.IsShown and main:IsShown() then
@@ -794,31 +1055,211 @@ local function EnsureConfigPopup()
     end
 
     local btnMode = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    btnMode:SetSize(330, 22)
-    btnMode:SetPoint("TOP", p, "TOP", 0, -40)
+    btnMode:SetSize(250, 22)
+    btnMode:SetPoint("TOPLEFT", p, "TOPLEFT", 12, -40)
     p.btnMode = btnMode
 
     local btnSpecific = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    btnSpecific:SetSize(160, 22)
+    btnSpecific:SetSize(120, 22)
     btnSpecific:SetPoint("TOPLEFT", btnMode, "BOTTOMLEFT", 0, -10)
     btnSpecific:SetText("Use Current Pet")
     p.btnSpecific = btnSpecific
 
+    local btnAddList = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    btnAddList:SetSize(120, 22)
+    btnAddList:SetPoint("LEFT", btnSpecific, "RIGHT", 10, 0)
+    btnAddList:SetText("Add To List")
+    p.btnAddList = btnAddList
+
     local specificLabel = p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    specificLabel:SetPoint("LEFT", btnSpecific, "RIGHT", 10, 0)
+    specificLabel:SetPoint("TOPLEFT", btnSpecific, "BOTTOMLEFT", 2, -6)
+    specificLabel:SetWidth(250)
     specificLabel:SetJustifyH("LEFT")
     specificLabel:SetText("Specific: (none)")
     p.specificLabel = specificLabel
 
     local btnDelay = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    btnDelay:SetSize(160, 22)
-    btnDelay:SetPoint("TOPLEFT", btnSpecific, "BOTTOMLEFT", 0, -10)
+    btnDelay:SetSize(120, 22)
+    btnDelay:SetPoint("TOPLEFT", specificLabel, "BOTTOMLEFT", -2, -10)
     p.btnDelay = btnDelay
 
     local btnStealth = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    btnStealth:SetSize(160, 22)
+    btnStealth:SetSize(120, 22)
     btnStealth:SetPoint("LEFT", btnDelay, "RIGHT", 10, 0)
     p.btnStealth = btnStealth
+
+    local statusLabel = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    statusLabel:SetPoint("TOPLEFT", btnDelay, "BOTTOMLEFT", 0, -8)
+    statusLabel:SetWidth(250)
+    statusLabel:SetJustifyH("LEFT")
+    statusLabel:SetText("")
+    p.statusLabel = statusLabel
+
+    local btnDebug = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    btnDebug:SetSize(250, 22)
+    btnDebug:SetPoint("TOPLEFT", statusLabel, "BOTTOMLEFT", 0, -8)
+    btnDebug:SetText("Debug: OFF")
+    p.btnDebug = btnDebug
+
+    local listPanel = CreateFrame("Frame", nil, p, "BackdropTemplate")
+    listPanel:SetPoint("TOPRIGHT", p, "TOPRIGHT", -12, -34)
+    listPanel:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -12, 12)
+    listPanel:SetWidth(270)
+    listPanel:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        tile = true,
+        tileSize = 16,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    listPanel:SetBackdropColor(1, 1, 1, 0.06)
+    p.listPanel = listPanel
+
+    local listTitle = listPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    listTitle:SetPoint("TOPLEFT", listPanel, "TOPLEFT", 8, -8)
+    listTitle:SetText("Pet Walk List")
+    p.listTitle = listTitle
+
+    local listHint = listPanel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    listHint:SetPoint("TOPLEFT", listTitle, "BOTTOMLEFT", 0, -4)
+    listHint:SetText("Mode: List uses only these pets")
+    p.listHint = listHint
+
+    local listScroll = CreateFrame("ScrollFrame", nil, listPanel, "FauxScrollFrameTemplate")
+    listScroll:SetPoint("TOPLEFT", listPanel, "TOPLEFT", 8, -36)
+    listScroll:SetPoint("BOTTOMRIGHT", listPanel, "BOTTOMRIGHT", -24, 8)
+    listScroll:EnableMouseWheel(true)
+    p.listScroll = listScroll
+
+    -- We keep wheel scrolling, but hide the faux scrollbar chrome.
+    do
+        local sb = listScroll.ScrollBar or listScroll.scrollBar
+        if sb and sb.Hide then sb:Hide() end
+        if sb and sb.SetAlpha then sb:SetAlpha(0) end
+    end
+
+    local ROW_H = 20
+    local VISIBLE_ROWS = 8
+    local listRows = {}
+    p.listRows = listRows
+
+    local function OpenRenamePopupForGUID(guid)
+        if type(guid) ~= "string" or guid == "" then
+            return
+        end
+        if type(StaticPopup_Show) ~= "function" or type(StaticPopupDialogs) ~= "table" then
+            return
+        end
+
+        local key = "FGO_PETWALK_LIST_RENAME"
+        if type(StaticPopupDialogs[key]) ~= "table" then
+            StaticPopupDialogs[key] = {
+                text = "Rename pet list entry",
+                button1 = "Save",
+                button2 = "Cancel",
+                hasEditBox = true,
+                maxLetters = 32,
+                timeout = 0,
+                whileDead = true,
+                hideOnEscape = true,
+                preferredIndex = 3,
+                OnAccept = function(self, data)
+                    local editBox = self and self.editBox
+                    local text = editBox and editBox.GetText and editBox:GetText() or ""
+                    if data and type(data.guid) == "string" and data.guid ~= "" then
+                        SetPetWalkCustomName(data.guid, text)
+                    end
+                    if data and data.popup and data.popup.RefreshFromSV then
+                        data.popup.RefreshFromSV()
+                    end
+                end,
+                EditBoxOnEnterPressed = function(self)
+                    local parent = self and self.GetParent and self:GetParent()
+                    if parent and parent.button1 and parent.button1.Click then
+                        parent.button1:Click()
+                    end
+                end,
+                EditBoxOnEscapePressed = function(self)
+                    local parent = self and self.GetParent and self:GetParent()
+                    if parent and parent.Hide then
+                        parent:Hide()
+                    end
+                end,
+            }
+        end
+
+        local current = GetPetWalkCustomName(guid) or GetPetNameByGUID(guid) or ""
+        local dlg = StaticPopup_Show(key, "Rename pet list entry", nil, { guid = guid, popup = p })
+        if dlg and dlg.editBox then
+            dlg.editBox:SetText(current)
+            dlg.editBox:HighlightText()
+            dlg.editBox:SetFocus()
+        end
+    end
+
+    for i = 1, VISIBLE_ROWS do
+        local row = CreateFrame("Button", nil, listPanel)
+        row:SetHeight(ROW_H)
+        row:SetPoint("TOPLEFT", listPanel, "TOPLEFT", 8, -36 - ((i - 1) * ROW_H))
+        row:SetPoint("RIGHT", listPanel, "RIGHT", -8, 0)
+
+        local btnRename = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        btnRename:SetSize(18, 18)
+        btnRename:SetPoint("RIGHT", row, "RIGHT", -24, 0)
+        btnRename:SetText("R")
+        row.btnRename = btnRename
+
+        local btnDel = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        btnDel:SetSize(18, 18)
+        btnDel:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+        btnDel:SetText("X")
+        row.btnDel = btnDel
+
+        local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetPoint("LEFT", row, "LEFT", 2, 0)
+        fs:SetPoint("RIGHT", btnRename, "LEFT", -2, 0)
+        fs:SetJustifyH("LEFT")
+        fs:SetWordWrap(false)
+        row.fs = fs
+
+        row:SetScript("OnClick", function(self)
+            if type(self._guid) ~= "string" or self._guid == "" then
+                return
+            end
+            AutoGossip_Settings.petWalkSpecificGUIDAcc = self._guid
+            AutoGossip_Settings.petWalkModeAcc = "specific"
+            if p.RefreshFromSV then
+                p.RefreshFromSV()
+            end
+            BP.OnSettingsChanged()
+        end)
+
+        btnDel:SetScript("OnClick", function(self)
+            local parent = self:GetParent()
+            local idx = parent and parent._listIndex
+            local guid = parent and parent._guid
+            local list = GetPetWalkListAcc()
+            if type(idx) == "number" and type(list) == "table" and idx >= 1 and idx <= #list then
+                table.remove(list, idx)
+                if type(guid) == "string" and guid ~= "" then
+                    SetPetWalkCustomName(guid, "")
+                end
+                if p.RefreshFromSV then
+                    p.RefreshFromSV()
+                end
+                BP.OnSettingsChanged()
+            end
+        end)
+
+        btnRename:SetScript("OnClick", function(self)
+            local parent = self:GetParent()
+            local guid = parent and parent._guid
+            OpenRenamePopupForGUID(guid)
+        end)
+
+        row:Hide()
+
+        listRows[i] = row
+    end
 
     -- OSD/Lock/Input/XY row (copied from Mount Up patterns)
     local SPLIT_W, SPLIT_H = 90, 18
@@ -982,7 +1423,7 @@ local function EnsureConfigPopup()
         InitSV()
 
         local mode = GetMode()
-        local modeText = (mode == "random" and "Random") or (mode == "favorite" and "Favorites") or "Specific"
+        local modeText = (mode == "random" and "Random") or (mode == "favorite" and "Favorites") or (mode == "specific" and "Specific") or "List"
         btnMode:SetText("Mode: " .. modeText)
 
         local delay = GetDelay()
@@ -1005,10 +1446,35 @@ local function EnsureConfigPopup()
             specificLabel:SetText("Specific: (none)")
         end
 
+        local list = GetPetWalkListAcc() or {}
+        local total = #list
+        FauxScrollFrame_Update(listScroll, total, VISIBLE_ROWS, ROW_H)
+        local offset = FauxScrollFrame_GetOffset(listScroll)
+
+        for i = 1, VISIBLE_ROWS do
+            local row = listRows[i]
+            local idx = offset + i
+            local petGUID = list[idx]
+            if type(petGUID) == "string" and petGUID ~= "" then
+                local petName = GetPetDisplayName(petGUID)
+
+                row._guid = petGUID
+                row._listIndex = idx
+                row.fs:SetText(petName)
+                row:Show()
+            else
+                row._guid = nil
+                row._listIndex = nil
+                row.fs:SetText("")
+                row:Hide()
+            end
+        end
+
         local ui = GetUI()
         local floatOn = (ui and ui.petWalkFloatEnabled) and true or false
         local locked = (ui and ui.petWalkFloatLocked) and true or false
         local size = (ui and tonumber(ui.petWalkFloatTextSize)) or 12
+        local debugOn = IsDebugEnabled()
 
         SetSegGreenGreyFS(fsOSD, "OSD", floatOn)
         SetSegGreenGreyFS(fsLock, "Lock", locked)
@@ -1017,10 +1483,80 @@ local function EnsureConfigPopup()
             sizeBox.eb:SetText(string.format("%02d", math.floor(size + 0.5)))
         end
 
+        if debugOn then
+            btnDebug:SetText("Debug: |cff00ff00ON|r")
+        else
+            btnDebug:SetText("Debug: |cff888888OFF|r")
+        end
+
         RefreshXYBtn()
     end
 
+    local function SetStatus(text, r, g, b)
+        if not (statusLabel and statusLabel.SetText and statusLabel.SetTextColor) then
+            return
+        end
+        statusLabel:SetText(tostring(text or ""))
+        statusLabel:SetTextColor(tonumber(r) or 0.75, tonumber(g) or 0.75, tonumber(b) or 0.75, 1)
+    end
+
+    local function BuildDebugText()
+        local summoned = GetSummonedGUID()
+        local selected = GetSelectedPetGUID()
+        local specific = AutoGossip_Settings and AutoGossip_Settings.petWalkSpecificGUIDAcc
+        local resolved = GetCurrentPetGUIDForConfig()
+        local mode = GetMode()
+        local list = GetPetWalkListAcc() or {}
+
+        local function S(v)
+            if type(v) == "string" and v ~= "" then
+                return v
+            end
+            return "(none)"
+        end
+
+        local lines = {
+            "Mode=" .. tostring(mode),
+            "Summoned=" .. S(summoned),
+            "Selected=" .. S(selected),
+            "Specific=" .. S(specific),
+            "Resolved=" .. S(resolved),
+            "ListCount=" .. tostring(#list),
+        }
+
+        return table.concat(lines, "\n")
+    end
+
+    local function DebugPrintSnapshot(tag)
+        local text = BuildDebugText()
+        local first = tostring(tag or "snapshot")
+        DebugPrint(first)
+        for line in string.gmatch(text, "[^\n]+") do
+            DebugPrint(line)
+        end
+    end
+
     p.RefreshFromSV = RefreshFromSV
+
+    listScroll:SetScript("OnVerticalScroll", function(self, offset)
+        FauxScrollFrame_OnVerticalScroll(self, offset, ROW_H, function()
+            if p.RefreshFromSV then
+                p.RefreshFromSV()
+            end
+        end)
+    end)
+    listScroll:SetScript("OnMouseWheel", function(self, delta)
+        local total = #(GetPetWalkListAcc() or {})
+        local maxOffset = math.max(0, total - VISIBLE_ROWS)
+        local cur = FauxScrollFrame_GetOffset(self)
+        local nextOffset = cur - (delta or 0)
+        if nextOffset < 0 then nextOffset = 0 end
+        if nextOffset > maxOffset then nextOffset = maxOffset end
+        FauxScrollFrame_SetOffset(self, nextOffset)
+        if p.RefreshFromSV then
+            p.RefreshFromSV()
+        end
+    end)
 
     btnMode:SetScript("OnClick", function()
         InitSV()
@@ -1029,6 +1565,8 @@ local function EnsureConfigPopup()
             m = "favorite"
         elseif m == "favorite" then
             m = "specific"
+        elseif m == "specific" then
+            m = "list"
         else
             m = "random"
         end
@@ -1039,14 +1577,71 @@ local function EnsureConfigPopup()
 
     btnSpecific:SetScript("OnClick", function()
         InitSV()
-        local guid = GetSummonedGUID()
+        local guid = GetCurrentPetGUIDForConfig()
         if type(guid) ~= "string" or guid == "" then
+            SetStatus("No current pet found. Summon one or select one in Pet Journal.", 1.0, 0.45, 0.45)
+            DebugPrintSnapshot("Use Current Pet -> no guid")
             return
         end
         AutoGossip_Settings.petWalkSpecificGUIDAcc = guid
         AutoGossip_Settings.petWalkModeAcc = "specific"
+        local name = GetPetDisplayName(guid)
+        SetStatus("Specific set: " .. tostring(name), 0.45, 1.0, 0.45)
+        DebugPrint("Use Current Pet -> set specific: " .. tostring(name) .. " (" .. tostring(guid) .. ")")
+        DebugPrintSnapshot("Use Current Pet -> snapshot")
         RefreshFromSV()
         BP.OnSettingsChanged()
+    end)
+
+    btnAddList:SetScript("OnClick", function()
+        InitSV()
+        local guid = GetCurrentPetGUIDForConfig()
+        if type(guid) ~= "string" or guid == "" then
+            SetStatus("No current pet found. Summon one or select one in Pet Journal.", 1.0, 0.45, 0.45)
+            DebugPrintSnapshot("Add To List -> no guid")
+            return
+        end
+        if not IsUsablePetGUID(guid) then
+            SetStatus("That pet is not usable for this character.", 1.0, 0.45, 0.45)
+            DebugPrint("Add To List -> unusable guid: " .. tostring(guid))
+            DebugPrintSnapshot("Add To List -> unusable")
+            return
+        end
+
+        local added, reason = AddPetWalkListGUID(guid)
+        if added then
+            AutoGossip_Settings.petWalkModeAcc = "list"
+            local name = GetPetDisplayName(guid)
+            SetStatus("Added to list: " .. tostring(name), 0.45, 1.0, 0.45)
+            DebugPrint("Add To List -> added: " .. tostring(name) .. " (" .. tostring(guid) .. ")")
+            DebugPrintSnapshot("Add To List -> added")
+            RefreshFromSV()
+            BP.OnSettingsChanged()
+            return
+        end
+
+        if reason == "duplicate" then
+            SetStatus("Pet is already in the list.", 1.0, 0.82, 0.25)
+            DebugPrint("Add To List -> duplicate: " .. tostring(guid))
+        else
+            SetStatus("Unable to add pet to list.", 1.0, 0.45, 0.45)
+            DebugPrint("Add To List -> failed: " .. tostring(guid) .. " reason=" .. tostring(reason))
+        end
+        DebugPrintSnapshot("Add To List -> failed snapshot")
+    end)
+
+    btnDebug:SetScript("OnClick", function()
+        InitSV()
+        local on = not IsDebugEnabled()
+        SetDebugEnabled(on)
+        if on then
+            SetStatus("Pet Walk debug enabled. Printing to chat.", 0.45, 1.0, 0.45)
+            DebugPrintSnapshot("Debug toggled ON")
+        else
+            SetStatus("Pet Walk debug disabled.", 0.75, 0.75, 0.75)
+            print("|cff00ccff[FGO]|r PW Debug: OFF")
+        end
+        RefreshFromSV()
     end)
 
     btnDelay:SetScript("OnClick", function()
@@ -1181,6 +1776,10 @@ local function EnsureConfigPopup()
             p.RefreshFromSV()
         end
     end)
+
+    if p.RefreshFromSV then
+        p.RefreshFromSV()
+    end
 
     configPopup = p
     return configPopup

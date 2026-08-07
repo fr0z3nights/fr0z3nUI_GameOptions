@@ -106,44 +106,51 @@ end
 
 SetZone("Azj-Kahet, Khaz Algar")
 
-    t = NPC("Weaver's Instructions", 220462)
-    t[121566] = { text = "(Delve) <Close the scroll and take the Weaver's web grappling hook.>" }
+	t = NPC("Weaver's Instructions", 220462)
+	t[121566] = { text = "(Delve) <Close the scroll and take the Weaver's web grappling hook.>" }
 
 SetZone("Dornogal, Khaz Algar")
 
-    t = NPC("Brann Bronzebeard", 206017)
-    t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
-    t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
+	t = NPC("Brann Bronzebeard", 206017)
+	t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
+	t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
 
-    t = NPC("Delver's Guide", 227675)
-    t[123493] = { text = "<Review information on your current delve progress.>" }
+	t = NPC("Breem", {212369,})
+	t[120910] = { text = "Show me where I can fly." }
 
-    t = NPC("Ronesh", 212370)
-    t[121503] = { text = "I want to browse your goods." }
+	t = NPC("Delver's Guide", 227675)
+	t[123493] = { text = "<Review information on your current delve progress.>" }
 
+	t = NPC("Ronesh", 212370)
+	t[121503] = { text = "I want to browse your goods." }
 
 SetZone("Hallowfall, Khaz Algar")
 
-    t = NPC("Aliya Hillhelm", 220293)
-    t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this." }
+	t = NPC("Aliya Hillhelm", 220293)
+	t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this." }
 
-    t = NPC("Chef Dinaire", 220354)
-    t[121539] = { text = "(Delve) I love scavenger hunts AND treasure. I'm in!" }
-    t[121541] = { text = "(Delve) Go get the treasure while I handle whatever is about to attack us." }
+	t = NPC("Chef Dinaire", 220354)
+	t[121539] = { text = "(Delve) I love scavenger hunts AND treasure. I'm in!" }
+	t[121541] = { text = "(Delve) Go get the treasure while I handle whatever is about to attack us." }
 
-    t = NPC("Lamplighter Havrik Chayvn", 220585)
-    t[121408] = { text = "(Delve) I'll go deeper in and stop the nerubian ritual." }
+	t = NPC("Lamplighter Havrik Chayvn", 220585)
+	t[121408] = { text = "(Delve) I'll go deeper in and stop the nerubian ritual." }
 
-    t = NPC("Zah'ran", 248927)
-    t[135013] = { text = "Show me." }
+	t = NPC("Zah'ran", 248927)
+	t[135013] = { text = "Show me." }
+
+SetZone("The Ringing Deeps, Khaz Algar")
+
+	t = NPC("Clixi Fastfare", {224884,})
+	t[122682] = { text = "Show me where I can fly." }
 
 SetZone("K'aresh, Khaz Algar")
 
-    	t = NPC("Adarus Duskblaze", {236907, 246325})
-    	t[134065] = { text = "Can you tell me where Umbric's apprentice went?", close = true }
-    	t[133876] = { text = "<Report on Leona's success in harvesting Ramon'ta's void essence.>", close = true }
-    	t[132974] = { text = "Are you ready, Adarus?", close = true }
+	t = NPC("Adarus Duskblaze", {236907, 246325})
+	t[134065] = { text = "Can you tell me where Umbric's apprentice went?", close = true }
+	t[133876] = { text = "<Report on Leona's success in harvesting Ramon'ta's void essence.>", close = true }
+	t[132974] = { text = "Are you ready, Adarus?", close = true }
 
-    	t = NPC("Magister Umbric", 248153)
-    	t[134092] = { text = "<Listen to Leona's report.>", close = true }
+	t = NPC("Magister Umbric", 248153)
+	t[134092] = { text = "<Listen to Leona's report.>", close = true }
 

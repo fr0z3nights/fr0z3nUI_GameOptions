@@ -69,12 +69,47 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
 --  10  Dragonflight
     { key = "X10:ArchmageKhadgar",  text = "Archmage Khadgar says" },
+    { key = "X10:BoneboltHunter",   text = "Bonebolt Hunter" },
+    { key = "X10:ClawFighter",      text = "Claw Fighter" },
+    { key = "X10:EminentEarthshpr", text = "Eminent Earthshaper yells" },
     { key = "X10:Kalecgos",         text = "Kalecgos says" },
     { key = "X10:Kalecgos",         text = "Kalecgos yells" },
-    { key = "X10:EminentEarthshpr", text = "Eminent Earthshaper yells" },
     { key = "X10:QuarryEarthshapr", text = "Quarry Earthshaper yells" },
+    { key = "X10:Sindragosa",       text = "Sindragosa says" },
+    { key = "X10:TarasekLooter",    text = "Tarasek Looter says" },
+    { key = "X10:TelashGreywing",   text = "Telash Greywing yells" },
+    { key = "X10:TrickclawMystic",  text = "Trickclaw Mystic" },
+    { key = "X10:UnrulyTextbook",   text = "Unruly Textbook says" },
+    { key = "X10:ProfessorMaxdorm", text = "Professor Maxdormu says" },
+    { key = "X10:Malinor",          text = "Malinor says" },
+    { key = "X10:ProfessorIchstrz", text = "Professor Ichistrasz says" },
+    { key = "X10:ProfessorMystakr", text = "Professor Mystakria says" },
+    { key = "X10:EchoOfDoragosa",   text = "Echo of Doragosa" },
+    { key = "X10:MelidrussaChlwrn", text = "Melidrussa Chillworn says" },
+    { key = "X10:MajordomoSelistr", text = "Majordomo Selistra" },
+    { key = "X10:KokiaBlazehoof",   text = "Kokia Blazehoof yells" },
+    { key = "X10:Tricktotem",       text = "Tricktotem says" },
+    { key = "X10:CaptiveTuskarr",   text = "Captive Tuskarr says" },
+    { key = "X10:RiraHackclaw",     text = "Rira Hackclaw says" },
+    { key = "X10:CruelBonecrusher", text = "Cruel Bonecrusher" },
+    { key = "X10:Gobstabber",       text = "Gobstabber" },
+    { key = "X10:Gutstabber",       text = "Gutstabber" },
+    { key = "X10:DecatriarchWrthy", text = "Decatriarch Wratheye" },
+    { key = "X10:Bertinuat",        text = "Bertinuat says" },
+    { key = "X10:Sentiu",           text = "Sentiu says" },
+    { key = "X10:Japukitat",        text = "Japukitat says" },
+    { key = "X10:SkulkingGutstbbr", text = "Skulking Gutstabber" },
+    { key = "X10:BrackenhideShapr", text = "Brackenhide Shaper says" },
+    { key = "X10:BloodthirstyCub",  text = "Bloodthirsty Cub" },
+    { key = "X10:DefierDraghar",    text = "Defier Draghar says" },
+
+
+
+
+
 --  07  Legion
     { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
+    { key = "X07:PBWinLitHlp",       text = "Winter's Little Helper says" },
 --  06  Draenor
     { key = "X06:PBTaralune",       text = "Taralune says" },
     { key = "X06:PhilHinbrd",       text = "Phillip Hillenbrand says" },
@@ -107,7 +142,8 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X05:ShadowmoonChanl",  text = "Shadowmoon Channeler" },
     { key = "X05:ShadowmoonTechn",  text = "Shadowmoon Technician" },
     { key = "X05:BloodwarderFlcnr", text = "Bloodwarder Falconer yells" },
-
+    { key = "X05:Ordinary",         text = "Ordinary yells" },
+    { key = "X05:EtherealCrptRadr", text = "Ethereal Crypt Raider becomes enraged" },
 --  01  Stormwind
     { key = "X01:JaneyAnship",      text = "Janey Anship says" },
     { key = "X01:LisanPierce",      text = "Lisan Pierce says" },
@@ -130,6 +166,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "SLH:LootBindNTrf",     text = "Auto Approved Performing this action" },
     { key = "SLH:LUAErrors",        text = "Auto Approved Ignoring Too Many Lua Errors" },
     { key = "VMB:Version",          text = "Vamoose's Endeavors v" },
+    { key = "VND:WindowNotOpen",    text = "Merchant window is not open." },
     { key = "XAN:Loaded",           text = "] loaded" },
     { key = "ZYG:ActvGuide",        text = "Activated guide:" },
     { key = "ZYG:GoldGuide",        text = "Gold Guide:" },

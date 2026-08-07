@@ -141,9 +141,18 @@ SetZone("Thaldraszus, Dragon Isles")
 	t[107551] = { text = "Carry me into battle." }
 	t[107552] = { text = "We have need of your aid." }
 	t[107553] = { text = "Carry me into battle." }
+	
     t[ 55981] = { text = "Begin the assault.", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "This will begin the assault" }, within = 3, }, }
 
 SetZone("The Azure Span, Dragon Isles")
+
+	t = MAP("The Azure Vault Dungeon", { 2074, 2075, 2076, })
+	t[56056] = { text = "Proceed onward." }
+	t[56247] = { text = "Proceed onward." }
+	t[56248] = { text = "Proceed onward." }
+	t[56250] = { text = "Proceed onward." }
+	t[56250] = { text = "Proceed onward." }
+	t[56251] = { text = "Proceed onward." }
 
 	t = NPC("Tattukiaka", { 199448, })
 	t[107742] = { text = "Let's see what you have on offer." }	-- Awaken the Ancient Protector (88927) Tattukiaka (199448)

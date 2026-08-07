@@ -197,8 +197,9 @@ SetZone("Midnight Intro")
 
 SetZone("Eversong Woods, Eastern Kingdoms")
 
-	t = MAP("Delve: The Shadow Enclave", 2502)
+	t = MAP("The Shadow Enclave Delve", 2502)
 	t[137580] = { text = "Use the mirrors to spread the light. Got it." }
+	t[137619] = { text = "Looting and killing, understood!" }
 
 	t = NPC("Alesil Dawnblood", {252599, })
 	t[136288] = { text = "I'll defend the runestone" }      -- And Then They Came (92398) Alesil Dawnblood (252599)
@@ -491,6 +492,9 @@ SetZone("Harandar, Eastern Kingdoms")
 
 SetZone("Quel'Thalas, Eastern Kingdoms")
 		--
+	t = MAP("Parhelion Plaza Delve", {2545,})
+	t[136477] = { text = "I will break that shield and eliminate the units inside." }                        -- Delve (92618)
+
 	t = NPC("Alonsus Faol", { 236789, 240240, 251355, })
 	t[132515] = { text = "The Vanguard rallies at Sunstrider Rise." }                                     -- Champions of Quel'Danas (68770)  Alonsus Faol (236789)
 	t[138693] = { text = "<Tell Alonsus you are ready to go to Light's Hope.>" }                          -- Relic's of Light's Hope (86839) Alonsus Faol (240240)
@@ -527,135 +531,143 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 
 	t = NPC("Lady Liadrin", {237278, 247414})
 	t[132924] = { text = "Nothing will get past me!" }
-	t[133700] = { text = "How does the Sunwell fare, Liadrin?" }                                          -- Feeding the Flame (90777) Lady Liadrin (247414)
+	t[133700] = { text = "How does the Sunwell fare, Liadrin?" }										-- Feeding the Flame (90777) Lady Liadrin (247414)
 
 	t = NPC("Lathraxion", { 236657, })
-	t[132514] = { text = "The Vanguard rallies at Sunstrider Rise." }                                     -- Champions of Quel'Danas (68770)  Lathraxion (236657)
+	t[132514] = { text = "The Vanguard rallies at Sunstrider Rise." }									-- Champions of Quel'Danas (68770)  Lathraxion (236657)
 
 	t = NPC("Magister Umbric", { 235395, 234148, })
-	t[131939] = { text = "<Tell Umbric you'd like to enter Magiers' Terrace.>" }                          -- Magisters' Terrace: Homecoming (86543) Magister Umbric (235395)
-	t[135804] = { text = "<Tell Umbric you'd like to enter Magiers' Terrace.>" }                          -- Magisters' Terrace: Homecoming (86543) Magister Umbric (234148)
+	t[131939] = { text = "<Tell Umbric you'd like to enter Magiers' Terrace.>" }						-- Magisters' Terrace: Homecoming (86543) Magister Umbric (235395)
+	t[135804] = { text = "<Tell Umbric you'd like to enter Magiers' Terrace.>" }						-- Magisters' Terrace: Homecoming (86543) Magister Umbric (234148)
 
 	t = NPC("Mehlar Dawnblade", { 248321, })
-	t[134854] = { text = "This is Uther's kit from his work as a healer...", close = true }               -- Relinquishing Relics (86902)  Mehlar Dawnblade (248321)
+	t[134854] = { text = "This is Uther's kit from his work as a healer...", close = true }				-- Relinquishing Relics (86902)  Mehlar Dawnblade (248321)
 
 	t = NPC("Prophet Velen", { 239623, })
-	t[136038] = { text = "<Give Velen the remaining relics to distribute.>", close = true }               -- Relinquishing Relics (86902)  Prophet Velen (239623)
+	t[136038] = { text = "<Give Velen the remaining relics to distribute.>", close = true }				-- Relinquishing Relics (86902)  Prophet Velen (239623)
 
 	t = NPC("Salandria", { 248322, })
-	t[134853] = { text = "Take this sword. It has a great deal of Light within it...", close = true }     -- Relinquishing Relics (86902)  Salandria (248322)
+	t[134853] = { text = "Take this sword. It has a great deal of Light within it...", close = true }	-- Relinquishing Relics (86902)  Salandria (248322)
 
 	t = NPC("Scared Civilian", { 240156, 240125, 240075, 240074, 240152, 240073, 240068, })
-	t[132686] = { text = "Arator and I will see you safely to the boats." }                               -- The Hour of Need (86805)   Scared Civilian (240156)
-	t[132670] = { text = "Arator and I will see you safely to the boats." }                               -- The Hour of Need (86805)   Scared Civilian (240125)
-	t[132655] = { text = "Arator and I will see you safely to the boats." }                               -- The Hour of Need (86805)   Scared Civilian (240075)
-	t[132654] = { text = "Arator and I will see you safely to the boats." }                               -- The Hour of Need (86805)   Scared Civilian (240074)
-	t[132685] = { text = "Arator and I will see you safely to the boats." }                               -- The Hour of Need (86805)   Scared Civilian (240152)
-	t[132656] = { text = "Arator and I will see you safely to the boats." }                               -- The Hour of Need (86805)   Scared Civilian (240073)
-	t[132653] = { text = "Arator and I will see you safely to the boats." }                               -- The Hour of Need (86805)   Scared Civilian (240068)
+	t[132686] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240156)
+	t[132670] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240125)
+	t[132655] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240075)
+	t[132654] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240074)
+	t[132685] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240152)
+	t[132656] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240073)
+	t[132653] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240068)
 
 	t = NPC("Taelia Fordragon", { 248323, })
-	t[134818] = { text = "I have a relic to sustain you. It's Mara Fordragon's ...", close = true }       -- Relinquishing Relics (86902)  Taelia Fordragon (248323)
+	t[134818] = { text = "I have a relic to sustain you. It's Mara Fordragon's ...", close = true }		-- Relinquishing Relics (86902)  Taelia Fordragon (248323)
 
 	t = NPC("Valunei", { 248326, })
-	t[134855] = { text = "Vindicator Maraad found peace and strength from this...", close = true }        -- Relinquishing Relics (86902)  Valunei (248326)
+	t[134855] = { text = "Vindicator Maraad found peace and strength from this...", close = true }		-- Relinquishing Relics (86902)  Valunei (248326)
 
 	t = NPC("War Chaplain Senn", { 247306, })
-	t[134509] = { text = "Will you bless me, Chaplain?" }                                                 -- Feeding the Flame (90777) War Chaplain Senn (247306)
+	t[134509] = { text = "Will you bless me, Chaplain?" }												-- Feeding the Flame (90777) War Chaplain Senn (247306)
 
 SetZone("Naigtal, Eastern Kingdoms")
 
 	t = NPC("Archmage Y'mera", { 266034, })
-	t[140098] = { text = "I found these crystals on ethereal devices ...", close = true }           -- Conductive Crystals (96569)  Archmage Y'mera (266034)
-	t[140110] = { text = "What's the plan?", close = true }           								-- Soul Lattice Revealed (96573)  Archmage Y'mera (266034)
+	t[140098] = { text = "I found these crystals on ethereal devices ...", close = true }           	-- Conductive Crystals (96569)  Archmage Y'mera (266034)
+	t[140110] = { text = "What's the plan?", close = true }           									-- Soul Lattice Revealed (96573)  Archmage Y'mera (266034)
 
 	t = NPC("Coorina Brightblade", { 268804, })
-	t[140860] = { text = "I want to browse your goods."}  						-- Vendor  Coorina Brightblade (268804)
+	t[140860] = { text = "I want to browse your goods."}  												-- Vendor  Coorina Brightblade (268804)
 
 	t = NPC("Kifaan", { 265559, })
-	t.__meta.stopIfQuestAvailable = { 96569, }                                                      -- Waits for Quest Accepted (First NPCID Only)
-	t.__meta.stopIfQuestTurnIn = { 96569, 96809, }                                                 	-- Waits for Quest Hand-Ins (First NPCID Only)
-	t[139928] = { text = "May I browse your wares?"}  							-- Vendor  Kifaan (265559)
+	t.__meta.stopIfQuestAvailable = { 96569, }                                                      	-- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96569, 96809, }                                                 		-- Waits for Quest Hand-Ins (First NPCID Only)
+	t[139928] = { text = "May I browse your wares?"}  													-- Vendor  Kifaan (265559)
 
 		t = NPC("Encrypted Data Collator", { 266038, 266038, })
-	t[139982] = { text = "<Activate manual decryption.>"}            	-- Data Decryption Disaster (96567) Encrypted Data Collator (266038)
-	t[140070] = { text = "<Smack the console with your weapon.>"}                  	-- Data Decryption Disaster (96567) Encrypted Data Collator (266038)
+	t[139982] = { text = "<Activate manual decryption.>"}												-- Data Decryption Disaster (96567) Encrypted Data Collator (266038)
+	t[140070] = { text = "<Smack the console with your weapon.>"}										-- Data Decryption Disaster (96567) Encrypted Data Collator (266038)
 
 SetZone("Silvermoon City, Eastern Kingdoms")
 
+	t = MAP("Collegiate Calamity Delve", { 2577, })
+	t[135708] = { text = "I'll get rid of these weeds!" }
+	t[135865] = { text = "I'll deal with this!" }
+
+	t = MAP("The Darkway Delve", { 2525, })
+	t[136141] = { text = "I'll help you restore the ley lines..." }
+	t[138317] = { text = "Deal with the big ogre. On it!" }
+
    	t = NPC("Allari the Souleater", { 263524, })
-   	t[139905] = { text = "Are you joining Riftblade Maella's strike team?", close = true}                        	-- Stalkers of the Stars (96049) Allari the Souleater (263524)
+   	t[139905] = { text = "Are you joining Riftblade Maella's strike team?", close = true}				-- Stalkers of the Stars (96049) Allari the Souleater (263524)
 
 	t = NPC("Arator", { 244644, 237510, 240267, })
-   	t[133853] = { text = "Alonsus Faol asks that we meet him at the Sunwell." }                           -- Meet at the Sunwell (86837)   Arator (244644)
-   	t[133856] = { text = "Let's go." }                                                                    -- Meet at the Sunwell (86837)   Arator (244644)
-   	t[133121] = { text = "I'm ready!" }                                                                   -- A Bulwark Remade (86833)      Arator (237510)
-   	t[136685] = { text = "What will you do next?" }                                                       -- A Bulwark Remade (86833)      Arator (237510)
-   	t[133560] = { text = "Let's go. (Start Scenario)" }                                                   -- The Battle of the Bridge (88769) Arator (240267)
+   	t[133853] = { text = "Alonsus Faol asks that we meet him at the Sunwell." }							-- Meet at the Sunwell (86837)   Arator (244644)
+   	t[133856] = { text = "Let's go." }																	-- Meet at the Sunwell (86837)   Arator (244644)
+   	t[133121] = { text = "I'm ready!" }																	-- A Bulwark Remade (86833)      Arator (237510)
+   	t[136685] = { text = "What will you do next?" }														-- A Bulwark Remade (86833)      Arator (237510)
+   	t[133560] = { text = "Let's go. (Start Scenario)" }													-- The Battle of the Bridge (88769) Arator (240267)
    	local INTRO_SEEN = "GOTalk:136564:136565"
    	t[136565] = { prio = 10, text = "Let's discuss the plan in full", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
    	t[136564] = { prio = 10, text = "I don't have time <Skip>", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
    	t = NPC("Archmage Y'mera", { 263519, })
-   	t[140038] = { text = "I can help, but I'll need some help becoming invisible." }                         -- Veterams of the Great Dark (96703) Archmage Y'mera (263519)
+   	t[140038] = { text = "I can help, but I'll need some help becoming invisible." }					-- Veterams of the Great Dark (96703) Archmage Y'mera (263519)
 
 	t = NPC("Anduin Wrynn", { 249289, })
-   	t[135179] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>" }                         -- You Know This Evil? (91967) Anduin Wrynn (249289)
-   	t[135178] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>" }                 -- You Know This Evil? (91967) Anduin Wrynn (249289)
+   	t[135179] = { text = "<Explain that Lor'Themar wants to see Umbric freed.>" }						-- You Know This Evil? (91967) Anduin Wrynn (249289)
+   	t[135178] = { text = "<Explain how Umbric is reaserching a way into the Voidstorm>" }				-- You Know This Evil? (91967) Anduin Wrynn (249289)
 
    	t = NPC("Astalor Bloodsworn", { 258221, })
-   	t[135889] = { text = "I'm ready." }                                                                   -- Practical Magic (92178) Astalor Bloodsworn (258221)
+   	t[135889] = { text = "I'm ready." }																	-- Practical Magic (92178) Astalor Bloodsworn (258221)
 
    	t = NPC("Botanist Nathera", { 243355, })
-   	t[138589] = { text = "Train me in Herbalism." }                                                       -- Practical Magic (92178) Botanist Nathera (243355)
+   	t[138589] = { text = "Train me in Herbalism." }														-- Practical Magic (92178) Botanist Nathera (243355)
 
    	t = NPC("Baraat the Longshot", { 263520, })
-   	t[139901] = { text = "Are you joining Riftblade Maella's strike team?", close = true}        		-- Veterans of the Great Dark (96703) Baraat the Longshot (263520)
+   	t[139901] = { text = "Are you joining Riftblade Maella's strike team?", close = true}				-- Veterans of the Great Dark (96703) Baraat the Longshot (263520)
 
    	t = NPC("Belath Dawnblade", { 263523, })
-   	t[139484] = { text = "Riftblade Maella is ready. She awaits ...", close = true}  					-- Stalkers of the Stars (96049) Belath Dawnblade (263523)
+   	t[139484] = { text = "Riftblade Maella is ready. She awaits ...", close = true}						-- Stalkers of the Stars (96049) Belath Dawnblade (263523)
 
 	t = NPC("Belil", 241455)
-   	t[133290] = { text = "I've never seen a rock in my life...", prio = 10 }                              -- Five Finger Discount (89204) Belil (241455)
+   	t[133290] = { text = "I've never seen a rock in my life...", prio = 10 }							-- Five Finger Discount (89204) Belil (241455)
    	t[133293] = { text = "Train me in Mining", prio = -5 }
 
    	t = NPC("Captain Fareeya", 268330)
-   	t[140523] = { text = "Are you joining Riftblade Maella's strike team?", close = true}  	-- Veterans of the Great Dark (96703) Captain Fareeya (268330)
+   	t[140523] = { text = "Are you joining Riftblade Maella's strike team?", close = true}				-- Veterans of the Great Dark (96703) Captain Fareeya (268330)
 
 	t = NPC("Ceera <Banker>", 239664)
-   	t[132676] = { text = "H Lor'themar has requested that we be allowed...", prio = 10 }                  -- Paved in Ash (86735) Ceera (239664)
-   	t[134013] = { text = "A The Alliance will be staying here temporarily.", prio = 9 }                   -- Paved in Ash (86735) Ceera (239664)
+   	t[132676] = { text = "H Lor'themar has requested that we be allowed...", prio = 10 }				-- Paved in Ash (86735) Ceera (239664)
+   	t[134013] = { text = "A The Alliance will be staying here temporarily.", prio = 9 }					-- Paved in Ash (86735) Ceera (239664)
    	t[132677] = { text = "I would like to check my deposit box.", prio = -10 }
 
    	t = NPC("Commander Tala'saan", { 263522, })
-   	t[139483] = { text = "Riftblade Maella is ready. She awaits ...", close = true}                          -- Veterans of the Great Dark (96703) Commander Tala'saan (263522)
+   	t[139483] = { text = "Riftblade Maella is ready. She awaits ...", close = true}						-- Veterans of the Great Dark (96703) Commander Tala'saan (263522)
 
 	t = NPC("Commander Venei Lightblood", { 248630, })
-   	t[135203] = { text = "Why are you seizing people?" }                                                  -- Deepening Shadows (91854) Commander Venei Lightblood (248630)
-   	t[135204] = { text = "Arresting citizens is not why the Vanguard are here." }                         -- Deepening Shadows (91854) Commander Venei Lightblood (248630)
+   	t[135203] = { text = "Why are you seizing people?" }												-- Deepening Shadows (91854) Commander Venei Lightblood (248630)
+   	t[135204] = { text = "Arresting citizens is not why the Vanguard are here." }						-- Deepening Shadows (91854) Commander Venei Lightblood (248630)
 
    	t = NPC("Delver's Guide", 254565)
-   	t[136916] = { text = "<Review information on your current delve progress.>" }                         -- Delver's Guide (254565)
+   	t[136916] = { text = "<Review information on your current delve progress.>" }						-- Delver's Guide (254565)
 
    	t = NPC("Denorin", { 244469, })
-   	t[133942] = { text = "My employer asked me to look for some unique mana wyrms." }                     -- Murder Row: Acting the Part (90819) Denorin (244469)
-   	t[133942] = { text = "My employer asked me to look for some unique mana wyrms." }                     -- Murder Row: Acting the Part (90819) Denorin (244469)
+   	t[133942] = { text = "My employer asked me to look for some unique mana wyrms." }					-- Murder Row: Acting the Part (90819) Denorin (244469)
+   	t[133942] = { text = "My employer asked me to look for some unique mana wyrms." }					-- Murder Row: Acting the Part (90819) Denorin (244469)
 
    	t = NPC("Doomsayer", { 248826, })
-   	t[135052] = { text = "Hail the victories of the Vanguard and Sin'dorei you have seen so far." }       -- Deepening Shadows (91854) Doomsayer (248826)
+   	t[135052] = { text = "Hail the victories of the Vanguard and Sin'dorei you have seen so far." }		-- Deepening Shadows (91854) Doomsayer (248826)
 
    	t = NPC("Drathen", 253468)
-   	t.__meta.stopIfQuestAvailable = { 92869, }                                                            -- Waits for Quest Accepted (First NPCID Only)
-   	t.__meta.stopIfQuestTurnIn = { 92868, 92869, }                                                        -- Waits for Quest Hand-Ins (First NPCID Only)
+   	t.__meta.stopIfQuestAvailable = { 92869, }															-- Waits for Quest Accepted (First NPCID Only)
+   	t.__meta.stopIfQuestTurnIn = { 92868, 92869, }														-- Waits for Quest Hand-Ins (First NPCID Only)
    	t[136540] = { text = "Train me." }
 
    	t = NPC("Gaari", { 247647, })
-   	t[135588] = { text = "Mr. Brightstitch isn't accepting more work right now." }                        -- Mad to Measure (91386) Gaari (247647)
+   	t[135588] = { text = "Mr. Brightstitch isn't accepting more work right now." }						-- Mad to Measure (91386) Gaari (247647)
 
    	t = NPC("Galana", { 243352, })
-   	t.__meta.stopIfQuestAvailable = { 93696, }                                                            -- Waits for Quest Accepted (First NPCID Only)
-   	t.__meta.stopIfQuestTurnIn = { 93730, }                                                               -- Waits for Quest Hand-Ins (First NPCID Only)
-   	t[138587] = { text = "Train me in Tailoring." }                                                       -- Tailoring Trainer Galana (243352)
+   	t.__meta.stopIfQuestAvailable = { 93696, }															-- Waits for Quest Accepted (First NPCID Only)
+   	t.__meta.stopIfQuestTurnIn = { 93730, }																-- Waits for Quest Hand-Ins (First NPCID Only)
+   	t[138587] = { text = "Train me in Tailoring." }														-- Tailoring Trainer Galana (243352)
 
    	t = NPC("General Amias Bellamy", { 248629, 250587, })
    	t[135224] = { text = "<Offer Greeting.>" }                                                            -- Paved in Ash (86735) General Amias Bellamy (248629)
@@ -716,7 +728,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[133938] = { text = [[My employer sent me to purchase some "special" reagents]] }						-- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
 
 	t = NPC("Naleidea Rivergleam", { 242398, })
-	t.__meta.stopIfQuestTurnIn = { 93372, 93386, }															-- Waits for Quest Hand-Ins (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 93372, 93386, 93784, }													-- Waits for Quest Hand-Ins (First NPCID Only)
 	t[138392] = { prio = 10, text = "Combine all of my Coffer Key Shards" }									-- Coffer Keys
 	t[137442] = { prio = 01, text = "What does the Reliquary have to offer?" }								-- Vendor Naleidea Rivergleam (242398)
 	t[137445] = { prio = 01, text = "What does the Reliquary have to offer?" }								-- Vendor Naleidea Rivergleam (242398)
@@ -893,12 +905,14 @@ SetZone("Voidstorm, Eastern Kingdoms")
 
 SetZone("Zul'Aman, Eastern Kingdoms")
 
-	t = MAP("Delve: Atal'Aman", 2535)
+	t = MAP("Atal'Aman Delve", {2535,})
 	t[136385] = { text = "(Delve) I'll break the hexes and set your kin free." }
 	t[138496] = { text = "<Help me reach Spiritflayer Jin'Ma.>" }
+	t[136318] = { text = "(Delve) I will save them!" }
 
-	t = MAP("Delve: Twilight Crypts", 2535)
+	t = MAP("Twilight Crypts Delve", {2503,})
 	t[135239] = { text = "Alright... pardon! I'll just step around you..." }
+	t[135811] = { text = "Drink this if the Bound Loa gets close? But what's it taste like?" }
 
 	t = NPC("Altar of Blessings", { 237653, })
 	t[133887] = { text = "<Worship the loa.>" }                                          -- Blessings of the Loa (93792) Altar of Blessings (237653)

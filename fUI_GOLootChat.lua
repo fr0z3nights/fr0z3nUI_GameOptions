@@ -54,6 +54,7 @@ local function NormalizeSuppressText(msg)
 
   local t = msg:gsub("\r", " "):gsub("\n", " ")
   t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  t = t:gsub("|H.-|h(.-)|h", "%1")
   t = t:gsub("|T.-|t", "")
   t = t:gsub("\194\160", " ")
   t = t:gsub("\226\128\175", " ")
@@ -2035,6 +2036,17 @@ local function FormatOtherLine(name, text)
   return text
 end
 
+local function FormatOtherInline(name, text)
+  local colored = GetClassColoredName(name or "")
+  if colored and colored ~= "" then
+    return string.format("%s %s", colored, text)
+  end
+  if type(name) == "string" and name ~= "" then
+    return string.format("%s %s", name, text)
+  end
+  return text
+end
+
 -- Currency patterns
 local CURRENCY_PATTERNS
 local CURRENCY_PREFIXES
@@ -2768,6 +2780,24 @@ local function OnSystemChat(_, eventName, msg, ...)
   end
 
   if not IsEnabled() then return false end
+
+  if (DB and DB.other and DB.other.instance and DB.other.instance.enabled) then
+    local ev = (type(eventName) == "string" and eventName ~= "") and eventName or "CHAT_MSG_SYSTEM"
+    if ev == "CHAT_MSG_SYSTEM"
+      or ev == "CHAT_MSG_PARTY"
+      or ev == "CHAT_MSG_PARTY_LEADER"
+      or ev == "CHAT_MSG_RAID"
+      or ev == "CHAT_MSG_RAID_LEADER"
+      or ev == "CHAT_MSG_GUILD" then
+      local parsed = ParseInstanceSystemMessage(msg)
+      if parsed then
+        local handled = HandleParsedInstanceMessage(ev, msg, parsed)
+        if handled then
+          return true
+        end
+      end
+    end
+  end
 
   local moneyOut, moneyCoins = TryFormatMoneyFromMessage(msg)
   if moneyOut then
@@ -4829,6 +4859,7 @@ local function ParseInstanceSystemMessage(msg)
 
   local t = msg:gsub("\r", " "):gsub("\n", " ")
   t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  t = t:gsub("|H.-|h(.-)|h", "%1")
   t = t:gsub("|T.-|t", "")
 
   t = t:gsub("\194\160", " ")
@@ -4857,6 +4888,39 @@ local function ParseInstanceSystemMessage(msg)
     return { kind = "queue_limit" }
   end
 
+  if t:lower():match("^you don't meet the requirements for that quest%.?$") then
+    return { kind = "quest_requirements_fail" }
+  end
+
+  do
+    local v = t:match("^You are now Away:%s*(.-)%s*%.?$")
+    if IsNonEmptyPublicString(v) then
+      return { kind = "away", value = v }
+    end
+  end
+
+  do
+    local name = t:match("^%[?(.-)%]?%s+has gone offline%.?$")
+    if IsNonEmptyPublicString(name) then
+      return { kind = "went_offline", name = name }
+    end
+  end
+
+  do
+    local name = t:match("^%[?(.-)%]?%s+has come online%.?$")
+    if IsNonEmptyPublicString(name) then
+      return { kind = "came_online", name = name }
+    end
+  end
+
+  if t:lower():match("^someone has declined the invite%. you have been returned to the front of the queue%.?$") then
+    return { kind = "queue_returned_front" }
+  end
+
+  if t:lower():match("^you have been removed from the queue because you did not accept the invitation%.?$") then
+    return { kind = "queue_removed_no_accept" }
+  end
+
   do
     local v = t:match("^Dungeon Difficulty set to%s+(.+)%.?$")
     if IsNonEmptyPublicString(v) then
@@ -4878,15 +4942,33 @@ local function ParseInstanceSystemMessage(msg)
     end
   end
 
+  do
+    local v = t:match("^Loot%s+Specialization%s+set%s+to:?%s*(.+)%.?$")
+      or t:match("^Loot%s+specialization%s+set%s+to:?%s*(.+)%.?$")
+    if IsNonEmptyPublicString(v) then
+      return { kind = "loot_specialization", value = v }
+    end
+  end
+
   if t:lower():match("^you aren't in a party%.?$") then
     return { kind = "not_in_party" }
   end
 
   do
     local name = t:match("^(.-)%s+is now the leader of your group!?%s*$")
+      or t:match("^(.-)%s+is now the leader of your party!?%s*$")
+      or t:match("^(.-)%s+is now the group leader%.?%s*$")
+      or t:match("^(.-)%s+is now the party leader%.?%s*$")
     if IsNonEmptyPublicString(name) then
       return { kind = "group_leader", name = name }
     end
+  end
+
+  if t:lower():match("^you are now the leader of your group!?%s*$")
+    or t:lower():match("^you are now the leader of your party!?%s*$")
+    or t:lower():match("^you are now the group leader%.?%s*$")
+    or t:lower():match("^you are now the party leader%.?%s*$") then
+    return { kind = "group_leader_self" }
   end
 
   if t:lower():match("^legacy loot rules are no longer in effect%.?$") then
@@ -4911,33 +4993,8 @@ local _instanceLastSig
 local _instanceLastTS
 local _instanceLegacyLootOn
 
-local function OnInstanceSystemChat(_, eventName, msg, ...)
-  EnsureRefs()
-  DebugBumpEvent(tostring(eventName or "CHAT_MSG_SYSTEM"))
-  if not (DB and DB.other and DB.other.instance and DB.other.instance.enabled) then
-    return false
-  end
-  if type(msg) == "string" and IsSecretString(msg) then
-    DebugBumpSecret(tostring(eventName or "CHAT_MSG_SYSTEM"))
-    if LootChat.CaptureEnabled() then
-      LootChat.CaptureAppend("CHAT_SECRET", { event = tostring(eventName or "CHAT_MSG_SYSTEM") })
-    end
-    return false
-  end
-  if not IsNonEmptyPublicString(msg) then
-    return false
-  end
-
-  local ev = (type(eventName) == "string" and eventName ~= "") and eventName or "CHAT_MSG_SYSTEM"
-  if ev ~= "CHAT_MSG_SYSTEM" then
-    return false
-  end
-
-  LootChat.CaptureChatIn(ev, msg)
-
-  local parsed = ParseInstanceSystemMessage(msg)
+local function HandleParsedInstanceMessage(ev, msg, parsed)
   if not parsed then
-    LootChat.CaptureChatOut(ev, "(instance) no-match", { handled = false, instanceNoMatch = true })
     return false
   end
 
@@ -4961,39 +5018,50 @@ local function OnInstanceSystemChat(_, eventName, msg, ...)
   end
 
   if parsed.kind == "member_left" then
-    outText = FormatOtherLine(parsed.name, string.format("%sLeft the Instance%s", gcc, close))
+    outText = FormatOtherLine(parsed.name, string.format("%sLeft the Instance%s", hcc, close))
   elseif parsed.kind == "you_leave" then
-    outText = FormatSelfLine(string.format("%sLeft the Group%s", gcc, close))
+    outText = FormatSelfLine(string.format("%sLeft the Group%s", hcc, close))
   elseif parsed.kind == "queued" then
-    outText = FormatSelfLine(string.format("%sQueued%s in %sDungeon Finder%s", gcc, close, hcc, close))
+    outText = FormatSelfLine(string.format("%sQueued in Dungeon Finder%s", hcc, close))
   elseif parsed.kind == "queue_limit" then
-    outText = FormatSelfLine(string.format("%sQueue%s Limit Reached", gcc, close))
+    outText = FormatSelfLine(string.format("%sQueue Limit Reached%s", hcc, close))
+  elseif parsed.kind == "quest_requirements_fail" then
+    outText = FormatSelfLine(string.format("%sQuest Requirements Not Met%s", hcc, close))
+  elseif parsed.kind == "away" then
+    outText = FormatSelfLine(string.format("%sAway: %s%s", hcc, tostring(parsed.value or "AFK"), close))
+  elseif parsed.kind == "went_offline" then
+    outText = FormatOtherInline(parsed.name, string.format("is now %sOffline%s", hcc, close))
+  elseif parsed.kind == "came_online" then
+    outText = FormatOtherInline(parsed.name, string.format("is now %sOnline%s", hcc, close))
+  elseif parsed.kind == "queue_returned_front" then
+    outText = FormatSelfLine(string.format("%sQueue Failed, Returned to Queue%s", hcc, close))
+  elseif parsed.kind == "queue_removed_no_accept" then
+    outText = FormatSelfLine(string.format("%sMissed the Invite, Removed from Queue%s", hcc, close))
   elseif parsed.kind == "dungeon_difficulty" then
-    outText = FormatSelfLine(string.format("%sDungeon%s: %s%s%s", hcc, close, gcc, tostring(parsed.value or ""), close))
+    outText = FormatSelfLine(string.format("%sDungeon: %s%s", hcc, tostring(parsed.value or ""), close))
   elseif parsed.kind == "looting_mode" then
     local mode = tostring(parsed.value or "")
     local low = mode:lower():gsub("^%s+", ""):gsub("%s+$", "")
     if _instanceLegacyLootOn == true and low == "group loot" then
       mode = "Group Legacy Loot"
     end
-    local isLegacyMode = (mode:lower():gsub("^%s+", ""):gsub("%s+$", "") == "group legacy loot")
-    if isLegacyMode then
-      outText = FormatSelfLine(string.format("%s%s%s", hcc, mode, close))
-    else
-      outText = FormatSelfLine(string.format("%s%s%s", gcc, mode, close))
-    end
+    outText = FormatSelfLine(string.format("%s%s%s", hcc, mode, close))
   elseif parsed.kind == "loot_threshold" then
-    outText = FormatSelfLine(string.format("%sLoot Threshold%s: %s%s%s", hcc, close, gcc, tostring(parsed.value or ""), close))
+    outText = FormatSelfLine(string.format("%sLoot Threshold: %s%s", hcc, tostring(parsed.value or ""), close))
+  elseif parsed.kind == "loot_specialization" then
+    outText = FormatSelfLine(string.format("%sLoot Specialization: %s%s", hcc, tostring(parsed.value or ""), close))
   elseif parsed.kind == "not_in_party" then
-    outText = FormatSelfLine(string.format("%sNot in a Party%s", gcc, close))
+    outText = FormatSelfLine(string.format("%sNot in a Party%s", hcc, close))
   elseif parsed.kind == "group_leader" then
-    outText = FormatOtherLine(parsed.name, string.format("is %sParty Leader%s", gcc, close))
+    outText = FormatOtherLine(parsed.name, string.format("is %sParty Leader%s", hcc, close))
+  elseif parsed.kind == "group_leader_self" then
+    outText = FormatSelfLine(string.format("%sParty Leader%s", hcc, close))
   elseif parsed.kind == "legacy_loot_off" then
     outText = nil
   elseif parsed.kind == "legacy_loot_on" then
     outText = FormatSelfLine(string.format("%sGroup Legacy Loot%s", hcc, close))
   elseif parsed.kind == "instance_reset" then
-    outText = FormatSelfLine(string.format("%s%s%s %sReset%s", gcc, tostring(parsed.name or "Instance"), close, hcc, close))
+    outText = FormatSelfLine(string.format("%s%s Reset%s", hcc, tostring(parsed.name or "Instance"), close))
   else
     return false
   end
@@ -5011,6 +5079,44 @@ local function OnInstanceSystemChat(_, eventName, msg, ...)
   })
 
   return true
+end
+
+local function OnInstanceSystemChat(_, eventName, msg, ...)
+  EnsureRefs()
+  DebugBumpEvent(tostring(eventName or "CHAT_MSG_SYSTEM"))
+  if not (DB and DB.other and DB.other.instance and DB.other.instance.enabled) then
+    return false
+  end
+  if type(msg) == "string" and IsSecretString(msg) then
+    DebugBumpSecret(tostring(eventName or "CHAT_MSG_SYSTEM"))
+    if LootChat.CaptureEnabled() then
+      LootChat.CaptureAppend("CHAT_SECRET", { event = tostring(eventName or "CHAT_MSG_SYSTEM") })
+    end
+    return false
+  end
+  if not IsNonEmptyPublicString(msg) then
+    return false
+  end
+
+  local ev = (type(eventName) == "string" and eventName ~= "") and eventName or "CHAT_MSG_SYSTEM"
+  if ev ~= "CHAT_MSG_SYSTEM"
+    and ev ~= "CHAT_MSG_PARTY"
+    and ev ~= "CHAT_MSG_PARTY_LEADER"
+    and ev ~= "CHAT_MSG_RAID"
+    and ev ~= "CHAT_MSG_RAID_LEADER"
+    and ev ~= "CHAT_MSG_GUILD" then
+    return false
+  end
+
+  LootChat.CaptureChatIn(ev, msg)
+
+  local parsed = ParseInstanceSystemMessage(msg)
+  if not parsed then
+    LootChat.CaptureChatOut(ev, "(instance) no-match", { handled = false, instanceNoMatch = true })
+    return false
+  end
+
+  return HandleParsedInstanceMessage(ev, msg, parsed)
 end
 
 local function OnProfessionSkillChat(_, eventName, msg, ...)
@@ -5173,6 +5279,11 @@ function LootChat.ApplyFilters()
   ChatFrame_RemoveMessageEventFilter("CHAT_MSG_SYSTEM", OnExperienceChat)
   ChatFrame_RemoveMessageEventFilter("CHAT_MSG_SYSTEM", OnProfessionSkillChat)
   ChatFrame_RemoveMessageEventFilter("CHAT_MSG_SYSTEM", OnInstanceSystemChat)
+  ChatFrame_RemoveMessageEventFilter("CHAT_MSG_PARTY", OnInstanceSystemChat)
+  ChatFrame_RemoveMessageEventFilter("CHAT_MSG_PARTY_LEADER", OnInstanceSystemChat)
+  ChatFrame_RemoveMessageEventFilter("CHAT_MSG_RAID", OnInstanceSystemChat)
+  ChatFrame_RemoveMessageEventFilter("CHAT_MSG_RAID_LEADER", OnInstanceSystemChat)
+  ChatFrame_RemoveMessageEventFilter("CHAT_MSG_GUILD", OnInstanceSystemChat)
   local enabledNow = IsEnabled() and true or false
   local wantSuppress = (SuppressRulesEnabled() and true or false)
   local wantQuestXP = (DB and DB.other and DB.other.experience and DB.other.experience.enabled) and QuestXPEnabled()
@@ -5212,6 +5323,11 @@ function LootChat.ApplyFilters()
   end
   if DB and DB.other and DB.other.instance and DB.other.instance.enabled then
     ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", OnInstanceSystemChat)
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_PARTY", OnInstanceSystemChat)
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_PARTY_LEADER", OnInstanceSystemChat)
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_RAID", OnInstanceSystemChat)
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_RAID_LEADER", OnInstanceSystemChat)
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_GUILD", OnInstanceSystemChat)
   end
 
   if dbg then
@@ -5291,7 +5407,14 @@ function LootChat.FiltersInstalled()
   end
 
   if DB and DB.other and DB.other.instance and DB.other.instance.enabled then
-    if not Has("CHAT_MSG_SYSTEM", OnInstanceSystemChat) then
+    if not (
+      Has("CHAT_MSG_SYSTEM", OnInstanceSystemChat)
+      or Has("CHAT_MSG_PARTY", OnInstanceSystemChat)
+      or Has("CHAT_MSG_PARTY_LEADER", OnInstanceSystemChat)
+      or Has("CHAT_MSG_RAID", OnInstanceSystemChat)
+      or Has("CHAT_MSG_RAID_LEADER", OnInstanceSystemChat)
+      or Has("CHAT_MSG_GUILD", OnInstanceSystemChat)
+    ) then
       return false
     end
   end
@@ -5351,6 +5474,11 @@ function LootChat.DumpFilterAudit(PrintFn)
     { "CHAT_MSG_SKILL", OnProfessionSkillChat, "skill->profession" },
     { "CHAT_MSG_SYSTEM", OnProfessionSkillChat, "system->profession" },
     { "CHAT_MSG_SYSTEM", OnInstanceSystemChat, "system->instance" },
+    { "CHAT_MSG_PARTY", OnInstanceSystemChat, "party->instance" },
+    { "CHAT_MSG_PARTY_LEADER", OnInstanceSystemChat, "party_leader->instance" },
+    { "CHAT_MSG_RAID", OnInstanceSystemChat, "raid->instance" },
+    { "CHAT_MSG_RAID_LEADER", OnInstanceSystemChat, "raid_leader->instance" },
+    { "CHAT_MSG_GUILD", OnInstanceSystemChat, "guild->instance" },
   }
 
   local missing = {}
@@ -5441,6 +5569,12 @@ function LootChat.GetSupportedMessageLines()
   lines[#lines + 1] = "    - You leave the group."
   lines[#lines + 1] = "    - You are now queued in the Dungeon Finder."
   lines[#lines + 1] = "    - You are queued for too many instances."
+  lines[#lines + 1] = "    - You don't meet the requirements for that quest."
+  lines[#lines + 1] = "    - You are now Away: AFK"
+  lines[#lines + 1] = "    - Name has gone offline."
+  lines[#lines + 1] = "    - [Name] has come online."
+  lines[#lines + 1] = "    - Someone has declined the invite. You have been returned to the front of the queue."
+  lines[#lines + 1] = "    - You have been removed from the queue because you did not accept the invitation."
   lines[#lines + 1] = "    - Dungeon Difficulty set to <value>."
   lines[#lines + 1] = "    - Looting set to <value>."
   lines[#lines + 1] = "    - Loot threshold set to <value>."

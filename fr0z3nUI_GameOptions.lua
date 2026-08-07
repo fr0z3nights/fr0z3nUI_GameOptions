@@ -323,11 +323,20 @@ InitSV = function()
     if type(AutoGossip_Settings.petWalkModeAcc) ~= "string" then
         AutoGossip_Settings.petWalkModeAcc = "random"
     end
+    if type(AutoGossip_Settings.petWalkListAcc) ~= "table" then
+        AutoGossip_Settings.petWalkListAcc = {}
+    end
+    if type(AutoGossip_Settings.petWalkListNamesAcc) ~= "table" then
+        AutoGossip_Settings.petWalkListNamesAcc = {}
+    end
     if type(AutoGossip_Settings.petWalkDelayAcc) ~= "number" then
         AutoGossip_Settings.petWalkDelayAcc = 1.0
     end
     if type(AutoGossip_Settings.petWalkDismissOnStealthAcc) ~= "boolean" then
         AutoGossip_Settings.petWalkDismissOnStealthAcc = true
+    end
+    if type(AutoGossip_Settings.petWalkDebugAcc) ~= "boolean" then
+        AutoGossip_Settings.petWalkDebugAcc = false
     end
 
     -- Mount Up (auto mount)
