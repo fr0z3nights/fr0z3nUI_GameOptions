@@ -91,6 +91,41 @@ local function TalkCacheSeen(key)
 	return false
 end
 
+local function TalkCacheGet(key)
+	if ns and ns.Talk and type(ns.Talk.CacheGet) == "function" then
+		return ns.Talk.CacheGet(key)
+	end
+	return nil
+end
+
+local function GetCharacterCacheKey(prefix)
+	local name = UnitName and UnitName("player") or nil
+	local realm = nil
+	if GetNormalizedRealmName then
+		realm = GetNormalizedRealmName()
+	elseif GetRealmName then
+		realm = GetRealmName()
+	end
+	local suffix = ""
+	if name and name ~= "" then
+		suffix = tostring(name)
+	end
+	if realm and realm ~= "" then
+		if suffix ~= "" then
+			suffix = suffix .. ":"
+		end
+		suffix = suffix .. tostring(realm)
+	end
+	if suffix == "" then
+		return prefix
+	end
+	return prefix .. ":" .. suffix
+end
+
+local function GetViewGossipState(cacheKey)
+	local state = TalkCacheGet(cacheKey)
+	return state == "goods" and "goods" or "companion"
+end
 
 
 
@@ -200,6 +235,10 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	t = MAP("The Shadow Enclave Delve", 2502)
 	t[137580] = { text = "Use the mirrors to spread the light. Got it." }
 	t[137619] = { text = "Looting and killing, understood!" }
+	t[135012] = { text = "Zah'ran - Show me." }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2502:136141:138317")
+	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
 	t = NPC("Alesil Dawnblood", {252599, })
 	t[136288] = { text = "I'll defend the runestone" }      -- And Then They Came (92398) Alesil Dawnblood (252599)
@@ -324,10 +363,6 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 
 	t = NPC("Zul'jan", 249211)
 	t[135099] = { text = "Return to Zul'Aman", }                                                          -- The Line Must be Drawn Here (86710) Zul'jan (249211)
-
-	t = NPC("Unknown NPC", {207283, })
-	t[122661] = { text = "<View goods and repair gear.>", prio = 10,  }
-	t[135011] = { text = "<View companion supplies.>", prio = -10,  }
 
 	t = NPC("Quest: House Call", {253050, 253054, 254710, })
 	t[136353] = { text = "Something is watching you." }                                                   -- House Call (92024)    Stained Tool Rack (253050)
@@ -494,6 +529,11 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 		--
 	t = MAP("Parhelion Plaza Delve", {2545,})
 	t[136477] = { text = "I will break that shield and eliminate the units inside." }                        -- Delve (92618)
+	t[135012] = { text = "Zah'ran - Show me." }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2545:135011:122661")
+	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
+
 
 	t = NPC("Alonsus Faol", { 236789, 240240, 251355, })
 	t[132515] = { text = "The Vanguard rallies at Sunstrider Rise." }                                     -- Champions of Quel'Danas (68770)  Alonsus Faol (236789)
@@ -502,6 +542,7 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 
 	t = NPC("Arator", { 236959, 237502, })
 	t[132388] = { text = "Your father sent me to find you." }                                             -- My Son (89271) Arator (236959)
+	t[135012] = { text = "Zah'ran - Show me." }
 	local INTRO_SEEN = "GOTalk:136469:134861"
 	t[134861] = { prio = 10, text = "What are you going to do with the shield?", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
 	t[136469] = { prio = 10, text = "Let's get back to Silvermoon.", when = function() return TalkCacheSeen(INTRO_SEEN) end }
@@ -587,13 +628,21 @@ SetZone("Naigtal, Eastern Kingdoms")
 
 SetZone("Silvermoon City, Eastern Kingdoms")
 
-	t = MAP("Collegiate Calamity Delve", { 2577, })
+	t = MAP("Collegiate Calamity Delve", { 2547, 2577, })
 	t[135708] = { text = "I'll get rid of these weeds!" }
 	t[135865] = { text = "I'll deal with this!" }
+	t[135012] = { text = "Zah'ran - Show me." }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2577:135011:122661")
+	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
 	t = MAP("The Darkway Delve", { 2525, })
 	t[136141] = { text = "I'll help you restore the ley lines..." }
 	t[138317] = { text = "Deal with the big ogre. On it!" }
+	t[135012] = { text = "Zah'ran - Show me." }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2525:136141:138317")
+	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
    	t = NPC("Allari the Souleater", { 263524, })
    	t[139905] = { text = "Are you joining Riftblade Maella's strike team?", close = true}				-- Stalkers of the Stars (96049) Allari the Souleater (263524)
@@ -728,7 +777,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[133938] = { text = [[My employer sent me to purchase some "special" reagents]] }						-- Murder Row: Acting the Part (90819) Miss Len'dali (244471)
 
 	t = NPC("Naleidea Rivergleam", { 242398, })
-	t.__meta.stopIfQuestTurnIn = { 93372, 93386, 93784, }													-- Waits for Quest Hand-Ins (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 93372, 93384, 93386, 93784, }											-- Waits for Quest Hand-Ins (First NPCID Only)
 	t[138392] = { prio = 10, text = "Combine all of my Coffer Key Shards" }									-- Coffer Keys
 	t[137442] = { prio = 01, text = "What does the Reliquary have to offer?" }								-- Vendor Naleidea Rivergleam (242398)
 	t[137445] = { prio = 01, text = "What does the Reliquary have to offer?" }								-- Vendor Naleidea Rivergleam (242398)
@@ -906,13 +955,22 @@ SetZone("Voidstorm, Eastern Kingdoms")
 SetZone("Zul'Aman, Eastern Kingdoms")
 
 	t = MAP("Atal'Aman Delve", {2535,})
-	t[136385] = { text = "(Delve) I'll break the hexes and set your kin free." }
+	t[136317] = { text = "Torundo - I'll get rid of these totems!" }
+	t[136318] = { text = "I will save them!" }
+	t[136385] = { text = "I'll break the hexes and set your kin free." }
 	t[138496] = { text = "<Help me reach Spiritflayer Jin'Ma.>" }
-	t[136318] = { text = "(Delve) I will save them!" }
+	t[135012] = { text = "Zah'ran - Show me." }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2535:136141:138317")
+	t[135011] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
-	t = MAP("Twilight Crypts Delve", {2503,})
+	t = MAP("Twilight Crypts Delve", {2503,2504,})
 	t[135239] = { text = "Alright... pardon! I'll just step around you..." }
 	t[135811] = { text = "Drink this if the Bound Loa gets close? But what's it taste like?" }
+	t[135012] = { text = "Zah'ran - Show me." }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2503:135011:122661")
+	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
 	t = NPC("Altar of Blessings", { 237653, })
 	t[133887] = { text = "<Worship the loa.>" }                                          -- Blessings of the Loa (93792) Altar of Blessings (237653)

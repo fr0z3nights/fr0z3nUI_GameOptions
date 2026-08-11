@@ -4854,7 +4854,7 @@ local function ParseLearnedItemMessage(msg)
   return nil
 end
 
-local function ParseInstanceSystemMessage(msg)
+function ParseInstanceSystemMessage(msg)
   if type(msg) ~= "string" or msg == "" then return nil end
 
   local t = msg:gsub("\r", " "):gsub("\n", " ")
@@ -4993,7 +4993,7 @@ local _instanceLastSig
 local _instanceLastTS
 local _instanceLegacyLootOn
 
-local function HandleParsedInstanceMessage(ev, msg, parsed)
+function HandleParsedInstanceMessage(ev, msg, parsed)
   if not parsed then
     return false
   end

@@ -73,6 +73,8 @@ do
     local BTN_W, BTN_H = 90, 22
     local BTN_GAP = 12
     local GAP_Y = 14
+    local XS_ROW_GAP = math.floor(GAP_Y / 2)
+    if XS_ROW_GAP < 1 then XS_ROW_GAP = 1 end
 
     local GUILDNAME_H = 46
 
@@ -107,6 +109,38 @@ do
         if k == 0 then break end
       end
       return sign .. s
+    end
+
+    local function GetWowTokenGoldSnapshot()
+      local priceCopper = nil
+      local isLive = false
+
+      -- Live quote attempt (authoritative for lock/sync behavior).
+      if C_WowTokenPublic and type(C_WowTokenPublic.GetCurrentMarketPrice) == "function" then
+        local ok, v = pcall(C_WowTokenPublic.GetCurrentMarketPrice)
+        local n = ok and tonumber(v) or nil
+        if type(n) == "number" and n > 0 then
+          priceCopper = math.floor(n)
+          isLive = true
+        end
+      end
+
+      -- Cached fallback for display/seed only when live is unavailable.
+      if not priceCopper and type(Tax.GetWowTokenMarketPriceCached) == "function" then
+        local n = tonumber(Tax.GetWowTokenMarketPriceCached())
+        if type(n) == "number" and n > 0 then
+          priceCopper = math.floor(n)
+        end
+      end
+
+      priceCopper = math.floor(tonumber(priceCopper) or 0)
+      if priceCopper <= 0 then return nil, false end
+
+      local denom = tonumber(COPPER_PER_GOLD) or 10000
+      if denom <= 0 then denom = 10000 end
+      local gold = math.floor(priceCopper / denom)
+      if gold < 0 then gold = 0 end
+      return gold, isLive
     end
 
     -- Scope button (Guild / Character) - copies size/display style from Trade's main scope button.
@@ -320,6 +354,64 @@ do
         minGoldIcon:Show()
       else
         minGoldIcon:Hide()
+      end
+    end
+
+    -- Scope-scoped Excess Minimum (for XS only), mirrors Min Gold styling.
+    local excessEdit = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
+    excessEdit:SetSize(140, 38)
+    excessEdit:SetPoint("TOP", minEdit, "BOTTOM", 0, -XS_ROW_GAP)
+    excessEdit:SetAutoFocus(false)
+    excessEdit:SetMaxLetters(10)
+    local EXCESS_INSET_L, EXCESS_INSET_R = 6, 18
+    excessEdit:SetTextInsets(EXCESS_INSET_L, EXCESS_INSET_R, 0, 0)
+    excessEdit:SetJustifyH("CENTER")
+    if excessEdit.SetJustifyV then excessEdit:SetJustifyV("MIDDLE") end
+    if excessEdit.SetNumeric then excessEdit:SetNumeric(false) end
+    if excessEdit.EnableMouse then excessEdit:EnableMouse(true) end
+    if excessEdit.SetTextColor then
+      excessEdit:SetTextColor(1.0, 0.82, 0.0, 1)
+    end
+    if excessEdit.GetFont and excessEdit.SetFont then
+      local fontPath, _, fontFlags = excessEdit:GetFont()
+      if fontPath then excessEdit:SetFont(fontPath, COIN_TEXT_SIZE_MIN, fontFlags) end
+    end
+    HideEditBoxFrame(excessEdit)
+
+    local excessPH = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    excessPH:SetPoint("CENTER", excessEdit, "CENTER", 0, 0)
+    excessPH:SetText("Excess Min")
+    excessPH:SetTextColor(1, 1, 1, 0.35)
+
+    local excessMeasure = excessEdit:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    excessMeasure:SetPoint("TOPLEFT", excessEdit, "TOPLEFT", -1000, 0)
+    excessMeasure:SetAlpha(0)
+    if excessEdit.GetFont and excessMeasure.SetFont then
+      local fontPath, fontSize, fontFlags = excessEdit:GetFont()
+      if fontPath then excessMeasure:SetFont(fontPath, fontSize or COIN_TEXT_SIZE_MIN, fontFlags) end
+    end
+
+    local excessGoldIcon = excessEdit:CreateTexture(nil, "OVERLAY")
+    excessGoldIcon:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+    excessGoldIcon:SetSize(COIN_W, COIN_H)
+    excessGoldIcon:Hide()
+
+    local function UpdateExcessPlaceholder()
+      local txt = excessEdit:GetText() or ""
+      local focused = excessEdit.HasFocus and excessEdit:HasFocus() or false
+      excessPH:SetShown((txt == "") and (not focused))
+      local clean = txt:gsub("[^%d]", "")
+      local v = tonumber(clean) or 0
+      if v and v > 0 then
+        excessMeasure:SetText(txt)
+        local w = excessMeasure.GetStringWidth and excessMeasure:GetStringWidth() or 0
+        if w < 0 then w = 0 end
+        local centerOffset = (EXCESS_INSET_L - EXCESS_INSET_R) / 2
+        excessGoldIcon:ClearAllPoints()
+        excessGoldIcon:SetPoint("CENTER", excessEdit, "CENTER", centerOffset + (w / 2) + 6 + (COIN_W / 2), 0)
+        excessGoldIcon:Show()
+      else
+        excessGoldIcon:Hide()
       end
     end
     local function CreateOwedRow(parent, withHighlight)
@@ -545,10 +637,39 @@ do
     minEdit:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetText("Minimum gold to keep on the character.\n0 disables this feature.\nStored per-scope (Guild/Character).")
+      GameTooltip:SetText("Min gold on player, Tax paid above this amount.\n0 disables this feature.")
       GameTooltip:Show()
     end)
     minEdit:SetScript("OnLeave", function()
+      if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+    end)
+
+    excessEdit:SetScript("OnEditFocusGained", function()
+      excessPH:Hide()
+      local txt = excessEdit:GetText() or ""
+      local clean = txt:gsub("[^%d]", "")
+      if clean ~= txt then
+        excessEdit:SetText(clean)
+      end
+    end)
+    excessEdit:SetScript("OnEditFocusLost", function()
+      local txt = excessEdit:GetText() or ""
+      local clean = txt:gsub("[^%d]", "")
+      local v = tonumber(clean) or 0
+      if v > 0 then
+        excessEdit:SetText(FormatIntWithCommas(v))
+      else
+        excessEdit:SetText("")
+      end
+      UpdateExcessPlaceholder()
+    end)
+    excessEdit:SetScript("OnEnter", function(self)
+      if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("XS paid if Gold - Owed is above this amount.")
+      GameTooltip:Show()
+    end)
+    excessEdit:SetScript("OnLeave", function()
       if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
     end)
 
@@ -604,9 +725,9 @@ do
     local warbankBtn = CreateTextToggleButton(panel)
     warbankBtn:SetPoint("BOTTOM", vendorBtn, "TOP", 0, 0)
 
-    -- Warbank Excess toggle (XS) (between WarBank and Min Gold; only shown when WarBank enabled).
+    -- Warbank Excess toggle (XS) (below WarBank; only shown when WarBank enabled).
     local warbankXSBtn = CreateTextToggleButton(panel)
-    warbankXSBtn:SetPoint("RIGHT", minEdit, "LEFT", 0, 0)
+    warbankXSBtn:SetPoint("TOP", warbankBtn, "BOTTOM", 0, -XS_ROW_GAP)
     warbankXSBtn:Hide()
 
     warbankXSBtn:SetScript("OnEnter", function(self)
@@ -619,9 +740,9 @@ do
       if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
     end)
 
-    -- Guild Bank Excess toggle (XS) (between Min Gold and Withdraw).
+    -- Guild Bank Excess toggle (XS) (below Withdraw).
     local guildXSBtn = CreateTextToggleButton(panel)
-    guildXSBtn:SetPoint("LEFT", minEdit, "RIGHT", 0, 0)
+    guildXSBtn:SetPoint("TOP", withdrawBtn, "BOTTOM", 0, -XS_ROW_GAP)
 
     guildXSBtn:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
@@ -666,6 +787,9 @@ do
     minEdit:ClearAllPoints()
     -- Keep Min Gold centered even when the owed rows split left/right.
     minEdit:SetPoint("TOP", sourcesRow, "BOTTOM", 0, -(GAP_Y + 28 + 2 + BTN_H + GAP_Y))
+
+    excessEdit:ClearAllPoints()
+    excessEdit:SetPoint("TOP", minEdit, "BOTTOM", 0, -XS_ROW_GAP)
 
     local reloadBtn = (env and env.reloadBtn) or nil
     if not reloadBtn then
@@ -744,7 +868,13 @@ do
     scBtn:SetPoint("BOTTOMLEFT", debugBtn, "BOTTOMRIGHT", BTN_GAP, 0)
 
     manualBtn:ClearAllPoints()
-    manualBtn:SetPoint("TOP", minEdit, "BOTTOM", 0, -GAP_Y)
+    manualBtn:SetPoint("BOTTOMLEFT", scBtn, "BOTTOMRIGHT", BTN_GAP, 0)
+
+    local wowTokenBtn = CreateTextToggleButton(panel)
+    wowTokenBtn:SetSize(SHORT_BTN_W, BTN_H)
+    wowTokenBtn:SetText("WoW Token")
+    wowTokenBtn:ClearAllPoints()
+    wowTokenBtn:SetPoint("TOP", excessEdit, "BOTTOM", 0, -2)
 
     -- LDB display selector (single segmented control): Player / Guild / Warbank
     local SEG_W = 24
@@ -899,6 +1029,9 @@ do
           sources = { vendor = true, questLoot = true, systemMoney = false, mail = true },
           autoPayOnGuildBankOpen = true,
           minGold = 0,
+          excessMinGold = 0,
+          excessMinGoldUserSet = false,
+          excessMinUseToken = false,
           allowWithdraw = false,
           warBankEnabled = false,
           warBankXS = false,
@@ -916,8 +1049,14 @@ do
       if viewCfg.sources.mail == nil then viewCfg.sources.mail = true end
       if viewCfg.autoPayOnGuildBankOpen == nil then viewCfg.autoPayOnGuildBankOpen = true end
       if viewCfg.minGold == nil then viewCfg.minGold = 0 end
+      if viewCfg.excessMinGold == nil then viewCfg.excessMinGold = viewCfg.minGold end
+      if viewCfg.excessMinGoldUserSet == nil then viewCfg.excessMinGoldUserSet = false end
+      if viewCfg.excessMinUseToken == nil then viewCfg.excessMinUseToken = false end
       if viewCfg.allowWithdraw == nil then viewCfg.allowWithdraw = false end
       if viewCfg.warBankEnabled == nil then viewCfg.warBankEnabled = false end
+      viewCfg.excessMinGold = clampFn(viewCfg.excessMinGold, 0, 9999999) or 0
+      viewCfg.excessMinGoldUserSet = (viewCfg.excessMinGoldUserSet == true)
+      viewCfg.excessMinUseToken = (viewCfg.excessMinUseToken == true)
 
       -- XS toggle migration (legacy: *EB)
       if viewCfg.warBankXS == nil and viewCfg.warBankEB ~= nil then
@@ -1040,6 +1179,45 @@ do
         UpdateMinPlaceholder()
       end
 
+      local excessMinGold = (type(viewCfg) == "table") and (tonumber(viewCfg.excessMinGold) or 0) or 0
+      local showExcessInput = (type(viewCfg) == "table") and ((viewCfg.warBankXS == true) or (viewCfg.guildBankXS == true))
+      local tokenGold = nil
+      local tokenLive = false
+      if showExcessInput and viewCfg.excessMinUseToken == true then
+        tokenGold, tokenLive = GetWowTokenGoldSnapshot()
+        if tokenGold and tokenGold > 0 then
+          viewCfg.excessMinGold = tokenGold
+          excessMinGold = tokenGold
+        end
+      end
+      if excessEdit then
+        if showExcessInput then
+          excessEdit:Show()
+        else
+          excessEdit:Hide()
+        end
+      end
+      if wowTokenBtn then
+        if showExcessInput then wowTokenBtn:Show() else wowTokenBtn:Hide() end
+      end
+      if excessGoldIcon and not showExcessInput then excessGoldIcon:Hide() end
+      if excessEdit and excessEdit.SetText then
+        local focused = excessEdit.HasFocus and excessEdit:HasFocus() or false
+        if not focused then
+          if excessMinGold <= 0 then
+            if excessEdit.GetText and excessEdit:GetText() ~= "" then
+              excessEdit:SetText("")
+            end
+          else
+            local want = FormatIntWithCommas(math.floor(excessMinGold))
+            if excessEdit.GetText and excessEdit:GetText() ~= want then
+              excessEdit:SetText(want)
+            end
+          end
+        end
+        UpdateExcessPlaceholder()
+      end
+
       SetToggleText(vendorBtn, "Vendor", viewCfg.sources.vendor == true)
       SetToggleText(lootBtn, "Looted", viewCfg.sources.questLoot == true)
       SetToggleText(mailBtn, "Mail", viewCfg.sources.mail == true)
@@ -1048,6 +1226,7 @@ do
       SetToggleText(warbankBtn, "WarBank", (type(viewCfg) == "table") and (viewCfg.warBankEnabled == true))
       SetToggleText(warbankXSBtn, "XS", (type(viewCfg) == "table") and (viewCfg.warBankXS == true))
       SetToggleText(guildXSBtn, "XS", (type(viewCfg) == "table") and (viewCfg.guildBankXS == true))
+      SetToggleText(wowTokenBtn, "WoW Token", (type(viewCfg) == "table") and (viewCfg.excessMinUseToken == true))
       SetToggleText(debugBtn, "Debug", (ct and ct.debug == true))
       do
         local t = db.tax
@@ -1129,6 +1308,12 @@ do
         local y = -((tonumber(GAP_Y) or 0) + owedH + 2 + (tonumber(BTN_H) or 22) + (tonumber(GAP_Y) or 0))
         minEdit:ClearAllPoints()
         minEdit:SetPoint("TOP", sourcesRow, "BOTTOM", 0, y)
+
+        excessEdit:ClearAllPoints()
+        excessEdit:SetPoint("TOP", minEdit, "BOTTOM", 0, XS_ROW_GAP * -1)
+
+        wowTokenBtn:ClearAllPoints()
+        wowTokenBtn:SetPoint("TOP", excessEdit, "BOTTOM", 0, -2)
       end
 
       -- Place Withdraw aligned with the Min Gold input row, and horizontally aligned over System.
@@ -1171,56 +1356,48 @@ do
         end
       end
 
-      -- Place XS between the WarBank button and the Min Gold input (only when WarBank is enabled).
+      -- Place XS on the Excess row, below WarBank/Withdraw respectively.
       do
         if showWarbank then
           warbankXSBtn:ClearAllPoints()
-          -- Flush XS against the left edge of Min Gold.
-          warbankXSBtn:SetPoint("RIGHT", minEdit, "LEFT", 0, 0)
-
-          -- Keep XS between WarBank and Min Gold by shrinking to the available gap.
-          if warbankXSBtn.SetWidth then
-            local mL = minEdit.GetLeft and minEdit:GetLeft() or nil
-            local wbR = warbankBtn.GetRight and warbankBtn:GetRight() or nil
-            if mL and wbR then
-              local maxW = tonumber(SHORT_BTN_W) or 54
-              local gap = (mL - wbR) - 2
-              if gap < 16 then gap = 16 end
-              if gap < maxW then
-                warbankXSBtn:SetWidth(gap)
-              else
-                warbankXSBtn:SetWidth(maxW)
+          warbankXSBtn:SetPoint("CENTER", warbankBtn, "CENTER", 0, 0)
+          if excessEdit and excessEdit.GetCenter and warbankXSBtn.GetCenter then
+            local _, y = excessEdit:GetCenter()
+            if not y and warbankBtn and warbankBtn.GetCenter then
+              local _, wbY = warbankBtn:GetCenter()
+              if wbY then y = wbY - BTN_H - XS_ROW_GAP end
+            end
+            local x = select(1, warbankXSBtn:GetCenter())
+            if x and y and panel and panel.GetLeft and panel.GetBottom then
+              local pLeft = panel:GetLeft()
+              local pBottom = panel:GetBottom()
+              if pLeft and pBottom then
+                warbankXSBtn:ClearAllPoints()
+                warbankXSBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (x - pLeft) - ((warbankXSBtn.GetWidth and warbankXSBtn:GetWidth() or SHORT_BTN_W) / 2), (y - pBottom) - (BTN_H / 2))
               end
-            else
-              local maxW = tonumber(SHORT_BTN_W) or 54
-              warbankXSBtn:SetWidth(maxW)
             end
           end
         end
       end
 
-      -- Place XS between the Min Gold input and Withdraw (Guild Bank).
+      -- Place Guild XS on the same row as Excess Min, centered under Withdraw.
       do
         guildXSBtn:ClearAllPoints()
-        -- Flush XS against the right edge of Min Gold.
-        guildXSBtn:SetPoint("LEFT", minEdit, "RIGHT", 0, 0)
-
-        -- Keep XS between Min Gold and Withdraw by shrinking to the available gap.
-        if guildXSBtn.SetWidth then
-          local mR = minEdit.GetRight and minEdit:GetRight() or nil
-          local wdL = withdrawBtn.GetLeft and withdrawBtn:GetLeft() or nil
-          if mR and wdL then
-            local maxW = tonumber(SHORT_BTN_W) or 54
-            local gap = (wdL - mR) - 2
-            if gap < 16 then gap = 16 end
-            if gap < maxW then
-              guildXSBtn:SetWidth(gap)
-            else
-              guildXSBtn:SetWidth(maxW)
+        guildXSBtn:SetPoint("CENTER", withdrawBtn, "CENTER", 0, 0)
+        if excessEdit and excessEdit.GetCenter and guildXSBtn.GetCenter then
+          local _, y = excessEdit:GetCenter()
+          if not y and withdrawBtn and withdrawBtn.GetCenter then
+            local _, wdY = withdrawBtn:GetCenter()
+            if wdY then y = wdY - BTN_H - XS_ROW_GAP end
+          end
+          local x = select(1, guildXSBtn:GetCenter())
+          if x and y and panel and panel.GetLeft and panel.GetBottom then
+            local pLeft = panel:GetLeft()
+            local pBottom = panel:GetBottom()
+            if pLeft and pBottom then
+              guildXSBtn:ClearAllPoints()
+              guildXSBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (x - pLeft) - ((guildXSBtn.GetWidth and guildXSBtn:GetWidth() or SHORT_BTN_W) / 2), (y - pBottom) - (BTN_H / 2))
             end
-          else
-            local maxW = tonumber(SHORT_BTN_W) or 54
-            guildXSBtn:SetWidth(maxW)
           end
         end
       end
@@ -1276,6 +1453,9 @@ do
       end
       if rateEdit and rateEdit.SetEnabled then rateEdit:SetEnabled(cfgControlsEnabled) end
       if minEdit and minEdit.SetEnabled then minEdit:SetEnabled(cfgControlsEnabled) end
+      local tokenLocked = (viewCfg.excessMinUseToken == true)
+      if excessEdit and excessEdit.SetEnabled then excessEdit:SetEnabled(cfgControlsEnabled and ((viewCfg.warBankXS == true) or (viewCfg.guildBankXS == true)) and (not tokenLocked)) end
+      if wowTokenBtn and wowTokenBtn.SetEnabled then wowTokenBtn:SetEnabled(cfgControlsEnabled and ((viewCfg.warBankXS == true) or (viewCfg.guildBankXS == true))) end
       if vendorBtn and vendorBtn.SetEnabled then vendorBtn:SetEnabled(cfgControlsEnabled) end
       if lootBtn and lootBtn.SetEnabled then lootBtn:SetEnabled(cfgControlsEnabled) end
       if mailBtn and mailBtn.SetEnabled then mailBtn:SetEnabled(cfgControlsEnabled) end
@@ -1419,8 +1599,110 @@ do
       end
 
       cfg.minGold = v
+      if cfg.excessMinGoldUserSet ~= true then
+        cfg.excessMinGold = v
+      end
       Refresh()
     end)
+
+    excessEdit:SetScript("OnTextChanged", function(self)
+      EnsureDB()
+      local cdb = (env.GetCharDB and env.GetCharDB()) or (LI and type(LI.GetCharDB) == "function" and LI.GetCharDB()) or (_G and rawget(_G, "fr0z3nUI_LootItCharDB"))
+      if type(cdb) ~= "table" then cdb = nil end
+      cdb = cdb or {}
+      cdb.tax = (type(cdb.tax) == "table") and cdb.tax or {}
+      cdb.tax.cfg = (type(cdb.tax.cfg) == "table") and cdb.tax.cfg or {}
+      cdb.tax.scope = tostring(cdb.tax.scope or "guild"):lower()
+      if cdb.tax.scope ~= "guild" and cdb.tax.scope ~= "character" then cdb.tax.scope = "guild" end
+
+      local txt = self:GetText() or ""
+      local clean = txt:gsub("[^%d]", "")
+      if clean ~= txt and not (self._cleaning == true) and (self.HasFocus and self:HasFocus()) then
+        self._cleaning = true
+        self:SetText(clean)
+        self._cleaning = false
+        txt = clean
+      end
+
+      local v = tonumber(clean)
+      if not v then v = 0 end
+      v = clampFn(v, 0, 9999999) or 0
+
+      local cfg
+      if cdb.tax.scope == "character" then
+        cfg = cdb.tax.cfg
+      else
+        local guildKey = select(1, GetCurrentGuildKeyAndName())
+        if not guildKey then return end
+        cfg = EnsureGuildTaxDB(guildKey)
+        if not cfg then return end
+      end
+
+      cfg.excessMinGold = v
+      cfg.excessMinGoldUserSet = true
+      Refresh()
+    end)
+
+    wowTokenBtn:SetScript("OnClick", function()
+      EnsureDB()
+      local cdb = (env.GetCharDB and env.GetCharDB()) or (LI and type(LI.GetCharDB) == "function" and LI.GetCharDB()) or (_G and rawget(_G, "fr0z3nUI_LootItCharDB"))
+      if type(cdb) ~= "table" then cdb = nil end
+      cdb = cdb or {}
+      cdb.tax = (type(cdb.tax) == "table") and cdb.tax or {}
+      cdb.tax.cfg = (type(cdb.tax.cfg) == "table") and cdb.tax.cfg or {}
+      cdb.tax.scope = tostring(cdb.tax.scope or "guild"):lower()
+      if cdb.tax.scope ~= "guild" and cdb.tax.scope ~= "character" then cdb.tax.scope = "guild" end
+
+      local cfg
+      if cdb.tax.scope == "character" then
+        cfg = cdb.tax.cfg
+      else
+        local guildKey = select(1, GetCurrentGuildKeyAndName())
+        if not guildKey then return end
+        cfg = EnsureGuildTaxDB(guildKey)
+        if not cfg then return end
+      end
+
+      local wasToken = (cfg.excessMinUseToken == true)
+      cfg.excessMinUseToken = not wasToken
+      if cfg.excessMinUseToken == true then
+        -- Snapshot pre-token value so we can restore it when token mode is turned off.
+        cfg._excessMinGoldBeforeToken = clampFn(tonumber(cfg.excessMinGold), 0, 9999999)
+        cfg._excessMinGoldUserSetBeforeToken = (cfg.excessMinGoldUserSet == true)
+
+        local tokenGold = GetWowTokenGoldSnapshot()
+        if tokenGold and tokenGold > 0 then
+          cfg.excessMinGold = tokenGold
+          cfg.excessMinGoldUserSet = true
+        end
+      else
+        -- Revert to pre-token value; if unavailable, fall back to Min Gold.
+        local restoreGold = tonumber(cfg._excessMinGoldBeforeToken)
+        if restoreGold == nil then
+          restoreGold = tonumber(cfg.minGold) or 0
+        end
+        restoreGold = clampFn(restoreGold, 0, 9999999) or 0
+        cfg.excessMinGold = restoreGold
+
+        if cfg._excessMinGoldUserSetBeforeToken ~= nil then
+          cfg.excessMinGoldUserSet = (cfg._excessMinGoldUserSetBeforeToken == true)
+        else
+          cfg.excessMinGoldUserSet = false
+        end
+
+        cfg._excessMinGoldBeforeToken = nil
+        cfg._excessMinGoldUserSetBeforeToken = nil
+      end
+      Refresh()
+    end)
+
+    wowTokenBtn:SetScript("OnEnter", function(self)
+      if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("Use current cached WoW Token price for XS Min.")
+      GameTooltip:Show()
+    end)
+    wowTokenBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
 
     vendorBtn:SetScript("OnClick", function()
       EnsureDB()
@@ -1822,7 +2104,7 @@ do
     withdrawBtn:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetText("Allows lending Guild funds up to the Min Gold balance.\nRepaid after other Taxes, Interest of 11.49% pa applies.")
+      GameTooltip:SetText("Only enable if Guild allows withdrawl, and you want to use it.\nWithdraws up to min balance, withdrawn is added to Owed.")
       GameTooltip:Show()
     end)
     withdrawBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)

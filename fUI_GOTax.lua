@@ -33,6 +33,8 @@ do
   }
 
   local goldStr, silverStr, copperStr
+  local lastTokenPrice = nil
+  local lastTokenPriceTS = 0
 
   local function GetCurrentGuildKeyAndName()
     if type(IsInGuild) == "function" then
@@ -227,6 +229,15 @@ do
     if t.warBankMoneyCachedTS ~= nil then
       t.warBankMoneyCachedTS = math.floor(tonumber(t.warBankMoneyCachedTS) or 0)
       if t.warBankMoneyCachedTS < 0 then t.warBankMoneyCachedTS = 0 end
+    end
+
+    if t.wowTokenMarketPriceCached ~= nil then
+      t.wowTokenMarketPriceCached = math.floor(tonumber(t.wowTokenMarketPriceCached) or 0)
+      if t.wowTokenMarketPriceCached < 0 then t.wowTokenMarketPriceCached = 0 end
+    end
+    if t.wowTokenMarketPriceCachedTS ~= nil then
+      t.wowTokenMarketPriceCachedTS = math.floor(tonumber(t.wowTokenMarketPriceCachedTS) or 0)
+      if t.wowTokenMarketPriceCachedTS < 0 then t.wowTokenMarketPriceCachedTS = 0 end
     end
 
     -- Normalize: enabled tracks whether the rate is > 0.
@@ -500,6 +511,13 @@ do
     if g.minGold == nil then g.minGold = 0 end
     g.minGold = Clamp(g.minGold, 0, 9999999) or 0
     if g.minGold < 0 then g.minGold = 0 end
+    if g.excessMinGold == nil then g.excessMinGold = g.minGold end
+    g.excessMinGold = Clamp(g.excessMinGold, 0, 9999999) or 0
+    if g.excessMinGold < 0 then g.excessMinGold = 0 end
+    if g.excessMinGoldUserSet == nil then g.excessMinGoldUserSet = false end
+    g.excessMinGoldUserSet = (g.excessMinGoldUserSet == true)
+    if g.excessMinUseToken == nil then g.excessMinUseToken = false end
+    g.excessMinUseToken = (g.excessMinUseToken == true)
     if g.allowWithdraw == nil then g.allowWithdraw = false end
     g.allowWithdraw = (g.allowWithdraw == true)
 
@@ -574,9 +592,19 @@ do
     -- Migrate legacy per-character fields (ct.minGold/ct.allowWithdraw) into cfg if present.
     if cfg.minGold == nil and ct.minGold ~= nil then cfg.minGold = ct.minGold end
     if cfg.allowWithdraw == nil and ct.allowWithdraw ~= nil then cfg.allowWithdraw = ct.allowWithdraw end
+    if cfg.excessMinGold == nil and ct.excessMinGold ~= nil then cfg.excessMinGold = ct.excessMinGold end
+    if cfg.excessMinGoldUserSet == nil and ct.excessMinGoldUserSet ~= nil then cfg.excessMinGoldUserSet = ct.excessMinGoldUserSet end
+    if cfg.excessMinUseToken == nil and ct.excessMinUseToken ~= nil then cfg.excessMinUseToken = ct.excessMinUseToken end
     if cfg.minGold == nil then cfg.minGold = 0 end
     cfg.minGold = Clamp(cfg.minGold, 0, 9999999) or 0
     if cfg.minGold < 0 then cfg.minGold = 0 end
+    if cfg.excessMinGold == nil then cfg.excessMinGold = cfg.minGold end
+    cfg.excessMinGold = Clamp(cfg.excessMinGold, 0, 9999999) or 0
+    if cfg.excessMinGold < 0 then cfg.excessMinGold = 0 end
+    if cfg.excessMinGoldUserSet == nil then cfg.excessMinGoldUserSet = false end
+    cfg.excessMinGoldUserSet = (cfg.excessMinGoldUserSet == true)
+    if cfg.excessMinUseToken == nil then cfg.excessMinUseToken = false end
+    cfg.excessMinUseToken = (cfg.excessMinUseToken == true)
     if cfg.allowWithdraw == nil then cfg.allowWithdraw = false end
     cfg.allowWithdraw = (cfg.allowWithdraw == true)
 
@@ -756,6 +784,129 @@ do
     return (type(money) == "number" and money > 0)
   end
 
+  local function GetWowTokenMarketPrice()
+    local t = EnsureTaxDB()
+    if not (C_WowTokenPublic and type(C_WowTokenPublic.GetCurrentMarketPrice) == "function") then
+      if type(t) == "table" and tonumber(t.wowTokenMarketPriceCached) and tonumber(t.wowTokenMarketPriceCached) > 0 then
+        lastTokenPrice = math.floor(tonumber(t.wowTokenMarketPriceCached) or 0)
+        lastTokenPriceTS = math.floor(tonumber(t.wowTokenMarketPriceCachedTS) or 0)
+        return lastTokenPrice
+      end
+      return lastTokenPrice
+    end
+
+    local ok, price = pcall(C_WowTokenPublic.GetCurrentMarketPrice)
+    if not ok then
+      if type(t) == "table" and tonumber(t.wowTokenMarketPriceCached) and tonumber(t.wowTokenMarketPriceCached) > 0 then
+        lastTokenPrice = math.floor(tonumber(t.wowTokenMarketPriceCached) or 0)
+        lastTokenPriceTS = math.floor(tonumber(t.wowTokenMarketPriceCachedTS) or 0)
+        return lastTokenPrice
+      end
+      return lastTokenPrice
+    end
+
+    price = tonumber(price)
+    if not price or price <= 0 then
+      -- If the quote is stale, ask Blizzard to refresh it and try once more.
+      local staleTS = tonumber(lastTokenPriceTS) or 0
+      local now = NowTS()
+      if now > 0 and staleTS > 0 and (now - staleTS) >= 180 then
+        pcall(C_WowTokenPublic.UpdateMarketPrice)
+        local okRetry, retryPrice = pcall(C_WowTokenPublic.GetCurrentMarketPrice)
+        retryPrice = okRetry and tonumber(retryPrice) or nil
+        if type(retryPrice) == "number" and retryPrice > 0 then
+          price = math.floor(retryPrice)
+        end
+      end
+
+      if price and price > 0 then
+        lastTokenPrice = price
+        lastTokenPriceTS = NowTS()
+        if type(t) == "table" then
+          t.wowTokenMarketPriceCached = price
+          t.wowTokenMarketPriceCachedTS = lastTokenPriceTS
+        end
+        return price
+      end
+
+      if type(t) == "table" and tonumber(t.wowTokenMarketPriceCached) and tonumber(t.wowTokenMarketPriceCached) > 0 then
+        lastTokenPrice = math.floor(tonumber(t.wowTokenMarketPriceCached) or 0)
+        lastTokenPriceTS = math.floor(tonumber(t.wowTokenMarketPriceCachedTS) or 0)
+        return lastTokenPrice
+      end
+      return lastTokenPrice
+    end
+
+    price = math.floor(price)
+    lastTokenPrice = price
+    lastTokenPriceTS = NowTS()
+    if type(t) == "table" then
+      t.wowTokenMarketPriceCached = price
+      t.wowTokenMarketPriceCachedTS = lastTokenPriceTS
+    end
+    return price
+  end
+
+  local function RequestWowTokenPriceRefresh()
+    if not (C_WowTokenPublic and type(C_WowTokenPublic.UpdateMarketPrice) == "function") then
+      return
+    end
+    pcall(C_WowTokenPublic.UpdateMarketPrice)
+  end
+
+  function Tax.RefreshWowTokenPrice()
+    RequestWowTokenPriceRefresh()
+    local price = GetWowTokenMarketPrice()
+    if type(price) == "number" and price > 0 then
+      return price
+    end
+    return nil
+  end
+
+  local function ScheduleWowTokenRefreshes()
+    local delays = { 2, 10, 30, 120 }
+    if not (C_Timer and C_Timer.After) then
+      RequestWowTokenPriceRefresh()
+      return
+    end
+    for i = 1, #delays do
+      C_Timer.After(delays[i], function()
+        local price = Tax.RefreshWowTokenPrice and Tax.RefreshWowTokenPrice() or nil
+        if type(price) == "number" and price > 0 then
+          -- Stop trying once we have a usable value in cache.
+          return
+        end
+      end)
+    end
+  end
+
+  function Tax.GetWowTokenMarketPrice()
+    return GetWowTokenMarketPrice()
+  end
+
+  function Tax.GetWowTokenMarketPriceCached()
+    local t = EnsureTaxDB()
+    if type(t) == "table" and tonumber(t.wowTokenMarketPriceCached) and tonumber(t.wowTokenMarketPriceCached) > 0 then
+      return math.floor(tonumber(t.wowTokenMarketPriceCached) or 0)
+    end
+    return lastTokenPrice
+  end
+
+  local function GetWowTokenDisplayText()
+    local price = GetWowTokenMarketPrice()
+    if type(price) == "number" and price > 0 then
+      local useCached = (type(lastTokenPrice) == "number" and lastTokenPrice > 0 and price == lastTokenPrice and (NowTS() - (tonumber(lastTokenPriceTS) or 0) >= 180))
+      local suffix = useCached and " *" or ""
+      return "WoW Token: " .. FormatGoldIconFromCopper(price) .. suffix
+    end
+
+    if type(lastTokenPrice) == "number" and lastTokenPrice > 0 then
+      return "WoW Token: " .. FormatGoldIconFromCopper(lastTokenPrice) .. " *"
+    end
+
+    return "WoW Token: unavailable"
+  end
+
   local function GetTaxLDBText()
     local t = EnsureTaxDB()
     local disp = (type(t) == "table" and type(t.ldbDisplay) == "table") and t.ldbDisplay or { player = true, guild = true, war = true }
@@ -906,6 +1057,10 @@ do
         if warOwed < 0 then warOwed = 0 end
         local owedLine = FormatGoldIconFromCopper(guildOwed) .. "  |  " .. FormatGoldIconFromCopper(warOwed)
         tooltip:AddLine(title .. "    " .. owedLine)
+
+        local tokenText = GetWowTokenDisplayText()
+        tooltip:AddLine(tokenText, 0.8, 0.8, 0.8)
+
         tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
       end,
     })
@@ -1511,12 +1666,37 @@ do
     local minCopper = math.floor(minGold * (COPPER_PER_GOLD or 10000))
     if minCopper < 0 then minCopper = 0 end
 
+    local excessMinGold = minGold
+    if type(cfg) == "table" and cfg.excessMinGold ~= nil then
+      excessMinGold = tonumber(cfg.excessMinGold) or minGold
+    end
+    if type(cfg) == "table" and cfg.excessMinUseToken == true then
+      local tokenCopper = GetWowTokenMarketPrice()
+      local tokenGold = math.floor((tonumber(tokenCopper) or 0) / (COPPER_PER_GOLD or 10000))
+      if tokenGold > 0 then
+        excessMinGold = tokenGold
+      end
+    end
+    if excessMinGold < 0 then excessMinGold = 0 end
+    local excessMinCopper = math.floor(excessMinGold * (COPPER_PER_GOLD or 10000))
+    if excessMinCopper < 0 then excessMinCopper = 0 end
+
     local allowWithdraw
     if type(cfg) == "table" and cfg.allowWithdraw ~= nil then
       allowWithdraw = (cfg.allowWithdraw == true)
     else
       -- Backward compatibility fallback (pre-scope-scoped Withdraw).
       allowWithdraw = (ct and ct.allowWithdraw == true) and true or false
+    end
+
+    local function GetNowSecondsLocal()
+      if type(GetTime) == "function" then
+        return tonumber(GetTime()) or 0
+      end
+      if type(time) == "function" then
+        return tonumber(time()) or 0
+      end
+      return 0
     end
 
     local function CanDeposit()
@@ -1538,8 +1718,21 @@ do
       local dueBorrowed = math.floor(tonumber(bal.dueBorrowed) or 0)
       if dueTax < 0 then dueTax = 0 end
       if dueBorrowed < 0 then dueBorrowed = 0 end
-      local due = dueTax + dueBorrowed
-      if due <= 0 and not xsEnabled then return end
+
+      -- Prevent immediate payback of a just-borrowed amount from the same auto-withdraw cycle.
+      local suppressBorrowedRepay = false
+      do
+        local now = GetNowSecondsLocal()
+        local lastBorrow = tonumber(state._guildBorrowedAtTS) or 0
+        if now > 0 and lastBorrow > 0 and (now - lastBorrow) < 2.0 then
+          suppressBorrowedRepay = true
+        end
+      end
+
+      local duePayBorrowed = suppressBorrowedRepay and 0 or dueBorrowed
+      local duePayable = dueTax + duePayBorrowed
+      local dueFull = dueTax + dueBorrowed
+      if duePayable <= 0 and not xsEnabled then return end
 
       -- XS: only pay excess above MinGold + owed.
       local warDue = 0
@@ -1555,7 +1748,7 @@ do
           if warDue < 0 then warDue = 0 end
         end
       end
-      local totalOwed = due + warDue
+      local totalOwed = dueFull + warDue
 
       local okCan, why = CanDeposit()
       if not okCan then
@@ -1572,7 +1765,9 @@ do
 
       local toPay
       if xsEnabled then
-        local extra = available - totalOwed
+        local availableForXS = money - excessMinCopper
+        if availableForXS < 0 then availableForXS = 0 end
+        local extra = availableForXS - totalOwed
         if extra < 0 then extra = 0 end
         if scope == "guild" and cfg.warBankEnabled == true and cfg.warBankXS == true then
           local guildKey = select(1, GetCurrentGuildKeyAndName())
@@ -1589,18 +1784,22 @@ do
             math.floor(tonumber(extraGuild) or 0),
             math.floor(tonumber(extraWar) or 0)
           ))
-          toPay = due + extraGuild
+          toPay = duePayable + extraGuild
         else
-          toPay = due + extra
+          toPay = duePayable + extra
         end
       else
-        toPay = due
+        toPay = duePayable
         if toPay > available then
           toPay = available
         end
       end
-      if toPay > available then
-        toPay = available
+      -- Always cap deposits to funds above Min Gold.
+      -- XS changes only how "extra" is computed, not how much can be paid below Min.
+      local maxPay = available
+      if maxPay < 0 then maxPay = 0 end
+      if toPay > maxPay then
+        toPay = maxPay
       end
       toPay = math.floor(tonumber(toPay) or 0)
       if toPay <= 0 then
@@ -1617,12 +1816,12 @@ do
         if ok then
           ApplyBankDeltaToCaches("guild", -toPay)
           local payToDue = toPay
-          if payToDue > due then payToDue = due end
+          if payToDue > duePayable then payToDue = duePayable end
 
           local payTax = payToDue
           if payTax > dueTax then payTax = dueTax end
           local remain = payToDue - payTax
-          local payBorrowed = remain
+          local payBorrowed = suppressBorrowedRepay and 0 or remain
           if payBorrowed > dueBorrowed then payBorrowed = dueBorrowed end
 
           bal.dueTax = math.floor(dueTax - payTax)
@@ -1635,7 +1834,7 @@ do
             totalMoney = money,
             owedTax = dueTax,
             owedBorrowed = dueBorrowed,
-            owed = due,
+            owed = dueFull,
             xsEnabled = xsEnabled,
             payToOwed = payToDue,
             extra = extra,
@@ -1671,6 +1870,7 @@ do
             local ok = pcall(WithdrawGuildBankMoney, need)
             if ok then
               ApplyBankDeltaToCaches("guild", need)
+              state._guildBorrowedAtTS = GetNowSecondsLocal()
               bal.dueBorrowed = math.floor((tonumber(bal.dueBorrowed) or 0) + need)
               if bal.dueBorrowed < 0 then bal.dueBorrowed = 0 end
               bal.dueTax = math.floor(tonumber(bal.dueTax) or 0)
@@ -1752,6 +1952,21 @@ do
     local minCopper = math.floor(minGold * (COPPER_PER_GOLD or 10000))
     if minCopper < 0 then minCopper = 0 end
 
+    local excessMinGold = minGold
+    if cfg.excessMinGold ~= nil then
+      excessMinGold = tonumber(cfg.excessMinGold) or minGold
+    end
+    if cfg.excessMinUseToken == true then
+      local tokenCopper = GetWowTokenMarketPrice()
+      local tokenGold = math.floor((tonumber(tokenCopper) or 0) / (COPPER_PER_GOLD or 10000))
+      if tokenGold > 0 then
+        excessMinGold = tokenGold
+      end
+    end
+    if excessMinGold < 0 then excessMinGold = 0 end
+    local excessMinCopper = math.floor(excessMinGold * (COPPER_PER_GOLD or 10000))
+    if excessMinCopper < 0 then excessMinCopper = 0 end
+
     local function CanDeposit()
       if C_Bank and type(C_Bank.CanDepositMoney) == "function" then
         local ok, can = pcall(C_Bank.CanDepositMoney, bankType.Account)
@@ -1779,8 +1994,21 @@ do
       local dueBorrowed = math.floor(tonumber(wb.dueBorrowed) or 0)
       if dueTax < 0 then dueTax = 0 end
       if dueBorrowed < 0 then dueBorrowed = 0 end
-      local due = dueTax + dueBorrowed
-      if due <= 0 and not xsEnabled then return end
+
+      -- Prevent immediate payback of a just-borrowed amount from the same auto-withdraw cycle.
+      local suppressBorrowedRepay = false
+      do
+        local now = NowSeconds()
+        local lastBorrow = tonumber(state._warbankBorrowedAtTS) or 0
+        if now > 0 and lastBorrow > 0 and (now - lastBorrow) < 2.0 then
+          suppressBorrowedRepay = true
+        end
+      end
+
+      local duePayBorrowed = suppressBorrowedRepay and 0 or dueBorrowed
+      local duePayable = dueTax + duePayBorrowed
+      local dueFull = dueTax + dueBorrowed
+      if duePayable <= 0 and not xsEnabled then return end
 
       -- XS: only pay excess above MinGold + owed.
       local guildDue = 0
@@ -1792,7 +2020,7 @@ do
         guildDue = gTax + gBorrow
         if guildDue < 0 then guildDue = 0 end
       end
-      local totalOwed = guildDue + due
+      local totalOwed = guildDue + dueFull
 
       if not CanDeposit() then
         RequestUIRefresh()
@@ -1808,7 +2036,9 @@ do
 
       local toPay
       if xsEnabled then
-        local extra = available - totalOwed
+        local availableForXS = money - excessMinCopper
+        if availableForXS < 0 then availableForXS = 0 end
+        local extra = availableForXS - totalOwed
         if extra < 0 then extra = 0 end
         if cfg.guildBankXS == true then
           local guildKey = select(1, GetCurrentGuildKeyAndName())
@@ -1827,18 +2057,22 @@ do
             math.floor(tonumber(extraGuild) or 0),
             math.floor(tonumber(extraWar) or 0)
           ))
-          toPay = due + extraWar
+          toPay = duePayable + extraWar
         else
-          toPay = due + extra
+          toPay = duePayable + extra
         end
       else
-        toPay = due
+        toPay = duePayable
         if toPay > available then
           toPay = available
         end
       end
-      if toPay > available then
-        toPay = available
+      -- Always cap deposits to funds above Min Gold.
+      -- XS changes only how "extra" is computed, not how much can be paid below Min.
+      local maxPay = available
+      if maxPay < 0 then maxPay = 0 end
+      if toPay > maxPay then
+        toPay = maxPay
       end
       toPay = math.floor(tonumber(toPay) or 0)
       if toPay <= 0 then
@@ -1855,12 +2089,12 @@ do
         if ok then
           ApplyBankDeltaToCaches("warbank", -toPay)
           local payToDue = toPay
-          if payToDue > due then payToDue = due end
+          if payToDue > duePayable then payToDue = duePayable end
 
           local payTax = payToDue
           if payTax > dueTax then payTax = dueTax end
           local remain = payToDue - payTax
-          local payBorrowed = remain
+          local payBorrowed = suppressBorrowedRepay and 0 or remain
           if payBorrowed > dueBorrowed then payBorrowed = dueBorrowed end
 
           wb.dueTax = math.floor(dueTax - payTax)
@@ -1873,7 +2107,7 @@ do
             totalMoney = money,
             owedTax = dueTax,
             owedBorrowed = dueBorrowed,
-            owed = due,
+            owed = dueFull,
             xsEnabled = xsEnabled,
             payToOwed = payToDue,
             extra = extra,
@@ -1901,6 +2135,7 @@ do
           local ok = pcall(C_Bank.WithdrawMoney, bankType.Account, need)
           if ok then
             ApplyBankDeltaToCaches("warbank", need)
+            state._warbankBorrowedAtTS = NowSeconds()
             wb.dueBorrowed = math.floor((tonumber(wb.dueBorrowed) or 0) + need)
             if wb.dueBorrowed < 0 then wb.dueBorrowed = 0 end
             wb.dueTax = math.floor(tonumber(wb.dueTax) or 0)
@@ -1951,6 +2186,9 @@ do
   EnsureCharTaxDB()
   EnsureTaxLDB()
   UpdateTaxLDBText()
+
+    -- Warm the WoW Token cache so the tooltip can show a value without manual intervention.
+    ScheduleWowTokenRefreshes()
 
     -- Reset any stale "open" state that could cause login-time PLAYER_MONEY to be treated as a bank move.
     state.guildBankOpen = false

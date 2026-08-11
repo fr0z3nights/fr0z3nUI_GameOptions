@@ -7,6 +7,49 @@ ns.db.rules = ns.db.rules or {}
 --   pcn = {"Name-Realm", "Alt-Realm"} -- only if you are ANY of these characters
 local CURRENT_ZONE
 
+local function TalkCacheSeen(key)
+	if ns and ns.Talk and type(ns.Talk.CacheGet) == "function" then
+		return ns.Talk.CacheGet(key) and true or false
+	end
+	return false
+end
+
+local function TalkCacheGet(key)
+	if ns and ns.Talk and type(ns.Talk.CacheGet) == "function" then
+		return ns.Talk.CacheGet(key)
+	end
+	return nil
+end
+
+local function GetCharacterCacheKey(prefix)
+	local name = UnitName and UnitName("player") or nil
+	local realm = nil
+	if GetNormalizedRealmName then
+		realm = GetNormalizedRealmName()
+	elseif GetRealmName then
+		realm = GetRealmName()
+	end
+	local suffix = ""
+	if name and name ~= "" then
+		suffix = tostring(name)
+	end
+	if realm and realm ~= "" then
+		if suffix ~= "" then
+			suffix = suffix .. ":"
+		end
+		suffix = suffix .. tostring(realm)
+	end
+	if suffix == "" then
+		return prefix
+	end
+	return prefix .. ":" .. suffix
+end
+
+local function GetViewGossipState(cacheKey)
+	local state = TalkCacheGet(cacheKey)
+	return state == "goods" and "goods" or "companion"
+end
+
 local function SetZone(zone)
     CURRENT_ZONE = zone
 end

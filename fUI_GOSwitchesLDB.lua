@@ -238,6 +238,28 @@ do
         return progress, threshold
     end
 
+    local function GetCurrencyQuantity(currencyID)
+        currencyID = tonumber(currencyID)
+        if not currencyID or currencyID <= 0 then
+            return 0
+        end
+
+        if C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
+            local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
+            if ok and type(info) == "table" then
+                local quantity = tonumber(info.quantity)
+                if not quantity then
+                    quantity = tonumber(info.amount)
+                end
+                if quantity then
+                    return quantity
+                end
+            end
+        end
+
+        return 0
+    end
+
     local function TierSortFunc(a, b)
         return (tonumber(a and a.index) or 0) < (tonumber(b and b.index) or 0)
     end
@@ -345,14 +367,11 @@ do
     end
 
     local function GetProgressText()
-        local sep = IsPipeLayoutEnabled() and " | " or "   "
+        local sep = "   "
         local statusOrb = GetVaultStatusIconTag()
         local statusSuffix = (statusOrb ~= "") and (sep .. statusOrb) or ""
 
         if not EnsureWeeklyRewardsLoaded() then
-            if IsPipeLayoutEnabled() then
-                return string.format("-/- | -/- | -/-%s", statusSuffix)
-            end
             return string.format("-/-   -/-   -/-%s", statusSuffix)
         end
 
@@ -363,8 +382,15 @@ do
         local raidPair, raidColor = ComputeLanePair(raid)
         local dngPair, dngColor = ComputeLanePair(dng)
         local worldPair, worldColor = ComputeLanePair(world)
+        local cofferKeys = GetCurrencyQuantity(3028)
+        local cofferShards = GetCurrencyQuantity(3310)
+        local cofferDisplayValue = cofferKeys + math.floor(cofferShards / 100)
+        local cofferSuffix = ""
+        if statusOrb == "" then
+            cofferSuffix = string.format("   |cffffa000%d|r", cofferDisplayValue)
+        end
 
-        return string.format("|c%s%s|r%s|c%s%s|r%s|c%s%s|r%s", raidColor, raidPair, sep, dngColor, dngPair, sep, worldColor, worldPair, statusSuffix)
+        return string.format("|c%s%s|r%s|c%s%s|r%s|c%s%s|r%s%s", raidColor, raidPair, sep, dngColor, dngPair, sep, worldColor, worldPair, statusSuffix, cofferSuffix)
     end
 
     local function AddGvLines(tooltip, rewardTable)
@@ -464,6 +490,10 @@ do
         tooltip:AddLine("Dungeons")
         AddGvLines(tooltip, dungeons)
         AddActivityHistory(tooltip, Enum.WeeklyRewardChestThresholdType.Activities, "Completed Keys", 8)
+        local cofferKeys = GetCurrencyQuantity(3028)
+        local cofferShards = GetCurrencyQuantity(3310)
+        local shardValue = (cofferShards > 0) and (cofferShards / 100) or 0
+        tooltip:AddLine(string.format("|cffffa000Coffer Keys:|r  %d  (%s)", cofferKeys, string.format("%.1f", shardValue)), 1, 1, 1)
         tooltip:AddLine(" ")
 
         local world = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.World)

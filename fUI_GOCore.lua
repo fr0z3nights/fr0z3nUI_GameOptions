@@ -1248,6 +1248,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
         tax.Init(DB, CHARDB, { Print = Print })
       end
     end
+    do
+      local tax = LI and LI.Tax
+      if tax and tax.RefreshWowTokenPrice then
+        tax.RefreshWowTokenPrice()
+      end
+    end
     ApplyFilters()
     ApplyFiltersSoon(1)
     BootstrapMailNotifier()
@@ -1263,6 +1269,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
       local tax = LI and LI.Tax
       if tax and tax.RefreshLDB then
         C_Timer.After(0.5, function() tax.RefreshLDB() end)
+      end
+    end
+    do
+      local tax = LI and LI.Tax
+      if tax and tax.RefreshWowTokenPrice then
+        C_Timer.After(1.0, function() tax.RefreshWowTokenPrice() end)
       end
     end
     ApplyFiltersSoon(0.5)
