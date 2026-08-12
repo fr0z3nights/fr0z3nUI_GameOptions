@@ -237,6 +237,10 @@ local function CanSummonNow()
         return false
     end
 
+    if UnitIsSitting and UnitIsSitting("player") then
+        return false
+    end
+
     if IsMounted and IsMounted() then
         return false
     end

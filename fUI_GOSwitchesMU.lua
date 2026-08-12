@@ -783,6 +783,18 @@ local function SafeToNumber(v)
     return nil
 end
 
+local function SafeGetBuffDataByIndex(unit, index)
+    if not (C_UnitAuras and type(C_UnitAuras.GetBuffDataByIndex) == "function") then
+        return nil
+    end
+
+    local ok, data = pcall(C_UnitAuras.GetBuffDataByIndex, unit, index)
+    if not ok then
+        return nil
+    end
+    return data
+end
+
 local function SafeEqToID(v, id)
     -- v can be a restricted/"secret" value; comparisons can throw.
     local n = SafeToNumber(v)
@@ -859,7 +871,7 @@ local function IsEatingOrDrinking()
         local unpackAura = AuraUtil and AuraUtil.UnpackAuraData
         if C_UnitAuras and type(C_UnitAuras.GetBuffDataByIndex) == "function" then
             for i = 1, 40 do
-                local data = C_UnitAuras.GetBuffDataByIndex("player", i)
+                local data = SafeGetBuffDataByIndex("player", i)
                 if not data then
                     break
                 end
@@ -1025,9 +1037,9 @@ local function GetMountedMountID()
 
     local unpackAura = AuraUtil and AuraUtil.UnpackAuraData
 
-    if C_UnitAuras and C_UnitAuras.GetBuffDataByIndex then
+    if C_UnitAuras and type(C_UnitAuras.GetBuffDataByIndex) == "function" then
         for i = 1, 40 do
-            local data = C_UnitAuras.GetBuffDataByIndex("player", i)
+            local data = SafeGetBuffDataByIndex("player", i)
             if not data then
                 break
             end

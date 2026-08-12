@@ -237,7 +237,7 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	t[137619] = { text = "Looting and killing, understood!" }
 	t[135012] = { text = "Zah'ran - Show me." }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2502:136141:138317")
-	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
 	t = NPC("Alesil Dawnblood", {252599, })
@@ -399,190 +399,219 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 SetZone("Harandar, Eastern Kingdoms")
 
 	t = NPC("Akazi", { 253392, 253392, })
-	t[136773] = { text = "<Ask about mentoring Ketan.>" }                                                 -- A Hunter's Plight (92882) Akazi (253392)
-	t[136774] = { text = "<Accept the task.>" }                                                           -- A Hunter's Plight (92882) Akazi (253392)
-	t[136842] = { text = "<Present the Ka'dani spear.>" }                                                 -- A Hunter's Weapon (92884) Akazi (253392)
+	t[136773] = { text = "<Ask about mentoring Ketan.>" }												-- A Hunter's Plight (92882) Akazi (253392)
+	t[136774] = { text = "<Accept the task.>" }															-- A Hunter's Plight (92882) Akazi (253392)
+	t[136842] = { text = "<Present the Ka'dani spear.>" }												-- A Hunter's Weapon (92884) Akazi (253392)
 
 	t = NPC("Altar of Innocence", { 588929, })
-	t[136716] = { prio = 05, text = "<Meditate here for a moment.>" }                                     -- Toy () Altar of Innocence (588929)
+	t[136716] = { prio = 05, text = "<Meditate here for a moment.>" }									-- Toy () Altar of Innocence (588929)
 
 	t = NPC("Altar of Wisdom", { 590789, 254116, })
-	t[136764] = { prio = 05, text = "<Meditate here for a moment.>" }                                     -- Toy () Altar of Wisdom (590789)
-	t[136767] = { prio = 10, text = "<Offer the old rolled up pillow...>", close = true }                 -- Toy () Elder Spirit (254116)
+	t[136764] = { prio = 05, text = "<Meditate here for a moment.>" }									-- Toy () Altar of Wisdom (590789)
+	t[136767] = { prio = 10, text = "<Offer the old rolled up pillow...>", close = true }				-- Toy () Elder Spirit (254116)
 
 	t = NPC("Ashayo", { 256441, 255763, })
-	t[137389] = { text = "Deal with the big ones. Got it." }                                              -- Down the Rootways (86912) Ashayo (256441)
-	t[137248] = { text = "Release the moths near Lightbloom patches." }                                   -- Down the Rootways (86912) Ashayo (255763)
+	t[137389] = { text = "Deal with the big ones. Got it." }											-- Down the Rootways (86912) Ashayo (256441)
+	t[137248] = { text = "Release the moths near Lightbloom patches." }									-- Down the Rootways (86912) Ashayo (255763)
 
 	t = NPC("Brakko", { 243178, 246208, 257287, })
-	t[135601] = { text = "<Ask if they want to join your new team.>", close = true }                      -- A Few Fun Guys (90617) Brakko (243178)
-	t[135664] = { text = "<Ask your new teammate to spar.>" }                                             -- What Doesn't Kill Them (90619) Brakko (246208)
-	t[136986] = { text = "Do you have any good ideas we could use for a team name?", close = true }       -- The Most Important Thing (91270) Brakko (257287)
+	t[135601] = { text = "<Ask if they want to join your new team.>", close = true }					-- A Few Fun Guys (90617) Brakko (243178)
+	t[135664] = { text = "<Ask your new teammate to spar.>" }											-- What Doesn't Kill Them (90619) Brakko (246208)
+	t[136986] = { text = "Do you have any good ideas we could use for a team name?", close = true }		-- The Most Important Thing (91270) Brakko (257287)
 
 	t = NPC("Child-Like Spirit", { 254030, })
 	t[136724] = { text = "Who are you?" }                                          
 
 	t = NPC("Danul", { 237865, })
-	t[133726] = { text = "It's safe to return to the village." }                                          -- To Har'athir (86900)          Danul (237865)
+	t[133726] = { text = "It's safe to return to the village." }										-- To Har'athir (86900)          Danul (237865)
 
 	t = NPC("Doecha", { 255056, })
-	t[133777] = { text = "What can you tell me about the Rift of Aln?" }                                  -- Watch the Den (86864) Doecha (255056)
+	t[133777] = { text = "What can you tell me about the Rift of Aln?" }								-- Watch the Den (86864) Doecha (255056)
 
 	t = NPC("Eager Volunteer", { 241690, })
-	t[132939] = { text = "This Alndust will protect you from the Lightbloom so we can fight them.", }     -- Alndust in Right Hands (86882) Eager Volunteer (241690)
+	t[132939] = { text = "This Alndust will protect you from the Lightbloom so we can fight them.", }	-- Alndust in Right Hands (86882) Eager Volunteer (241690)
 
 	t = NPC("En'liahn", { 244394, 244456, 244465,})
-	t[133898] = { text = "Let's go find your ritual site.", }                                             -- The Path Will Reveal Iteself (90830) En'liahn (244394)
-	t[133930] = { text = "The wards are placed. Let's begin.", }                                          -- As Her Voice Goes Silent (90832) En'liahn (244456)
-	t[134053] = { text = "Grim. I'm ready when you are.", }                                               -- The Final Rite (90833) En'liahn (244465)
+	t[133898] = { text = "Let's go find your ritual site.", }											-- The Path Will Reveal Iteself (90830) En'liahn (244394)
+	t[133930] = { text = "The wards are placed. Let's begin.", }										-- As Her Voice Goes Silent (90832) En'liahn (244456)
+	t[134053] = { text = "Grim. I'm ready when you are.", }												-- The Final Rite (90833) En'liahn (244465)
 
 	t = NPC("Eonka", { 240225, 244126, })
-	t[132714] = { text = "<Ask if they have Lightbloom in their village.>" }                              -- The Traveling Flowers (86956) Eonka (240225)
-	t[133712] = { text = "Are you still feeling well?" }                                                  -- Seeds of the Rift (86944) Eonka (244126)
+	t[132714] = { text = "<Ask if they have Lightbloom in their village.>" }							-- The Traveling Flowers (86956) Eonka (240225)
+	t[133712] = { text = "Are you still feeling well?" }												-- Seeds of the Rift (86944) Eonka (244126)
 
 	t = NPC("F'liks", { 254620, })
-	t[137324] = { text = "<Pick up the budling.>" }                                                       -- Re-Hydra-ted (92866) F'liks (254620)
+	t[137324] = { text = "<Pick up the budling.>" }														-- Re-Hydra-ted (92866) F'liks (254620)
+
+	t = NPC("First Arcanist Thalyssra", { 253658, })
+	t[137842] = { text = "Thank you for your insight." }                                           		-- History Lesson (92899) First Arcanist Thalyssra (253658)
 
 	t = NPC("Grumpy", { 253313, })
-	t[137323] = { text = "<Pick up the budling.>" }                                                       -- Re-Hydra-ted (92866) Grumpy (253313)
+	t[137323] = { text = "<Pick up the budling.>" }														-- Re-Hydra-ted (92866) Grumpy (253313)
 
 	t = NPC("Halduron Brightwing", { 237343, 237345, 237787, 250363, })
-	t[133774] = { text = "Let's head down." }                                                             -- To Har'athir (86900)    Halduron Brightwing (237343)
-	t[133792] = { text = "Let's go." }                                                                    -- The Council Assembles (86929) Halduron Brightwing (237345)
-	t[138702] = { text = "<Hand Halduron the glimmering bag of seeds.>" }                                 -- Seeds of the Rift (86944) Halduron Brightwing (237787)
-	t[135501] = { text = "I am ready." }                                                                  -- Tell the People What You Have Seen (86890) Halduron Brightwing (250363)
+	t[133774] = { text = "Let's head down." }															-- To Har'athir (86900)    Halduron Brightwing (237343)
+	t[133792] = { text = "Let's go." }																	-- The Council Assembles (86929) Halduron Brightwing (237345)
+	t[138702] = { text = "<Hand Halduron the glimmering bag of seeds.>" }								-- Seeds of the Rift (86944) Halduron Brightwing (237787)
+	t[135501] = { text = "I am ready." }																-- Tell the People What You Have Seen (86890) Halduron Brightwing (250363)
 
 	t = NPC("Hannan", { 241655, })
-	t[132933] = { text = "What happened here?", }                                                         -- Alndust in Right Hands (86882) Hannan (241655)
+	t[132933] = { text = "What happened here?", }														-- Alndust in Right Hands (86882) Hannan (241655)
 
 	t = NPC("Imhayo", { 242596, })
-	t[138674] = { text = "Let me browse your goods.", }                                                   -- Go Get Orweyna (90533) Imhayo (242596)
+	t[138674] = { text = "Let me browse your goods.", }													-- Go Get Orweyna (90533) Imhayo (242596)
 
 	t = NPC("Innkeeper Yinaa", 240404)
-	t[132851] = { text = "What can you tell me about the Rift of Aln", prio = 10 }                        -- Watch the Den (86864) Innkeeper Yinaa (240404)
+	t[132851] = { text = "What can you tell me about the Rift of Aln", prio = 10 }						-- Watch the Den (86864) Innkeeper Yinaa (240404)
 	t[132728] = { text = "I'd like to browse your goods.", prio = -5 }
 	t[132729] = { text = "Make this inn your home.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
 	t = NPC("Keem", { 243930, })
-	t[133684] = { text = "<Ask if they have Lightbloom in their village.>" }                              -- The Traveling Flowers (86956) Keem (243930) DEAD
+	t[133684] = { text = "<Ask if they have Lightbloom in their village.>" }							-- The Traveling Flowers (86956) Keem (243930) DEAD
 
 	t = NPC("Ketan", { 254252, 255809, 253443, })
 	t[137250] = { text = "<Ask about Ketan's progress.>" }
 	t[137251] = { text = "<Ask about Ketan's progress.>" }
-	t[136855] = { text = "I am ready." }                                                                  -- A Hunter's Prey (92885) Ketan (254252)
+	t[136855] = { text = "I am ready." }																-- A Hunter's Prey (92885) Ketan (254252)
 
 	t = NPC("Ku'paal", { 237209, 241045, })
-	t[132537] = { text = "We are froemds of Orweyna and we are here to help." }                           -- To Har'athir (86900) Ku'paal (237209)
-	t[132858] = { text = "What can you tell me about the Rift of Aln", }                                  -- Watch the Den (86864) Ku'paal (241045)
+	t[132537] = { text = "We are froemds of Orweyna and we are here to help." }							-- To Har'athir (86900) Ku'paal (237209)
+	t[132858] = { text = "What can you tell me about the Rift of Aln", }								-- Watch the Den (86864) Ku'paal (241045)
+
+	t = NPC("Magister Umbric", { 253657, })
+	t[137855] = { text = "Thank you for your insight." }                           						-- History Lesson (92899) Magister Umbric (253657)
 
 	t = NPC("Mothkeeper Wew'tam", { 251259, })
-	t.__meta.stopIfQuestAvailable = { 92448, }   -- First NPCID, Stops Gossip until quest is accepted
-	t.__meta.stopIfQuestTurnIn = { 92448, }      -- First NPCID, Stops Gossip when turn in available
-	t[136981] = { text = "I have some Luminous Dust for trade." }                                         -- Vendor Mothkeeper Wew'tam (251259)
+	t.__meta.stopIfQuestAvailable = { 92448, }															-- First NPCID, Stops Gossip until quest is accepted
+	t.__meta.stopIfQuestTurnIn = { 92448, }																-- First NPCID, Stops Gossip when turn in available
+	t[136981] = { text = "I have some Luminous Dust for trade." }										-- Vendor Mothkeeper Wew'tam (251259)
 
 	t = NPC("N'ala", { 254622, })
-	t[137321] = { text = "<Pick up the budling.>" }                                                       -- Re-Hydra-ted (92866) N'ala (254622)
+	t[137321] = { text = "<Pick up the budling.>" }														-- Re-Hydra-ted (92866) N'ala (254622)
 
 	t = NPC("Naynar", 240407)
-	t[132852] = { text = "What can you tell me about the Rift of Aln", prio = 10 }                        -- Watch the Den (86864) Naynar (240407)
+	t[132852] = { text = "What can you tell me about the Rift of Aln", prio = 10 }						-- Watch the Den (86864) Naynar (240407)
 	t[132730] = { text = "Can I see the Renown items you have for sale?", prio = -5 }
 
 	t = NPC("Ney'leia", { 242684, })
-	t[133929] = { text = "I'm ready. Let's go." }                                                         -- Late Bloomers (90537) Ney'leia (242684)
+	t[133929] = { text = "I'm ready. Let's go." }														-- Late Bloomers (90537) Ney'leia (242684)
 
 	t = NPC("Oorla", { 237866, })
-	t[133721] = { text = "It's safe to return to the village." }                                          -- To Har'athir (86900)          Oorla (237866)
+	t[133721] = { text = "It's safe to return to the village." }										-- To Har'athir (86900)          Oorla (237866)
 
-	t = NPC("Orweyna", { 237210, 253343, 242592, })
-	t[131842] = { text = "<Take in the view.>" }                                                          -- To Har'athir (86900) Orweyna (237210)
-	t[136444] = { text = "<Hand Orweyna the Fragment of Revelation.>" }                                   -- Down the Rootways (86912) Orweyna (253343)
-	t[133239] = { text = "<Explain Gazlowe's predicament to Orweyna.>" }                                  -- Go Get Orweyna (90533) Orweyna (242592)
+	t = NPC("Orweyna", { 237210, 253343, 242592, 253654, })
+	t[131842] = { text = "<Take in the view.>" }														-- To Har'athir (86900) Orweyna (237210)
+	t[136444] = { text = "<Hand Orweyna the Fragment of Revelation.>" }									-- Down the Rootways (86912) Orweyna (253343)
+	t[133239] = { text = "<Explain Gazlowe's predicament to Orweyna.>" }								-- Go Get Orweyna (90533) Orweyna (242592)
+	t[138840] = { text = "I have finished speaking with the delegates." }								-- History Lesson (92899) Orweyna (253654)
+
+	t = NPC("Queen Talanji", { 253660, })
+	t[137814] = { text = "Thank you for your insight." }												-- History Lesson (92899) Queen Talanji (253660)
 
 	t = NPC("Rizam", { 240239, })
-	t[132927] = { text = "<Ask if they have Lightbloom in their village.>" }                              -- The Traveling Flowers (86956) Rizam (240239) DEAD
+	t[132927] = { text = "<Ask if they have Lightbloom in their village.>" }							-- The Traveling Flowers (86956) Rizam (240239) DEAD
+
+	t = NPC("Rokhan", { 253661, })
+	t[137843] = { text = "Thank you for your insight." }												-- History Lesson (92899) Rokhan (253661)
+
+	t = NPC("Shandris Feathermoon", { 253659, })
+	t[137861] = { text = "Thank you for your insight." }												-- History Lesson (92899) Shandris Feathermoon (253659)
 
 	t = NPC("Shao'mal", { 247640, })
-	t[134812] = { text = "<Begin the game.>" }                                                       -- Re-Hydra-ted (92866) Shao'mal (247640)
+	t[134812] = { text = "<Begin the game.>" }															-- Re-Hydra-ted (92866) Shao'mal (247640)
 
 	t = NPC("T'omm", { 254621, })
-	t[137325] = { text = "<Pick up the budling.>" }                                                       -- Re-Hydra-ted (92866) T'omm (254621)
+	t[137325] = { text = "<Pick up the budling.>" }														-- Re-Hydra-ted (92866) T'omm (254621)
 
 	t = NPC("Teetem", { 240238, })
-	t[132713] = { text = "<Ask if they have Lightbloom in their village.>" }                              -- The Traveling Flowers (86956) Teetem (240238) DEAD
+	t[132713] = { text = "<Ask if they have Lightbloom in their village.>" }							-- The Traveling Flowers (86956) Teetem (240238) DEAD
 
 	t = NPC("Tuktuk", { 243181, 246210, 251715, 247252, })
-	t[135600] = { text = "<Ask if they want to join your new team.>", close = true }                      -- A Few Fun Guys (90617) Tuktuk (243181)
-	t[135663] = { text = "<Ask your new teammate to spar.>" }                                             -- What Doesn't Kill Them (90619) Tuktuk (246210)
-	t[136991] = { text = "Do you have any good ideas we could use for a team name?", close = true }       -- The Most Important Thing (91270) Tuktuk (251715)
-	t[136990] = { text = "I'm ready to choose a team name, Tuktuk." }                                     -- The Most Important Thing (91270) Tuktuk (251715)
-	t[135670] = { text = "The Fungal Fellowship.", close = true }                                         -- The Most Important Thing (91270) Tuktuk (251715)
-	t[136164] = { text = "No one starts ready. That's why we train" }                                     -- Mushrooming Confidence (92618) Tuktuk (247252)
-	t[136163] = { text = "You're right, Tuktuk won't be good enough..." }                                 -- Mushrooming Confidence (92618) Tuktuk (247252)
-	t[136162] = { text = "If you stay, you'll get soggy..." }                                             -- Mushrooming Confidence (92618) Tuktuk (247252)
+	t[135600] = { text = "<Ask if they want to join your new team.>", close = true }					-- A Few Fun Guys (90617) Tuktuk (243181)
+	t[135663] = { text = "<Ask your new teammate to spar.>" }											-- What Doesn't Kill Them (90619) Tuktuk (246210)
+	t[136991] = { text = "Do you have any good ideas we could use for a team name?", close = true }		-- The Most Important Thing (91270) Tuktuk (251715)
+	t[136990] = { text = "I'm ready to choose a team name, Tuktuk." }									-- The Most Important Thing (91270) Tuktuk (251715)
+	t[135670] = { text = "The Fungal Fellowship.", close = true }										-- The Most Important Thing (91270) Tuktuk (251715)
+	t[136164] = { text = "No one starts ready. That's why we train" }									-- Mushrooming Confidence (92618) Tuktuk (247252)
+	t[136163] = { text = "You're right, Tuktuk won't be good enough..." }								-- Mushrooming Confidence (92618) Tuktuk (247252)
+	t[136162] = { text = "If you stay, you'll get soggy..." }											-- Mushrooming Confidence (92618) Tuktuk (247252)
+
+	t = NPC("Vereesa Windrunner", { 258035, })
+	t[137922] = { text = "Thank you for your insight." }												-- History Lesson (92899) Vereesa Windrunner (258035)
 
 	t = NPC("Ziny", { 243180, 246211, 251723, })
-	t[135599] = { text = "<Ask if they want to join your new team.>", close = true }                      -- A Few Fun Guys (90617) Ziny (243180)
-	t[135666] = { text = "<Ask your new teammate to spar.>" }                                             -- What Doesn't Kill Them (90619) Ziny (246211)
-	t[136989] = { text = "Do you have any good ideas we could use for a team name?", close = true }       -- The Most Important Thing (91270) Ziny (251723)
+	t[135599] = { text = "<Ask if they want to join your new team.>", close = true }					-- A Few Fun Guys (90617) Ziny (243180)
+	t[135666] = { text = "<Ask your new teammate to spar.>" }											-- What Doesn't Kill Them (90619) Ziny (246211)
+	t[136989] = { text = "Do you have any good ideas we could use for a team name?", close = true }		-- The Most Important Thing (91270) Ziny (251723)
+
+	t = NPC("Zul'jan", { 253653, })
+	t[137073] = { text = "I will join you." }															-- A Favor for Kinduru (92900) Zul'jan (253653)
 
 	t = NPC("Zur'ashar Kassameh", { 237837, })
-	t[131932] = { text = "I am ready to begin the trials." }                                              -- Echoes and Memories (86911)   Zur'ashar Kassameh (237837)
+	t[131932] = { text = "I am ready to begin the trials." }											-- Echoes and Memories (86911)   Zur'ashar Kassameh (237837)
 
-SetZone("Quel'Thalas, Eastern Kingdoms")
+SetZone("Quel'Danas, Eastern Kingdoms")
 		--
+	t = MAP("March on Quel'Danas RAID", {2534,})
+	t[138564] = { text = "I am ready to return to Silvermoon." }										-- March on Quel'Danas (92618)
+
 	t = MAP("Parhelion Plaza Delve", {2545,})
-	t[136477] = { text = "I will break that shield and eliminate the units inside." }                        -- Delve (92618)
+	t[136477] = { text = "I will break that shield and eliminate the units inside." }					-- Delve (92618)
 	t[135012] = { text = "Zah'ran - Show me." }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2545:135011:122661")
-	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2545:140227:122661")
+	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
-
 	t = NPC("Alonsus Faol", { 236789, 240240, 251355, })
-	t[132515] = { text = "The Vanguard rallies at Sunstrider Rise." }                                     -- Champions of Quel'Danas (68770)  Alonsus Faol (236789)
-	t[138693] = { text = "<Tell Alonsus you are ready to go to Light's Hope.>" }                          -- Relic's of Light's Hope (86839) Alonsus Faol (240240)
-	t[135480] = { text = "<Tell Alonsus you are ready to go to Hammerfall.>" }                            -- The Sunwalker Path (86845) Alonsus Faol (251355)
+	t[132515] = { text = "The Vanguard rallies at Sunstrider Rise." }									-- Champions of Quel'Danas (68770)  Alonsus Faol (236789)
+	t[138693] = { text = "<Tell Alonsus you are ready to go to Light's Hope.>" }						-- Relic's of Light's Hope (86839) Alonsus Faol (240240)
+	t[135480] = { text = "<Tell Alonsus you are ready to go to Hammerfall.>" }							-- The Sunwalker Path (86845) Alonsus Faol (251355)
 
 	t = NPC("Arator", { 236959, 237502, })
-	t[132388] = { text = "Your father sent me to find you." }                                             -- My Son (89271) Arator (236959)
+	t[132388] = { text = "Your father sent me to find you." }											-- My Son (89271) Arator (236959)
 	t[135012] = { text = "Zah'ran - Show me." }
 	local INTRO_SEEN = "GOTalk:136469:134861"
 	t[134861] = { prio = 10, text = "What are you going to do with the shield?", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
 	t[136469] = { prio = 10, text = "Let's get back to Silvermoon.", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
 	t = NPC("Belo'vir's Security Ward", { 651990, 651991, 651992, })
-	t[140404] = { text = "<Unravel the wards>" }                                                          -- Unravelling the Wards (96230) Belo'vir's Security Ward (651990)
-	t[140408] = { text = "<Unravel the wards>" }                                                          -- Unravelling the Wards (96230) Belo'vir's Security Ward (651991)
-	t[140406] = { text = "<Unravel the wards>" }                                                          -- Unravelling the Wards (96230) Belo'vir's Security Ward (651992)
+	t[140404] = { text = "<Unravel the wards>" }														-- Unravelling the Wards (96230) Belo'vir's Security Ward (651990)
+	t[140408] = { text = "<Unravel the wards>" }														-- Unravelling the Wards (96230) Belo'vir's Security Ward (651991)
+	t[140406] = { text = "<Unravel the wards>" }														-- Unravelling the Wards (96230) Belo'vir's Security Ward (651992)
 
   		t = NPC("Commander Koruth Mountainfist", { 247304, })
-	t[134577] = { text = "Are the warframes prepared, Commander?" }                                       -- Feeding the Flame (90777) Commander Koruth Mountainfist (247304)
+	t[134577] = { text = "Are the warframes prepared, Commander?" }										-- Feeding the Flame (90777) Commander Koruth Mountainfist (247304)
 
 	t = NPC("Commander Venel Lightblood", { 247305, })
-	t[134511] = { text = "Let's give these recruits something to aspire to." }                            -- Feeding the Flame (90777) Commander Venel Lightblood (247305)
+	t[134511] = { text = "Let's give these recruits something to aspire to." }							-- Feeding the Flame (90777) Commander Venel Lightblood (247305)
 
 	t = NPC("Faerin Lothar", { 237211, })
-	t[132513] = { text = "The Vanguard rallies at Sunstrider Rise." }                                     -- Champions of Quel'Danas (68770)  Faerin Lothar (237211)
+	t[132513] = { text = "The Vanguard rallies at Sunstrider Rise." }									-- Champions of Quel'Danas (68770)  Faerin Lothar (237211)
+
+	t = NPC("First Arcanist Thalyssra", { 244582, })
+	t[133843] = { text = "Liadrin awaits you at the Darkwell." }										-- In Times of Need (90862)  First Arcanist Thalyssra (244582)
 
 	t = NPC("Grand Magister Rommath", { 264068, 264066, 264070, })
-	t[139813] = { text = "I can do that." }                                                               -- Unravelling the Wards (96230)  Grand Magister Rommath (264068)
-	t[139847] = { text = "I am ready." }                                                                  -- The Omnium Reawakens (96233)  Grand Magister Rommath (264068)
-	t[139871] = { text = "Powerful runic enchantments? Count me in." }                                    -- Seeking Knowledge (96410)  Grand Magister Rommath (264070)
-	t[139890] = { text = "<Take the Omnium Folio from Rommath.>" }                                        -- Seeking Knowledge (96410)  Grand Magister Rommath (264070)
+	t[139813] = { text = "I can do that." }																-- Unravelling the Wards (96230)  Grand Magister Rommath (264068)
+	t[139847] = { text = "I am ready." }																-- The Omnium Reawakens (96233)  Grand Magister Rommath (264068)
+	t[139871] = { text = "Powerful runic enchantments? Count me in." }									-- Seeking Knowledge (96410)  Grand Magister Rommath (264070)
+	t[139890] = { text = "<Take the Omnium Folio from Rommath.>" }										-- Seeking Knowledge (96410)  Grand Magister Rommath (264070)
 
 	t = NPC("High Exarch Turalyon", 237255)
 	t[133285] = { text = "Let's drive this threat back!" }
 
-	t = NPC("Lady Liadrin", {237278, 247414})
+	t = NPC("Lady Liadrin", {237278, 247414, 244576, })
 	t[132924] = { text = "Nothing will get past me!" }
 	t[133700] = { text = "How does the Sunwell fare, Liadrin?" }										-- Feeding the Flame (90777) Lady Liadrin (247414)
+	t[134464] = { text = "Begin the ritual to cleanse the Darkwell." }									-- From Darkness, Light (90867)  Lady Liadrin (244576)
 
 	t = NPC("Lathraxion", { 236657, })
 	t[132514] = { text = "The Vanguard rallies at Sunstrider Rise." }									-- Champions of Quel'Danas (68770)  Lathraxion (236657)
 
-	t = NPC("Magister Umbric", { 235395, 234148, })
+	t = NPC("Magister Umbric", { 235395, 234148, 244579, })
 	t[131939] = { text = "<Tell Umbric you'd like to enter Magiers' Terrace.>" }						-- Magisters' Terrace: Homecoming (86543) Magister Umbric (235395)
 	t[135804] = { text = "<Tell Umbric you'd like to enter Magiers' Terrace.>" }						-- Magisters' Terrace: Homecoming (86543) Magister Umbric (234148)
+	t[133846] = { text = "Liadrin awaits you at the Darkwell." }										-- In Times of Need (90862)  Magister Umbric (244579)
 
 	t = NPC("Mehlar Dawnblade", { 248321, })
 	t[134854] = { text = "This is Uther's kit from his work as a healer...", close = true }				-- Relinquishing Relics (86902)  Mehlar Dawnblade (248321)
@@ -602,11 +631,20 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 	t[132656] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240073)
 	t[132653] = { text = "Arator and I will see you safely to the boats." }								-- The Hour of Need (86805)   Scared Civilian (240068)
 
+	t = NPC("Shandris Feathermoon", { 244583, })
+	t[133840] = { text = "Liadrin awaits you at the Darkwell.", close = true }							-- In Times of Need (90862)  Shandris Feathermoon (244583)
+
+	t = NPC("Tactical Telemancer Seralia", { 255011, })
+	t[137768] = { text = "<Enter March on Quel'Danas in Story Mode.>", close = true }					-- March on Quel'Danas (88710)  Tactical Telemancer Seralia (255011)
+
 	t = NPC("Taelia Fordragon", { 248323, })
 	t[134818] = { text = "I have a relic to sustain you. It's Mara Fordragon's ...", close = true }		-- Relinquishing Relics (86902)  Taelia Fordragon (248323)
 
 	t = NPC("Valunei", { 248326, })
 	t[134855] = { text = "Vindicator Maraad found peace and strength from this...", close = true }		-- Relinquishing Relics (86902)  Valunei (248326)
+
+	t = NPC("Vereesa Windrunner", { 244585, })
+	t[133852] = { text = "Liadrin awaits you at the Darkwell.", close = true }							-- In Times of Need (90862)  Vereesa Windrunner (244585)
 
 	t = NPC("War Chaplain Senn", { 247306, })
 	t[134509] = { text = "Will you bless me, Chaplain?" }												-- Feeding the Flame (90777) War Chaplain Senn (247306)
@@ -614,15 +652,22 @@ SetZone("Quel'Thalas, Eastern Kingdoms")
 SetZone("Naigtal, Eastern Kingdoms")
 
 	t = NPC("Archmage Y'mera", { 266034, })
+	t.__meta.stopIfQuestAvailable = { 96570, }                                           				-- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96567, }                                   							-- Waits for Quest Hand-Ins (First NPCID Only)
 	t[140098] = { text = "I found these crystals on ethereal devices ...", close = true }           	-- Conductive Crystals (96569)  Archmage Y'mera (266034)
 	t[140110] = { text = "What's the plan?", close = true }           									-- Soul Lattice Revealed (96573)  Archmage Y'mera (266034)
 
 	t = NPC("Coorina Brightblade", { 268804, })
 	t[140860] = { text = "I want to browse your goods."}  												-- Vendor  Coorina Brightblade (268804)
 
+	t = NPC("Commander Tala'saan", { 265950, })
+	t.__meta.stopIfQuestAvailable = { 96570, }                                           				-- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96568, }                                   							-- Waits for Quest Hand-Ins (First NPCID Only)
+	t[140849] = { text = "How do you know who I am?", manual = true }  	-- not real						-- Vendor  Commander Tala'saan (265950)
+
 	t = NPC("Kifaan", { 265559, })
-	t.__meta.stopIfQuestAvailable = { 96569, }                                                      	-- Waits for Quest Accepted (First NPCID Only)
-	t.__meta.stopIfQuestTurnIn = { 96569, 96809, }                                                 		-- Waits for Quest Hand-Ins (First NPCID Only)
+	t.__meta.stopIfQuestAvailable = { 96569, 96744, 96745, }                                           	-- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 96569, 96744, 96745, 96809, }                                   		-- Waits for Quest Hand-Ins (First NPCID Only)
 	t[139928] = { text = "May I browse your wares?"}  													-- Vendor  Kifaan (265559)
 
 		t = NPC("Encrypted Data Collator", { 266038, 266038, })
@@ -635,8 +680,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[135708] = { text = "I'll get rid of these weeds!" }
 	t[135865] = { text = "I'll deal with this!" }
 	t[135012] = { text = "Zah'ran - Show me." }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2577:135011:122661")
-	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2577:140227:122661")
+	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
 	t = MAP("The Darkway Delve", { 2525, })
@@ -644,7 +689,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[138317] = { text = "Deal with the big ogre. On it!" }
 	t[135012] = { text = "Zah'ran - Show me." }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2525:136141:138317")
-	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
    	t = NPC("Allari the Souleater", { 263524, })
@@ -957,22 +1002,23 @@ SetZone("Voidstorm, Eastern Kingdoms")
 
 SetZone("Zul'Aman, Eastern Kingdoms")
 
-	t = MAP("Atal'Aman Delve", {2535,})
+	t = MAP("Atal'Aman Delve", {2535,2536,})
 	t[136317] = { text = "Torundo - I'll get rid of these totems!" }
 	t[136318] = { text = "I will save them!" }
 	t[136385] = { text = "I'll break the hexes and set your kin free." }
 	t[138496] = { text = "<Help me reach Spiritflayer Jin'Ma.>" }
 	t[135012] = { text = "Zah'ran - Show me." }
+	t[137308] = { text = "<Tell the others.>" }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2535:136141:138317")
-	t[135011] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
 	t = MAP("Twilight Crypts Delve", {2503,2504,})
 	t[135239] = { text = "Alright... pardon! I'll just step around you..." }
 	t[135811] = { text = "Drink this if the Bound Loa gets close? But what's it taste like?" }
 	t[135012] = { text = "Zah'ran - Show me." }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2503:135011:122661")
-	t[135011] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2503:140227:122661")
+	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
 	t = NPC("Altar of Blessings", { 237653, })
