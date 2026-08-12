@@ -1335,7 +1335,7 @@ do
       local s = tostring(dir or "")
       local k = s:lower():gsub("%s+", "")
       if k:find("withdraw", 1, true) then
-        return "withdrawn from"
+        return "Withdraw"
       end
       if k:find("deposit", 1, true) then
         return "deposited to"
@@ -1345,6 +1345,12 @@ do
 
     local bankLabel, bankKey = NormalizeBankLabel(bank)
     direction = NormalizeDirection(direction)
+    local bankShort = bankLabel
+    if bankKey == "guild" then
+      bankShort = "GB"
+    elseif bankKey == "warbank" then
+      bankShort = "WB"
+    end
 
     -- Safety: only print while the relevant frame is actually open.
     if bankKey == "guild" then
@@ -1355,7 +1361,11 @@ do
       if not (f and f.IsShown and f:IsShown()) then return end
     end
 
-    Print(GetClassColoredPlayerName() .. " " .. FormatGoldOnly(copper) .. " " .. tostring(direction or "") .. " " .. bankLabel)
+    if direction == "Withdraw" then
+      Print(GetClassColoredPlayerName() .. " " .. bankShort .. " " .. tostring(direction or "") .. " " .. FormatGoldOnly(copper))
+    else
+      Print(GetClassColoredPlayerName() .. " " .. FormatGoldOnly(copper) .. " " .. tostring(direction or "") .. " " .. bankLabel)
+    end
   end
 
   local function GetBankPrintMode(cfg)
@@ -1897,7 +1907,22 @@ do
   local function TryPayWarbank(isAuto)
     local _, cfg, bal = GetActiveScopeCfgAndBal()
     if type(cfg) ~= "table" then return end
-    if not (cfg.warBankEnabled == true) then return end
+
+    local function TaxWarDbg(msg)
+      TaxDbg(cfg, "Warbank pay: " .. tostring(msg or ""))
+    end
+
+    local function ToGoldFmt(copper)
+      local denom = tonumber(COPPER_PER_GOLD) or 10000
+      if denom <= 0 then denom = 10000 end
+      local g = math.floor((tonumber(copper) or 0) / denom)
+      return tostring(g)
+    end
+
+    if not (cfg.warBankEnabled == true) then
+      TaxWarDbg("skip (warBankEnabled=false)")
+      return
+    end
 
     -- Guard: Warbank open detection can fire from multiple UI paths (interaction manager,
     -- bank ticker sync, and PLAYER_MONEY). Ensure we don't schedule overlapping deposit/withdraw
@@ -1936,16 +1961,27 @@ do
     end
 
     if IsAutoLocked() then
+      TaxWarDbg("skip (auto lock active)")
       return
     end
 
     local ct = EnsureCharTaxDB()
     local wb = ct and ct.warBal
-    if type(wb) ~= "table" then return end
+    if type(wb) ~= "table" then
+      TaxWarDbg("skip (warBal missing)")
+      return
+    end
+    local openToken = tonumber(state._warbankOpenToken) or 0
 
     local bankType = (Enum and Enum.BankType) and Enum.BankType or nil
-    if not (bankType and bankType.Account) then return end
-    if not (C_Bank and type(C_Bank.DepositMoney) == "function" and type(C_Bank.WithdrawMoney) == "function") then return end
+    if not (bankType and bankType.Account) then
+      TaxWarDbg("skip (Enum.BankType.Account unavailable)")
+      return
+    end
+    if not (C_Bank and type(C_Bank.DepositMoney) == "function" and type(C_Bank.WithdrawMoney) == "function") then
+      TaxWarDbg("skip (C_Bank deposit/withdraw API unavailable)")
+      return
+    end
 
     local minGold = tonumber(cfg.minGold) or 0
     if minGold < 0 then minGold = 0 end
@@ -1987,6 +2023,27 @@ do
       return true
     end
 
+    local function ScheduleAutoRetryIfNotReady()
+      if not (isAuto == true) then return end
+      if openToken <= 0 then return end
+      local retryToken = tonumber(state._warbankCanDepositRetryToken) or 0
+      if retryToken == openToken then
+        TaxWarDbg("retry skipped (already retried this open token)")
+        return
+      end
+      state._warbankCanDepositRetryToken = openToken
+      TaxWarDbg("retry scheduled in 0.45s (CanDepositMoney=false)")
+      if C_Timer and C_Timer.After then
+        C_Timer.After(0.45, function()
+          if not (state.warbankOpen == true) then return end
+          if (tonumber(state._warbankOpenToken) or 0) ~= openToken then return end
+          TryPayWarbank(true)
+        end)
+      else
+        TryPayWarbank(true)
+      end
+    end
+
     local function DoDeposit()
       local xsEnabled = (cfg.warBankXS == true)
 
@@ -2008,7 +2065,15 @@ do
       local duePayBorrowed = suppressBorrowedRepay and 0 or dueBorrowed
       local duePayable = dueTax + duePayBorrowed
       local dueFull = dueTax + dueBorrowed
-      if duePayable <= 0 and not xsEnabled then return end
+      if duePayable <= 0 and not xsEnabled then
+        TaxWarDbg(string.format(
+          "skip (nothing due, XS off): dueTax=%s dueBorrowed=%s duePayable=%s",
+          ToGoldFmt(dueTax),
+          ToGoldFmt(dueBorrowed),
+          ToGoldFmt(duePayable)
+        ))
+        return
+      end
 
       -- XS: only pay excess above MinGold + owed.
       local guildDue = 0
@@ -2022,11 +2087,6 @@ do
       end
       local totalOwed = guildDue + dueFull
 
-      if not CanDeposit() then
-        RequestUIRefresh()
-        return
-      end
-
       local money = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
       local available = money
       if minCopper > 0 then
@@ -2035,11 +2095,13 @@ do
       if available < 0 then available = 0 end
 
       local toPay
+      local xsExtra = 0
       if xsEnabled then
         local availableForXS = money - excessMinCopper
         if availableForXS < 0 then availableForXS = 0 end
         local extra = availableForXS - totalOwed
         if extra < 0 then extra = 0 end
+        xsExtra = extra
         if cfg.guildBankXS == true then
           local guildKey = select(1, GetCurrentGuildKeyAndName())
           local g = guildKey and EnsureGuildTaxDB(guildKey) or nil
@@ -2075,7 +2137,44 @@ do
         toPay = maxPay
       end
       toPay = math.floor(tonumber(toPay) or 0)
+      if IsTaxDebugEnabled() and not (cfg.quiet == true) then
+        Print(string.format(
+          "Tax debug: Warbank pay: calc: dueTax=%s dueBorrowed=%s duePayable=%s dueFull=%s guildDue=%s totalOwed=%s",
+          ToGoldFmt(dueTax),
+          ToGoldFmt(dueBorrowed),
+          ToGoldFmt(duePayable),
+          ToGoldFmt(dueFull),
+          ToGoldFmt(guildDue),
+          ToGoldFmt(totalOwed)
+        ))
+        Print(string.format(
+          "Tax debug: Warbank pay: calc: money=%s min=%s excessMin=%s available=%s xs=%s toPay=%s",
+          ToGoldFmt(money),
+          ToGoldFmt(minCopper),
+          ToGoldFmt(excessMinCopper),
+          ToGoldFmt(available),
+          tostring(xsEnabled == true),
+          ToGoldFmt(toPay)
+        ))
+      end
+
+      local canDepositNow = CanDeposit()
+      if not canDepositNow then
+        -- First-frame permission can be false right after opening Warbank.
+        -- Retry once for the current open session before giving up.
+        TaxWarDbg(string.format(
+          "skip (CanDepositMoney=false): dueTax=%s dueBorrowed=%s duePayable=%s openToken=%d",
+          ToGoldFmt(dueTax),
+          ToGoldFmt(dueBorrowed),
+          ToGoldFmt(duePayable),
+          openToken
+        ))
+        ScheduleAutoRetryIfNotReady()
+        RequestUIRefresh()
+        return
+      end
       if toPay <= 0 then
+        TaxWarDbg("skip (toPay<=0 after caps)")
         return
       end
 
@@ -2085,7 +2184,8 @@ do
       C_Timer.After(0.30, function()
         state._pendingWarbankDeltas = (type(state._pendingWarbankDeltas) == "table") and state._pendingWarbankDeltas or {}
         PushPendingDelta(state._pendingWarbankDeltas, -toPay)
-        local ok = pcall(C_Bank.DepositMoney, bankType.Account, toPay)
+        TaxWarDbg("attempt deposit: toPay=" .. ToGoldFmt(toPay))
+        local ok, err = pcall(C_Bank.DepositMoney, bankType.Account, toPay)
         if ok then
           ApplyBankDeltaToCaches("warbank", -toPay)
           local payToDue = toPay
@@ -2117,6 +2217,7 @@ do
           })
           RequestUIRefresh()
         else
+          TaxWarDbg("deposit call failed: " .. tostring(err))
           RequestUIRefresh()
         end
       end)
@@ -2142,10 +2243,13 @@ do
             if wb.dueTax < 0 then wb.dueTax = 0 end
             wb.due = wb.dueTax + wb.dueBorrowed
             PrintBankMove(cfg, need, "withdrawn from", "WarBank")
+            TaxWarDbg("borrowed from warbank to min: need=" .. tostring(need))
             RequestUIRefresh()
             C_Timer.After(0.60, DoDeposit)
             return
           end
+        elseif need > 0 then
+          TaxWarDbg("skip borrow (CanWithdrawMoney=false): need=" .. tostring(need))
         end
       end
     end
@@ -2197,6 +2301,7 @@ do
     state._manualPrevMoneyWar = nil
     state._pendingGuildDeltas = nil
     state._pendingWarbankDeltas = nil
+    state._warbankCanDepositRetryToken = nil
   end
 
   function Tax.OnMerchantShow()
@@ -2510,6 +2615,7 @@ do
       state._warbankAutoScheduledToken = 0
       state._warbankAutoLockToken = 0
       state._warbankAutoLockUntil = 0
+      state._warbankCanDepositRetryToken = 0
     end
     if state.warbankOpen and not wasOpen then
       ScheduleTryPayWarbankAuto()

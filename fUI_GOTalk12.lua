@@ -353,6 +353,9 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	t = NPC("Trainee Solamine", {251543, })
 	t[132684] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>" }                -- What's Left (86639)                Trainee Solamine (251543)
 
+	t = NPC("Vael'thas Dawnsoar", {242913, })
+	t[133306] = { text = "Show me where I can fly." }
+
 	t = NPC("Valeera Sanguinar", {242099, })
 	t[136049] = { text = "I'm Ready." }
 

@@ -1637,6 +1637,25 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
           LI.StartBankTicker()
         end
       end
+
+      -- Patch-day compatibility: some clients may no longer emit AccountBanker
+      -- interaction type distinctly. Force one immediate tax warbank sync probe.
+      do
+        local tax = LI and LI.Tax
+        if tax and type(tax.OnBankTickerTick) == "function" and type(LI.IsWarbankOpen) == "function" then
+          tax.OnBankTickerTick({
+            IsWarbankOpen = LI.IsWarbankOpen,
+            GetTaxWarbankOpen = function()
+              return (LI and type(LI.GetTaxWarbankOpen) == "function" and LI.GetTaxWarbankOpen()) or false
+            end,
+            SetTaxWarbankOpen = function(v)
+              if LI and type(LI.SetTaxWarbankOpen) == "function" then
+                LI.SetTaxWarbankOpen(v == true)
+              end
+            end,
+          })
+        end
+      end
     elseif event == "BANKFRAME_CLOSED" then
       local trade = LI and LI.Trade
       if trade and type(trade.OnBankFrameClosed) == "function" then

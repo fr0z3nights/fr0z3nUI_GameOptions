@@ -1066,7 +1066,14 @@ end
 
 local function GetSelectedAccountBankTabBagID()
   local p = _G and rawget(_G, "AccountBankPanel")
-  if not (p and p.IsVisible and p:IsVisible()) then return nil end
+  if not p then return nil end
+  local panelShown = false
+  if p.IsVisible and p:IsVisible() then
+    panelShown = true
+  elseif p.IsShown and p:IsShown() then
+    panelShown = true
+  end
+  if not panelShown then return nil end
   if type(p.GetSelectedTabID) ~= "function" then return nil end
   local ok, tab = pcall(p.GetSelectedTabID, p)
   tab = ok and tab or nil
@@ -1180,6 +1187,23 @@ local function IsWarbankOpen()
     local acctType = (Enum and Enum.BankType) and Enum.BankType.Account or nil
     if acctType ~= nil and bankType == acctType then
       return true
+    end
+
+    -- Patch-day compatibility: when bankType/frame names drift, account-bank
+    -- capabilities are still a reliable signal while BankFrame is shown.
+    if acctType ~= nil and C_Bank then
+      if type(C_Bank.CanDepositMoney) == "function" then
+        local ok, can = pcall(C_Bank.CanDepositMoney, acctType)
+        if ok and can == true then
+          return true
+        end
+      end
+      if type(C_Bank.CanWithdrawMoney) == "function" then
+        local ok, can = pcall(C_Bank.CanWithdrawMoney, acctType)
+        if ok and can == true then
+          return true
+        end
+      end
     end
   end
   return (GetWarbankFrame() ~= nil)

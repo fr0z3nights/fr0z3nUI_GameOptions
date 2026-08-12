@@ -2160,7 +2160,7 @@ do
     end
 
     -- If you're in Exile's Reach and level 1 this cvar gets automatically enabled.
-    if _G.hooksecurefunc then
+    if _G.hooksecurefunc and type(_G.NPE_CheckTutorials) == "function" then
         _G.hooksecurefunc("NPE_CheckTutorials", function()
             if not GetTutorialOffEffective() then
                 return

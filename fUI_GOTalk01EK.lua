@@ -227,6 +227,11 @@ SetZone("Hammerfall, Eastern Kingdoms")
    t[134042] = { text = "Dezco sent these supplies for you.",  prio = 10, close = true }                 -- Resupplying Our Suppliers (86846)   Mu'uta (232037)
    t[134041] = { text = "Let me browse your goods.",  prio = -10 }                                       -- Vendor Mu'uta (232037)
 
+SetZone("Ironforge, Eastern Kingdoms")
+
+   t = NPC("Gryth Thurden", {1573,})
+   t[31711] = { text = "I need a ride." }                                                                -- Flight Master (00000) Gryth Thurden (1573)
+
 SetZone("Stormwind City, Eastern Kingdoms")
 
    t = NPC("Archmage Khadgar", {193450,})
