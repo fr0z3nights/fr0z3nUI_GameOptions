@@ -256,6 +256,10 @@ SetZone("Townlong Steppes, Pandaria")
     t = NPC("Burning Pandaren Spirit", 68463)
     t[41951] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "prepare yourself" }, within = 3, }, }
 
+    t = NPC("Kali the Night Watcher", { 62874, })
+    t[37168] = { prio = -6, text = "Let me browse your goods.", }
+    t[37167] = { prio = -9, text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, noAuto = true }
+
     t = NPC("Seeker Zusshi", 66918)
     t[41155] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance!" }, within = 3, }, }
 

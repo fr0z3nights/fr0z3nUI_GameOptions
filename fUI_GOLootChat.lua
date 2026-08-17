@@ -604,8 +604,9 @@ local function HookChatFrameAddMessage(frame)
                 link = (ApplyCurrencyLinkAlias and ApplyCurrencyLinkAlias(link)) or link
                 display = StripDisplayedLinkBrackets(link)
                 if n and n > 1 then
-                  display = string.format("%s x%d", display, n)
+                  display = string.format("%s  x%d", display, n)
                 end
+                display = AppendCurrencyOwnedTotal(display, currencyID)
               else
                 -- Remove brackets in the displayed portion: |h[Name]|h -> |hName|h
                 display = string.gsub(link, "|h%[([^%]]+)%]|h", "|h%1|h")
@@ -1549,6 +1550,38 @@ local function GetCurrencyIDFromLink(link)
   return tonumber(id)
 end
 
+local function GetCurrencyOwnedTotal(currencyID)
+  currencyID = tonumber(currencyID)
+  if not currencyID or currencyID <= 0 then return nil end
+
+  if C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyInfo) == "function" then
+    local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
+    if ok and type(info) == "table" then
+      local okQuantity, quantity = pcall(tonumber, info.quantity or info.currentAmount)
+      if okQuantity and quantity ~= nil and quantity >= 0 then
+        return math.floor(quantity)
+      end
+    end
+  end
+
+  if type(GetCurrencyInfo) == "function" then
+    local ok, _, quantity = pcall(GetCurrencyInfo, currencyID)
+    local okQuantity, total = pcall(tonumber, quantity)
+    if ok and okQuantity and total ~= nil and total >= 0 then
+      return math.floor(total)
+    end
+  end
+
+  return nil
+end
+
+local function AppendCurrencyOwnedTotal(display, currencyID)
+  if type(display) ~= "string" or display == "" then return display end
+  local total = GetCurrencyOwnedTotal(currencyID)
+  if total == nil then return display end
+  return string.format("%s  (%d)", display, total)
+end
+
 local function ApplyItemLinkAlias(link)
   EnsureRefs()
   if type(link) ~= "string" or string.len(link) == 0 then return link end
@@ -2180,8 +2213,9 @@ local function OnCurrencyChat(_, _, msg, ...)
     local out = ApplyCurrencyLinkAlias(link)
     out = StripDisplayedLinkBrackets(out)
     if n and n > 1 then
-      out = string.format("%s x%d", out, n)
+      out = string.format("%s  x%d", out, n)
     end
+    out = AppendCurrencyOwnedTotal(out, currencyID)
     if LootChat.LootCombineEnabled() then
       if DB and DB.lootCombineIncludeCurrency then
         LootCombineAdd(out, "currency")
@@ -3121,8 +3155,9 @@ local function OnLootChat(_, _, msg, author, ...)
       local out = (ApplyCurrencyLinkAlias and ApplyCurrencyLinkAlias(link)) or link
       out = StripDisplayedLinkBrackets(out)
       if n and n > 1 then
-        out = string.format("%s x%d", out, n)
+        out = string.format("%s  x%d", out, n)
       end
+      out = AppendCurrencyOwnedTotal(out, currencyID)
 
       if LootChat.LootCombineEnabled() then
         if DB and DB.lootCombineIncludeCurrency then

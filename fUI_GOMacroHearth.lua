@@ -429,6 +429,84 @@ do
     ns.Hearth.GetCurrentDisplayText = GetCurrentDisplayText
     ns.Hearth.GetHomeZoneContinentText = GetHomeZoneContinentText
 
+    local function GetHearthLDBText()
+        local db = EnsureInit()
+        local zone = tostring(db.homeZone or "")
+        if zone ~= "" then
+            return zone
+        end
+
+        local bind = (GetBindLocation and GetBindLocation()) or ""
+        bind = tostring(bind or "")
+        if bind ~= "" then
+            return bind
+        end
+
+        return "Home not set"
+    end
+
+    local function GetHearthTooltipText()
+        local txt = GetHomeZoneContinentText()
+        txt = tostring(txt or "")
+        if txt ~= "" then
+            return txt
+        end
+
+        local bind = (GetBindLocation and GetBindLocation()) or ""
+        return tostring(bind or "")
+    end
+
+    local function RefreshHearthLDB()
+        if ns and type(ns.HearthLDB) == "table" and ns.HearthLDB.text ~= nil then
+            ns.HearthLDB.text = GetHearthLDBText()
+        end
+    end
+
+    local function EnsureHearthLDB()
+        if ns and type(ns.HearthLDB) == "table" then
+            return ns.HearthLDB
+        end
+
+        if type(LibStub) ~= "table" then
+            return nil
+        end
+
+        local ok, ldb = pcall(function()
+            return LibStub:GetLibrary("LibDataBroker-1.1")
+        end)
+        if not ok or type(ldb) ~= "table" then
+            return nil
+        end
+
+        ns.HearthLDB = ldb:NewDataObject("FGO Hearth", {
+            type = "data source",
+            text = GetHearthLDBText(),
+            icon = "Interface\\Icons\\INV_Misc_Rune_01",
+            OnClick = function(_, button)
+                if button == "RightButton" and type(_G.FGO_OpenOptionsTab) == "function" then
+                    local f = _G.AutoGossipOptions
+                    if f and f.IsShown and f:IsShown() then
+                        pcall(_G.FGO_OpenOptionsTab, 1, false)
+                    else
+                        pcall(_G.FGO_OpenOptionsTab, 1, true)
+                    end
+                end
+            end,
+            OnTooltipShow = function(tooltip)
+                if not (tooltip and tooltip.AddLine) then
+                    return
+                end
+                tooltip:AddLine("|cff00ccffFGO Hearth|r")
+                tooltip:AddLine(GetHearthTooltipText(), 0.8, 0.8, 0.8)
+            end,
+        })
+
+        return ns.HearthLDB
+    end
+
+    ns.Hearth.EnsureHearthLDB = EnsureHearthLDB
+    ns.Hearth.RefreshHearthLDB = RefreshHearthLDB
+
     -- Legacy compatibility: some old macros used `/run HearthZone:GetZone()`.
     -- Provide a tiny shim so those macros don't error out if HearthZone isn't installed.
     do
@@ -482,6 +560,11 @@ do
 
         local function MacroExists()
             return type(GetMacroIndexByName) == "function" and (GetMacroIndexByName(MACRO_NAME) or 0) > 0
+        end
+
+        local function RefreshLDBState()
+            EnsureHearthLDB()
+            RefreshHearthLDB()
         end
 
         local function UpdateMacroIfExists()
@@ -538,6 +621,8 @@ do
         f:SetScript("OnEvent", function(_, event)
             if event == "PLAYER_LOGIN" then
                 EnsureInit()
+                EnsureHearthLDB()
+                RefreshLDBState()
                 local rs = math and rawget(math, "randomseed")
                 local rr = math and rawget(math, "random")
                 if time and rs then
@@ -552,11 +637,13 @@ do
 
             if event == "PLAYER_ENTERING_WORLD" then
                 MaybeRotateAndUpdate("login")
+                RefreshLDBState()
                 return
             end
 
             local db = EnsureInit()
             if event == "HEARTHSTONE_BOUND" then
+                RefreshLDBState()
                 local z = GetPlayerZoneName() or ""
                 local c = GetPlayerContinentName() or ""
 
@@ -578,6 +665,7 @@ do
 
             if event == "ACTIONBAR_UPDATE_COOLDOWN" or event == "SPELL_UPDATE_COOLDOWN" or event == "BAG_UPDATE_COOLDOWN" or event == "TOYS_UPDATED" then
                 CheckUsedAndRotate()
+                RefreshLDBState()
             end
         end)
     end

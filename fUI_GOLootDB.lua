@@ -60,14 +60,19 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 
 --  12  Midnight
     { key = "X12:AmaniDef",         text = "Amani Defender says" },
+    { key = "X12:AmaniQtermstr",    text = "Amani Quartermaster says" },
+    { key = "X12:Erinye",           text = "Er'inye says" },
+    { key = "X12:Eshaye",           text = "Eshaye says" },
     { key = "X12:Juljarra",         text = "Jul'jarra says" },
     { key = "X12:Juljan",           text = "Jul'jan says" },
+    { key = "X12:Junka",            text = "Jun'ka says" },
     { key = "X12:RngrCptnLilatha",  text = "Ranger Captain Lilatha says" },
     { key = "X12:SlvrmnCitzn",      text = "Silvermoon Citizen says" },
     { key = "X12:ThalassianProf",   text = "Thalassian Professor says" },
     { key = "X12:TwilightInv",      text = "Twilight Invader says" },
     { key = "X12:UniverstyUndrgrd", text = "University Undergraduate says" },
     { key = "X12:Valeera",          text = "Valeera Sanguinar says" },
+    { key = "X12:Zei'ka",           text = "Zei'ka says" },
     { key = "X12:Zuljarra",         text = "Zul'jarra says" },
 --  10  Dragonflight
     { key = "X10:ArchmageKhadgar",  text = "Archmage Khadgar says" },
@@ -104,11 +109,6 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X10:BrackenhideShapr", text = "Brackenhide Shaper says" },
     { key = "X10:BloodthirstyCub",  text = "Bloodthirsty Cub" },
     { key = "X10:DefierDraghar",    text = "Defier Draghar says" },
-
-
-
-
-
 --  07  Legion
     { key = "X07:PBEnvBert",        text = "Environeer Bert says" },
     { key = "X07:PBWinLitHlp",       text = "Winter's Little Helper says" },
@@ -160,6 +160,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "ANG:Config",           text = "To access the configuration menu," },
     { key = "ANG:Thank",            text = "Thank you for using Angleur" },
     { key = "ANG:Visual",           text = "the Visual Button." },
+    { key = "CRM:CurrentRealm2",    text = "Connected Realm:" },
     { key = "DJK:NoJunk",           text = "No junk items to destroy" },
     { key = "ELV:LuaError",         text = "ElvUI: Lua error recieved." },
     { key = "FGO:125466",           text = "125466" },

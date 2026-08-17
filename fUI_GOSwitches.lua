@@ -198,6 +198,80 @@ end
 -- Floating Reload UI button (text-only, draggable)
 -- ============================================================================
 
+-- ============================================================================
+-- Game Menu button hover tooltips
+-- ============================================================================
+
+do
+    local hookedButtons = {}
+
+    local function InitGameMenuTooltipSetting()
+        if ns and type(ns._InitSV) == "function" then
+            ns._InitSV()
+        end
+    end
+
+    local function IsDisabled()
+        InitGameMenuTooltipSetting()
+        return (AutoGossip_Settings and AutoGossip_Settings.gameMenuButtonTooltipOffAcc) and true or false
+    end
+
+    local function HookButton(button)
+        if not (button and button.GetScript and button.SetScript) then
+            return
+        end
+        if hookedButtons[button] then
+            return
+        end
+        local originalOnEnter = button:GetScript("OnEnter")
+        hookedButtons[button] = { originalOnEnter = originalOnEnter }
+        button:SetScript("OnEnter", function(self, ...)
+            if IsDisabled() then
+                return
+            end
+            if type(originalOnEnter) == "function" then
+                originalOnEnter(self, ...)
+            end
+        end)
+    end
+
+    local function HookGameMenuButton()
+        -- MainMenuMicroButton is the rightmost micro-menu button with the
+        -- "Game Menu" tooltip. Keep the legacy name as a compatibility fallback.
+        HookButton(rawget(_G, "MainMenuMicroButton") or rawget(_G, "GameMenuButton"))
+
+    end
+
+    local function HookGameMenuButtons()
+        HookGameMenuButton()
+        if not hookedButtons[rawget(_G, "MainMenuMicroButton")] and not hookedButtons[rawget(_G, "GameMenuButton")] then
+            if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+                C_Timer.After(1, HookGameMenuButton)
+            end
+        end
+    end
+
+    function ns.ApplyGameMenuButtonTooltipSetting()
+        HookGameMenuButtons()
+        for button, info in pairs(hookedButtons) do
+            if button and info and button.SetScript then
+                if IsDisabled() then
+                    button:SetScript("OnEnter", function() end)
+                else
+                    button:SetScript("OnEnter", info.originalOnEnter)
+                end
+            end
+        end
+    end
+
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:RegisterEvent("ADDON_LOADED")
+    f:SetScript("OnEvent", function()
+        ns.ApplyGameMenuButtonTooltipSetting()
+    end)
+end
+
 do
     local btn
 
@@ -1327,7 +1401,10 @@ end
 
 do
     local didInit = false
-    local MIDNIGHT_FISHING_ITEM_ID = 262649
+    local MIDNIGHT_FISHING_ITEM_IDS = {
+        [262649] = true,
+        [262787] = true,
+    }
     local MIDNIGHT_FISHING_SKILL_LINE_ID = 2911
 
     local function InitSV()
@@ -1464,7 +1541,7 @@ do
 
         local data = tooltip.GetTooltipData and tooltip:GetTooltipData() or nil
         local itemID = ResolveTooltipItemID(tooltip, data)
-        if itemID ~= MIDNIGHT_FISHING_ITEM_ID then
+        if not itemID or not MIDNIGHT_FISHING_ITEM_IDS[itemID] then
             return
         end
 

@@ -669,6 +669,49 @@ function ns.Talk.TryAutoSelect(isRetry)
             return false
         end
 
+        local function HasCurrencyAmount(currencyID, requiredAmount)
+            currencyID = tonumber(currencyID)
+            requiredAmount = tonumber(requiredAmount)
+            if not currencyID or currencyID <= 0 or not requiredAmount then
+                return false
+            end
+            if requiredAmount < 0 then
+                requiredAmount = 0
+            end
+
+            if C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyInfo) == "function" then
+                local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
+                if ok and type(info) == "table" then
+                    local quantity = tonumber(info.quantity or info.currentAmount)
+                    if quantity ~= nil then
+                        return quantity >= requiredAmount
+                    end
+                end
+            end
+
+            if type(GetCurrencyInfo) == "function" then
+                local ok, _, quantity = pcall(GetCurrencyInfo, currencyID)
+                if ok and tonumber(quantity) ~= nil then
+                    return tonumber(quantity) >= requiredAmount
+                end
+            end
+
+            return false
+        end
+
+        local function MatchesCurrencySpec(spec)
+            if type(spec) ~= "table" then
+                return nil
+            end
+
+            local currencyID = spec[1] or spec.currencyID or spec.id
+            local requiredAmount = spec[2] or spec.amount or spec.quantity or spec.required
+            if currencyID == nil or requiredAmount == nil then
+                return false
+            end
+            return HasCurrencyAmount(currencyID, requiredAmount)
+        end
+
         local pred = ruleEntry.when or ruleEntry.cond or ruleEntry.condition
 
         -- Shorthand (DB packs):
@@ -690,6 +733,12 @@ function ns.Talk.TryAutoSelect(isRetry)
             if okP ~= nil then
                 saw = true
                 allow = allow and (okP and true or false)
+            end
+
+            local okCurrency = MatchesCurrencySpec(ruleEntry.currency)
+            if okCurrency ~= nil then
+                saw = true
+                allow = allow and (okCurrency and true or false)
             end
 
             if not saw then
@@ -1237,6 +1286,42 @@ function ns.Talk.TryAutoSelect(isRetry)
         return nil
     end
 
+    local function GetIgnoreIfQuestAvailableSet(npcTable)
+        if type(npcTable) ~= "table" then
+            return nil
+        end
+        local meta = rawget(npcTable, "__meta")
+        if type(meta) ~= "table" then
+            return nil
+        end
+        local v = rawget(meta, "ignoreIfQuestAvailable")
+        if v == nil then
+            return nil
+        end
+
+        local set = {}
+        if type(v) == "number" or type(v) == "string" then
+            local q = tonumber(v)
+            if q and q > 0 then
+                set[q] = true
+            end
+        elseif type(v) == "table" then
+            for k, vv in pairs(v) do
+                local q = tonumber(type(k) == "number" and vv or k)
+                if q and q > 0 then
+                    set[q] = true
+                elseif vv == true then
+                    local q2 = tonumber(k)
+                    if q2 and q2 > 0 then
+                        set[q2] = true
+                    end
+                end
+            end
+        end
+
+        return next(set) and set or nil
+    end
+
     local function GetStopIfQuestTurnInSet(npcTable)
         if type(npcTable) ~= "table" then
             return nil
@@ -1331,6 +1416,13 @@ function ns.Talk.TryAutoSelect(isRetry)
         Debug("Auto-select suppressed (quest gate: " .. tostring(optionGateWhy) .. " questID=" .. tostring(optionGateQuestID) .. ")")
     end
 
+    local ignoredAvailableQuests = {}
+    if type(LookupNpcBucket) == "function" then
+        MergeQuestSet(ignoredAvailableQuests, GetIgnoreIfQuestAvailableSet(LookupNpcBucket(AutoGossip_Char, npcID)) or {})
+        MergeQuestSet(ignoredAvailableQuests, GetIgnoreIfQuestAvailableSet(LookupNpcBucket(AutoGossip_Acc, npcID)) or {})
+    end
+    MergeQuestSet(ignoredAvailableQuests, GetIgnoreIfQuestAvailableSet(GetDbNpcTable(npcID)) or {})
+
     -- Prefer character rules over account rules, then DB pack.
     for _, scope in ipairs({ "char", "acc" }) do
         local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
@@ -1339,7 +1431,11 @@ function ns.Talk.TryAutoSelect(isRetry)
             local bestG, bestID, bestEntry, bestPrio
             for _, g in ipairs(entries) do
                 local id = g and g.id
-                if optionGate and g and g.kind == "option" then
+                if g and g.kind == "availableQuest" and ignoredAvailableQuests[tonumber(id)] then
+                    if debug then
+                        Debug("Match ignored (ignoreIfQuestAvailable): " .. tostring(npcID) .. ":" .. tostring(id))
+                    end
+                elseif optionGate and g and g.kind == "option" then
                     -- Quest gate active: do not auto-select option entries.
                     -- This intentionally leaves the gossip open for manual quest accept/turn-in.
                 else

@@ -1001,7 +1001,14 @@ do
     UpdateTaxLDBText()
   end
 
-  local function OpenTaxOptionsTab()
+  local function ToggleTaxOptionsTab()
+    if AutoGameOptions and type(AutoGameOptions.IsShown) == "function" and AutoGameOptions:IsShown() then
+      if type(AutoGameOptions.Hide) == "function" then
+        AutoGameOptions:Hide()
+      end
+      return
+    end
+
     if type(_G) == "table" and type(_G.FGO_OpenOptionsTab) == "function" then
       pcall(_G.FGO_OpenOptionsTab, 10, true)
       return
@@ -1037,12 +1044,7 @@ do
       icon = "Interface\\MoneyFrame\\UI-GoldIcon",
       OnClick = function(_, button)
         if button == "RightButton" then
-          OpenTaxOptionsTab()
-        end
-      end,
-      OnMouseDown = function(_, button)
-        if button == "RightButton" then
-          OpenTaxOptionsTab()
+          ToggleTaxOptionsTab()
         end
       end,
       OnTooltipShow = function(tooltip)

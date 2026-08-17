@@ -442,6 +442,11 @@ InitSV = function()
         AutoGossip_Settings.hideTooltipBorderAcc = true
     end
 
+    if type(AutoGossip_Settings.gameMenuButtonTooltipOffAcc) ~= "boolean" then
+        -- Preserve Blizzard's default until the user enables this switch.
+        AutoGossip_Settings.gameMenuButtonTooltipOffAcc = false
+    end
+
     -- TooltipX: combat hide + lightweight cleanup (safe, no async quest loads).
     if type(AutoGossip_Settings.tooltipXEnabledAcc) ~= "boolean" then
         -- Default OFF so it doesn't interfere after install.

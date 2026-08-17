@@ -1760,10 +1760,49 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         actionRow:SetPoint("TOP", popupRow, "BOTTOM", 0, -GAP_Y)
     end
 
+    -- Game Menu button tooltips
+    local btnGameMenuButtonTooltip = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btnGameMenuButtonTooltip:SetSize(BTN_W, BTN_H)
+    btnGameMenuButtonTooltip:SetPoint("TOP", btnBorder, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.btnGameMenuButtonTooltip = btnGameMenuButtonTooltip
+    end
+
+    local function UpdateGameMenuButtonTooltip()
+        InitSV()
+        local on = (AutoGossip_Settings and AutoGossip_Settings.gameMenuButtonTooltipOffAcc) and true or false
+        if on then
+            btnGameMenuButtonTooltip:SetText("Game Menu Button Tips: |cff00ccffOFF ACC|r")
+        else
+            btnGameMenuButtonTooltip:SetText("Game Menu Button Tips: |cffff0000ON ACC|r")
+        end
+    end
+
+    btnGameMenuButtonTooltip:SetScript("OnClick", function()
+        InitSV()
+        AutoGossip_Settings.gameMenuButtonTooltipOffAcc = not (AutoGossip_Settings.gameMenuButtonTooltipOffAcc and true or false)
+        if ns and ns.ApplyGameMenuButtonTooltipSetting then
+            ns.ApplyGameMenuButtonTooltipSetting()
+        end
+        UpdateGameMenuButtonTooltip()
+    end)
+    btnGameMenuButtonTooltip:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(btnGameMenuButtonTooltip, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Game Menu Button Tips")
+            GameTooltip:AddLine("OFF ACC: suppresses mouseover tooltips on Blizzard's game menu buttons.", 1, 1, 1, true)
+            GameTooltip:AddLine("ON ACC: keeps Blizzard's default button tooltips.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    btnGameMenuButtonTooltip:SetScript("OnLeave", function()
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+
     -- TooltipX
     local btnTooltipXEnabled = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btnTooltipXEnabled:SetSize(BTN_W, BTN_H)
-    btnTooltipXEnabled:SetPoint("TOP", btnBorder, "BOTTOM", 0, -GAP_Y)
+    btnTooltipXEnabled:SetPoint("TOP", btnGameMenuButtonTooltip, "BOTTOM", 0, -GAP_Y)
     if frame then
         frame.btnTooltipXEnabled = btnTooltipXEnabled
     end
@@ -2216,6 +2255,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
     -- Initial paint
     UpdateBorderButton()
+    UpdateGameMenuButtonTooltip()
     UpdateQueueAcceptSegments()
     UpdatePopUpRow()
     UpdateActionRow()
@@ -2237,6 +2277,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
     return function()
         UpdateBorderButton()
+        UpdateGameMenuButtonTooltip()
         UpdateQueueAcceptSegments()
         UpdatePopUpRow()
         UpdateActionRow()
