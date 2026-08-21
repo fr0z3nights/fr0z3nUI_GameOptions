@@ -1269,6 +1269,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
       local tax = LI and LI.Tax
       if tax and tax.RefreshLDB then
         C_Timer.After(0.5, function() tax.RefreshLDB() end)
+        C_Timer.After(2.0, function() tax.RefreshLDB() end)
       end
     end
     do
@@ -1287,6 +1288,13 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, ...)
     end
   elseif event == "PLAYER_GUILD_UPDATE" then
     UpdateSeenGuilds("PLAYER_GUILD_UPDATE")
+    local tax = LI and LI.Tax
+    if tax and type(tax.RefreshLDB) == "function" then
+      tax.RefreshLDB()
+      if C_Timer and type(C_Timer.After) == "function" then
+        C_Timer.After(0.5, function() tax.RefreshLDB() end)
+      end
+    end
   elseif event == "PLAYER_MONEY" then
     local tax = LI and LI.Tax
     if tax and tax.OnPlayerMoney then

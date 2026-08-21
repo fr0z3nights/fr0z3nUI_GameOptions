@@ -678,6 +678,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 
 	t = MAP("Collegiate Calamity Delve", { 2547, 2577, })
 	t[135708] = { text = "I'll get rid of these weeds!" }
+	t[135798] = { text = "I'll stop this invasion!" }
 	t[135865] = { text = "I'll deal with this!" }
 	t[135012] = { text = "Zah'ran - Show me." }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2577:140227:122661")
@@ -744,7 +745,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    	t[135204] = { text = "Arresting citizens is not why the Vanguard are here." }						-- Deepening Shadows (91854) Commander Venei Lightblood (248630)
 
    	t = NPC("Delver's Guide", 254565)
-   	t[136916] = { text = "<Review information on your current delve progress.>" }						-- Delver's Guide (254565)
+   	t[139923] = { text = "<Review information on your current delve progress.>" }						-- Delver's Guide (254565)
 
    	t = NPC("Denorin", { 244469, })
    	t[133942] = { text = "My employer asked me to look for some unique mana wyrms." }					-- Murder Row: Acting the Part (90819) Denorin (244469)
@@ -887,7 +888,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[138965] = { text = "What gear slots are available?" }												-- Murder Row: Acting the Part (90819) Thiel (244470)
 
 	t = NPC("Valeera Sanguinar", 242381)
-	t[133099] = { text = "Lor'themar will need the services of the Reliquary" }
+	t[133099] = { prio = 10, text = "Lor'themar will need the services of the Reliquary" }
+	t[140926] = { prio = 01, text = "<Listen to Valeera's Story.>" }									-- Slithering Spoils (97321) Valeera Sanguinar (242381)
 
 	t = NPC("Vaultkeeper Elysa", 239670)
 	t.__meta.stopIfQuestAvailable = { 93696, 94474, }													-- Waits for Quest Accepted (First NPCID Only)

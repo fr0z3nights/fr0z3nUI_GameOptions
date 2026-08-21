@@ -167,7 +167,10 @@ SetZone("Dornogal, Khaz Algar")
 	t = NPC("Ronesh", 212370)
 	t[121503] = { text = "I want to browse your goods." }
 
-SetZone("Hallowfall, Khaz Algar")
+    t = NPC("Skymaster Sunwing", 16189)
+    t[34101] = { text = "I'd like to fly back to Silvermoon City." }
+
+	SetZone("Hallowfall, Khaz Algar")
 
 	t = NPC("Aliya Hillhelm", 220293)
 	t[121536] = { text = "(Delve) I'll get your pigs back and make those fungarians pay for this." }

@@ -260,6 +260,38 @@ do
         return 0
     end
 
+    local function GetCurrencyWeeklyMaximum(currencyID)
+        currencyID = tonumber(currencyID)
+        if not currencyID or currencyID <= 0 then
+            return 0
+        end
+
+        if C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyInfo) == "function" then
+            local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
+            if ok and type(info) == "table" then
+                return math.max(0, tonumber(info.maxWeeklyQuantity) or 0)
+            end
+        end
+
+        return 0
+    end
+
+    local function GetCurrencyWeeklyQuantity(currencyID)
+        currencyID = tonumber(currencyID)
+        if not currencyID or currencyID <= 0 then
+            return 0
+        end
+
+        if C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyInfo) == "function" then
+            local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
+            if ok and type(info) == "table" then
+                return math.max(0, tonumber(info.quantityEarnedThisWeek) or 0)
+            end
+        end
+
+        return 0
+    end
+
     local function TierSortFunc(a, b)
         return (tonumber(a and a.index) or 0) < (tonumber(b and b.index) or 0)
     end
@@ -384,10 +416,13 @@ do
         local worldPair, worldColor = ComputeLanePair(world)
         local cofferKeys = GetCurrencyQuantity(3028)
         local cofferShards = GetCurrencyQuantity(3310)
-        local cofferDisplayValue = cofferKeys + math.floor(cofferShards / 100)
+        local weeklyShardMaximum = GetCurrencyWeeklyMaximum(3310)
+        local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
+        local cofferDisplayValue = cofferKeys + (cofferShards / 100)
         local cofferSuffix = ""
         if statusOrb == "" then
-            cofferSuffix = string.format("   |cffffa000%d|r", cofferDisplayValue)
+            local cofferValueColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffd100"
+            cofferSuffix = string.format("   %s%.1f|r", cofferValueColor, cofferDisplayValue)
         end
 
         return string.format("|c%s%s|r%s|c%s%s|r%s|c%s%s|r%s%s", raidColor, raidPair, sep, dngColor, dngPair, sep, worldColor, worldPair, statusSuffix, cofferSuffix)
@@ -490,10 +525,6 @@ do
         tooltip:AddLine("Dungeons")
         AddGvLines(tooltip, dungeons)
         AddActivityHistory(tooltip, Enum.WeeklyRewardChestThresholdType.Activities, "Completed Keys", 8)
-        local cofferKeys = GetCurrencyQuantity(3028)
-        local cofferShards = GetCurrencyQuantity(3310)
-        local shardValue = (cofferShards > 0) and (cofferShards / 100) or 0
-        tooltip:AddLine(string.format("|cffffa000Coffer Keys:|r  %d  (%s)", cofferKeys, string.format("%.1f", shardValue)), 1, 1, 1)
         tooltip:AddLine(" ")
 
         local world = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.World)
@@ -501,6 +532,15 @@ do
             tooltip:AddLine("World")
             AddGvLines(tooltip, world)
             AddActivityHistory(tooltip, Enum.WeeklyRewardChestThresholdType.World, "World Events", 8)
+            local cofferKeys = GetCurrencyQuantity(3028)
+            local cofferShards = GetCurrencyQuantity(3310)
+            local weeklyShardMaximum = GetCurrencyWeeklyMaximum(3310)
+            local cofferDisplayValue = cofferKeys + (cofferShards / 100)
+            local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
+            local weeklyShardProgress = weeklyShardQuantity / 100
+            local weeklyShardLimit = weeklyShardMaximum / 100
+            local weeklyProgressColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffffff"
+            tooltip:AddLine(string.format("|cffffa000Coffer Keys:|r  |cffffd100%.1f|r  (%s%.0f/%.0f|r)", cofferDisplayValue, weeklyProgressColor, weeklyShardProgress, weeklyShardLimit), 1, 1, 1)
             tooltip:AddLine(" ")
         end
     end
@@ -598,6 +638,11 @@ do
             return
         end
 
+        if event == "CURRENCY_DISPLAY_UPDATE" then
+            QueueRefresh(0)
+            return
+        end
+
         if event == "CHALLENGE_MODE_COMPLETED" or event == "QUEST_TURNED_IN" then
             QueueRefresh(0.25)
         end
@@ -607,6 +652,7 @@ do
     frame:RegisterEvent("PLAYER_LOGIN")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("WEEKLY_REWARDS_UPDATE")
+    frame:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
     frame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
     frame:RegisterEvent("QUEST_TURNED_IN")
     frame:SetScript("OnEvent", OnEvent)

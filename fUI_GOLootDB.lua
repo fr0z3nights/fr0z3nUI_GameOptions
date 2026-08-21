@@ -66,6 +66,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X12:Juljarra",         text = "Jul'jarra says" },
     { key = "X12:Juljan",           text = "Jul'jan says" },
     { key = "X12:Junka",            text = "Jun'ka says" },
+    { key = "X12:KulamaraFierce",   text = "Kul'amara the Fierce says" },
     { key = "X12:RngrCptnLilatha",  text = "Ranger Captain Lilatha says" },
     { key = "X12:SlvrmnCitzn",      text = "Silvermoon Citizen says" },
     { key = "X12:ThalassianProf",   text = "Thalassian Professor says" },
@@ -146,9 +147,14 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X05:BloodwarderFlcnr", text = "Bloodwarder Falconer yells" },
     { key = "X05:Ordinary",         text = "Ordinary yells" },
     { key = "X05:EtherealCrptRadr", text = "Ethereal Crypt Raider becomes enraged" },
---  01  Stormwind
+--  01  Eastern Kingdoms
     { key = "X01:JaneyAnship",      text = "Janey Anship says" },
     { key = "X01:LisanPierce",      text = "Lisan Pierce says" },
+    { key = "X01:PBDeizaPlaguehrn", text = "Deiza Plaguehorn says" },
+    { key = "X01:PBDDarkhammer",    text = "Durin Darkhammer says" },
+    { key = "X01:PBEricDavidson",   text = "Eric Davidson says" },
+    { key = "X01:PBKDarkhammer",    text = "Kortas Darkhammer says" },
+    { key = "X01:PBStevenLisbane",  text = "Steven Lisbane says" },
     { key = "X01:Suzanne",          text = "Suzanne says" },
     { key = "X01:Channel",          text = "Changed Channel" },
 --  00  Event 

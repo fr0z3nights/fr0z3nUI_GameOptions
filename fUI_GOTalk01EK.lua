@@ -177,13 +177,48 @@ SetZone("Burning Steppes, Eastern Kingdoms")
    t[138706] = { prio = 10, text = "What are we here for?", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
    t[138705] = { prio = 10, text = "Let's get started. <Skip>", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 
+	t = NPC("Durin Darkhammer", {66520,})
+   t[41779] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Bring it on" }, within = 2, }, close = true,}
+
    t = NPC("Kudran Wildhammer", 248250)
    t[134709] = { text = "What happened?" }
+
+SetZone("Deadwind Pass, Eastern Kingdoms")
+
+	t = NPC("Lydia Accoste", {66522,})
+   t[41781] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me" }, within = 2, }, close = true,}
 
 SetZone("Dun Morogh, Eastern Kingdoms")
 
    t = NPC("Environeer Bert", 124617)
    t[47861] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
+
+SetZone("Duskwood, Eastern Kingdoms")
+
+   t = NPC("Trelayne <Innkeeper>", {6790,})
+   t[28159] = { text = "Let me browse your goods.", prio = -5 }
+   t[28158] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Eric Davidson", {65655,})
+   t[41186] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me" }, within = 2, }, close = true,}
+
+SetZone("Eastern Plaguelands, Eastern Kingdoms")
+
+   t = NPC("Jessica Chambers <Innkeeper>", {43699,})
+   t[31194] = { text = "Let me browse your goods.", prio = -5 }
+   t[31193] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Deiza Plaguehorn", {66512,})
+   t[41415] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance" }, within = 2, }, close = true,}
+
+SetZone("Elwynn Forest, Eastern Kingdoms")
+
+   t = NPC("Farley <Innkeeper>", {295,})
+   t[28606] = { text = "Let me browse your goods.", prio = -5 }
+   t[28605] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Julia Stevens", {64330,})
+   t[40127] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
 
 SetZone("Founder's Point, Eastern Kingdoms")
 
@@ -227,10 +262,37 @@ SetZone("Hammerfall, Eastern Kingdoms")
    t[134042] = { text = "Dezco sent these supplies for you.",  prio = 10, close = true }                 -- Resupplying Our Suppliers (86846)   Mu'uta (232037)
    t[134041] = { text = "Let me browse your goods.",  prio = -10 }                                       -- Vendor Mu'uta (232037)
 
+SetZone("The Hinterlands, Eastern Kingdoms")
+
+   t = NPC("Keirnan <Innkeeper>", {43699,})
+   t[28268] = { text = "Let me browse your goods.", prio = -5 }
+   t[28267] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("David Kosse", {66478,})
+   t[41413] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Bring it on" }, within = 2, }, close = true,}
+
 SetZone("Ironforge, Eastern Kingdoms")
 
    t = NPC("Gryth Thurden", {1573,})
    t[31711] = { text = "I need a ride." }                                                                -- Flight Master (00000) Gryth Thurden (1573)
+
+SetZone("Redridge Mountains, Eastern Kingdoms")
+
+   t = NPC("Brianna <Innkeeper>", {6727,})
+   t[50737] = { text = "Let me browse your goods.", prio = -5 }
+   t[50736] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Lindsay", {65651,})
+   t[41184] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
+
+SetZone("Searing Gorge, Eastern Kingdoms")
+
+   t = NPC("Velma Rockslide <Innkeeper>", {47942,})
+   t[37168] = { text = "Let me browse your goods.", prio = -5 }
+   t[37167] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Koras Darkhammer", {66515,})
+   t[41417] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself" }, within = 2, }, close = true,}
 
 SetZone("Stormwind City, Eastern Kingdoms")
 
@@ -291,6 +353,35 @@ SetZone("Stormwind City, Eastern Kingdoms")
    t[134631] = { text = "Are you talking about the Twilight's Blade?" }
    t[134634] = { text = "Are you talking about the Twilight's Blade?" }
 
+SetZone("Stranglethorn, Eastern Kingdoms")  -- Northern / Cape of
+
+	t = NPC("Bill Buckler", {65656,})
+   t[41216] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself" }, within = 2, }, close = true,}
+
+   t = NPC("Livingston Marshal <Innkeeper>", {44019,})
+   t[28159] = { text = "Let me browse your goods.", prio = -5 }
+   t[28158] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+   t = NPC("Skindle <Innkeeper>", {6807,})
+   t[125214] = { text = "Let me browse your goods.", prio = -5 }
+   t[125215] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Steven Lisbane", {63194,})
+   t[39601] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 2, }, close = true,}
+
+SetZone("Swamp of Sorrows, Eastern Kingdoms")
+
+   t = NPC("Cap'n Geech <Innkeeper>", {47334,})
+   t[37168] = { text = "Let me browse your goods.", prio = -5 }
+   t[37167] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+   t = NPC("Verad <Innkeeper>", {47367,})
+   t[37168] = { text = "Let me browse your goods.", prio = -5 }
+   t[37167] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Everessa", {66518,})
+   t[41777] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it" }, within = 2, }, close = true,}
+
 SetZone("Tirisfal Glades, Eastern Kingdoms")
 
    t = NPC("Alonsus Faol", 237602)
@@ -307,6 +398,13 @@ SetZone("Twilight Highlands, Eastern Kingdoms")
    t[135794] = { text = "<Challenge the cultist to a \"sparring match.\"" }
 
 SetZone("Westfall, Eastern Kingdoms")
+
+   t = NPC("Heather <Innkeeper>", {8931,})
+   t[28159] = { text = "Let me browse your goods.", prio = -5 }
+   t[28158] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Old MacDonald", {65648,})
+   t[41437] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
 
    t = NPC("Thor", 523)
    t[32677] = { text = "I need a ride." }

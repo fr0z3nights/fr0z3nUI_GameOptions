@@ -156,15 +156,22 @@ end,
 })
 end
 
-SetZone("The Barrens, Kalimdor")
+SetZone("Ashenvale, Kalimdor")
 
-    t = NPC("Crysa", 115286)
-    t[47298] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
+   	t = NPC("Duras <Innkeeper>", {43606,})
+   	t[48135] = { text = "Let me browse your goods.", prio = -5 }
+   	t[48134] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Analynn", {66136,})
+    t[40737] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it" }, within = 3, }, close = true,}
 
 SetZone("Durotar, Kalimdor")
 
     t = NPC("General Nazgrim", 55054)
     t[41023] = { text = "I'm ready to go, General.", }
+
+    t = NPC("Zunta", {66126,})
+    t[41403] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
 
 SetZone("Darkshore, Kalimdor")
 
@@ -172,13 +179,56 @@ SetZone("Darkshore, Kalimdor")
     t[49022] = { text = "Can you show me what Darkshore was like before the battle?" }
     t[49024] = { text = "Can you return me to the present time?" }
 
+SetZone("Desolace, Kalimdor")
+
+   	t = NPC("Dessina <Innkeeper>", {43872,})
+   	t[00000] = { text = "Let me browse your goods.", prio = -5 }
+   	t[35453] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Merda Stronghoof", {66372,})
+    t[41022] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
+
+SetZone("Dustwallow Marsh, Kalimdor")
+
+    t = NPC("Grazzle the Great", {66436,})
+    t[41246] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Bring it on" }, within = 3, }, close = true,}
+
+SetZone("Felwood, Kalimdor")
+
+   	t = NPC("Teenycaugh <Innkeeper>", {48599,})
+   	t[37168] = { text = "Let me browse your goods.", prio = -5 }
+   	t[37167] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Zoltan", {66442,})
+    t[41250] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it" }, within = 3, }, close = true,}
+
 SetZone("Feralas, Kalimdor")
 
-    t = MAP("Dungeon: Feralas", 240)
+    t = MAP("Dungeon: Feralas", {240,})
     t[29281] = { prio = 10, text = "Thank you, Ironbark. We are ready for you to open the door."}
 
-   t = NPC("Irela Moonfeather", 41383)
+   	t = NPC("Chonk <Innkeeper>", {44376,})
+   	t[35880] = { text = "Let me browse your goods.", prio = -5 }
+   	t[35879] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+   t = NPC("Irela Moonfeather", {41383,})
    t[38509] = { text = "Show me where I can fly." }
+
+	t = NPC("Traitor Gluk", {66352,})
+    t[41017] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me" }, within = 3, }, close = true,}
+
+SetZone("Northern Barrens, Kalimdor")
+
+    t = NPC("Crysa", 115286)
+    t[47298] = { text = "Think you can take me in a pet battle? Let's fight!", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
+
+    t = NPC("Dagra the Fierce", {66135,})
+    t[41182] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
+
+SetZone("Moonglade, Kalimdor")
+
+	t = NPC("Elena Flutterfly", {66412,})
+    t[41258] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
 
 SetZone("Orgrimmar, Kalimdor")
 
@@ -195,6 +245,9 @@ SetZone("Orgrimmar, Kalimdor")
    t = NPC("Suspicious Citizen", { 246157, 248174 })
    t[134631] = { text = "Are you talking about the Twilight's Blade?" }
    t[134634] = { text = "Are you talking about the Twilight's Blade?" }
+
+   t = NPC("Thrallmar Mage", {150131,})
+   t[50005] = { text = "I must report to the Dark Portal" }
 
    t = NPC("Trading Post", { 185473, 185472 })
    t[107825] = { text = "I'd like to see what you have to offer this month." }		-- Zen'kala (185473)
@@ -231,6 +284,24 @@ SetZone("Silithus, Kalimdor")
     t[47635] = { text = "Can you return me to the present time?" }
     t[47634] = { text = "Can you show me what Silithus was like before the Wound in the World?" }
 
+SetZone("Southern Barrens, Kalimdor")
+
+   	t = NPC("Lhakadd <Innkeeper>", {44276,})
+   	t[28148] = { text = "Let me browse your goods.", prio = -5 }
+   	t[28147] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Kela Grimtotem", {66422,})
+    t[41260] = { text = "Let's Rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it" }, within = 3, }, close = true,}
+
+SetZone("Stonetalon Mountains, Kalimdor")
+
+   	t = NPC("Felonius Stark <Innkeeper>", {41892,})
+   	t[38925] = { text = "Let me browse your goods.", prio = -5 }
+   	t[38924] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Zonya the Sadist", {66137,})
+    t[40812] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Bring it on" }, within = 3, }, close = true,}
+
 SetZone("Tanaris, Kalimdor")
 
 	t = MAP("Dungeon: Dire Maul", 219)
@@ -244,10 +315,28 @@ SetZone("Tanaris, Kalimdor")
     t[40857] = { prio = 02, text = "Ruby Dragonshrine" }
     t[40856] = { prio = 00, text = "Entryway of Time" }
 
+SetZone("Thousand Needles, Kalimdor")
+
+   	t = NPC("Daisy <Innkeeper>", {40832,})
+   	t[38546] = { text = "What drinks do you have?", prio = -5 }
+   	t[38547] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Kela Grimtotem", {66452,})
+    t[41248] = { text = "Let's Rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
+
 SetZone("Uldum, Kalimdor")
 
     t = NPC("Zidormi", 162419)
     t[51282] = { text = "Can you show me what Uldum was like during the time of the Cataclysm?" }
+
+SetZone("Winterspring, Kalimdor")
+
+   	t = NPC("Vizzie <Innkeeper>", {11118,})
+   	t[39133] = { text = "Let me browse your goods.", prio = -5 }
+   	t[39132] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Zoltan", {66466,})
+    t[41411] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it" }, within = 3, }, close = true,}
 
 
 
