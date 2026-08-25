@@ -537,8 +537,8 @@ do
             local weeklyShardMaximum = GetCurrencyWeeklyMaximum(3310)
             local cofferDisplayValue = cofferKeys + (cofferShards / 100)
             local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
-            local weeklyShardProgress = weeklyShardQuantity / 100
-            local weeklyShardLimit = weeklyShardMaximum / 100
+            local weeklyShardProgress = math.floor(weeklyShardQuantity / 100)
+            local weeklyShardLimit = math.floor(weeklyShardMaximum / 100)
             local weeklyProgressColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffffff"
             tooltip:AddLine(string.format("|cffffa000Coffer Keys:|r  |cffffd100%.1f|r  (%s%.0f/%.0f|r)", cofferDisplayValue, weeklyProgressColor, weeklyShardProgress, weeklyShardLimit), 1, 1, 1)
             tooltip:AddLine(" ")

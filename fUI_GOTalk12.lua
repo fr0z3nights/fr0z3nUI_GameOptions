@@ -677,6 +677,7 @@ SetZone("Naigtal, Eastern Kingdoms")
 SetZone("Silvermoon City, Eastern Kingdoms")
 
 	t = MAP("Collegiate Calamity Delve", { 2547, 2577, })
+	t[138592] = { text = "Never did enjoy homework." }
 	t[135708] = { text = "I'll get rid of these weeds!" }
 	t[135798] = { text = "I'll stop this invasion!" }
 	t[135865] = { text = "I'll deal with this!" }
@@ -686,6 +687,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
 
 	t = MAP("The Darkway Delve", { 2525, })
+	t[141485] = { text = "Clear the pylons and destroy the eggs before they hatch. Got it." }
 	t[136141] = { text = "I'll help you restore the ley lines..." }
 	t[138317] = { text = "Deal with the big ogre. On it!" }
 	t[135012] = { text = "Zah'ran - Show me." }
@@ -870,9 +872,10 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t = NPC("Soridormi", { 259153, })
 	t.__meta.stopIfQuestAvailable = { 95008, }															-- Waits for Quest Accepted (First NPCID Only)
 	t.__meta.stopIfQuestTurnIn = { 96245, }																-- Waits for Quest Hand-Ins (First NPCID Only)
-	t[138326] = { prio = -1, text = "Can you untangle my timelines?" }									-- Murder Row: Harbored Secrets (90821) Tarelin (244474)
-	t[138328] = { prio = -2, text = "I've already defended the Sunwell.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
-	t[138327] = { prio = -3, text = "I stopped the Voidstorm.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }                                          -- Murder Row: Harbored Secrets (90821) Tarelin (244474)
+	t[138326] = { prio = -1, text = "Can you untangle my timelines?" }									
+	t[138328] = { prio = -2, text = "I've already defended the Sunwell.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }
+	t[138327] = { prio = -3, text = "I stopped the Voidstorm.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }
+	t[142318] = { prio = -4, text = "I've helped Zul'jan recover the Fang of Ula'tek.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "are you sure" }, within = 3, }, }
 
 	t = NPC("Tarelin", { 244474, })
 	t[134044] = { text = "I'm picking up a shipment for Zaen." }										-- Murder Row: Harbored Secrets (90821) Tarelin (244474)

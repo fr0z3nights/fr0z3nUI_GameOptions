@@ -739,6 +739,15 @@ do
     return FormatIntWithCommas(gold) .. "|T" .. tex .. ":0:0:2:0|t"
   end
 
+  local function ColorLDBGoldText(text)
+    text = tostring(text or "")
+    if text == "" then return text end
+    if text:find("|c%x%x%x%x%x%x%x%x") then
+      return text
+    end
+    return "|cffffd100" .. text .. "|r"
+  end
+
   local function GetWarbankControlStyle()
     local t = EnsureTaxDB()
     if type(t) ~= "table" then return "text" end
@@ -915,7 +924,7 @@ do
     if disp.player == true then
       local playerMoney = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
       if playerMoney < 0 then playerMoney = 0 end
-      parts[#parts + 1] = FormatGoldIconFromCopper(playerMoney)
+      parts[#parts + 1] = ColorLDBGoldText(FormatGoldIconFromCopper(playerMoney))
     end
 
     local guildMoney, warMoney = GetCachedGuildAndWarbankMoney()
@@ -923,25 +932,25 @@ do
     local hasWarControl = HasWarbankControl()
     if GetWarbankControlStyle() == "icon" then
       if hasWarControl then
-        warText = FormatGoldIconFromCopperWithIcon(warMoney, "Interface\\MoneyFrame\\UI-GoldIcon")
+        warText = ColorLDBGoldText(FormatGoldIconFromCopperWithIcon(warMoney, "Interface\\MoneyFrame\\UI-GoldIcon"))
       else
-        warText = FormatGoldFromCopperNoIcon(warMoney)
+        warText = ColorLDBGoldText(FormatGoldFromCopperNoIcon(warMoney))
       end
     else
-      warText = FormatGoldIconFromCopper(warMoney)
+      warText = ColorLDBGoldText(FormatGoldIconFromCopper(warMoney))
       if hasWarControl then
         warText = "|cffffd100" .. warText .. "|r"
       end
     end
     if disp.guild == true then
-      parts[#parts + 1] = FormatGoldIconFromCopper(guildMoney)
+      parts[#parts + 1] = ColorLDBGoldText(FormatGoldIconFromCopper(guildMoney))
     end
     if disp.war == true then
       parts[#parts + 1] = warText
     end
 
     if #parts == 0 then
-      return FormatGoldIconFromCopper(guildMoney) .. "    " .. warText
+      return ColorLDBGoldText(FormatGoldIconFromCopper(guildMoney)) .. "    " .. warText
     end
     return table.concat(parts, "    ")
   end
