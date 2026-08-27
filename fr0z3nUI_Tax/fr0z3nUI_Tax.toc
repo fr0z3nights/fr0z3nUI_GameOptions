@@ -1,0 +1,12 @@
+## Interface: 120007, 120100
+## Title: |cff00ccfffr0z3nUI|r Tax
+## Notes: Standalone bank tax tracker. Also embedded in fr0z3nUI GameOptions.
+## Author: fr0z3nights
+## Version: 2026.08.27.01
+## OptionalDeps: LibStub, LibDataBroker-1.1, fr0z3nUI_GameOptions
+## SavedVariables: fr0z3nUI_TaxDB
+## SavedVariablesPerCharacter: fr0z3nUI_TaxCharDB
+
+fr0z3nUI_Tax.lua
+fr0z3nUI_TaxUI.lua
+fr0z3nUI_TaxBS.lua

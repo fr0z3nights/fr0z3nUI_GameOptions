@@ -191,7 +191,7 @@ local function BuildMacrosPanel(parent)
     end
 
     -- Forward declarations (used by Optional/Hearth helpers below)
-    local btnHS06, btnHS07, btnHS11, btnHS12, btnHS78
+    local btnHS06, btnHS07, btnHS11, btnHS12, btnHS78, btnHSDelve
     local btnInstanceIO, btnInstanceReset, btnRez, btnRezCombat
     local btnScriptErrors
     local hearthPopout, btnCreateHearthMacro
@@ -602,6 +602,9 @@ local function BuildMacrosPanel(parent)
         local rawHS78 = (M.MacroBody_HS_Whistle and M.MacroBody_HS_Whistle()) or ""
         if btnHS78 then btnHS78:SetEnabled(MacroWouldFit(rawHS78) and (not showTooltipSelected or MacroUsesItem(rawHS78))) end
 
+        local rawHSDelve = (M.MacroBody_HS_Delve and M.MacroBody_HS_Delve()) or ""
+        if btnHSDelve then btnHSDelve:SetEnabled(MacroWouldFit(rawHSDelve) and (not showTooltipSelected or MacroUsesItem(rawHSDelve))) end
+
         local rawIO = (M.MacroBody_InstanceIO and M.MacroBody_InstanceIO()) or ""
         if btnInstanceIO then btnInstanceIO:SetEnabled(MacroWouldFit(rawIO) and (not showTooltipSelected or MacroUsesItem(rawIO))) end
 
@@ -850,6 +853,7 @@ local function BuildMacrosPanel(parent)
     btnHS11 = MakeMacroButton("HS 11 Dornogal", M.MacroBody_HS_Dornogal)
     btnHS12 = MakeMacroButton("HS 12 Arcantina", M.MacroBody_HS_Arcantina)
     btnHS78 = MakeMacroButton("HS 78 Whistle", M.MacroBody_HS_Whistle, "Legion/BFA Flight Points\nZaralek Caverns Mitts")
+    btnHSDelve = MakeMacroButton("HS Delve", M.MacroBody_HS_Delve, "Delve entrance transport")
 
     btnInstanceIO = MakeMacroButton("Instance IO", M.MacroBody_InstanceIO, "Teleport to/from LFG Instances")
     btnInstanceReset = MakeMacroButton("Instance Reset", M.MacroBody_InstanceReset)
@@ -1437,7 +1441,7 @@ local function BuildMacrosPanel(parent)
             local leftAreaX = leftPad
             local rightAreaX = leftPad + areaW + groupGap
 
-            local hsButtons = { btnHSHearth, btnHS06, btnHS07, btnHS11, btnHS12, btnHS78 }
+            local hsButtons = { btnHSHearth, btnHS06, btnHS07, btnHS11, btnHS12, btnHS78, btnHSDelve }
             local utilButtons = { btnInstanceIO, btnInstanceReset, btnRez, btnRezCombat, btnScriptErrors }
 
             local h1 = PlaceGridInArea(hsButtons, leftAreaX, areaW, yCursor)

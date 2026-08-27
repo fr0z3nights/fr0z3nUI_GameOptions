@@ -45,16 +45,108 @@ local function NormalizeMode(m)
     return "random"
 end
 
+local PETWALK_FIELD_NAMES = {
+    "mode",
+    "list",
+    "listNames",
+    "delay",
+    "dismissOnStealth",
+    "debug",
+    "specificGUID",
+}
+
+local function CopyPetWalkValue(value)
+    if type(value) ~= "table" then return value end
+    local copy = {}
+    for key, child in pairs(value) do
+        copy[key] = CopyPetWalkValue(child)
+    end
+    return copy
+end
+
+local function GetPetWalkScope()
+    InitSV()
+    local scope = AutoGossip_CharSettings and AutoGossip_CharSettings.petWalkScope
+    return scope == "character" and "character" or "account"
+end
+
+local function EnsurePetWalkCharacterConfig()
+    InitSV()
+    if type(AutoGossip_CharSettings) ~= "table" or type(AutoGossip_Settings) ~= "table" then
+        return nil
+    end
+
+    local cfg = AutoGossip_CharSettings.petWalkConfig
+    if type(cfg) ~= "table" then
+        cfg = {}
+        AutoGossip_CharSettings.petWalkConfig = cfg
+    end
+
+    if AutoGossip_CharSettings.petWalkConfigInitialized ~= true then
+        cfg.mode = CopyPetWalkValue(AutoGossip_Settings.petWalkModeAcc)
+        cfg.list = CopyPetWalkValue(AutoGossip_Settings.petWalkListAcc)
+        cfg.listNames = CopyPetWalkValue(AutoGossip_Settings.petWalkListNamesAcc)
+        cfg.delay = CopyPetWalkValue(AutoGossip_Settings.petWalkDelayAcc)
+        cfg.dismissOnStealth = CopyPetWalkValue(AutoGossip_Settings.petWalkDismissOnStealthAcc)
+        cfg.debug = CopyPetWalkValue(AutoGossip_Settings.petWalkDebugAcc)
+        cfg.specificGUID = CopyPetWalkValue(AutoGossip_Settings.petWalkSpecificGUIDAcc)
+        AutoGossip_CharSettings.petWalkConfigInitialized = true
+    end
+
+    return cfg
+end
+
+local function GetPetWalkConfig()
+    if GetPetWalkScope() == "character" then
+        return EnsurePetWalkCharacterConfig()
+    end
+    return AutoGossip_Settings
+end
+
+local function GetPetWalkValue(name)
+    local cfg = GetPetWalkConfig()
+    if type(cfg) ~= "table" then return nil end
+    if GetPetWalkScope() == "character" then
+        return cfg[name]
+    end
+    return cfg["petWalk" .. name:sub(1, 1):upper() .. name:sub(2) .. "Acc"]
+end
+
+local function SetPetWalkValue(name, value)
+    local cfg = GetPetWalkConfig()
+    if type(cfg) ~= "table" then return end
+    if GetPetWalkScope() == "character" then
+        cfg[name] = value
+    else
+        cfg["petWalk" .. name:sub(1, 1):upper() .. name:sub(2) .. "Acc"] = value
+    end
+end
+
+local function SetPetWalkScope(scope)
+    InitSV()
+    scope = tostring(scope or "account"):lower()
+    if scope ~= "character" then scope = "account" end
+    if type(AutoGossip_CharSettings) == "table" then
+        if scope == "character" then
+            EnsurePetWalkCharacterConfig()
+            AutoGossip_CharSettings.petWalkScope = "character"
+        else
+            AutoGossip_CharSettings.petWalkScope = "account"
+        end
+    end
+end
+
 local function GetPetWalkListAcc()
     InitSV()
     if type(AutoGossip_Settings) ~= "table" then
         return nil
     end
 
-    local src = AutoGossip_Settings.petWalkListAcc
+    local src = GetPetWalkValue("list")
     if type(src) ~= "table" then
-        AutoGossip_Settings.petWalkListAcc = {}
-        return AutoGossip_Settings.petWalkListAcc
+        src = {}
+        SetPetWalkValue("list", src)
+        return src
     end
 
     -- Keep the list dense and duplicate-free so row/index operations remain stable.
@@ -66,7 +158,7 @@ local function GetPetWalkListAcc()
         end
     end
 
-    AutoGossip_Settings.petWalkListAcc = out
+    SetPetWalkValue("list", out)
     return out
 end
 
@@ -96,10 +188,11 @@ local function GetPetWalkListNamesAcc()
         return nil
     end
 
-    local src = AutoGossip_Settings.petWalkListNamesAcc
+    local src = GetPetWalkValue("listNames")
     if type(src) ~= "table" then
-        AutoGossip_Settings.petWalkListNamesAcc = {}
-        return AutoGossip_Settings.petWalkListNamesAcc
+        src = {}
+        SetPetWalkValue("listNames", src)
+        return src
     end
 
     return src
@@ -159,16 +252,17 @@ end
 
 local function GetMode()
     InitSV()
-    local mode = NormalizeMode(AutoGossip_Settings and AutoGossip_Settings.petWalkModeAcc)
-    if AutoGossip_Settings and type(AutoGossip_Settings.petWalkModeAcc) == "string" and AutoGossip_Settings.petWalkModeAcc ~= mode then
-        AutoGossip_Settings.petWalkModeAcc = mode
+    local stored = GetPetWalkValue("mode")
+    local mode = NormalizeMode(stored)
+    if stored ~= mode then
+        SetPetWalkValue("mode", mode)
     end
     return mode
 end
 
 local function GetDelay()
     InitSV()
-    local d = tonumber(AutoGossip_Settings and AutoGossip_Settings.petWalkDelayAcc)
+    local d = tonumber(GetPetWalkValue("delay"))
     if type(d) ~= "number" then
         return 1.0
     end
@@ -398,7 +492,7 @@ local function GetCurrentPetGUIDForConfig()
         return selected
     end
 
-    local specific = AutoGossip_Settings and AutoGossip_Settings.petWalkSpecificGUIDAcc
+    local specific = GetPetWalkValue("specificGUID")
     if IsUsablePetGUID(specific) then
         return specific
     end
@@ -408,15 +502,12 @@ end
 
 local function IsDebugEnabled()
     InitSV()
-    return (AutoGossip_Settings and AutoGossip_Settings.petWalkDebugAcc) and true or false
+    return (GetPetWalkValue("debug") == true)
 end
 
 local function SetDebugEnabled(v)
     InitSV()
-    if type(AutoGossip_Settings) ~= "table" then
-        return
-    end
-    AutoGossip_Settings.petWalkDebugAcc = (v and true or false)
+    SetPetWalkValue("debug", v and true or false)
 end
 
 local function DebugPrint(msg)
@@ -457,7 +548,7 @@ local function TrySummon(reason)
     InitSV()
 
     local mode = GetMode()
-    local specificGUID = AutoGossip_Settings and AutoGossip_Settings.petWalkSpecificGUIDAcc
+    local specificGUID = GetPetWalkValue("specificGUID")
 
     if mode == "specific" then
         if type(specificGUID) == "string" and specificGUID ~= "" and C_PetJournal and C_PetJournal.SummonPetByGUID then
@@ -564,7 +655,7 @@ local function MaybeDismissOnStealth()
         return
     end
 
-    if not (AutoGossip_Settings and AutoGossip_Settings.petWalkDismissOnStealthAcc) then
+    if GetPetWalkValue("dismissOnStealth") ~= true then
         return
     end
 
@@ -1060,8 +1151,13 @@ local function EnsureConfigPopup()
 
     local btnMode = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     btnMode:SetSize(250, 22)
-    btnMode:SetPoint("TOPLEFT", p, "TOPLEFT", 12, -40)
+    btnMode:SetPoint("TOPLEFT", p, "TOPLEFT", 12, -72)
     p.btnMode = btnMode
+
+    local btnScope = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    btnScope:SetSize(250, 22)
+    btnScope:SetPoint("TOPLEFT", p, "TOPLEFT", 12, -40)
+    p.btnScope = btnScope
 
     local btnSpecific = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     btnSpecific:SetSize(120, 22)
@@ -1229,8 +1325,8 @@ local function EnsureConfigPopup()
             if type(self._guid) ~= "string" or self._guid == "" then
                 return
             end
-            AutoGossip_Settings.petWalkSpecificGUIDAcc = self._guid
-            AutoGossip_Settings.petWalkModeAcc = "specific"
+            SetPetWalkValue("specificGUID", self._guid)
+            SetPetWalkValue("mode", "specific")
             if p.RefreshFromSV then
                 p.RefreshFromSV()
             end
@@ -1426,6 +1522,9 @@ local function EnsureConfigPopup()
     local function RefreshFromSV()
         InitSV()
 
+        local scope = GetPetWalkScope()
+        btnScope:SetText("Settings: " .. ((scope == "character") and "Character" or "Account"))
+
         local mode = GetMode()
         local modeText = (mode == "random" and "Random") or (mode == "favorite" and "Favorites") or (mode == "specific" and "Specific") or "List"
         btnMode:SetText("Mode: " .. modeText)
@@ -1433,14 +1532,14 @@ local function EnsureConfigPopup()
         local delay = GetDelay()
         btnDelay:SetText(string.format("Delay: %.1fs", delay))
 
-        local stealthOn = (AutoGossip_Settings and AutoGossip_Settings.petWalkDismissOnStealthAcc) and true or false
+        local stealthOn = (GetPetWalkValue("dismissOnStealth") == true)
         if stealthOn then
             btnStealth:SetText("Stealth: |cff00ccffDismiss|r")
         else
             btnStealth:SetText("Stealth: |cff888888Keep|r")
         end
 
-        local guid = AutoGossip_Settings and AutoGossip_Settings.petWalkSpecificGUIDAcc
+        local guid = GetPetWalkValue("specificGUID")
         local name = GetPetNameByGUID(guid)
         if type(name) == "string" and name ~= "" then
             specificLabel:SetText("Specific: " .. name)
@@ -1507,7 +1606,7 @@ local function EnsureConfigPopup()
     local function BuildDebugText()
         local summoned = GetSummonedGUID()
         local selected = GetSelectedPetGUID()
-        local specific = AutoGossip_Settings and AutoGossip_Settings.petWalkSpecificGUIDAcc
+        local specific = GetPetWalkValue("specificGUID")
         local resolved = GetCurrentPetGUIDForConfig()
         local mode = GetMode()
         local list = GetPetWalkListAcc() or {}
@@ -1562,6 +1661,32 @@ local function EnsureConfigPopup()
         end
     end)
 
+    btnScope:SetScript("OnClick", function()
+        InitSV()
+        local nextScope = (GetPetWalkScope() == "account") and "character" or "account"
+        SetPetWalkScope(nextScope)
+        RefreshFromSV()
+        BP.OnSettingsChanged()
+    end)
+
+    btnScope:SetScript("OnEnter", function(self)
+        if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then
+            return
+        end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if GetPetWalkScope() == "character" then
+            GameTooltip:SetText("Pet Walk: Character settings\nClick to switch to Account settings.")
+        else
+            GameTooltip:SetText("Pet Walk: Account settings\nClick to switch to Character settings.\nThe first switch copies the current account settings to this character.")
+        end
+        GameTooltip:Show()
+    end)
+    btnScope:SetScript("OnLeave", function()
+        if GameTooltip and GameTooltip.Hide then
+            GameTooltip:Hide()
+        end
+    end)
+
     btnMode:SetScript("OnClick", function()
         InitSV()
         local m = GetMode()
@@ -1574,7 +1699,7 @@ local function EnsureConfigPopup()
         else
             m = "random"
         end
-        AutoGossip_Settings.petWalkModeAcc = m
+            SetPetWalkValue("mode", m)
         RefreshFromSV()
         BP.OnSettingsChanged()
     end)
@@ -1587,8 +1712,8 @@ local function EnsureConfigPopup()
             DebugPrintSnapshot("Use Current Pet -> no guid")
             return
         end
-        AutoGossip_Settings.petWalkSpecificGUIDAcc = guid
-        AutoGossip_Settings.petWalkModeAcc = "specific"
+        SetPetWalkValue("specificGUID", guid)
+        SetPetWalkValue("mode", "specific")
         local name = GetPetDisplayName(guid)
         SetStatus("Specific set: " .. tostring(name), 0.45, 1.0, 0.45)
         DebugPrint("Use Current Pet -> set specific: " .. tostring(name) .. " (" .. tostring(guid) .. ")")
@@ -1614,7 +1739,7 @@ local function EnsureConfigPopup()
 
         local added, reason = AddPetWalkListGUID(guid)
         if added then
-            AutoGossip_Settings.petWalkModeAcc = "list"
+            SetPetWalkValue("mode", "list")
             local name = GetPetDisplayName(guid)
             SetStatus("Added to list: " .. tostring(name), 0.45, 1.0, 0.45)
             DebugPrint("Add To List -> added: " .. tostring(name) .. " (" .. tostring(guid) .. ")")
@@ -1658,14 +1783,14 @@ local function EnsureConfigPopup()
         else
             d = 0.5
         end
-        AutoGossip_Settings.petWalkDelayAcc = d
+        SetPetWalkValue("delay", d)
         RefreshFromSV()
         BP.OnSettingsChanged()
     end)
 
     btnStealth:SetScript("OnClick", function()
         InitSV()
-        AutoGossip_Settings.petWalkDismissOnStealthAcc = not (AutoGossip_Settings.petWalkDismissOnStealthAcc and true or false)
+        SetPetWalkValue("dismissOnStealth", not (GetPetWalkValue("dismissOnStealth") == true))
         RefreshFromSV()
         MaybeDismissOnStealth()
     end)

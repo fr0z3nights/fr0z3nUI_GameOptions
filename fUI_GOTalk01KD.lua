@@ -259,12 +259,14 @@ SetZone("Orgrimmar, Kalimdor")
 SetZone("Razorwind Shores, Kalimdor")
 
     t = NPC("Rotha", 254687)
-    t[137156] = { text = "I'd like to upgrade my house." }
-    t[137155] = { text = "I'd like to upgrade my house." }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("254687:137155:139906") -- only use Companion/Goods state for this.
+	t[137155] = { text = "I'd like to upgrade my house.", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[137156] = { text = "I'd like to upgrade my house.", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[139906] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
     t[137153] = { text = "Let's do this!" }
     t[137154] = { text = "I'll be back." }
 
-    t = NPC("Spirit Healer", 6491)
+	t = NPC("Spirit Healer", 6491)
     t[29005] = { text = "Return me to life.", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "If you find your corpse", "If you return to your corpse", "return to your corpse", "lose experience", "resurrection sickness" }, within = 3, } }
 
 SetZone("Silithus, Kalimdor")

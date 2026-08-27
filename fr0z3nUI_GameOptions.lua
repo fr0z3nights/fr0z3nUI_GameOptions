@@ -3411,6 +3411,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo hs dornogal           - dornogal portal status",
                 "/fgo hs arcantina          - arcantina hearth status",
                 "/fgo hs whistle            - delve whistle status",
+                "/fgo hs delve              - delve transport status",
                 "",
                 "/fgo script                - toggle ScriptErrors",
                 "/fgo loot                  - toggle Auto Loot",
@@ -4736,6 +4737,10 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 return
             end
             if dest == "whistle" then
+                PrintHSMessage(141605, "Whistles!", "Whistle in %d mins")
+                return
+            end
+            if dest == "delve" then
                 PrintHSMessage(230850, "Yay! Off To A Delve", "Ride to a Delve in %d mins")
                 return
             end
@@ -4803,7 +4808,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 return
             end
 
-            Print("Usage: /fgo hs hearth|loc|garrison|dalaran|dornogal|arcantina|whistle")
+            Print("Usage: /fgo hs hearth|loc|garrison|dalaran|dornogal|arcantina|whistle|delve")
             return
         end
     end

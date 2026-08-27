@@ -622,9 +622,15 @@ end
 local function MacroBody_HS_Whistle()
     return table.concat({
         "/fgo hs whistle",
-        "/use item:230850",
         "/use item:141605",
         "/use item:205255",
+    }, "\n")
+end
+
+local function MacroBody_HS_Delve()
+    return table.concat({
+        "/fgo hs delve",
+        "/use item:230850",
     }, "\n")
 end
 
@@ -1850,6 +1856,7 @@ ns.Macros.MacroBody_HS_Dalaran = MacroBody_HS_Dalaran
 ns.Macros.MacroBody_HS_Dornogal = MacroBody_HS_Dornogal
 ns.Macros.MacroBody_HS_Arcantina = MacroBody_HS_Arcantina
 ns.Macros.MacroBody_HS_Whistle = MacroBody_HS_Whistle
+ns.Macros.MacroBody_HS_Delve = MacroBody_HS_Delve
 ns.Macros.MacroBody_InstanceIO = MacroBody_InstanceIO
 ns.Macros.MacroBody_InstanceReset = MacroBody_InstanceReset
 ns.Macros.MacroBody_Rez = MacroBody_Rez

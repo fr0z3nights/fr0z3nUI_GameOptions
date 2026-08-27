@@ -1,6 +1,11 @@
 ---@diagnostic disable: undefined-global
 
 local addonName, ns = ...
+if addonName ~= "fr0z3nUI_GameOptions"
+    and type(IsAddOnLoaded) == "function"
+    and IsAddOnLoaded("fr0z3nUI_GameOptions") then
+  return
+end
 if type(ns) ~= "table" then ns = {} end
 
 local LI = (ns and ns.LootIt) or {}
@@ -31,7 +36,7 @@ do
     end
   end
 
-  -- Tax tab UI builder (extracted from fUI_GOTax.lua)
+  -- Tax tab UI builder (extracted from fr0z3nUI_Tax.lua)
 
   function Tax.BuildTab_UI(panel, env)
     if not panel then return end
@@ -718,8 +723,9 @@ do
     systemBtn:SetPoint("LEFT", mailBtn, "RIGHT", 14, 0)
 
     -- Withdraw toggle (above System), default off.
+    local guildBtn = CreateTextToggleButton(panel)
     local withdrawBtn = CreateTextToggleButton(panel)
-    withdrawBtn:SetPoint("BOTTOM", systemBtn, "TOP", 0, 0)
+    local warbankWithdrawBtn = CreateTextToggleButton(panel)
 
     -- Warbank toggle (left of Min Gold, opposite Withdraw).
     local warbankBtn = CreateTextToggleButton(panel)
@@ -1033,7 +1039,9 @@ do
           excessMinGoldUserSet = false,
           excessMinUseToken = false,
           allowWithdraw = false,
+          guildBankEnabled = true,
           warBankEnabled = false,
+          warBankAllowWithdraw = false,
           warBankXS = false,
           guildBankXS = false,
         }
@@ -1054,6 +1062,8 @@ do
       if viewCfg.excessMinUseToken == nil then viewCfg.excessMinUseToken = false end
       if viewCfg.allowWithdraw == nil then viewCfg.allowWithdraw = false end
       if viewCfg.warBankEnabled == nil then viewCfg.warBankEnabled = false end
+      if viewCfg.guildBankEnabled == nil then viewCfg.guildBankEnabled = true end
+      if viewCfg.warBankAllowWithdraw == nil then viewCfg.warBankAllowWithdraw = false end
       viewCfg.excessMinGold = clampFn(viewCfg.excessMinGold, 0, 9999999) or 0
       viewCfg.excessMinGoldUserSet = (viewCfg.excessMinGoldUserSet == true)
       viewCfg.excessMinUseToken = (viewCfg.excessMinUseToken == true)
@@ -1117,18 +1127,30 @@ do
       if warDueTotal < 0 then warDueTotal = 0 end
 
       local showWarbank = (type(viewCfg) == "table") and (viewCfg.warBankEnabled == true)
+      local showGuild = (type(viewCfg) == "table") and (viewCfg.guildBankEnabled == true)
       if showWarbank then
         if warOwedRow and warOwedRow.Show then warOwedRow:Show() end
         if clearWarBtn and clearWarBtn.Show then clearWarBtn:Show() end
         if warbankXSBtn and warbankXSBtn.Show then warbankXSBtn:Show() end
+        if warbankWithdrawBtn and warbankWithdrawBtn.Show then warbankWithdrawBtn:Show() end
       else
         if warOwedRow and warOwedRow.Hide then warOwedRow:Hide() end
         if clearWarBtn and clearWarBtn.Hide then clearWarBtn:Hide() end
         if warbankXSBtn and warbankXSBtn.Hide then warbankXSBtn:Hide() end
+        if warbankWithdrawBtn and warbankWithdrawBtn.Hide then warbankWithdrawBtn:Hide() end
       end
 
-      if guildOwedRow and guildOwedRow.Show then guildOwedRow:Show() end
-      if clearGuildBtn and clearGuildBtn.Show then clearGuildBtn:Show() end
+      if showGuild then
+        if guildOwedRow and guildOwedRow.Show then guildOwedRow:Show() end
+        if clearGuildBtn and clearGuildBtn.Show then clearGuildBtn:Show() end
+        if guildXSBtn and guildXSBtn.Show then guildXSBtn:Show() end
+        if withdrawBtn and withdrawBtn.Show then withdrawBtn:Show() end
+      else
+        if guildOwedRow and guildOwedRow.Hide then guildOwedRow:Hide() end
+        if clearGuildBtn and clearGuildBtn.Hide then clearGuildBtn:Hide() end
+        if guildXSBtn and guildXSBtn.Hide then guildXSBtn:Hide() end
+        if withdrawBtn and withdrawBtn.Hide then withdrawBtn:Hide() end
+      end
 
       UpdateGuildOwedRow(dueTotal, showSilverCopper)
       UpdateWarOwedRow(warDueTotal, showSilverCopper)
@@ -1222,8 +1244,10 @@ do
       SetToggleText(lootBtn, "Looted", viewCfg.sources.questLoot == true)
       SetToggleText(mailBtn, "Mail", viewCfg.sources.mail == true)
       SetToggleText(systemBtn, "System", viewCfg.sources.systemMoney == true)
+      SetToggleText(guildBtn, "Guild", (type(viewCfg) == "table") and (viewCfg.guildBankEnabled == true))
       SetToggleText(withdrawBtn, "Withdraw", (type(viewCfg) == "table") and (viewCfg.allowWithdraw == true))
       SetToggleText(warbankBtn, "WarBank", (type(viewCfg) == "table") and (viewCfg.warBankEnabled == true))
+      SetToggleText(warbankWithdrawBtn, "Withdraw", (type(viewCfg) == "table") and (viewCfg.warBankAllowWithdraw == true))
       SetToggleText(warbankXSBtn, "XS", (type(viewCfg) == "table") and (viewCfg.warBankXS == true))
       SetToggleText(guildXSBtn, "XS", (type(viewCfg) == "table") and (viewCfg.guildBankXS == true))
       SetToggleText(wowTokenBtn, "WoW Token", (type(viewCfg) == "table") and (viewCfg.excessMinUseToken == true))
@@ -1279,8 +1303,8 @@ do
       SetToggleText(manualBtn, "Manual", (type(viewCfg) == "table") and (viewCfg.manualBankMovesEnabled == true))
 
       -- Action button state
-      SetToggleText(clearGuildBtn, "Guild Bank", (dueTax > 0))
-      SetToggleText(clearWarBtn, "WarBank", (warDueTax > 0))
+      SetToggleText(clearGuildBtn, "Clear", (dueTax > 0))
+      SetToggleText(clearWarBtn, "Clear", (warDueTax > 0))
 
       -- Center the Vendor/Looted/Mail/System row after widths update.
       do
@@ -1327,14 +1351,21 @@ do
         end
 
         if pLeft and pBottom and sLeft and mY then
+          guildBtn:ClearAllPoints()
+          guildBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (sLeft - pLeft), (mY - pBottom) - (BTN_H / 2))
           withdrawBtn:ClearAllPoints()
-          withdrawBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (sLeft - pLeft), (mY - pBottom) - (BTN_H / 2))
+          withdrawBtn:SetPoint("TOP", guildBtn, "BOTTOM", 0, -XS_ROW_GAP)
         else
           -- Fallback: above System.
+          guildBtn:ClearAllPoints()
+          guildBtn:SetPoint("BOTTOM", systemBtn, "TOP", 0, 0)
           withdrawBtn:ClearAllPoints()
-          withdrawBtn:SetPoint("BOTTOM", systemBtn, "TOP", 0, 0)
+          withdrawBtn:SetPoint("TOP", guildBtn, "BOTTOM", 0, -XS_ROW_GAP)
         end
       end
+
+      warbankWithdrawBtn:ClearAllPoints()
+      warbankWithdrawBtn:SetPoint("TOP", warbankBtn, "BOTTOM", 0, -XS_ROW_GAP)
 
       -- Place WarBank aligned with the Min Gold input row, and horizontally aligned over Vendor.
       do
@@ -1356,50 +1387,18 @@ do
         end
       end
 
-      -- Place XS on the Excess row, below WarBank/Withdraw respectively.
+      -- Place XS below each bank's Withdraw toggle.
       do
         if showWarbank then
           warbankXSBtn:ClearAllPoints()
-          warbankXSBtn:SetPoint("CENTER", warbankBtn, "CENTER", 0, 0)
-          if excessEdit and excessEdit.GetCenter and warbankXSBtn.GetCenter then
-            local _, y = excessEdit:GetCenter()
-            if not y and warbankBtn and warbankBtn.GetCenter then
-              local _, wbY = warbankBtn:GetCenter()
-              if wbY then y = wbY - BTN_H - XS_ROW_GAP end
-            end
-            local x = select(1, warbankXSBtn:GetCenter())
-            if x and y and panel and panel.GetLeft and panel.GetBottom then
-              local pLeft = panel:GetLeft()
-              local pBottom = panel:GetBottom()
-              if pLeft and pBottom then
-                warbankXSBtn:ClearAllPoints()
-                warbankXSBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (x - pLeft) - ((warbankXSBtn.GetWidth and warbankXSBtn:GetWidth() or SHORT_BTN_W) / 2), (y - pBottom) - (BTN_H / 2))
-              end
-            end
-          end
+          warbankXSBtn:SetPoint("TOP", warbankWithdrawBtn, "BOTTOM", 0, -XS_ROW_GAP)
         end
       end
 
-      -- Place Guild XS on the same row as Excess Min, centered under Withdraw.
+      -- Place Guild XS below Guild Withdraw.
       do
         guildXSBtn:ClearAllPoints()
-        guildXSBtn:SetPoint("CENTER", withdrawBtn, "CENTER", 0, 0)
-        if excessEdit and excessEdit.GetCenter and guildXSBtn.GetCenter then
-          local _, y = excessEdit:GetCenter()
-          if not y and withdrawBtn and withdrawBtn.GetCenter then
-            local _, wdY = withdrawBtn:GetCenter()
-            if wdY then y = wdY - BTN_H - XS_ROW_GAP end
-          end
-          local x = select(1, guildXSBtn:GetCenter())
-          if x and y and panel and panel.GetLeft and panel.GetBottom then
-            local pLeft = panel:GetLeft()
-            local pBottom = panel:GetBottom()
-            if pLeft and pBottom then
-              guildXSBtn:ClearAllPoints()
-              guildXSBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (x - pLeft) - ((guildXSBtn.GetWidth and guildXSBtn:GetWidth() or SHORT_BTN_W) / 2), (y - pBottom) - (BTN_H / 2))
-            end
-          end
-        end
+        guildXSBtn:SetPoint("TOP", withdrawBtn, "BOTTOM", 0, -XS_ROW_GAP)
       end
 
       -- Place owed rows below the source row (WarBank left / Guild right when enabled).
@@ -1424,7 +1423,7 @@ do
         warOwedRow:ClearAllPoints()
         guildOwedRow:ClearAllPoints()
 
-        if showWarbank and srCX then
+        if showWarbank and showGuild and srCX then
           local leftGapX = GetGapCenterX(vendorBtn, lootBtn)
           local rightGapX = GetGapCenterX(mailBtn, systemBtn)
           if leftGapX and rightGapX then
@@ -1434,6 +1433,8 @@ do
             warOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", 0, -GAP_Y)
             guildOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", 0, -GAP_Y)
           end
+        elseif showWarbank then
+          warOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", 0, -GAP_Y)
         else
           guildOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", 0, -GAP_Y)
         end
@@ -1460,10 +1461,12 @@ do
       if lootBtn and lootBtn.SetEnabled then lootBtn:SetEnabled(cfgControlsEnabled) end
       if mailBtn and mailBtn.SetEnabled then mailBtn:SetEnabled(cfgControlsEnabled) end
       if systemBtn and systemBtn.SetEnabled then systemBtn:SetEnabled(cfgControlsEnabled) end
+      if guildBtn and guildBtn.SetEnabled then guildBtn:SetEnabled(cfgControlsEnabled) end
       if withdrawBtn and withdrawBtn.SetEnabled then withdrawBtn:SetEnabled(cfgControlsEnabled) end
       if warbankBtn and warbankBtn.SetEnabled then warbankBtn:SetEnabled(cfgControlsEnabled) end
+      if warbankWithdrawBtn and warbankWithdrawBtn.SetEnabled then warbankWithdrawBtn:SetEnabled(cfgControlsEnabled and showWarbank) end
       if warbankXSBtn and warbankXSBtn.SetEnabled then warbankXSBtn:SetEnabled(cfgControlsEnabled and showWarbank) end
-      if guildXSBtn and guildXSBtn.SetEnabled then guildXSBtn:SetEnabled(cfgControlsEnabled) end
+      if guildXSBtn and guildXSBtn.SetEnabled then guildXSBtn:SetEnabled(cfgControlsEnabled and showGuild) end
       if debugBtn and debugBtn.SetEnabled then debugBtn:SetEnabled(true) end
       if bankPrintBtn and bankPrintBtn.SetEnabled then bankPrintBtn:SetEnabled(cfgControlsEnabled) end
       if manualBtn and manualBtn.SetEnabled then manualBtn:SetEnabled(cfgControlsEnabled) end
@@ -1471,7 +1474,7 @@ do
       if ldbGBtn and ldbGBtn.SetEnabled then ldbGBtn:SetEnabled(true) end
       if ldbWBtn and ldbWBtn.SetEnabled then ldbWBtn:SetEnabled(true) end
       if warCtrlStyleBtn and warCtrlStyleBtn.SetEnabled then warCtrlStyleBtn:SetEnabled(true) end
-      if clearGuildBtn and clearGuildBtn.SetEnabled then clearGuildBtn:SetEnabled(dueTax > 0) end
+      if clearGuildBtn and clearGuildBtn.SetEnabled then clearGuildBtn:SetEnabled(showGuild and dueTax > 0) end
       if clearWarBtn and clearWarBtn.SetEnabled then clearWarBtn:SetEnabled(showWarbank and (warDueTax > 0)) end
     end
 
@@ -1836,6 +1839,48 @@ do
       Refresh()
     end)
 
+    guildBtn:SetScript("OnClick", function()
+      EnsureDB()
+      local cdb = (env.GetCharDB and env.GetCharDB()) or (LI and type(LI.GetCharDB) == "function" and LI.GetCharDB()) or (_G and rawget(_G, "fr0z3nUI_LootItCharDB"))
+      if type(cdb) ~= "table" then return end
+      cdb.tax = (type(cdb.tax) == "table") and cdb.tax or {}
+      cdb.tax.cfg = (type(cdb.tax.cfg) == "table") and cdb.tax.cfg or {}
+      cdb.tax.scope = tostring(cdb.tax.scope or "guild"):lower()
+
+      local cfg
+      if cdb.tax.scope == "character" then
+        cfg = cdb.tax.cfg
+      else
+        local guildKey = select(1, GetCurrentGuildKeyAndName())
+        if not guildKey then return end
+        cfg = EnsureGuildTaxDB(guildKey)
+      end
+      if not cfg then return end
+      cfg.guildBankEnabled = not (cfg.guildBankEnabled == true)
+      Refresh()
+    end)
+
+    warbankWithdrawBtn:SetScript("OnClick", function()
+      EnsureDB()
+      local cdb = (env.GetCharDB and env.GetCharDB()) or (LI and type(LI.GetCharDB) == "function" and LI.GetCharDB()) or (_G and rawget(_G, "fr0z3nUI_LootItCharDB"))
+      if type(cdb) ~= "table" then return end
+      cdb.tax = (type(cdb.tax) == "table") and cdb.tax or {}
+      cdb.tax.cfg = (type(cdb.tax.cfg) == "table") and cdb.tax.cfg or {}
+      cdb.tax.scope = tostring(cdb.tax.scope or "guild"):lower()
+
+      local cfg
+      if cdb.tax.scope == "character" then
+        cfg = cdb.tax.cfg
+      else
+        local guildKey = select(1, GetCurrentGuildKeyAndName())
+        if not guildKey then return end
+        cfg = EnsureGuildTaxDB(guildKey)
+      end
+      if not cfg then return end
+      cfg.warBankAllowWithdraw = not (cfg.warBankAllowWithdraw == true)
+      Refresh()
+    end)
+
     warbankXSBtn:SetScript("OnClick", function()
       EnsureDB()
 
@@ -2108,6 +2153,22 @@ do
       GameTooltip:Show()
     end)
     withdrawBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
+
+    guildBtn:SetScript("OnEnter", function(self)
+      if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("Enable or disable automatic Guild Bank deposits.")
+      GameTooltip:Show()
+    end)
+    guildBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
+
+    warbankWithdrawBtn:SetScript("OnEnter", function(self)
+      if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("Only enable if WarBank allows withdrawals.\nWithdraws up to min balance, withdrawn is added to Owed.")
+      GameTooltip:Show()
+    end)
+    warbankWithdrawBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
 
     clearGuildBtn:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end

@@ -74,8 +74,8 @@ fUI_GOLootChat.lua
 fUI_GOLootUI.lua
 fUI_GOTrade.lua
 fUI_GOTradeUI.lua
-fUI_GOTax.lua
-fUI_GOTaxUI.lua
+fr0z3nUI_Tax/fr0z3nUI_Tax.lua
+fr0z3nUI_Tax/fr0z3nUI_TaxUI.lua
 
 
 fr0z3nUI_GameOptions.lua

@@ -279,12 +279,26 @@ FGO HS 78 Whistle
 
 New Macro Body
 /fgo hs whistle
-/use item:230850
 /use item:141605
 /use item:205255
 
 Behind /fgo Command
-/run local s,d=GetItemCooldown"230850"s=s+d-GetTime()print(format((s>1 and"Ride to a Delve in %d mins"or"Yay! Off To A Delve"),s/60,s%60))
+/run local s,d=GetItemCooldown(141605); s=s+d-GetTime(); print(format(s>1 and "Whistle in %d mins" or "Whistles!", s/60))
+
+## FGO HS Delve
+
+Button Name
+HS Delve
+
+Created Macro
+FGO HS Delve
+
+New Macro Body
+/fgo hs delve
+/use item:230850
+
+Behind /fgo Command
+/run local s,d=GetItemCooldown(230850); s=s+d-GetTime(); print(format(s>1 and "Ride to a Delve in %d mins" or "Yay! Off To A Delve", s/60))
 
 ## FGO HS Instance IO
 

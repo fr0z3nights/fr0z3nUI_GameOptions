@@ -114,23 +114,23 @@ end
 SetZone("Darkmoon Island")
 
     t = NPC("Christoph VonFeasel", { 85519 })
-    t[42667] = { text = "I challenge you to a pet battle!" }														-- A New Darkmoon Challenger! (36471) Christoph VonFeasel (85519)
+    t[42667] = { text = "I challenge you to a pet battle!" }						-- A New Darkmoon Challenger! (36471) Christoph VonFeasel (85519)
 
-	t = NPC("Darkmoon Faire Mystic Mage", 54334)																	-- Stormwind Mystic Mage
-	t.__meta.stopIfQuestAvailable = { 7905, 7926, }                                                        				-- Quest Accept before Gossip (First NPCID)
+	t = NPC("Darkmoon Faire Mystic Mage", 54334)									-- Stormwind Mystic Mage
+	t.__meta.stopIfQuestAvailable = { 7905, 7926, }									-- Quest Accept before Gossip (First NPCID)
 	t[40457] = { text = "Take me to the faire...", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Travel to the faire staging area" }, within = 3, }, }
 
 	t = NPC("Darkmoon Faire Mystic Mage", 55382)																	-- Orgrimmar Mystic Mage
-	t.__meta.stopIfQuestAvailable = { 7905, 7926, }                                                        			-- Quest Accept before Gossip (First NPCID)
+	t.__meta.stopIfQuestAvailable = { 7905, 7926, }									-- Quest Accept before Gossip (First NPCID)
 	t[40007] = { text = "Take me to the faire...", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Travel to the faire staging area" }, within = 3, }, }
 
     t = NPC("Jeremy Feasel", { 67370 })
-    t[41758] = { text = "I challenge you to a pet battle!" }														-- Darkmoon Pet Battle! (32175) Jeremy Feasel (67370)
+    t[41758] = { text = "I challenge you to a pet battle!" }						-- Darkmoon Pet Battle! (32175) Jeremy Feasel (67370)
 
 	t = NPC("Stamp Thunderhorn", 14845)
-   	t.__meta.stopIfQuestAvailable = { 29509, 29513, }                           -- Quest Accept before Gossip (First NPCID)
-   	t.__meta.stopIfQuestTurnIn = { 29509, 29513, }                              -- Quest TurnIn before Gossip (First NPCID)
-	t[31263] = { text = "Mmm... food.", xvend = 15 }							-- A Delicious Recipe (29509) Stamp Thunderhorn (14845)
+   	t.__meta.stopIfQuestAvailable = { 29509, 29513, }                           	-- Quest Accept before Gossip (First NPCID)
+   	t.__meta.stopIfQuestTurnIn = { 29509, 29513, }                              	-- Quest TurnIn before Gossip (First NPCID)
+	t[31263] = { text = "Mmm... food.", xvend = 15 }								-- A Delicious Recipe (29509) Stamp Thunderhorn (14845)
 	-- fix xvend so it closes vendor windows after the timer period
 SetZone("Timewalking")
 	--	01	Classic Timewalking Vendor
@@ -145,7 +145,7 @@ SetZone("Timewalking")
 		t[46752] = { text = "I would like to buy from you." }						-- Cupri (98685)
 	--	03	Wrath Timewalking Vendor
 		t = NPC("Auzin", 98690)
-		t.__meta.stopIfQuestAvailable = { 85949, 83365, }		-- LVL/MAX          -- Quest Accept before Gossip (First NPCID)
+		t.__meta.stopIfQuestAvailable = { 85949, 93610, }		-- LVL/MAX          -- Quest Accept before Gossip (First NPCID)
 		t.__meta.stopIfQuestTurnIn = { 85949, 40173, }      	-- LVL/TKN          -- Quest TurnIn before Gossip (First NPCID)
 		t[46752] = { text = "I would like to buy from you." }						-- Auzin (98690)
 	--	04	Cataclysm Timewalking Vendor
@@ -192,13 +192,13 @@ SetZone("Timewalking")
 SetZone("Nablegarden")
 
    t = NPC("Noblegarden Merchant", 32837)
-   t.__meta.stopIfQuestAvailable = { 13503, }                                   -- Quest Accept before Gossip (First NPCID)
-   t.__meta.stopIfQuestTurnIn = { 13503, }                                      -- Quest TurnIn before Gossip (First NPCID)
+   t.__meta.stopIfQuestAvailable = { 13503, }										-- Quest Accept before Gossip (First NPCID)
+   t.__meta.stopIfQuestTurnIn = { 13503, }											-- Quest TurnIn before Gossip (First NPCID)
    t[37187] = { text = "I want to browse your goods." }
 
    t = NPC("Noblegarden Vendor", 124617)
-   t.__meta.stopIfQuestAvailable = { 13502, }                                   -- Quest Accept before Gossip (First NPCID)
-   t.__meta.stopIfQuestTurnIn = { 13502, }                                      -- Quest TurnIn before Gossip (First NPCID)
+   t.__meta.stopIfQuestAvailable = { 13502, }										-- Quest Accept before Gossip (First NPCID)
+   t.__meta.stopIfQuestTurnIn = { 13502, }											-- Quest TurnIn before Gossip (First NPCID)
    t[37187] = { text = "I want to browse your goods." }
 
    t = NPC("Emmery Fiske", 216129)
@@ -207,4 +207,10 @@ SetZone("Nablegarden")
    t = NPC("Tethris Dewgazer", 217147)
 	t[120851] = { prio = 10, text = "Sylnaria sent me...", qil = 79576, close = true }								-- A Fowl Concoction (79576) Tethris Dewgazer (217147)
 
+SetZone("Everywhere")
 
+   t = NPC("Katy Stampwhistle", {132969,})
+   t[48598] = { text = "I'd like to check my mail." }
+
+   t = NPC("Child of Ohn'ahra", {191869,})
+   t[55193] = { text = "I'd like to check my mail." }

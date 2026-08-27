@@ -204,12 +204,12 @@ SetZone("Duskwood, Eastern Kingdoms")
 
 SetZone("Eastern Plaguelands, Eastern Kingdoms")
 
-   t = NPC("Jessica Chambers <Innkeeper>", {43699,})
-   t[31194] = { text = "Let me browse your goods.", prio = -5 }
-   t[31193] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+	t = NPC("Jessica Chambers <Innkeeper>", {43699,})
+	t[31194] = { text = "Let me browse your goods.", prio = -5 }
+	t[31193] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
 	t = NPC("Deiza Plaguehorn", {66512,})
-   t[41415] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance" }, within = 2, }, close = true,}
+	t[41415] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance" }, within = 2, }, close = true,}
 
 SetZone("Elwynn Forest, Eastern Kingdoms")
 
@@ -226,8 +226,10 @@ SetZone("Founder's Point, Eastern Kingdoms")
    t[137315] = { text = "Okay, lets see what you've got." }
 
    t = NPC("Jorvari Longmoor", { 255104, })
-   t[137141] = { text = "I'd like to upgrade my house." }
-   t[137143] = { text = "I'd like to upgrade my house." }
+   local VIEW_GOSSIP_STATE = GetCharacterCacheKey("254687:137155:139906") -- only use Companion/Goods state for this.
+   t[137141] = { text = "I'd like to upgrade my house.", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+   t[137143] = { text = "I'd like to upgrade my house.", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+   t[139906] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
    t[137139] = { text = "Let's Do This!" }
    t[137142] = { text = "I'll be back." }
 

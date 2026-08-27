@@ -1,6 +1,11 @@
 ---@diagnostic disable: undefined-global
 
 local addonName, ns = ...
+if addonName ~= "fr0z3nUI_GameOptions"
+    and type(IsAddOnLoaded) == "function"
+    and IsAddOnLoaded("fr0z3nUI_GameOptions") then
+  return
+end
 if type(ns) ~= "table" then ns = {} end
 
 local LI = (ns and ns.LootIt) or {}
@@ -24,6 +29,7 @@ do
   local DB
   local CHARDB
   local Print = function(...) end
+  local standaloneMode = false
 
   local state = {
     merchant = { open = false, startMoney = 0, chatMoney = 0 },
@@ -520,6 +526,10 @@ do
     g.excessMinUseToken = (g.excessMinUseToken == true)
     if g.allowWithdraw == nil then g.allowWithdraw = false end
     g.allowWithdraw = (g.allowWithdraw == true)
+    if g.guildBankEnabled == nil then g.guildBankEnabled = true end
+    g.guildBankEnabled = (g.guildBankEnabled == true)
+    if g.warBankAllowWithdraw == nil then g.warBankAllowWithdraw = false end
+    g.warBankAllowWithdraw = (g.warBankAllowWithdraw == true)
 
     g.enabled = (g.rate > 0)
     return g
@@ -607,6 +617,10 @@ do
     cfg.excessMinUseToken = (cfg.excessMinUseToken == true)
     if cfg.allowWithdraw == nil then cfg.allowWithdraw = false end
     cfg.allowWithdraw = (cfg.allowWithdraw == true)
+    if cfg.guildBankEnabled == nil then cfg.guildBankEnabled = true end
+    cfg.guildBankEnabled = (cfg.guildBankEnabled == true)
+    if cfg.warBankAllowWithdraw == nil then cfg.warBankAllowWithdraw = false end
+    cfg.warBankAllowWithdraw = (cfg.warBankAllowWithdraw == true)
 
     if ct.debug == nil then ct.debug = false end
     ct.debug = (ct.debug == true)
@@ -1053,7 +1067,11 @@ do
       icon = "Interface\\MoneyFrame\\UI-GoldIcon",
       OnClick = function(_, button)
         if button == "RightButton" then
-          ToggleTaxOptionsTab()
+          if type(Tax.OpenConfig) == "function" then
+            Tax.OpenConfig()
+          else
+            ToggleTaxOptionsTab()
+          end
         end
       end,
       OnTooltipShow = function(tooltip)
@@ -1072,7 +1090,9 @@ do
         local tokenText = GetWowTokenDisplayText()
         tooltip:AddLine(tokenText, 0.8, 0.8, 0.8)
 
-        tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
+        if not standaloneMode then
+          tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
+        end
       end,
     })
 
@@ -1310,6 +1330,11 @@ do
     return "|cff" .. toHex(r) .. toHex(g) .. toHex(b) .. short .. ":|r"
   end
 
+  local function GetPrintNamePrefix()
+    if standaloneMode then return "" end
+    return GetClassColoredPlayerName() .. " "
+  end
+
   local function FormatGoldOnly(totalCopper)
     local copper = tonumber(totalCopper) or 0
     if copper < 0 then copper = 0 end
@@ -1373,9 +1398,9 @@ do
     end
 
     if direction == "Withdraw" then
-      Print(GetClassColoredPlayerName() .. " " .. bankShort .. " " .. tostring(direction or "") .. " " .. FormatGoldOnly(copper))
+      Print(GetPrintNamePrefix() .. bankShort .. " " .. tostring(direction or "") .. " " .. FormatGoldOnly(copper))
     else
-      Print(GetClassColoredPlayerName() .. " " .. FormatGoldOnly(copper) .. " " .. tostring(direction or "") .. " " .. bankLabel)
+      Print(GetPrintNamePrefix() .. FormatGoldOnly(copper) .. " " .. tostring(direction or "") .. " " .. bankLabel)
     end
   end
 
@@ -1454,7 +1479,7 @@ do
     local payToXS = copper - payToOwed
     if payToXS < 0 then payToXS = 0 end
 
-    local name = GetClassColoredPlayerName()
+    local name = GetPrintNamePrefix()
     local paidGold = FormatGoldOnly(copper)
 
     if mode == "detail" then
@@ -1468,20 +1493,20 @@ do
       -- Compact output:
       --  Name: GB/WB Deposit <paidToOwed> / <owed> Owed
       --  (optional) Name: GB/WB Deposit <totalMoneyMinusOwed> - <paidToXS> XS
-      Print(name .. " " .. bankShort .. " Deposit  " .. FormatGoldOnly(payToOwed) .. " / " .. FormatGoldOnly(owed) .. " Owed")
+      Print(name .. bankShort .. " Deposit  " .. FormatGoldOnly(payToOwed) .. " / " .. FormatGoldOnly(owed) .. " Owed")
 
       if xsOn and payToXS > 0 then
         local totalMoney = math.floor(tonumber(info and info.totalMoney) or 0) -- full pre-deposit snapshot
         if totalMoney < 0 then totalMoney = 0 end
         local totalMoneyMinusOwed = math.floor(totalMoney - payToOwed)
         if totalMoneyMinusOwed < 0 then totalMoneyMinusOwed = 0 end
-        Print(name .. " " .. bankShort .. " Deposit  " .. FormatGoldOnly(totalMoneyMinusOwed) .. " - " .. FormatGoldOnly(payToXS) .. " XS")
+        Print(name .. bankShort .. " Deposit  " .. FormatGoldOnly(totalMoneyMinusOwed) .. " - " .. FormatGoldOnly(payToXS) .. " XS")
       end
       return
     end
 
     -- full (multi-line)
-    local prefix = name .. " " .. paidGold .. " deposited to " .. bankLabel
+    local prefix = name .. paidGold .. " deposited to " .. bankLabel
     Print(prefix)
     Print("  owed=" .. MoneyToString(owed) .. " (tax=" .. MoneyToString(owedTax) .. ", borrowed=" .. MoneyToString(owedBorrowed) .. ")")
     Print("  paid: owed=" .. MoneyToString(payToOwed) .. ", XS=" .. MoneyToString(payToXS) .. " (XS " .. (xsOn and "ON" or "OFF") .. ")")
@@ -1660,6 +1685,7 @@ do
     local scope, cfg, bal = GetActiveScopeCfgAndBal()
     if type(cfg) ~= "table" then return end
     if type(bal) ~= "table" then return end
+    if cfg.guildBankEnabled ~= true then return end
 
     AccrueBorrowedInterest(bal)
 
@@ -2235,7 +2261,7 @@ do
     end
 
     -- Always allow borrowing from Warbank up to Min Gold.
-    if minCopper > 0 then
+    if cfg.warBankAllowWithdraw == true and minCopper > 0 then
       local money = math.floor(tonumber(GetMoney and GetMoney() or 0) or 0)
       if money < minCopper then
         local need = math.floor(minCopper - money)
@@ -2291,6 +2317,8 @@ do
     DB = (type(db) == "table") and db or DB
     CHARDB = (type(charDb) == "table") and charDb or CHARDB
     env = (type(env) == "table") and env or {}
+
+    standaloneMode = (env.standalone == true)
 
     Print = env.Print or Print
     if type(Print) ~= "function" then
@@ -2699,7 +2727,7 @@ do
     UpdateTaxLDBText()
 
     -- Safety: if our state claims a bank is open but the UI isn't actually shown, clear it.
-    if state.guildBankOpen == true then
+    if state.guildBankOpen == true and not standaloneMode then
       local f = _G and rawget(_G, "GuildBankFrame")
       if not (f and f.IsShown and f:IsShown()) then
         state.guildBankOpen = false
@@ -2707,7 +2735,7 @@ do
         state._pendingGuildDeltas = nil
       end
     end
-    if state.warbankOpen == true then
+    if state.warbankOpen == true and not standaloneMode then
       local f = _G and rawget(_G, "BankFrame")
       if not (f and f.IsShown and f:IsShown()) then
         state.warbankOpen = false
@@ -2809,7 +2837,7 @@ do
   end
 
 
-  -- UI bridge for fUI_GOTaxUI.lua (exports local closures).
+  -- UI bridge for fr0z3nUI_TaxUI.lua (exports local closures).
   Tax._ui = Tax._ui or {}
   Tax._ui.EnsureCharTaxDB = EnsureCharTaxDB
   Tax._ui.EnsureGuildTaxDB = EnsureGuildTaxDB
@@ -2818,7 +2846,7 @@ do
   Tax._ui.TryPayWarbank = TryPayWarbank
   Tax._ui.Clamp = Clamp
 
-  -- UI builder extracted into fUI_GOTaxUI.lua
+  -- UI builder extracted into fr0z3nUI_TaxUI.lua
   function Tax.BuildTab(panel, env)
     local fn = Tax and Tax.BuildTab_UI
     if type(fn) == "function" then
