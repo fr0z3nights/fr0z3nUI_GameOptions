@@ -1,9 +1,10 @@
 local addonName, ns = ...
+local IsAddOnLoadedSafe = (_G.C_AddOns and rawget(_G.C_AddOns, "IsAddOnLoaded")) or rawget(_G, "IsAddOnLoaded")
 
 -- The nested module is loaded by FGO through its parent TOC. When the folder is
 -- copied as its own addon, this bootstrap supplies the missing FGO host services.
 if addonName == "fr0z3nUI_GameOptions"
-    or (type(IsAddOnLoaded) == "function" and IsAddOnLoaded("fr0z3nUI_GameOptions")) then
+    or (type(IsAddOnLoadedSafe) == "function" and IsAddOnLoadedSafe("fr0z3nUI_GameOptions")) then
   return
 end
 
@@ -32,6 +33,11 @@ local function Print(message)
 end
 
 local function InitTax()
+  -- Re-check at PLAYER_LOGIN (after all addons finish loading) rather than only at file-parse
+  -- time, since load order between this addon and fr0z3nUI_GameOptions is not guaranteed.
+  if type(IsAddOnLoadedSafe) == "function" and IsAddOnLoadedSafe("fr0z3nUI_GameOptions") then
+    return
+  end
   if type(_G.fr0z3nUI_TaxDB) == "table" then
     db = _G.fr0z3nUI_TaxDB
   else

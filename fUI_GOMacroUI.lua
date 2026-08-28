@@ -211,6 +211,10 @@ local function BuildMacrosPanel(parent)
     btnMacroDebug:SetSize(70, 20)
     btnMacroDebug:SetText("FoodDbg")
 
+    local btnPlaceMute = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnPlaceMute:SetSize(70, 20)
+    btnPlaceMute:SetText("Place")
+
     local btnFoodMacro = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
     btnFoodMacro:SetSize(BTN_W, BTN_H)
     btnFoodMacro:SetText("Food")
@@ -231,6 +235,12 @@ local function BuildMacrosPanel(parent)
     end
     UpdateFoodDebugButtonVisual()
 
+    local function UpdatePlaceMuteButtonVisual()
+        local on = (type(M.Place_IsMuted) == "function") and M.Place_IsMuted() or false
+        btnPlaceMute:SetText(on and "|cFF00FF00Place|r" or "|cFF888888Place|r")
+    end
+    UpdatePlaceMuteButtonVisual()
+
     SetButtonTooltip(btnFoodMacro, function()
         return "Food\n\nCreate/update the '" .. tostring(M and "FGO Food" or "FGO Food") .. "' macro to use your best bag food."
     end)
@@ -244,6 +254,10 @@ local function BuildMacrosPanel(parent)
     SetButtonTooltip(btnMacroDebug, function()
         local on = (type(M.FoodDrink_IsDebugEnabled) == "function") and M.FoodDrink_IsDebugEnabled() or false
         return "FoodDbg\n\nToggle Food/Drink debug monitoring (concise logs on scan/defer/update events).\n\nCurrent: " .. (on and "ON" or "OFF")
+    end)
+    SetButtonTooltip(btnPlaceMute, function()
+        local on = (type(M.Place_IsMuted) == "function") and M.Place_IsMuted() or false
+        return "Place\n\nMutes the action bar pickup/putdown SFX.\n\nCurrent: " .. (on and "ON" or "OFF")
     end)
 
     btnFoodMacro:SetScript("OnClick", function()
@@ -275,6 +289,15 @@ local function BuildMacrosPanel(parent)
             M.Print("FoodDbg: " .. (now and "ON" or "OFF"))
         end
         UpdateFoodDebugButtonVisual()
+    end)
+
+    btnPlaceMute:SetScript("OnClick", function()
+        if type(M.Place_IsMuted) ~= "function" or type(M.Place_SetMuted) ~= "function" then
+            return
+        end
+        local cur = M.Place_IsMuted() and true or false
+        M.Place_SetMuted(not cur)
+        UpdatePlaceMuteButtonVisual()
     end)
 
     -- Popout anchored OUTSIDE the tab (to the right) so it doesn't overlap the Home column.
@@ -1408,6 +1431,11 @@ local function BuildMacrosPanel(parent)
         btnMacroDebug:ClearAllPoints()
         btnMacroDebug:SetPoint("LEFT", btnConjured, "RIGHT", 8, 0)
         btnMacroDebug:SetPoint("BOTTOM", btnOptional, "BOTTOM", 0, 0)
+
+        -- Bottom-left: Place mute toggle (next to FoodDbg)
+        btnPlaceMute:ClearAllPoints()
+        btnPlaceMute:SetPoint("LEFT", btnMacroDebug, "RIGHT", 8, 0)
+        btnPlaceMute:SetPoint("BOTTOM", btnOptional, "BOTTOM", 0, 0)
 
         -- Divider between columns (stop above the hearth location line)
         do

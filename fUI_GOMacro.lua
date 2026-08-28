@@ -44,6 +44,33 @@ local function SetFoodDrinkDebugEnabled(on)
     return db.window.foodDrinkDebug and true or false
 end
 
+-- "Place" mute: silences the action bar pickup/putdown SFX. Default disabled.
+local PLACE_MUTE_SOUND_IDS = { 567524, 567489 }
+
+local function ApplyPlaceMuteSounds(on)
+    for _, id in ipairs(PLACE_MUTE_SOUND_IDS) do
+        if on and type(MuteSoundFile) == "function" then
+            pcall(MuteSoundFile, id)
+        elseif (not on) and type(UnmuteSoundFile) == "function" then
+            pcall(UnmuteSoundFile, id)
+        end
+    end
+end
+
+local function GetPlaceMuteEnabled()
+    local db = GetHearthDB()
+    db.window = db.window or {}
+    return db.window.placeMute and true or false
+end
+
+local function SetPlaceMuteEnabled(on)
+    local db = GetHearthDB()
+    db.window = db.window or {}
+    db.window.placeMute = on and true or false
+    ApplyPlaceMuteSounds(db.window.placeMute)
+    return db.window.placeMute
+end
+
 local function FormatItemShort(itemID)
     local id = tonumber(itemID) or 0
     if id <= 0 then
@@ -1513,7 +1540,7 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
     local wroteDrink = false
 
     if allowCreateFood or FoodDrink.createdFood or foodIdx > 0 then
-        if forceRewrite or bestFood ~= (tonumber(FoodDrink.lastFoodID) or 0) or foodIdx == 0 then
+        if bestFood ~= (tonumber(FoodDrink.lastFoodID) or 0) or foodIdx == 0 then
             if bestFood > 0 then
                 FoodDrink.lastFoodID = bestFood
                 CreateOrUpdateNamedMacro_NoOptional(FOOD_MACRO_NAME, BuildUseItemMacroBody(bestFood, true, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
@@ -1527,7 +1554,7 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
     end
 
     if allowCreateDrink or FoodDrink.createdDrink or drinkIdx > 0 then
-        if forceRewrite or bestDrink ~= (tonumber(FoodDrink.lastDrinkID) or 0) or drinkIdx == 0 then
+        if bestDrink ~= (tonumber(FoodDrink.lastDrinkID) or 0) or drinkIdx == 0 then
             if bestDrink > 0 then
                 FoodDrink.lastDrinkID = bestDrink
                 CreateOrUpdateNamedMacro_NoOptional(DRINK_MACRO_NAME, BuildUseItemMacroBody(bestDrink, false, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
@@ -1656,6 +1683,15 @@ ScheduleFoodDrinkRetry = function(_)
         if not IsFoodDrinkActive() then return end
         FoodDrinkDbg("retry firing (attempt " .. tostring(FoodDrink.retryAttempts or 0) .. ")")
         RequestFoodDrinkScan(true, "retry")
+    end)
+end
+
+do
+    -- MuteSoundFile/UnmuteSoundFile do not persist across sessions; reapply on login.
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:SetScript("OnEvent", function()
+        ApplyPlaceMuteSounds(GetPlaceMuteEnabled())
     end)
 end
 
@@ -1900,6 +1936,9 @@ ns.Macros.FoodDrink_SetDebugEnabled = function(on)
     end
     return v
 end
+
+ns.Macros.Place_IsMuted = GetPlaceMuteEnabled
+ns.Macros.Place_SetMuted = SetPlaceMuteEnabled
 
 ns.Macros.FoodDrink_DebugStatus = function()
     local lvl = UnitLevel("player") or 1

@@ -1,9 +1,10 @@
 ---@diagnostic disable: undefined-global
 
 local addonName, ns = ...
+local IsAddOnLoadedSafe = (_G.C_AddOns and rawget(_G.C_AddOns, "IsAddOnLoaded")) or rawget(_G, "IsAddOnLoaded")
 if addonName ~= "fr0z3nUI_GameOptions"
-    and type(IsAddOnLoaded) == "function"
-    and IsAddOnLoaded("fr0z3nUI_GameOptions") then
+    and type(IsAddOnLoadedSafe) == "function"
+    and IsAddOnLoadedSafe("fr0z3nUI_GameOptions") then
   return
 end
 if type(ns) ~= "table" then ns = {} end
@@ -1041,7 +1042,7 @@ do
           allowWithdraw = false,
           guildBankEnabled = true,
           warBankEnabled = false,
-          warBankAllowWithdraw = false,
+          warBankAllowWithdraw = true,
           warBankXS = false,
           guildBankXS = false,
         }
@@ -1063,7 +1064,7 @@ do
       if viewCfg.allowWithdraw == nil then viewCfg.allowWithdraw = false end
       if viewCfg.warBankEnabled == nil then viewCfg.warBankEnabled = false end
       if viewCfg.guildBankEnabled == nil then viewCfg.guildBankEnabled = true end
-      if viewCfg.warBankAllowWithdraw == nil then viewCfg.warBankAllowWithdraw = false end
+      if viewCfg.warBankAllowWithdraw == nil then viewCfg.warBankAllowWithdraw = true end
       viewCfg.excessMinGold = clampFn(viewCfg.excessMinGold, 0, 9999999) or 0
       viewCfg.excessMinGoldUserSet = (viewCfg.excessMinGoldUserSet == true)
       viewCfg.excessMinUseToken = (viewCfg.excessMinUseToken == true)

@@ -5021,6 +5021,10 @@ function ParseInstanceSystemMessage(msg)
     end
   end
 
+  if t:lower():match("^a role check has been initiated%.") then
+    return { kind = "role_check" }
+  end
+
   return nil
 end
 
@@ -5097,6 +5101,8 @@ function HandleParsedInstanceMessage(ev, msg, parsed)
     outText = FormatSelfLine(string.format("%sGroup Legacy Loot%s", hcc, close))
   elseif parsed.kind == "instance_reset" then
     outText = FormatSelfLine(string.format("%s%s Reset%s", hcc, tostring(parsed.name or "Instance"), close))
+  elseif parsed.kind == "role_check" then
+    outText = FormatSelfLine(string.format("%sRole Check Initiated%s", hcc, close))
   else
     return false
   end
@@ -5618,5 +5624,6 @@ function LootChat.GetSupportedMessageLines()
   lines[#lines + 1] = "    - Legacy loot rules are no longer in effect."
   lines[#lines + 1] = "    - Legacy loot rules are enabled."
   lines[#lines + 1] = "    - <instance> has been reset."
+  lines[#lines + 1] = "    - A role check has been initiated."
   return lines
 end

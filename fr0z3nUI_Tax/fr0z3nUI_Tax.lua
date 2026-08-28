@@ -1,9 +1,10 @@
 ---@diagnostic disable: undefined-global
 
 local addonName, ns = ...
+local IsAddOnLoadedSafe = (_G.C_AddOns and rawget(_G.C_AddOns, "IsAddOnLoaded")) or rawget(_G, "IsAddOnLoaded")
 if addonName ~= "fr0z3nUI_GameOptions"
-    and type(IsAddOnLoaded) == "function"
-    and IsAddOnLoaded("fr0z3nUI_GameOptions") then
+    and type(IsAddOnLoadedSafe) == "function"
+    and IsAddOnLoadedSafe("fr0z3nUI_GameOptions") then
   return
 end
 if type(ns) ~= "table" then ns = {} end
@@ -528,7 +529,7 @@ do
     g.allowWithdraw = (g.allowWithdraw == true)
     if g.guildBankEnabled == nil then g.guildBankEnabled = true end
     g.guildBankEnabled = (g.guildBankEnabled == true)
-    if g.warBankAllowWithdraw == nil then g.warBankAllowWithdraw = false end
+    if g.warBankAllowWithdraw == nil then g.warBankAllowWithdraw = true end
     g.warBankAllowWithdraw = (g.warBankAllowWithdraw == true)
 
     g.enabled = (g.rate > 0)
@@ -619,7 +620,7 @@ do
     cfg.allowWithdraw = (cfg.allowWithdraw == true)
     if cfg.guildBankEnabled == nil then cfg.guildBankEnabled = true end
     cfg.guildBankEnabled = (cfg.guildBankEnabled == true)
-    if cfg.warBankAllowWithdraw == nil then cfg.warBankAllowWithdraw = false end
+    if cfg.warBankAllowWithdraw == nil then cfg.warBankAllowWithdraw = true end
     cfg.warBankAllowWithdraw = (cfg.warBankAllowWithdraw == true)
 
     if ct.debug == nil then ct.debug = false end

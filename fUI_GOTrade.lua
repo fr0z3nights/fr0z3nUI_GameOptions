@@ -2233,10 +2233,14 @@ do
                   if _liMerchantWantsCache == true then
                     return ops
                   end
+                  local ruleScore = FoodDrinkScore(fd) or 0
                   local skipLowerTierVendor = false
                   if best and best.score then
                     local maxBag = GetMaxFoodDrinkScoreInBags(cat)
-                    if maxBag and maxBag > best.score then
+                    -- Skip if we already hold better food/drink, OR if this vendor's best
+                    -- offering is a lower tier than the rule item itself (e.g. an old
+                    -- low-level food/drink stocked alongside the intended higher tier).
+                    if (maxBag and maxBag > best.score) or best.score < ruleScore then
                       skipLowerTierVendor = true
                       if dbg and type(Print) == "function" then
                         if type(_liMerchantRestockLowerTierPrinted) ~= "table" then
@@ -2255,7 +2259,7 @@ do
                   if skipLowerTierVendor then
                     current = target
                   else
-                    local desiredScore = (best and best.score) or FoodDrinkScore(fd) or 0
+                    local desiredScore = (best and best.score) or ruleScore
 
                     -- Debug: show vendor-best vs bag-best comparison and the score threshold used.
                     if dbg and type(Print) == "function" then
