@@ -855,9 +855,6 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t = NPC("Row Rat", { 241425, })
 	t[132989] = { text = "I'm looking for Jaeth. Do you know where he is?" }							-- Stir the Nest (89202) Row Rat (241425)
 
-	t = NPC("Sandee Seabraid", { 249041, })
-	t[121665] = { text = "I'd like to see what you have to offer this month." }							-- Trading Post Vendor Sandee Seabraid (249041)
-
 	t = NPC("Sergeant Vornin", { 255503, })
 	t[138966] = { text = "Do you have any mounts or pets available now?" }								-- Deepening Shadows (91854) Sin'dorei Vendor (249174)
 
@@ -887,6 +884,11 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t = NPC("Thiel", { 244470, })
 	t[133946] = { text = "Where can I get more of these?" }												-- Murder Row: Acting the Part (90819) Thiel (244470)
 
+	t = NPC("Trading Post", { 249041, 249042, 268193, 268188, 268174, 268180, })
+	t[121665] = { text = "I'd like to see what you have to offer this month." }							-- Trading Post Vendor Sandee Seabraid (249041)
+	t[121672] = { text = "I'd like to see what you have to offer this month." }							-- Trading Post Vendor Zalani (249042)
+	t[131326] = { text = "I'd like to see what you have to offer this event." }							-- Trading Post Vendor Toro (268193), Lora (268188), Kiro (268174), Nara (268180)
+
 	t = NPC("Triam Dawnsetter", { 255476, })
 	t[138965] = { text = "What gear slots are available?" }												-- Murder Row: Acting the Part (90819) Thiel (244470)
 
@@ -909,9 +911,6 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 
 	t = NPC("Warpweaver Zirka", { 249050, })
 	t[46950] = { text = "I would like to buy from you." }                           
-
-	t = NPC("Zalani", { 249042, })
-	t[121672] = { text = "I'd like to see what you have to offer this month." }							-- Trading Post Vendor Zalani (249042)
 
 SetZone("The Coiled Isle, Quel'Thalas")
 

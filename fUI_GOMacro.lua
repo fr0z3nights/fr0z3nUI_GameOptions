@@ -44,7 +44,7 @@ local function SetFoodDrinkDebugEnabled(on)
     return db.window.foodDrinkDebug and true or false
 end
 
--- "Place" mute: silences the action bar pickup/putdown SFX. Default disabled.
+-- "Place" mute: silences the action bar pickup/putdown SFX. Account-wide and enabled by default.
 local PLACE_MUTE_SOUND_IDS = { 567524, 567489 }
 
 local function ApplyPlaceMuteSounds(on)
@@ -57,18 +57,25 @@ local function ApplyPlaceMuteSounds(on)
     end
 end
 
+local function GetPlaceMuteDB()
+    _G.AutoGame_Acc = _G.AutoGame_Acc or {}
+    _G.AutoGame_Acc.macro = _G.AutoGame_Acc.macro or {}
+    return _G.AutoGame_Acc.macro
+end
+
 local function GetPlaceMuteEnabled()
-    local db = GetHearthDB()
-    db.window = db.window or {}
-    return db.window.placeMute and true or false
+    local db = GetPlaceMuteDB()
+    if db.placeMute == nil then
+        db.placeMute = true
+    end
+    return db.placeMute and true or false
 end
 
 local function SetPlaceMuteEnabled(on)
-    local db = GetHearthDB()
-    db.window = db.window or {}
-    db.window.placeMute = on and true or false
-    ApplyPlaceMuteSounds(db.window.placeMute)
-    return db.window.placeMute
+    local db = GetPlaceMuteDB()
+    db.placeMute = on and true or false
+    ApplyPlaceMuteSounds(db.placeMute)
+    return db.placeMute
 end
 
 local function FormatItemShort(itemID)
@@ -1577,9 +1584,15 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
             ScheduleFoodDrinkRetry("item data pending")
             return false, "item data pending"
         end
-        FoodDrink.retryAttempts = 0
-        FoodDrink.retryTimerArmed = false
-        FoodDrinkDbg("blocked: no valid food/drink" .. (reason and ("; reason=" .. tostring(reason)) or ""))
+        local foodStats = FoodDrink.lastPick.food or {}
+        local drinkStats = FoodDrink.lastPick.drink or {}
+        FoodDrinkDbg("blocked: no valid food/drink"
+            .. "; items=" .. tostring(foodStats.items or 0)
+            .. "; recognized=" .. tostring(foodStats.foodDrinkItems or 0)
+            .. "; usable=" .. tostring(foodStats.usableFoodDrinkItems or 0)
+            .. "; drink-recognized=" .. tostring(drinkStats.foodDrinkItems or 0)
+            .. (reason and ("; reason=" .. tostring(reason)) or ""))
+        ScheduleFoodDrinkRetry("no food/drink candidate")
         return false, "no food/drink candidate"
     end
 

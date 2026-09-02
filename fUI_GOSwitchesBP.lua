@@ -331,6 +331,14 @@ local function CanSummonNow()
         return false
     end
 
+    if UnitInVehicle and UnitInVehicle("player") then
+        return false
+    end
+
+    if UnitUsingVehicle and UnitUsingVehicle("player") then
+        return false
+    end
+
     if UnitIsSitting and UnitIsSitting("player") then
         return false
     end

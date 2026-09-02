@@ -671,6 +671,11 @@ do
   local _useKeyCacheByID = {}
   local _foodUseCacheByID = {}
   local _foodHealthRateCacheByID = {}
+  -- Empty "Use:" line parses can be a transient tooltip read (esp. right after merchant open);
+  -- retry a few times before caching a permanent negative, so items aren't stuck until /reload.
+  local _foodUseParseAttempts = {}
+  local _useKeyParseAttempts = {}
+  local MAX_CLASSIFY_PARSE_ATTEMPTS = 5
   local _liMerchantWantsCache = false
 
   local function GetMerchantItemLinkSafe(i)
@@ -1013,6 +1018,20 @@ do
       return nil
     end
 
+    if not tuple then
+      local attempts = (tonumber(_foodUseParseAttempts[itemID]) or 0) + 1
+      _foodUseParseAttempts[itemID] = attempts
+      if attempts < MAX_CLASSIFY_PARSE_ATTEMPTS then
+        -- Tooltip returned lines but the Use: text wasn't parseable yet; retry instead of
+        -- permanently marking this food/drink item as non-restorative.
+        _liMerchantWantsCache = true
+        if C_Item and type(C_Item.RequestLoadItemDataByID) == "function" then
+          pcall(C_Item.RequestLoadItemDataByID, itemID)
+        end
+        return nil
+      end
+    end
+
     _foodUseCacheByID[itemID] = tuple or false
     return tuple
   end
@@ -1098,6 +1117,17 @@ do
     end
 
     if #useLines == 0 then
+      local attempts = (tonumber(_useKeyParseAttempts[itemID]) or 0) + 1
+      _useKeyParseAttempts[itemID] = attempts
+      if attempts < MAX_CLASSIFY_PARSE_ATTEMPTS then
+        -- Tooltip returned lines but no Use: text was found yet; retry instead of permanently
+        -- marking this item as having no usable effect.
+        _liMerchantWantsCache = true
+        if C_Item and type(C_Item.RequestLoadItemDataByID) == "function" then
+          pcall(C_Item.RequestLoadItemDataByID, itemID)
+        end
+        return nil
+      end
       _useKeyCacheByID[itemID] = false
       return nil
     end
