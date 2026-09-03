@@ -73,6 +73,9 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
     { key = "X12:TwilightInv",      text = "Twilight Invader says" },
     { key = "X12:UniverstyUndrgrd", text = "University Undergraduate says" },
     { key = "X12:Valeera",          text = "Valeera Sanguinar says" },
+    { key = "X12:ValeeraYell",      text = "Valeera Sanguinar yells" },
+    { key = "X12:ValeeraBegins",    text = "Valeera Sanguinar begins" },
+    { key = "X12:ValeeraGather",    text = "Valeera Sanguinar helped" },
     { key = "X12:Zei'ka",           text = "Zei'ka says" },
     { key = "X12:Zuljarra",         text = "Zul'jarra says" },
 --  10  Dragonflight

@@ -183,9 +183,9 @@ do
 
     local ORB_ICON_REWARD_WAITING = "Interface\\Icons\\ability_monk_healthsphere"
 
-    local function GetVaultStatusIconTag()
+    local function HasRewardAvailable()
         if not EnsureWeeklyRewardsLoaded() then
-            return ""
+            return false
         end
 
         local hasReward = nil
@@ -220,11 +220,19 @@ do
             end
         end
 
-        if hasReward == true then
+        return hasReward == true
+    end
+
+    local function GetVaultStatusIconTag()
+        if HasRewardAvailable() then
             return string.format("|T%s:14|t", ORB_ICON_REWARD_WAITING)
         end
 
         return ""
+    end
+
+    local function IsPlayerResting()
+        return type(IsResting) == "function" and IsResting() == true
     end
 
     local function ClampProgress(progress, threshold)
@@ -400,7 +408,10 @@ do
 
     local function GetProgressText()
         local sep = "   "
-        local statusOrb = GetVaultStatusIconTag()
+        local rawStatusOrb = GetVaultStatusIconTag()
+        -- orb only shows while resting; otherwise the key amount takes its place instead
+        local showOrb = (rawStatusOrb ~= "") and IsPlayerResting()
+        local statusOrb = showOrb and rawStatusOrb or ""
         local statusSuffix = (statusOrb ~= "") and (sep .. statusOrb) or ""
 
         if not EnsureWeeklyRewardsLoaded() then
@@ -420,7 +431,7 @@ do
         local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
         local cofferDisplayValue = cofferKeys + (cofferShards / 100)
         local cofferSuffix = ""
-        if statusOrb == "" then
+        if not showOrb then
             local cofferValueColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffd100"
             cofferSuffix = string.format("   %s%.1f|r", cofferValueColor, cofferDisplayValue)
         end
@@ -440,6 +451,15 @@ do
             progress = tierTable.progress
             level = tierTable.level
             progress = math.min(progress, threshold)
+
+            -- hide tiers beyond the first one that isn't yet complete
+            if tier > 1 then
+                local prevTier = rewardTable[tier - 1]
+                local prevProgress = math.min(prevTier.progress, prevTier.threshold)
+                if prevTier.threshold <= 0 or prevProgress < prevTier.threshold then
+                    break
+                end
+            end
 
             link, upgradeLink = C_WeeklyRewards.GetExampleRewardItemHyperlinks(tierTable.id)
 
@@ -492,7 +512,7 @@ do
                 difficultyText = "???"
             end
 
-            local leftText = string.format("Tier %d: %2d/%d", tier, progress, threshold)
+            local leftText = string.format("    Tier %d: %2d/%d", tier, progress, threshold)
             local rightText = string.format("%s (%s)", ilvlString, difficultyText)
             tooltip:AddDoubleLine(leftText, rightText, r, g, b, r, g, b)
         end
@@ -506,32 +526,33 @@ do
                 table.insert(levels, progress.difficulty)
             end
         end
+        if #levels == 0 then
+            return
+        end
         local numToShow = math.min(maxToShow, #levels)
         local progStr = table.concat(levels, ", ", 1, numToShow)
-        progStr = string.format("%d %s: %s", #levels, label, progStr)
+        progStr = string.format("    %d %s: %s", #levels, label, progStr)
         tooltip:AddLine(progStr, 1, 1, 1)
     end
 
     local function OnTooltipShow(tooltip)
-        tooltip:AddLine("Great Vault")
-        tooltip:AddLine(" ")
+        local unlockedText = HasRewardAvailable() and "|cff00ff00UNLOCKED|r" or ""
+        tooltip:AddDoubleLine("|cff00ccffFGO Great Vault|r", unlockedText)
 
         local raid = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Raid)
         tooltip:AddLine("Raids")
         AddGvLines(tooltip, raid)
-        tooltip:AddLine(" ")
 
         local dungeons = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Activities)
         tooltip:AddLine("Dungeons")
         AddGvLines(tooltip, dungeons)
         AddActivityHistory(tooltip, Enum.WeeklyRewardChestThresholdType.Activities, "Completed Keys", 8)
-        tooltip:AddLine(" ")
 
         local world = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.World)
         if #world > 0 then
             tooltip:AddLine("World")
             AddGvLines(tooltip, world)
-            AddActivityHistory(tooltip, Enum.WeeklyRewardChestThresholdType.World, "World Events", 8)
+            -- World Events history hidden for now; may re-enable later
             local cofferKeys = GetCurrencyQuantity(3028)
             local cofferShards = GetCurrencyQuantity(3310)
             local weeklyShardMaximum = GetCurrencyWeeklyMaximum(3310)
@@ -541,7 +562,32 @@ do
             local weeklyShardLimit = math.floor(weeklyShardMaximum / 100)
             local weeklyProgressColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffffff"
             tooltip:AddLine(string.format("|cffffa000Coffer Keys:|r  |cffffd100%.1f|r  (%s%.0f/%.0f|r)", cofferDisplayValue, weeklyProgressColor, weeklyShardProgress, weeklyShardLimit), 1, 1, 1)
-            tooltip:AddLine(" ")
+        end
+
+        -- bump the title line 1pt larger than the Raids/Dungeons/World headings; AddLine has no size parameter.
+        -- tooltip:GetName().."TextLeft1" is the shared GameTooltip's first line, reused by every other
+        -- addon's LDB display (Instance Reset, FGO Hearth, Tax, etc.), so the font MUST be restored on
+        -- hide or their titles stay enlarged after ours shows.
+        local titleFontString = _G[tooltip:GetName() .. "TextLeft1"]
+        if titleFontString and titleFontString.GetFont then
+            if not titleFontString.fgoOriginalFont then
+                local fontPath, fontSize, fontFlags = titleFontString:GetFont()
+                titleFontString.fgoOriginalFont = { fontPath, fontSize, fontFlags }
+            end
+            local origFontPath, origFontSize, origFontFlags = unpack(titleFontString.fgoOriginalFont)
+            if origFontPath and origFontSize then
+                titleFontString:SetFont(origFontPath, origFontSize + 1, origFontFlags)
+            end
+            if not tooltip.fgoTitleFontHooked then
+                tooltip.fgoTitleFontHooked = true
+                tooltip:HookScript("OnHide", function(self)
+                    local fs = _G[self:GetName() .. "TextLeft1"]
+                    if fs and fs.fgoOriginalFont then
+                        local p, s, f = unpack(fs.fgoOriginalFont)
+                        fs:SetFont(p, s, f)
+                    end
+                end)
+            end
         end
     end
 
