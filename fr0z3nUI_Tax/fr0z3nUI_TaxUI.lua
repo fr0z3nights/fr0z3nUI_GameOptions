@@ -1341,34 +1341,7 @@ do
         wowTokenBtn:SetPoint("TOP", excessEdit, "BOTTOM", 0, -2)
       end
 
-      -- Place Withdraw aligned with the Min Gold input row, and horizontally aligned over System.
-      do
-        local pLeft = panel.GetLeft and panel:GetLeft() or nil
-        local pBottom = panel.GetBottom and panel:GetBottom() or nil
-        local sLeft = systemBtn.GetLeft and systemBtn:GetLeft() or nil
-        local _, mY
-        if minEdit and minEdit.GetCenter then
-          _, mY = minEdit:GetCenter()
-        end
-
-        if pLeft and pBottom and sLeft and mY then
-          guildBtn:ClearAllPoints()
-          guildBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (sLeft - pLeft), (mY - pBottom) - (BTN_H / 2))
-          withdrawBtn:ClearAllPoints()
-          withdrawBtn:SetPoint("TOP", guildBtn, "BOTTOM", 0, -XS_ROW_GAP)
-        else
-          -- Fallback: above System.
-          guildBtn:ClearAllPoints()
-          guildBtn:SetPoint("BOTTOM", systemBtn, "TOP", 0, 0)
-          withdrawBtn:ClearAllPoints()
-          withdrawBtn:SetPoint("TOP", guildBtn, "BOTTOM", 0, -XS_ROW_GAP)
-        end
-      end
-
-      warbankWithdrawBtn:ClearAllPoints()
-      warbankWithdrawBtn:SetPoint("TOP", warbankBtn, "BOTTOM", 0, -XS_ROW_GAP)
-
-      -- Place WarBank aligned with the Min Gold input row, and horizontally aligned over Vendor.
+      -- Place Withdraw aligned with the Min Gold input row, and horizontally aligned over Vendor.
       do
         local pLeft = panel.GetLeft and panel:GetLeft() or nil
         local pBottom = panel.GetBottom and panel:GetBottom() or nil
@@ -1379,12 +1352,39 @@ do
         end
 
         if pLeft and pBottom and vLeft and mY then
-          warbankBtn:ClearAllPoints()
-          warbankBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (vLeft - pLeft), (mY - pBottom) - (BTN_H / 2))
+          guildBtn:ClearAllPoints()
+          guildBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (vLeft - pLeft), (mY - pBottom) - (BTN_H / 2))
+          withdrawBtn:ClearAllPoints()
+          withdrawBtn:SetPoint("TOP", guildBtn, "BOTTOM", 0, -XS_ROW_GAP)
         else
           -- Fallback: above Vendor.
+          guildBtn:ClearAllPoints()
+          guildBtn:SetPoint("BOTTOM", vendorBtn, "TOP", 0, 0)
+          withdrawBtn:ClearAllPoints()
+          withdrawBtn:SetPoint("TOP", guildBtn, "BOTTOM", 0, -XS_ROW_GAP)
+        end
+      end
+
+      warbankWithdrawBtn:ClearAllPoints()
+      warbankWithdrawBtn:SetPoint("TOP", warbankBtn, "BOTTOM", 0, -XS_ROW_GAP)
+
+      -- Place WarBank aligned with the Min Gold input row, and horizontally aligned over System.
+      do
+        local pLeft = panel.GetLeft and panel:GetLeft() or nil
+        local pBottom = panel.GetBottom and panel:GetBottom() or nil
+        local sLeft = systemBtn.GetLeft and systemBtn:GetLeft() or nil
+        local _, mY
+        if minEdit and minEdit.GetCenter then
+          _, mY = minEdit:GetCenter()
+        end
+
+        if pLeft and pBottom and sLeft and mY then
           warbankBtn:ClearAllPoints()
-          warbankBtn:SetPoint("BOTTOM", vendorBtn, "TOP", 0, 0)
+          warbankBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", (sLeft - pLeft), (mY - pBottom) - (BTN_H / 2))
+        else
+          -- Fallback: above System.
+          warbankBtn:ClearAllPoints()
+          warbankBtn:SetPoint("BOTTOM", systemBtn, "TOP", 0, 0)
         end
       end
 
@@ -1402,7 +1402,7 @@ do
         guildXSBtn:SetPoint("TOP", withdrawBtn, "BOTTOM", 0, -XS_ROW_GAP)
       end
 
-      -- Place owed rows below the source row (WarBank left / Guild right when enabled).
+      -- Place owed rows below the source row (Guild left / WarBank right when enabled).
       do
         local srCX = (sourcesRow.GetCenter and select(1, sourcesRow:GetCenter())) or nil
 
@@ -1428,8 +1428,8 @@ do
           local leftGapX = GetGapCenterX(vendorBtn, lootBtn)
           local rightGapX = GetGapCenterX(mailBtn, systemBtn)
           if leftGapX and rightGapX then
-            warOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", (leftGapX - srCX), -GAP_Y)
-            guildOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", (rightGapX - srCX), -GAP_Y)
+            guildOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", (leftGapX - srCX), -GAP_Y)
+            warOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", (rightGapX - srCX), -GAP_Y)
           else
             warOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", 0, -GAP_Y)
             guildOwedRow:SetPoint("TOP", sourcesRow, "BOTTOM", 0, -GAP_Y)

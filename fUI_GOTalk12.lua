@@ -236,6 +236,8 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	t[137580] = { text = "Use the mirrors to spread the light. Got it." }
 	t[137619] = { text = "Looting and killing, understood!" }
 	t[135012] = { text = "Zah'ran - Show me." }
+	t[140123] = { prio = 10, text = "Make my delve Abundantly Beautiful!" }
+	t[140126] = { prio = 09, text = "Grant me some Undercoin!" }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2502:136141:138317")
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
@@ -556,8 +558,11 @@ SetZone("Quel'Danas, Eastern Kingdoms")
 	t[138564] = { text = "I am ready to return to Silvermoon." }										-- March on Quel'Danas (92618)
 
 	t = MAP("Parhelion Plaza Delve", {2545,})
+	t[136446] = { text = "I'll drive back the attackers." }												-- Delve (92618)
 	t[136477] = { text = "I will break that shield and eliminate the units inside." }					-- Delve (92618)
 	t[135012] = { text = "Zah'ran - Show me." }
+	t[140123] = { prio = 10, text = "Make my delve Abundantly Beautiful!" }
+	t[140126] = { prio = 09, text = "Grant me some Undercoin!" }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2545:140227:122661")
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
@@ -579,7 +584,7 @@ SetZone("Quel'Danas, Eastern Kingdoms")
 	t[140408] = { text = "<Unravel the wards>" }														-- Unravelling the Wards (96230) Belo'vir's Security Ward (651991)
 	t[140406] = { text = "<Unravel the wards>" }														-- Unravelling the Wards (96230) Belo'vir's Security Ward (651992)
 
-  		t = NPC("Commander Koruth Mountainfist", { 247304, })
+  	t = NPC("Commander Koruth Mountainfist", { 247304, })
 	t[134577] = { text = "Are the warframes prepared, Commander?" }										-- Feeding the Flame (90777) Commander Koruth Mountainfist (247304)
 
 	t = NPC("Commander Venel Lightblood", { 247305, })
@@ -682,6 +687,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[135798] = { text = "I'll stop this invasion!" }
 	t[135865] = { text = "I'll deal with this!" }
 	t[135012] = { text = "Zah'ran - Show me." }
+	t[140123] = { prio = 10, text = "Make my delve Abundantly Beautiful!" }
+	t[140126] = { prio = 09, text = "Grant me some Undercoin!" }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2577:140227:122661")
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
@@ -691,6 +698,8 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[136141] = { text = "I'll help you restore the ley lines..." }
 	t[138317] = { text = "Deal with the big ogre. On it!" }
 	t[135012] = { text = "Zah'ran - Show me." }
+	t[140123] = { prio = 10, text = "Make my delve Abundantly Beautiful!" }
+	t[140126] = { prio = 09, text = "Grant me some Undercoin!" }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2525:136141:138317")
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
@@ -920,6 +929,15 @@ SetZone("The Coiled Isle, Quel'Thalas")
 	t[139919] = { prio = 05, text = "I'm ready to leave", when = function() return TalkCacheSeen(INTRO_SEEN) end }
 	t[139919] = { prio = 01, text = "I'm ready to leave", }												-- Dungeon Exit Altar of Fangs (2590)
 
+	t = MAP("The Ring of Glory Delve", {2633,})
+	t[136446] = { text = "I'll drive back the attackers." }												-- Delve (92618)
+	t[135012] = { text = "Zah'ran - Show me." }
+	t[140123] = { prio = 10, text = "Make my delve Abundantly Beautiful!" }
+	t[140126] = { prio = 09, text = "Grant me some Undercoin!" }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2633:140227:122661")
+	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
+	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
+
 	t = NPC("Altar of Corrosion", { 269485, })
 	t[141208] = { text = "<Commune with the altar.>" }													-- The Altar of Corrosion (98428) Altar of Corrosion (269485)
 	t[141206] = { text = "<Commune with the altar.>" }													-- Borrowed Power Altar of Corrosion (269485)
@@ -1130,6 +1148,8 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 	t[136385] = { text = "I'll break the hexes and set your kin free." }
 	t[138496] = { text = "<Help me reach Spiritflayer Jin'Ma.>" }
 	t[135012] = { text = "Zah'ran - Show me." }
+	t[140123] = { prio = 10, text = "Make my delve Abundantly Beautiful!" }
+	t[140126] = { prio = 09, text = "Grant me some Undercoin!" }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2535:136141:138317")
 	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }
@@ -1145,6 +1165,8 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 	t[135239] = { text = "Alright... pardon! I'll just step around you..." }
 	t[135811] = { text = "Drink this if the Bound Loa gets close? But what's it taste like?" }
 	t[135012] = { text = "Zah'ran - Show me." }
+	t[140123] = { prio = 10, text = "Make my delve Abundantly Beautiful!" }
+	t[140126] = { prio = 09, text = "Grant me some Undercoin!" }
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2503:140227:122661")
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "companion" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "goods" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "goods" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "companion" }

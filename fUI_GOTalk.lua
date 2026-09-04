@@ -1920,6 +1920,10 @@ function ns.Talk.PrintCurrentOptions(debounce)
     local IsDisabledDB = ns and ns.IsDisabledDB
     local IsDisabledDBOnChar = ns and ns.IsDisabledDBOnChar
 
+    -- Falls back to the current MAP rule key so MAP-sourced OIDs get the same
+    -- green highlight NPC-sourced OIDs already get.
+    local ruleID = npcID or GetCurrentRuleID()
+
     for _, opt in ipairs(options) do
         if opt and opt.gossipOptionID then
             local optName = opt.name
@@ -1928,12 +1932,12 @@ function ns.Talk.PrintCurrentOptions(debounce)
             end
             local optionID = opt.gossipOptionID
             local isSet = false
-            if npcID and optionID then
-                if type(HasRule) == "function" and type(IsDisabled) == "function" and HasRule("char", npcID, optionID) and (not IsDisabled("char", npcID, optionID)) then
+            if ruleID and optionID then
+                if type(HasRule) == "function" and type(IsDisabled) == "function" and HasRule("char", ruleID, optionID) and (not IsDisabled("char", ruleID, optionID)) then
                     isSet = true
-                elseif type(HasRule) == "function" and type(IsDisabled) == "function" and HasRule("acc", npcID, optionID) and (not IsDisabled("acc", npcID, optionID)) then
+                elseif type(HasRule) == "function" and type(IsDisabled) == "function" and HasRule("acc", ruleID, optionID) and (not IsDisabled("acc", ruleID, optionID)) then
                     isSet = true
-                elseif type(HasDbRule) == "function" and type(IsDisabledDB) == "function" and type(IsDisabledDBOnChar) == "function" and HasDbRule(npcID, optionID) and (not IsDisabledDB(npcID, optionID)) and (not IsDisabledDBOnChar(npcID, optionID)) then
+                elseif type(HasDbRule) == "function" and type(IsDisabledDB) == "function" and type(IsDisabledDBOnChar) == "function" and HasDbRule(ruleID, optionID) and (not IsDisabledDB(ruleID, optionID)) and (not IsDisabledDBOnChar(ruleID, optionID)) then
                     isSet = true
                 end
             end

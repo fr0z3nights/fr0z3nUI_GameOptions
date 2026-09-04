@@ -4741,10 +4741,10 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 return
             end
             if dest == "delve" then
-                PrintHSMessage(230850, "Yay! Off To A Delve", "Ride to a Delve in %d mins")
+                PrintHSMessage(230850, "Yay! Off To A Midnight Delve", "Ride to a Delve in %d mins")
+                Print("Shift Click Delve-o-Bot for elsewhere")
                 return
             end
-
             if dest == "arcantina" then
                 PrintHSMessage(253629, "Arcantina Time!", "Arcantina Time in %d mins")
                 return

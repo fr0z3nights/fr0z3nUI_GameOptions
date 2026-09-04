@@ -298,7 +298,7 @@ New Macro Body
 /use item:230850
 
 Behind /fgo Command
-/run local s,d=GetItemCooldown(230850); s=s+d-GetTime(); print(format(s>1 and "Ride to a Delve in %d mins" or "Yay! Off To A Delve", s/60))
+/run local s,d=GetItemCooldown(230850); s=s+d-GetTime(); print(format(s>1 and "Ride to a Delve in %d mins" or "Yay! Off To A Midnight Delve", s/60)); print("Shift Click Delve-o-Bot for elsewhere")
 
 ## FGO HS Instance IO
 

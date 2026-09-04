@@ -985,33 +985,6 @@ do
     return math.floor(mapID)
   end
 
-  local function GetCurrentHearthLocationText()
-    local hearth = (type(ns) == "table") and ns.Hearth or nil
-    if type(hearth) == "table" then
-      if type(hearth.GetCurrentDisplayText) == "function" then
-        local a, b = hearth.GetCurrentDisplayText()
-        a = tostring(a or "")
-        b = tostring(b or "")
-        if a ~= "" and b ~= "" then
-          return a .. ", " .. b
-        end
-        if a ~= "" then
-          return a
-        end
-        if b ~= "" then
-          return b
-        end
-      end
-      if type(hearth.GetHomeZoneContinentText) == "function" then
-        local txt = tostring(hearth.GetHomeZoneContinentText() or "")
-        if txt ~= "" then
-          return txt
-        end
-      end
-    end
-    return "unknown"
-  end
-
   local function UpdateTaxLDBText()
     if type(Tax.LDB) == "table" then
       Tax.LDB.text = GetTaxLDBText()
@@ -1078,22 +1051,24 @@ do
       OnTooltipShow = function(tooltip)
         if not (tooltip and tooltip.AddLine) then return end
         local title = "|cff0080FFTax Owed|r"
-        local _, _, bal = GetActiveScopeCfgAndBal()
+        local _, cfg, bal = GetActiveScopeCfgAndBal()
+        local guildEnabled = (type(cfg) == "table") and (cfg.guildBankEnabled == true)
+        local warEnabled = (type(cfg) == "table") and (cfg.warBankEnabled == true)
         local guildOwed = (type(bal) == "table") and math.floor(tonumber(bal.due) or 0) or 0
         if guildOwed < 0 then guildOwed = 0 end
         local ct = EnsureCharTaxDB()
         local wb = ct and ct.warBal
         local warOwed = (type(wb) == "table") and math.floor(tonumber(wb.due) or 0) or 0
         if warOwed < 0 then warOwed = 0 end
-        local owedLine = FormatGoldIconFromCopper(guildOwed) .. "  |  " .. FormatGoldIconFromCopper(warOwed)
+        -- Match the UI's Guild-left / WarBank-right ordering and hide disabled banks.
+        local owedParts = {}
+        if guildEnabled then owedParts[#owedParts + 1] = FormatGoldIconFromCopper(guildOwed) end
+        if warEnabled then owedParts[#owedParts + 1] = FormatGoldIconFromCopper(warOwed) end
+        local owedLine = (#owedParts > 0) and table.concat(owedParts, "  |  ") or FormatGoldIconFromCopper(0)
         tooltip:AddLine(title .. "    " .. owedLine)
 
         local tokenText = GetWowTokenDisplayText()
         tooltip:AddLine(tokenText, 0.8, 0.8, 0.8)
-
-        if not standaloneMode then
-          tooltip:AddLine("Hearth: " .. GetCurrentHearthLocationText(), 0.8, 0.8, 0.8)
-        end
       end,
     })
 
