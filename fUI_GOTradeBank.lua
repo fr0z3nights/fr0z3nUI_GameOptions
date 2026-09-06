@@ -1360,9 +1360,9 @@ local function IsDepositBagItemSoulbound(bag, slot, info, link)
   end
 
   local isBound = false
-  if C_Item and type(C_Item.IsBound) == "function" and ItemLocation and type(ItemLocation.CreateFromBagAndSlot) == "function" then
-    local okLoc, loc = pcall(ItemLocation.CreateFromBagAndSlot, bag, slot)
-    if okLoc and loc and loc.IsValid and loc:IsValid() then
+  if C_Item and type(C_Item.IsBound) == "function" then
+    local loc = CreateItemLocationFromBagSlot and CreateItemLocationFromBagSlot(bag, slot) or nil
+    if loc then
       local okB, vB = pcall(C_Item.IsBound, loc)
       isBound = okB and vB == true
     end
@@ -2700,13 +2700,22 @@ CreateItemLocationFromBagSlot = function(bag, slot)
   local il = _G and rawget(_G, "ItemLocation")
   if type(il) == "table" then
     if type(il.CreateFromBagAndSlot) == "function" then
-      local ok, loc = pcall(il.CreateFromBagAndSlot, bag, slot)
-      if ok then return loc end
-    end
-    -- Some mixin-style APIs expect self as the first arg.
-    if type(il.CreateFromBagAndSlot) == "function" then
       local ok, loc = pcall(il.CreateFromBagAndSlot, il, bag, slot)
-      if ok then return loc end
+      if ok and type(loc) == "table" and type(loc.IsValid) == "function" then
+        local okValid, valid = pcall(loc.IsValid, loc)
+        if okValid and valid == true then
+          return loc
+        end
+      end
+    end
+    if type(il.CreateFromBagAndSlot) == "function" then
+      local ok, loc = pcall(il.CreateFromBagAndSlot, bag, slot)
+      if ok and type(loc) == "table" and type(loc.IsValid) == "function" then
+        local okValid, valid = pcall(loc.IsValid, loc)
+        if okValid and valid == true then
+          return loc
+        end
+      end
     end
   end
   return nil

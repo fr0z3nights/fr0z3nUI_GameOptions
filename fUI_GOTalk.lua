@@ -134,6 +134,28 @@ end
 ns.Talk.PlayerHasQuestInLog = PlayerHasQuestInLog
 ns.Talk.PlayerIsCharacter = PlayerIsCharacter
 
+function ns.Talk.PrintSelectedRuleMessage(entry)
+    if type(entry) ~= "table" or type(entry.prSel) ~= "string" or entry.prSel == "" then
+        return
+    end
+
+    local now = GetTime and GetTime() or 0
+    if ns.Talk._lastPrSelEntry == entry
+        and ns.Talk._lastPrSelMessage == entry.prSel
+        and now - (ns.Talk._lastPrSelAt or 0) < 0.5 then
+        return
+    end
+
+    ns.Talk._lastPrSelEntry = entry
+    ns.Talk._lastPrSelMessage = entry.prSel
+    ns.Talk._lastPrSelAt = now
+    if type(ns.Talk.Print) == "function" then
+        pcall(ns.Talk.Print, entry.prSel)
+    elseif print then
+        print("|cff00ccff[FGO]|r " .. entry.prSel)
+    end
+end
+
 -- Forward-declare helpers used by EnsureEngineInitialized() hooks.
 -- Without this, Lua closures would resolve to nil globals at runtime.
 local GetCurrentNpcID
@@ -176,6 +198,10 @@ function ns.Talk.EnsureEngineInitialized()
                 local entry = LookupRuleEntry(npcTable, optionID)
                 if entry == nil then
                     return
+                end
+
+                if ns.Talk and type(ns.Talk.PrintSelectedRuleMessage) == "function" then
+                    ns.Talk.PrintSelectedRuleMessage(entry)
                 end
 
                 if type(entry) == "table" and ns and ns.Talk and type(ns.Talk.CacheSet) == "function" then
@@ -1554,6 +1580,9 @@ function ns.Talk.TryAutoSelect(isRetry)
                 end
 
                 if SelectEntry(bestG, npcID, entriesKey, isFirst) then
+                    if bestG.kind == "option" and ns.Talk and type(ns.Talk.PrintSelectedRuleMessage) == "function" then
+                        ns.Talk.PrintSelectedRuleMessage(bestEntry)
+                    end
                     if type(bestEntry) == "table" and ns and ns.Talk and type(ns.Talk.CacheSet) == "function" then
                         local key = bestEntry.cacheKey or bestEntry.cacheSet or bestEntry.cache
                         if type(key) == "string" and key ~= "" then
@@ -1695,6 +1724,9 @@ function ns.Talk.TryAutoSelect(isRetry)
             end
 
             if SelectEntry(bestG, npcID, entriesKey, isFirst) then
+                if bestG.kind == "option" and ns.Talk and type(ns.Talk.PrintSelectedRuleMessage) == "function" then
+                    ns.Talk.PrintSelectedRuleMessage(bestEntry)
+                end
                 if type(bestEntry) == "table" and ns and ns.Talk and type(ns.Talk.CacheSet) == "function" then
                     local key = bestEntry.cacheKey or bestEntry.cacheSet or bestEntry.cache
                     if type(key) == "string" and key ~= "" then

@@ -9,6 +9,7 @@
 
 fUI_GOSituatePF.lua
 
+fUI_GOTalkHelp.lua
 fUI_GOTalk12.lua
 fUI_GOTalk11.lua
 fUI_GOTalk10.lua
