@@ -22,15 +22,15 @@ SetZone("Midnight Intro")
 
 SetZone("Eversong Woods, Eastern Kingdoms")
 
-	t = MAP("The Shadow Enclave Delve", 2502)
-	t[137580] = { text = "Use the mirrors to spread the light. Got it." }								-- Delve Story
-	t[137619] = { text = "Looting and killing, understood!" }											-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+	t = MAP("The Shadow Enclave Delve", {2502,})
+	t[137580] = { text = "Delve Story" }								-- Delve Story
+	t[137619] = { text = "Delve Story" }											-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2502:136141:138317")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2502")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
@@ -193,13 +193,24 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 SetZone("Harandar, Eastern Kingdoms")
 
 	t = MAP("The Grudge Pit Delve", {2510,})
-	t[134668] = { text = "I can play the villain." }													-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+	t[134668] = { text = "Delve Story" }													-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2510:140227:122661")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2510")											-- Gear Repair/Companion Supplies
+	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
+	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+
+	t = MAP("Gulf of Memory Delve", {2505,})
+--	t[134668] = { text = "Delve Story" }													-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
+	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
+	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
+	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2505")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
@@ -361,14 +372,14 @@ SetZone("Quel'Danas, Eastern Kingdoms")
 	t[138564] = { text = "I am ready to return to Silvermoon." }										-- March on Quel'Danas (92618)
 
 	t = MAP("Parhelion Plaza Delve", {2545,})
-	t[136446] = { text = "I'll drive back the attackers." }																							-- Delve Story
-	t[136477] = { text = "I will break that shield and eliminate the units inside." }					-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+	t[136446] = { text = "Delve Story" }																							-- Delve Story
+	t[136477] = { text = "Delve Story" }					-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2545:140227:122661")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2545")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
@@ -487,24 +498,24 @@ SetZone("Naigtal, Eastern Kingdoms")
 SetZone("Silvermoon City, Eastern Kingdoms")
 
 	t = MAP("Collegiate Calamity Delve", { 2547, 2577, })
-	t[138592] = { text = "Never did enjoy homework." }													-- Delve Story
-	t[135708] = { text = "I'll get rid of these weeds!" }												-- Delve Story
-	t[135798] = { text = "I'll stop this invasion!" }													-- Delve Story
-	t[135865] = { text = "I'll deal with this!" }														-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+	t[138592] = { text = "Delve Story" }													-- Delve Story
+	t[135708] = { text = "Delve Story" }												-- Delve Story
+	t[135798] = { text = "Delve Story" }													-- Delve Story
+	t[135865] = { text = "Delve Story" }														-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2577:140227:122661")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2547")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
 	t = MAP("The Darkway Delve", { 2525, })
-	t[141485] = { text = "Clear the pylons and destroy the eggs before they hatch. Got it." }			-- Delve Story
-	t[136141] = { text = "I'll help you restore the ley lines..." }										-- Delve Story
-	t[138317] = { text = "Deal with the big ogre. On it!" }												-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+	t[141485] = { text = "Delve Story" }			-- Delve Story
+	t[136141] = { text = "Delve Story" }										-- Delve Story
+	t[138317] = { text = "Delve Story" }												-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
@@ -739,24 +750,24 @@ SetZone("The Coiled Isle, Quel'Thalas")
 	t[139919] = { prio = 01, text = "I'm ready to leave", }												-- Dungeon Exit Altar of Fangs (2590)
 
 	t = MAP("Gnarldor Isle Delve", {2635,})
-	t[139635] = { text = "They'll never know what hit them." }											-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+	t[139635] = { text = "Delve Story" }											-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2633:140227:122661")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2635")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
 	t = MAP("The Ring of Glory Delve", {2633,})
-	t[136446] = { text = "I'll drive back the attackers." }												-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." }															-- Random Vendor
+	t[136446] = { text = "Delve Story" }												-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2633:140227:122661")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2633")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
@@ -873,16 +884,19 @@ SetZone("The Coiled Isle, Quel'Thalas")
 	t.__meta.stopIfQuestTurnIn = { 88709, }																-- First NPCID, Stops Gossip until quest is accepted
 	t[139331] = { text = "I am rady to return to Silvermoon" }											-- The Broken Sky (90724) Arator (244297)
 
+
 SetZone("Voidstorm, Eastern Kingdoms")
 
-	t = MAP("Shadowguard Point Delve", { 2506, })
-	t[140712] = { text = "Reconfigure the Energy Distributors..." }										-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+
+	t = MAP("Shadowguard Point Delve", {2506,})
+	t[134949] = { text = "Delve Story", prSel = "REMINDER: Pick up the Sword!" }						-- Story: Stolen Mana
+	t[140712] = { text = "Delve Story" }																-- Story: Reclaiming the Nexus-Point
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2525:136141:138317")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2506")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
@@ -973,19 +987,21 @@ SetZone("Voidstorm, Eastern Kingdoms")
 	t = NPC("Ziadan", { 256901, })
 	t[138272] = { text = "<Tell them you are ready to deliver the final blow...>", }					-- Voidscar Arena: Clearing House (91606) Ziadan (256901)
 
+
 SetZone("Zul'Aman, Eastern Kingdoms")
 
+
 	t = MAP("Atal'Aman Delve", {2535,2536,})
-	t[136317] = { text = "Torundo - I'll get rid of these totems!" }									-- Delve Story
-	t[136318] = { text = "I will save them!" }															-- Delve Story
-	t[136385] = { text = "I'll break the hexes and set your kin free." }								-- Delve Story
-	t[138496] = { text = "<Help me reach Spiritflayer Jin'Ma.>" }										-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+	t[136317] = { text = "Delve Story" }																-- Delve Story
+	t[136318] = { text = "Delve Story" }																-- Delve Story
+	t[136385] = { text = "Delve Story" }																-- Delve Story
+	t[138496] = { text = "Delve Story" }																-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2535:136141:138317")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2535")											-- Gear Repair/Companion Supplies
 	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
@@ -997,14 +1013,14 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 	t[136843] = { text = "Please take me to the entrance of Maisara Caverns." }
 
 	t = MAP("Twilight Crypts Delve", {2503,2504,})
-	t[135239] = { text = "Alright... pardon! I'll just step around you..." }							-- Delve Story
-	t[135811] = { text = "Drink this if the Bound Loa gets close? But what's it taste like?" }			-- Delve Story
-	t[135012] = { text = "Zah'ran - Show me." } 														-- Random Vendor
+	t[135239] = { text = "Delve Story" }																-- Delve Story
+	t[135811] = { text = "Delve Story" }																-- Delve Story
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { prio = 10, text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }		-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundance")									-- Dundun's Abundance Cooldown
 	t[140126] = { prio = 09, text = "Grant me some Undercoin!", prSel = "Dundun Grants Undercoin", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[140496] = { prio = 09, text = "Grant me some Voidlight!", prSel = "Dundun Grants Voidlight", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("D2503:140227:122661")								-- Gear Repair/Companion Supplies
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve2503")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 

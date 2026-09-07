@@ -38,6 +38,11 @@ SetZone("Nagrand, Draenor")
     t = NPC("Tarr the Terrible", 87110)
     t[42882] = { text = "Let's do this!", mount = true, }
 
+SetZone("Stormshield, Draenor")
+
+    t = NPC("Sean Catchpole", {87065,})
+    t[42922] = { text = "Open Vendor", }
+
 SetZone("Shadowmoon Valley, Draenor")
 
     t = NPC("Ashlei", 87124)

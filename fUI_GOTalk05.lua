@@ -142,7 +142,19 @@ SetZone("Vale of Eternal Blossoms, Pandaria")
 
 SetZone("Valley of the Four Winds, Pandaria")
 
-    t = NPC("Farmer Nishi", 66734)
-    t[41818] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
+	t = NPC("Farmer Nishi", {66734,})
+	t[41818] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
+
+	t = NPC("Mr. Pleeb", {66734,})
+	t[34404] = { text = "Train Skinning", }
+
+	t = NPC("Steven Walker", {59320,})
+	t[35659] = { text = "Open Vendor", }
+
+	t = NPC("Sally Fizzlefury", {55143,})
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("NPC55143")
+	t[40607] = { prio = 09, text = "Train Engineering", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
+	t[40608] = { prio = 09, text = "Open Vendor", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+
 
 
