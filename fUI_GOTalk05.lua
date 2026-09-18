@@ -15,40 +15,40 @@ local GetViewGossipState = H.GetViewGossipState
 
 SetZone("Dread Wastes, Pandaria")
 
-    t = NPC("Kik'tik", 63501)
+    t = NPC("Kik'tik", {63501,})
     t[40933] = { text = "I need to travel somewhere.", }
 
-    t = NPC("Flowing Pandaren Spirit", 68462)
+    t = NPC("Flowing Pandaren Spirit", {68462,})
     t[41935] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, }
 
-    t = NPC("Wastewalker Shu", 66739)
+    t = NPC("Wastewalker Shu", {66739,})
     t[41822] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, }
 
 SetZone("Jade Forest, Pandaria")
 
-    t = NPC("Ancient Statue", { 212182, 212183, 212184, 212186 })
+    t = NPC("Ancient Statue", {212182,212183,212184,212186,})
     t[39082] = { text = "<Create a sketch of the statue piece.>", }
     t[39083] = { text = "<Create a sketch of the statue piece.>", }
     t[39808] = { text = "<Create a sketch of the statue piece.>", }
     t[40006] = { text = "<Create a sketch of the statue piece.>", }
 
-    t = NPC("Chief Kah Kah", 56336)
+    t = NPC("Chief Kah Kah", {56336,})
     t[40464] = { text = "Will you help us?", close = true, }
 
-    t = NPC("Grower Miao", 66980)
+    t = NPC("Grower Miao", {66980,})
     t[40742] = { text = "Train me in Herbalism.", }
 
-    t = NPC("Hyuna", 66730)
+    t = NPC("Hyuna", {66730,})
     t[41814] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it!" }, within = 3, }, }
 
-    t = NPC("Kofa the Swift", 66219)
+    t = NPC("Kofa the Swift", {66219,})
     t[40610] = { text = "What do you currently have for sale?", }
 
     t = NPC("Pandaren Volunteer", {65974, 67090,})
     t[41756] = { text = "You can go home now. I'll cover your back.", }
     t[41782] = { text = "You can go home now. I'll cover your back.", }
 
-    t = NPC("Rivet Clutchpop", 55146)
+    t = NPC("Rivet Clutchpop", {55146,})
     t[39686] = { text = "Quit messing around and use your knife!", }
 
     t = NPC("Sergeant Gorrok", {55162, 56477,} )
@@ -63,30 +63,33 @@ SetZone("Jade Forest, Pandaria")
     t[39688] = { text = "On your feet!", }
     t[40184] = { text = "Nazgrim has assigned you...", close = true, }
 
-    t = NPC("Stonebreaker Ruian", 66979)
+    t = NPC("Stonebreaker Ruian", {66979,})
     t[40741] = { text = "Train me in Mining.", }
 
-    t = NPC("Trapper Ri", 66981)
+    t = NPC("Trapper Ri", {66981,})
     t[40743] = { text = "Train me in Skinning.", }
 
-    t = NPC("Whispering Pandaren Spirit", 68464)
+    t = NPC("Ut-Nam", {56737,})
+    t[41373] = { text = "Show me where I can fly.", }
+
+    t = NPC("Whispering Pandaren Spirit", {68464,})
     t[41953] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Prepare yourself!" }, within = 3, }, }
 
 SetZone("Krasarang Wilds, Pandaria")
 
-    t = NPC("Cranfur the Noodler", 62872)
-    t[33557] = { prio = -5, text = "I would like to buy from you."}
-    t[33558] = { prio = -9, text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, noAuto = true }
+    t = NPC("Cranfur the Noodler", {62872,})
+    t[33557] = { prio = -5, text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", }
+    t[33558] = { prio = -9, text = "Hearth", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, noAuto = true }
 
-    t = NPC("Mo'ruk", 66733)
+    t = NPC("Mo'ruk", {66733,})
     t[41816] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Come at me!" }, within = 3, }, }
 
 SetZone("Kun-Lai Summit, Pandaria")
 
-    t = NPC("Anthea", 176655)
+    t = NPC("Anthea", {176655,})
     t[52501] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "let's rumble", }, within = 3, }, }
 
-    t = NPC("Courageous Yon", 66738)
+    t = NPC("Courageous Yon", {66738,})
     t[41820] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance!" }, within = 3, }, }
 
     t = NPC("Elder Shiao", {63535,})
@@ -100,61 +103,61 @@ SetZone("Kun-Lai Summit, Pandaria")
     t = NPC("Farmhand Bo", {63754,})
     t[41284] = { text = "I'm from the Alliance. We're here to save you and rebuild your village.", }   -- Alliance
 
-    t = NPC("Farmhand Ko", 63751)
+    t = NPC("Farmhand Ko", {63751,})
     t[41283] = { text = "We're here to save you and rebuild your village.", }   -- Horde
 
-    t = NPC("Full Flask", 61531)
+    t = NPC("Full Flask", {61531,})
     t[32394] = { text = "Let me browse your goods."}
 
-    t = NPC("Master Lao", 61651)
+    t = NPC("Master Lao", {61651,})
     t[40512] = { text = "Please, sit and make yourself comfortable.", manual = true, }
 
-    t = NPC("Puli the Even Handed <Innkeeper>", 62871)
+    t = NPC("Puli the Even Handed <Innkeeper>", {62871,})
     t[37168] = { text = "Let me browse your goods.", }
 
-    t = NPC("Thundering Pandaren Spirit", 68465)
+    t = NPC("Thundering Pandaren Spirit", {68465,})
     t[41955] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "prepare yourself" }, within = 3, }, }
 
 SetZone("Townlong Steppes, Pandaria")
 
-	t = NPC("Burning Pandaren Spirit", 68463)
-	t[41951] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "prepare yourself" }, within = 3, }, }
+    t = NPC("Burning Pandaren Spirit", {68463,})
+    t[41951] = { text = "Another challenge?", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "prepare yourself" }, within = 3, }, }
 
-	t = NPC("Kali the Night Watcher", { 62874, })
-	t[37168] = { prio = -6, text = "Let me browse your goods.", }
-	t[37167] = { prio = -9, text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, noAuto = true }
+    t = NPC("Kali the Night Watcher", { 62874, })
+    t[37168] = { prio = -6, text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", }
+    t[37167] = { prio = -9, text = "Hearth", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, noAuto = true }
 
-    t = NPC("Seeker Zusshi", 66918)
+    t = NPC("Seeker Zusshi", {66918,})
     t[41155] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance!" }, within = 3, }, }
 
 SetZone("Timeless Isle, Pandaria")
 
-    t = NPC("Mistweaver Ku", 73306)
+    t = NPC("Mistweaver Ku", {73306,})
     t[41556] = { text = "What can I buy with timeless coins?", }
 
-    t = NPC("Nostwin", 237817)
+    t = NPC("Nostwin", {237817,})
     t[131914] = { text = "Let me browse your goods.", }
 
 SetZone("Vale of Eternal Blossoms, Pandaria")
 
-    t = NPC("Aki the Chosen", 66741)
+    t = NPC("Aki the Chosen", {66741,})
     t[41824] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You're going down!" }, within = 3, }, }
 
 SetZone("Valley of the Four Winds, Pandaria")
 
-	t = NPC("Farmer Nishi", {66734,})
-	t[41818] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
+    t = NPC("Farmer Nishi", {66734,})
+    t[41818] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble!" }, within = 3, }, }
 
-	t = NPC("Mr. Pleeb", {66734,})
-	t[34404] = { text = "Train Skinning", }
+    t = NPC("Mr. Pleeb", {66734,})
+    t[34404] = { text = "Train Skinning", }
 
-	t = NPC("Steven Walker", {59320,})
-	t[35659] = { text = "Open Vendor", }
+    t = NPC("Steven Walker", {59320,})
+    t[35659] = { text = "Open Vendor", }
 
-	t = NPC("Sally Fizzlefury", {55143,})
-	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("NPC55143")
-	t[40607] = { prio = 09, text = "Train Engineering", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
-	t[40608] = { prio = 09, text = "Open Vendor", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+    t = NPC("Sally Fizzlefury", {55143,})
+    local VIEW_GOSSIP_STATE = GetCharacterCacheKey("NPC55143")
+    t[40607] = { prio = 09, text = "Train Engineering", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
+    t[40608] = { prio = 09, text = "Open Vendor", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
 
 
