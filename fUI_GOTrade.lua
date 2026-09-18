@@ -2586,13 +2586,15 @@ do
                         already = (_liMerchantBuyPrinted[id] == true)
                       end
                       if not already then
-                        local shownUnits = boughtUnits
-                        local shownNeed = needUnits
-                        local suffix = ""
-                        if tonumber(shownNeed) and tonumber(shownUnits) and tonumber(shownNeed) ~= tonumber(shownUnits) then
-                          suffix = " (need " .. tostring(shownNeed) .. ")"
+                        if dbg then
+                          local shownUnits = boughtUnits
+                          local shownNeed = needUnits
+                          local suffix = ""
+                          if tonumber(shownNeed) and tonumber(shownUnits) and tonumber(shownNeed) ~= tonumber(shownUnits) then
+                            suffix = " (need " .. tostring(shownNeed) .. ")"
+                          end
+                          Print("Buying: " .. tostring(shownUnits) .. "x " .. tostring(nm) .. suffix)
                         end
-                        Print("Buying: " .. tostring(shownUnits) .. "x " .. tostring(nm) .. suffix)
                         if id and id > 0 and type(_liMerchantBuyPrinted) == "table" then
                           _liMerchantBuyPrinted[id] = true
                         end

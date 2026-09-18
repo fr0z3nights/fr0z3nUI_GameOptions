@@ -4346,6 +4346,14 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 local expKey = (ns and type(ns.Situate_GetCurrentExpansionKeyForPlayer) == "function") and ns.Situate_GetCurrentExpansionKeyForPlayer() or nil
                 Print("  expansionKey = " .. tostring(expKey))
 
+                if C_TradeSkillUI and type(C_TradeSkillUI.GetAllProfessionTradeSkillLines) == "function" then
+                    local okLines, lines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
+                    local count = (okLines and type(lines) == "table") and #lines or 0
+                    Print("  modern profession catalog lines = " .. tostring(count) .. " (not a learned-profession list)")
+                else
+                    Print("  modern TradeSkillUI: unavailable")
+                end
+
                 local profs = nil
                 if ns and ns.Profs and type(ns.Profs.RefreshKnownProfessionKeys) == "function" then
                     pcall(ns.Profs.RefreshKnownProfessionKeys, true)

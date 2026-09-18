@@ -977,6 +977,9 @@ function ns.SituateUI_Build(panel)
     local SKILLLINE_TO_PROFKEY = {
         [171] = "Alchemy",
         [164] = "Blacksmithing",
+        [2477] = "Blacksmithing", [2476] = "Blacksmithing", [2475] = "Blacksmithing", [2474] = "Blacksmithing",
+        [2473] = "Blacksmithing", [2472] = "Blacksmithing", [2454] = "Blacksmithing", [2437] = "Blacksmithing",
+        [2751] = "Blacksmithing", [2822] = "Blacksmithing", [2872] = "Blacksmithing", [2907] = "Blacksmithing",
         [333] = "Enchanting",
         [202] = "Engineering",
         [182] = "Herbalism",
@@ -984,6 +987,9 @@ function ns.SituateUI_Build(panel)
         [755] = "Jewelcrafting",
         [165] = "Leatherworking",
         [186] = "Mining",
+        [2572] = "Mining", [2571] = "Mining", [2570] = "Mining", [2569] = "Mining",
+        [2568] = "Mining", [2567] = "Mining", [2566] = "Mining", [2565] = "Mining",
+        [2761] = "Mining", [2833] = "Mining", [2881] = "Mining", [2916] = "Mining",
         [393] = "Skinning",
         [197] = "Tailoring",
     }
@@ -1001,10 +1007,87 @@ function ns.SituateUI_Build(panel)
         out[#out + 1] = key
     end
 
+    local function AddKnownTradeSkillProfessions(out)
+        if not (C_TradeSkillUI and type(C_TradeSkillUI.GetAllProfessionTradeSkillLines) == "function") then
+            return
+        end
+
+        local ok, lines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
+        if not ok or type(lines) ~= "table" then
+            return
+        end
+
+        for _, skillLineID in ipairs(lines) do
+            local info
+            if type(C_TradeSkillUI.GetProfessionInfoBySkillLineID) == "function" then
+                local okInfo, value = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, skillLineID)
+                if okInfo and type(value) == "table" then
+                    info = value
+                end
+            end
+
+            local skillLevel = info and tonumber(info.skillLevel)
+            local maxSkillLevel = info and tonumber(info.maxSkillLevel)
+            if (skillLevel and skillLevel > 0) or (maxSkillLevel and maxSkillLevel > 0) then
+                AddUniqueKey(out, SKILLLINE_TO_PROFKEY[tonumber(skillLineID or 0)])
+            end
+        end
+    end
+
+    local function GetKnownTradeSkillProfessions()
+        local out = {}
+        AddKnownTradeSkillProfessions(out)
+        if #out > 0 then
+            table.sort(out, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+            return out
+        end
+        return nil
+    end
+
     GetKnownProfessionKeys = function()
-        -- Prefer the shared cached set (keeps Situate consistent with gossip hints and
-        -- handles up to 5 professions / archaeology / locale-safe keys).
-        if ns and ns.Profs then
+        -- Verified Retail profession data is authoritative over legacy results.
+        local tradeSkillProfessions = GetKnownTradeSkillProfessions()
+        if tradeSkillProfessions then
+            return tradeSkillProfessions
+        end
+
+        local out = {}
+
+        -- Prefer live profession data so a stale per-character cache cannot hide a newly
+        -- learned profession or keep a profession that was recently unlearned.
+        if type(GetProfessions) == "function" and type(GetProfessionInfo) == "function" then
+            local p1, p2, p3, p4, p5 = GetProfessions()
+            local indices = { p1, p2, p3, p4, p5 }
+            for i = 1, #indices do
+                local idx = indices[i]
+                if idx then
+                    local ok, name, _, skillLevel, maxSkillLevel, _, _, skillLine = pcall(GetProfessionInfo, idx)
+                    if ok then
+                        local learned = (tonumber(skillLevel) or 0) > 0 or (tonumber(maxSkillLevel) or 0) > 0
+                        if learned then
+                            local key = SKILLLINE_TO_PROFKEY[tonumber(skillLine or 0)] or Trim(tostring(name or ""))
+                            AddUniqueKey(out, key)
+                        end
+                    end
+                end
+            end
+
+            if #out > 1 then
+                table.sort(out, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+            end
+        end
+
+        if #out > 0 then
+            table.sort(out, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+            return out
+        end
+
+        -- Fallback: spell-based detection (gathering only) for early login/API gaps.
+        if SpellKnownAny(PROF_SPELLS.Mining) then AddUniqueKey(out, "Mining") end
+        if SpellKnownAny(PROF_SPELLS.Herbalism) then AddUniqueKey(out, "Herbalism") end
+        if SpellKnownAny(PROF_SPELLS.Skinning) then AddUniqueKey(out, "Skinning") end
+
+        if #out == 0 and ns and ns.Profs then
             if type(ns.Profs.RefreshKnownProfessionKeys) == "function" then
                 pcall(ns.Profs.RefreshKnownProfessionKeys, true)
             end
@@ -1016,35 +1099,6 @@ function ns.SituateUI_Build(panel)
             end
         end
 
-        -- Fallback: direct probe.
-        local out = {}
-
-        if type(GetProfessions) == "function" and type(GetProfessionInfo) == "function" then
-            local p1, p2, p3, p4, p5 = GetProfessions()
-            local indices = { p1, p2, p3, p4, p5 }
-            for i = 1, #indices do
-                local idx = indices[i]
-                if idx then
-                    local ok, name, _, _, _, _, skillLine = pcall(GetProfessionInfo, idx)
-                    if ok then
-                        local key = SKILLLINE_TO_PROFKEY[tonumber(skillLine or 0)] or Trim(tostring(name or ""))
-                        AddUniqueKey(out, key)
-                    end
-                end
-            end
-
-            if #out > 1 then
-                table.sort(out, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
-            end
-            if #out > 0 then
-                return out
-            end
-        end
-
-        -- Fallback: spell-based detection (gathering only) for very old clients / API breakage.
-        if SpellKnownAny(PROF_SPELLS.Mining) then AddUniqueKey(out, "Mining") end
-        if SpellKnownAny(PROF_SPELLS.Herbalism) then AddUniqueKey(out, "Herbalism") end
-        if SpellKnownAny(PROF_SPELLS.Skinning) then AddUniqueKey(out, "Skinning") end
         return out
     end
 

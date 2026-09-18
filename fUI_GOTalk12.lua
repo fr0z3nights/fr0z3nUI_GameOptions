@@ -83,7 +83,7 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 
 	t = NPC("Innkeeper Kalarin", 236149)
 	t[132744] = { text = "Have you seen anything strange recently?", prio = 10 }                          -- Rational Explanation (86624)
-	t[137854] = { text = "Let me browse your goods.", prio = -5 }
+	t[137854] = { text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", prio = -5 }
 	t[137856] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
 	t = NPC("Instructor Thalendir", {245285, })
@@ -287,6 +287,9 @@ SetZone("Harandar, Eastern Kingdoms")
 	t[136764] = { prio = 05, text = "<Meditate here for a moment.>" }									-- Toy () Altar of Wisdom (590789)
 	t[136767] = { prio = 10, text = "<Offer the old rolled up pillow...>", close = true }				-- Toy () Elder Spirit (254116)
 
+	t = NPC("Alton Parsons", {245104,})
+	t[134366] = { text = "<Tell Alton to head to the Den of Remembrance for help.>" }					-- Traditional Duties (90959) Alton Parsons (245104)
+
 	t = NPC("Ashayo", { 256441, 255763, })
 	t[137389] = { text = "Deal with the big ones. Got it." }											-- Down the Rootways (86912) Ashayo (256441)
 	t[137248] = { text = "Release the moths near Lightbloom patches." }									-- Down the Rootways (86912) Ashayo (255763)
@@ -323,8 +326,18 @@ SetZone("Harandar, Eastern Kingdoms")
 	t = NPC("First Arcanist Thalyssra", { 253658, })
 	t[137842] = { text = "Thank you for your insight." }                                           		-- History Lesson (92899) First Arcanist Thalyssra (253658)
 
+	t = NPC("Forgotten Song", { 246456, })
+	t[134378] = { text = "<Reach out and touch the song.>" }											-- Traditional Duties (90959) Forgotten Song (246456)
+
+	t = NPC("Galtra Bloodcleave", { 246353, })
+	t[134367] = { text = "<Tell Galtra to head to the Den of Remembrance for help.>" }					-- Traditional Duties (90959) Galtra Bloodcleave (246353)
+
 	t = NPC("Grumpy", { 253313, })
 	t[137323] = { text = "<Pick up the budling.>" }														-- Re-Hydra-ted (92866) Grumpy (253313)
+
+	t = NPC("Hagar", { 245097, })
+	t[134388] = { text = "<Tell Hagar of the visions.>" }												-- My Story, My Legacy (90960) Hagar (245097)
+	t[134394] = { text = "My journey is my own." }														-- Stranger in a New Land (90961) Hagar (245097)
 
 	t = NPC("Halduron Brightwing", { 237343, 237345, 237787, 250363, })
 	t[133774] = { text = "Let's head down." }															-- To Har'athir (86900)    Halduron Brightwing (237343)
@@ -691,7 +704,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    	t = NPC("Jovia <Innkeeper>", 239630)
    	t[134012] = { text = "The Alliance will be staying here temporarily. Lodgings will be needed.", prio = 10 }
    	t[132666] = { text = "Lor'themar has allowed us to stay for now...", prio = 9 }						-- Paved in Ash (86735) Innkeeper Jovia (239630)
-   	t[132667] = { text = "Let me browse your goods.", prio = -5 }
+   	t[132667] = { text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", prio = -5 }
    	t[132668] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
    	t = NPC("Lendranil", { 242200, })
@@ -790,6 +803,9 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[121665] = { text = "I'd like to see what you have to offer this month." }							-- Trading Post Vendor Sandee Seabraid (249041)
 	t[121672] = { text = "I'd like to see what you have to offer this month." }							-- Trading Post Vendor Zalani (249042)
 	t[131326] = { text = "I'd like to see what you have to offer this event." }							-- Trading Post Vendor Toro (268193), Lora (268188), Kiro (268174), Nara (268180)
+
+	t = NPC("Tyn", { 243527, })
+	t[138590] = { text = "Train Skinning" }
 
 	t = NPC("Triam Dawnsetter", { 255476, })
 	t[138965] = { text = "What gear slots are available?" }												-- Murder Row: Acting the Part (90819) Thiel (244470)
@@ -937,7 +953,7 @@ SetZone("The Coiled Isle, Quel'Thalas")
 	t[140652] = { text = "Hurry now, little one--to safety!" }											-- Bravely Burning (96544) Teho (265485)
 
 	t = NPC("Ven'ek", { 265147, })
-	t[139853] = { prio = -6, text = "Let me browse your goods.", }
+	t[139853] = { prio = -6, text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", }
 	t[139852] = { prio = -9, text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, noAuto = true }
 
 	t = NPC("Warleader Abdumati", { 262798, })
@@ -1017,7 +1033,7 @@ SetZone("Voidstorm, Eastern Kingdoms")
 	t[138593] = { text = "Let's move on. <Skip.>" }														-- Nothing Stands Forever (88706) High Exarch Turalyon (239810)
 
 	t = NPC("Hospitus", { 235701, })
-	t[135474] = { text = "What do you have for sale?" }													-- Innkeeper Hospitus (235701)
+	t[135474] = { text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", }				-- Innkeeper Hospitus (235701)
 	t[132668] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
 	t = NPC("Kifaan", { 244499, 244516, })

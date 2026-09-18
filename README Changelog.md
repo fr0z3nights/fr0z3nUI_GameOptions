@@ -4,6 +4,22 @@ Format: `YYYY.MM.DD.NN` (TOC `## Version`) — short summary. Newest at the top.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+## 2026.09.15.08
+- Files: `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Situate debug: replace the full zero-level profession catalog dump with a concise catalog summary and resolved learned-profession list.
+
+## 2026.09.13.01
+- Files: `fUI_GOSwitchesMU.lua`, `fUI_GOTalk.lua`, `fUI_GOTalk11.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- MountUp: Opening the Taxi map (`TAXIMAP_OPENED`) now automatically dismounts and temporarily disables Mount Up (Character) while interacting with flight masters (with or without gossip), and automatically re-enables Mount Up once the player boards the flight path (or cancels).
+
+## 2026.09.12.01
+- Files: `fUI_GOTrade.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Trade (Merchant): put `Buying:` chat print behind the trade debug toggle (`dbg`).
+
+## 2026.09.11.01
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalk10.lua`, `fr0z3nUI_GameOptions.toc`
+- GOTalk: rules marked `random = true` now randomly select one option from the highest-priority random pool, including Tyrgon's proto-dragon naming choices.
+
 ## 2026.06.14.01
 - Files: `fUI_GOSwitchesIR.lua`, `fUI_GOSwitchesUI.lua`, `fr0z3nUI_GameOptions.toc`, `README Changelog.md`
 - Switches: Add new Instance Reset row with account/character enable toggles and LDB-style broker support.

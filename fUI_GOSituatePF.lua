@@ -51,11 +51,17 @@ Profs._lastProfKeyRefreshAt = Profs._lastProfKeyRefreshAt or 0
 -- Stable profession keys (avoid localized names).
 local SKILLLINE_TO_PROFKEY = {
     [164] = "Blacksmithing",
+    [2477] = "Blacksmithing", [2476] = "Blacksmithing", [2475] = "Blacksmithing", [2474] = "Blacksmithing",
+    [2473] = "Blacksmithing", [2472] = "Blacksmithing", [2454] = "Blacksmithing", [2437] = "Blacksmithing",
+    [2751] = "Blacksmithing", [2822] = "Blacksmithing", [2872] = "Blacksmithing", [2907] = "Blacksmithing",
     [165] = "Leatherworking",
     [171] = "Alchemy",
     [182] = "Herbalism",
     [185] = "Cooking",
     [186] = "Mining",
+    [2572] = "Mining", [2571] = "Mining", [2570] = "Mining", [2569] = "Mining",
+    [2568] = "Mining", [2567] = "Mining", [2566] = "Mining", [2565] = "Mining",
+    [2761] = "Mining", [2833] = "Mining", [2881] = "Mining", [2916] = "Mining",
     [197] = "Tailoring",
     [202] = "Engineering",
     [333] = "Enchanting",
@@ -165,11 +171,23 @@ function Profs.RefreshKnownProfessionKeys(force)
         for i = 1, 5 do
             local idx = indices[i]
             if idx ~= nil then
-                local ok, name, _, _, _, _, skillLine = pcall(GetProfessionInfo, idx)
+                local ok, name, _, skillLevel, maxSkillLevel, _, _, skillLine = pcall(GetProfessionInfo, idx)
                 if ok then
-                    local stable = SKILLLINE_TO_PROFKEY[tonumber(skillLine or 0)]
-                    Mark(stable or name)
+                    local learned = (tonumber(skillLevel) or 0) > 0 or (tonumber(maxSkillLevel) or 0) > 0
+                    if learned then
+                        local stable = SKILLLINE_TO_PROFKEY[tonumber(skillLine or 0)]
+                        Mark(stable or name)
+                    end
                 end
+            end
+        end
+    end
+
+    if C_TradeSkillUI and type(C_TradeSkillUI.GetAllProfessionTradeSkillLines) == "function" then
+        local ok, lines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
+        if ok and type(lines) == "table" then
+            for _, skillLineID in ipairs(lines) do
+                Mark(SKILLLINE_TO_PROFKEY[tonumber(skillLineID or 0)])
             end
         end
     end

@@ -115,6 +115,13 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 	{ key = "X10:BrackenhideShapr",		text = "Brackenhide Shaper says" },
 	{ key = "X10:BloodthirstyCub",		text = "Bloodthirsty Cub" },
 	{ key = "X10:DefierDraghar",		text = "Defier Draghar says" },
+--  08  Battle for Azeroth
+	{ key = "X08:CastelessZandalari",	text = "Casteless Zandalari says" },
+	{ key = "X08:CyrusCrestfall",		text = "Cyrus Crestfall says" },
+	{ key = "X08:EmilyFairweather",		text = "Emily Fairweather says" },
+	{ key = "X08:GennGreymane",			text = "Genn Greymane says" },
+	{ key = "X08:PrincessTalanji",		text = "Princess Talanji says" },
+	{ key = "X08:TaeliaMenethil",		text = "Taelia says" },
 --  07  Legion
 	{ key = "X07:PBEnvBert",			text = "Environeer Bert says" },
 	{ key = "X07:PBWinLitHlp",			text = "Winter's Little Helper says" },

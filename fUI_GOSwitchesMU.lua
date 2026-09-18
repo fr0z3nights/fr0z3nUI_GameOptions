@@ -3164,6 +3164,84 @@ do
     local armedWhileEating = false
     local eatFinishTimer
 
+    local disabledForTaxi = false
+    local taxiWatcherTicker
+
+    local function IsPlayerOnFlightOrVehicle()
+        if type(UnitOnTaxi) == "function" and UnitOnTaxi("player") then
+            return true
+        end
+        if type(UnitInVehicle) == "function" and UnitInVehicle("player") then
+            return true
+        end
+        if type(UnitUsingVehicle) == "function" and UnitUsingVehicle("player") then
+            return true
+        end
+        if type(InVehicle) == "function" and InVehicle() then
+            return true
+        end
+        if type(UnitHasVehicleUI) == "function" and UnitHasVehicleUI("player") then
+            return true
+        end
+        if C_PlayerInfo and type(C_PlayerInfo.IsPlayerInTaxi) == "function" and C_PlayerInfo.IsPlayerInTaxi() then
+            return true
+        end
+        return false
+    end
+
+    local function StopTaxiWatcher()
+        if taxiWatcherTicker and taxiWatcherTicker.Cancel then
+            taxiWatcherTicker:Cancel()
+        end
+        taxiWatcherTicker = nil
+    end
+
+    local function ReenableMountUpForTaxi()
+        StopTaxiWatcher()
+        if disabledForTaxi then
+            disabledForTaxi = false
+            if type(AutoGossip_CharSettings) == "table" then
+                AutoGossip_CharSettings.mountUpEnabledChar = true
+                MU.OnSettingsChanged()
+            end
+        end
+    end
+
+    local function CheckTaxiFlightStatus()
+        if not disabledForTaxi then
+            StopTaxiWatcher()
+            return false
+        end
+        if IsPlayerOnFlightOrVehicle() then
+            ReenableMountUpForTaxi()
+            return true
+        end
+        return false
+    end
+
+    local function StartTaxiWatcher()
+        StopTaxiWatcher()
+        if not disabledForTaxi then
+            return
+        end
+        if CheckTaxiFlightStatus() then
+            return
+        end
+        if C_Timer and type(C_Timer.NewTicker) == "function" then
+            local ticks = 0
+            taxiWatcherTicker = C_Timer.NewTicker(0.5, function()
+                ticks = ticks + 1
+                if not disabledForTaxi then
+                    StopTaxiWatcher()
+                    return
+                end
+                if CheckTaxiFlightStatus() or ticks >= 120 then
+                    StopTaxiWatcher()
+                end
+            end)
+        end
+    end
+
     local function CancelEatFinishTimer()
         if eatFinishTimer and eatFinishTimer.Cancel then
             eatFinishTimer:Cancel()
@@ -3178,6 +3256,50 @@ do
             armedWhileEating = false
             CancelEatFinishTimer()
             return
+        end
+
+        if event == "TAXIMAP_OPENED" then
+            CancelPending()
+            if type(IsMounted) == "function" and IsMounted() then
+                local flying = (type(IsFlying) == "function") and (IsFlying() and true or false) or false
+                local falling = (type(IsFalling) == "function") and (IsFalling() and true or false) or false
+                if not flying and not falling and type(Dismount) == "function" then
+                    pcall(Dismount)
+                end
+            end
+
+            if type(AutoGossip_CharSettings) == "table" and AutoGossip_CharSettings.mountUpEnabledChar then
+                AutoGossip_CharSettings.mountUpEnabledChar = false
+                disabledForTaxi = true
+                MU.OnSettingsChanged()
+                StartTaxiWatcher()
+            end
+            return
+        end
+
+        if event == "TAXIMAP_CLOSED" then
+            if disabledForTaxi then
+                if CheckTaxiFlightStatus() then
+                    return
+                end
+                if C_Timer and type(C_Timer.After) == "function" then
+                    C_Timer.After(5.0, function()
+                        if disabledForTaxi and not IsPlayerOnFlightOrVehicle() then
+                            ReenableMountUpForTaxi()
+                        end
+                    end)
+                end
+            end
+            return
+        end
+
+        if event == "VEHICLE_UPDATE" or event == "UNIT_ENTERED_VEHICLE" or event == "PLAYER_CONTROL_LOST" then
+            if disabledForTaxi then
+                CheckTaxiFlightStatus()
+            end
+            if event ~= "PLAYER_CONTROL_LOST" then
+                return
+            end
         end
 
         if not IsEnabled() then
@@ -3326,7 +3448,13 @@ do
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
     f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     f:RegisterEvent("PLAYER_CONTROL_GAINED")
+    f:RegisterEvent("PLAYER_CONTROL_LOST")
     f:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+
+    f:RegisterEvent("TAXIMAP_OPENED")
+    f:RegisterEvent("TAXIMAP_CLOSED")
+    f:RegisterEvent("VEHICLE_UPDATE")
+    f:RegisterEvent("UNIT_ENTERED_VEHICLE")
 
     f:RegisterEvent("UNIT_AURA")
 

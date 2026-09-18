@@ -167,6 +167,33 @@ do
         return ""
     end
 
+    local function HookGreatVaultClose()
+        local frame = _G and _G["WeeklyRewardsFrame"]
+        if not frame or frame.fgoGreatVaultRefreshHooked then
+            return
+        end
+
+        frame.fgoGreatVaultRefreshHooked = true
+        frame:HookScript("OnHide", function()
+            local function RefreshAfterClose(attempt)
+                LDBMod.RefreshGreatVaultLDB()
+                if attempt < 3 and type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+                    C_Timer.After(0.2, function()
+                        RefreshAfterClose(attempt + 1)
+                    end)
+                end
+            end
+
+            if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+                C_Timer.After(0.1, function()
+                    RefreshAfterClose(1)
+                end)
+            else
+                RefreshAfterClose(3)
+            end
+        end)
+    end
+
     local function IsPlayerResting()
         return type(IsResting) == "function" and IsResting() == true
     end
@@ -213,7 +240,13 @@ do
         if C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyInfo) == "function" then
             local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
             if ok and type(info) == "table" then
-                return math.max(0, tonumber(info.maxWeeklyQuantity) or 0)
+                return math.max(
+                    0,
+                    tonumber(info.maxWeeklyQuantity) or 0,
+                    tonumber(info.weeklyMaxQuantity) or 0,
+                    tonumber(info.weeklyMaximum) or 0,
+                    tonumber(info.weeklyMax) or 0
+                )
             end
         end
 
@@ -229,7 +262,29 @@ do
         if C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyInfo) == "function" then
             local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
             if ok and type(info) == "table" then
-                return math.max(0, tonumber(info.quantityEarnedThisWeek) or 0)
+                return math.max(
+                    0,
+                    tonumber(info.quantityEarnedThisWeek) or 0,
+                    tonumber(info.weeklyQuantity) or 0,
+                    tonumber(info.weeklyEarned) or 0,
+                    tonumber(info.earnedThisWeek) or 0
+                )
+            end
+        end
+
+        return 0
+    end
+
+    local function GetCurrencyMaximum(currencyID)
+        currencyID = tonumber(currencyID)
+        if not currencyID or currencyID <= 0 then
+            return 0
+        end
+
+        if C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyInfo) == "function" then
+            local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, currencyID)
+            if ok and type(info) == "table" then
+                return math.max(0, tonumber(info.maxQuantity or info.maximum or info.maxAmount) or 0)
             end
         end
 
@@ -238,7 +293,7 @@ do
 
     local function TierSortFunc(a, b)
         return (tonumber(a and a.index) or 0) < (tonumber(b and b.index) or 0)
-    end
+        end
 
     local function CopyAndSortActivities(activities)
         local out = {}
@@ -345,9 +400,7 @@ do
     local function GetProgressText()
         local sep = "   "
         local rawStatusOrb = GetVaultStatusIconTag()
-        -- orb only shows while resting; otherwise the key amount takes its place instead
-        local showOrb = (rawStatusOrb ~= "") and IsPlayerResting()
-        local statusOrb = showOrb and rawStatusOrb or ""
+        local statusOrb = rawStatusOrb
         local statusSuffix = (statusOrb ~= "") and (sep .. statusOrb) or ""
 
         if not EnsureWeeklyRewardsLoaded() then
@@ -366,13 +419,10 @@ do
         local weeklyShardMaximum = GetCurrencyWeeklyMaximum(3310)
         local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
         local cofferDisplayValue = cofferKeys + (cofferShards / 100)
-        local cofferSuffix = ""
-        if not showOrb then
-            local cofferValueColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffd100"
-            cofferSuffix = string.format("   %s%.1f|r", cofferValueColor, cofferDisplayValue)
-        end
+        local cofferValueColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffd100"
+        local cofferSuffix = string.format("   %s%.1f|r", cofferValueColor, cofferDisplayValue)
 
-        return string.format("|c%s%s|r%s|c%s%s|r%s|c%s%s|r%s%s", raidColor, raidPair, sep, dngColor, dngPair, sep, worldColor, worldPair, statusSuffix, cofferSuffix)
+        return string.format("|c%s%s|r%s|c%s%s|r%s|c%s%s|r%s%s", raidColor, raidPair, sep, dngColor, dngPair, sep, worldColor, worldPair, cofferSuffix, statusSuffix)
     end
 
     local function AddGvLines(tooltip, rewardTable)
@@ -471,8 +521,16 @@ do
         tooltip:AddLine(progStr, 1, 1, 1)
     end
 
+    local function GetCatalystColorTag()
+        return "|cffcc66cc"
+    end
+
+    local function GetAbundanceColorTag()
+        return "|cff66ffcc"
+    end
+
     local function OnTooltipShow(tooltip)
-        local unlockedText = HasRewardAvailable() and "|cff00ff00UNLOCKED|r" or ""
+        local unlockedText = HasRewardAvailable() and "|cff00ff00OPEN|r" or ""
         tooltip:AddDoubleLine("|cff00ccffFGO Great Vault|r", unlockedText)
 
         local raid = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Raid)
@@ -495,15 +553,31 @@ do
             local cofferDisplayValue = cofferKeys + (cofferShards / 100)
             local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
             local weeklyProgressColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffffff"
+            local catalystQuantity = GetCurrencyQuantity(3465)
+            local catalystTotalMaximum = GetCurrencyMaximum(3465)
+            local abundanceQuantity = GetCurrencyQuantity(3376)
+            local abundanceTotalMaximum = GetCurrencyMaximum(3376)
+            local abundanceWeeklyMaximum = GetCurrencyWeeklyMaximum(3376)
+            local abundanceWeeklyQuantity = GetCurrencyWeeklyQuantity(3376)
+            local abundanceWeeklyProgressColor = (abundanceWeeklyMaximum > 0 and abundanceWeeklyQuantity >= abundanceWeeklyMaximum) and "|cff00ff00" or "|cffffffff"
             tooltip:AddDoubleLine(
                 string.format("|cffffa000Coffer Keys:|r  |cffffd100%.1f|r", cofferDisplayValue),
                 string.format("%s%.0f/%.0f|r", weeklyProgressColor, weeklyShardQuantity, weeklyShardMaximum)
             )
+            tooltip:AddDoubleLine(
+                string.format("%sAbundance:|r  |cffffffff%.0f/%.0f|r", GetAbundanceColorTag(), abundanceQuantity, abundanceTotalMaximum),
+                string.format("%s%.0f/%.0f|r", abundanceWeeklyProgressColor, abundanceWeeklyQuantity, abundanceWeeklyMaximum)
+            )
+            tooltip:AddLine(string.format(
+                "%sCatalyst:|r  |cffffffff%.0f/%.0f|r",
+                GetCatalystColorTag(),
+                catalystQuantity,
+                catalystTotalMaximum
+            ))
         end
 
         -- bump the title line 1pt larger than the Raids/Dungeons/World headings; AddLine has no size parameter.
         -- tooltip:GetName().."TextLeft1" is the shared GameTooltip's first line, reused by every other
-        -- addon's LDB display (Instance Reset, FGO Hearth, Tax, etc.), so the font MUST be restored on
         -- hide or their titles stay enlarged after ours shows.
         local titleFontString = _G[tooltip:GetName() .. "TextLeft1"]
         if titleFontString and titleFontString.GetFont then
@@ -537,6 +611,7 @@ do
         if not frame then
             return
         end
+        HookGreatVaultClose()
 
         if frame.IsShown and frame:IsShown() then
             if HideUIPanel then
@@ -560,6 +635,7 @@ do
     end
 
     local function EnsureLDB()
+        HookGreatVaultClose()
         if type(LDBMod.GreatVaultLDB) == "table" then
             return LDBMod.GreatVaultLDB
         end

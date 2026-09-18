@@ -11,6 +11,18 @@ local SetZone, NPC, MAP = H.SetZone, H.NPC, H.MAP
 local TalkCacheSeen, GetCharacterCacheKey = H.TalkCacheSeen, H.GetCharacterCacheKey
 local GetViewGossipState = H.GetViewGossipState
 
+SetZone("Silithus, Kalimdor")
+
+	t = NPC("Thrall", { 213620, })
+	t.__meta.stopIfQuestAvailable = { 78714, }															-- First NPCID, Stops Gossip until quest is accepted
+	t.__meta.stopIfQuestTurnIn = { 78713, }																-- First NPCID, Stops Gossip until quest is accepted
+	t[123176] = { text = "I have heard this tale before. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, },  }
+
+	t = NPC("Jaina", { 213625, })
+	t.__meta.stopIfQuestAvailable = { 78714, }															-- First NPCID, Stops Gossip until quest is accepted
+	t.__meta.stopIfQuestTurnIn = { 78713, }																-- First NPCID, Stops Gossip until quest is accepted
+	t[123176] = { text = "I have heard this tale before. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, },  }
+
 SetZone("Azj-Kahet, Khaz Algar")
 
 	t = NPC("Weaver's Instructions", 220462)
@@ -19,8 +31,8 @@ SetZone("Azj-Kahet, Khaz Algar")
 SetZone("Dornogal, Khaz Algar")
 
 	t = NPC("Brann Bronzebeard", 206017)
-	t[123770] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
-	t[123771] = { text = "I'd like to join the reinforcements. \r\n|cFFFF0000 <Skip the level-up campaign.> |r" }
+	t[123770] = { text = "I'd like to join the reinforcements. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, }, }
+	t[123771] = { text = "I'd like to join the reinforcements. <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, }, }
 
 	t = NPC("Breem", {212369,})
 	t[120910] = { text = "Show me where I can fly." }
@@ -80,6 +92,9 @@ SetZone("The Ringing Deeps, Khaz Algar")
 	t = NPC("Ishqikle", {227710,})
 	t[123396] = { text = "What's the job here?" }
 	t[123395] = { text = "Thanks for the info." }
+
+	t = NPC("Kargen Ironbrow", {224940,})
+	t[34833] = { text = "Show me where I can fly." }
 
 	t = NPC("Keeble", {228138,})
 	t[124904] = { text = "Can you tell us what's going on here in Gutterville.", prio = 10, }

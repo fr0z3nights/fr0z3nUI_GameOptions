@@ -96,7 +96,8 @@ SetZone("Boralus, Kul Tiras")
 	t[48106] = { prio = 09, text = "Open Vendor", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
 	t = NPC("Wesley Rockhold", {135153,})
-	t[48279] = { text = "Let me browse your goods" }
+	t[48279] = { text = "Let me browse your goods", prSel = "Opening Vendor, Shift+Click to bypass for Hearth", }
+	t[48278] = { text = "Make this inn your home.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
 SetZone("Nazjatar, Kul Tiras")
 

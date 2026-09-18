@@ -1036,7 +1036,7 @@ function ns.Talk.TryAutoSelect(isRetry)
         if type(ruleEntry) ~= "table" then
             return
         end
-        if ruleEntry.mount ~= true then
+        if ruleEntry.mount ~= true and ruleEntry.flight ~= true then
             return
         end
 
@@ -1056,6 +1056,18 @@ function ns.Talk.TryAutoSelect(isRetry)
         AutoGossip_CharSettings.mountUpEnabledChar = false
         if ns and ns.SwitchesMU and type(ns.SwitchesMU.OnSettingsChanged) == "function" then
             pcall(ns.SwitchesMU.OnSettingsChanged)
+        end
+    end
+
+    local function ScheduleFirstRunSelectConfirm(contextNpcID, contextEntriesKey)
+
+        AutoGossip_CharSettings.mountUpEnabledChar = false
+        if ns and ns.SwitchesMU and type(ns.SwitchesMU.OnSettingsChanged) == "function" then
+            pcall(ns.SwitchesMU.OnSettingsChanged)
+        end
+
+        if ruleEntry.flight == true then
+            StartFlightWatcher()
         end
     end
 
@@ -1442,6 +1454,22 @@ function ns.Talk.TryAutoSelect(isRetry)
         Debug("Auto-select suppressed (quest gate: " .. tostring(optionGateWhy) .. " questID=" .. tostring(optionGateQuestID) .. ")")
     end
 
+    local function ConsiderCandidate(state, g, id, ruleEntry, pr)
+        local isRandom = type(ruleEntry) == "table" and ruleEntry.random == true
+        if state.bestG == nil or pr > (state.bestPrio or 0) then
+            state.bestG, state.bestID, state.bestEntry, state.bestPrio = g, id, ruleEntry, pr
+            state.randomPool = isRandom and { { g = g, id = id, entry = ruleEntry } } or {}
+        elseif pr == state.bestPrio and isRandom and type(state.randomPool) == "table" and #state.randomPool > 0 then
+            state.randomPool[#state.randomPool + 1] = { g = g, id = id, entry = ruleEntry }
+        end
+    end
+
+    local function PickRandomCandidate(state)
+        if type(state.randomPool) ~= "table" or #state.randomPool == 0 then return end
+        local pick = state.randomPool[math.random(1, #state.randomPool)]
+        state.bestG, state.bestID, state.bestEntry = pick.g, pick.id, pick.entry
+    end
+
     local ignoredAvailableQuests = {}
     if type(LookupNpcBucket) == "function" then
         MergeQuestSet(ignoredAvailableQuests, GetIgnoreIfQuestAvailableSet(LookupNpcBucket(AutoGossip_Char, npcID)) or {})
@@ -1454,7 +1482,7 @@ function ns.Talk.TryAutoSelect(isRetry)
         local db = (scope == "acc") and AutoGossip_Acc or AutoGossip_Char
         local npcTable = (type(LookupNpcBucket) == "function") and LookupNpcBucket(db, npcID) or nil
         if npcTable then
-            local bestG, bestID, bestEntry, bestPrio
+            local state = { randomPool = {} }
             for _, g in ipairs(entries) do
                 local id = g and g.id
                 if g and g.kind == "availableQuest" and ignoredAvailableQuests[tonumber(id)] then
@@ -1498,9 +1526,7 @@ function ns.Talk.TryAutoSelect(isRetry)
                             end
 
                             if ruleEntry ~= nil then
-                                if bestG == nil or pr > (bestPrio or 0) then
-                                    bestG, bestID, bestEntry, bestPrio = g, id, ruleEntry, pr
-                                end
+                                ConsiderCandidate(state, g, id, ruleEntry, pr)
                                 if debug then
                                     Debug(
                                         "Match ("
@@ -1522,6 +1548,8 @@ function ns.Talk.TryAutoSelect(isRetry)
                 end
             end
 
+            PickRandomCandidate(state)
+            local bestG, bestID, bestEntry, bestPrio = state.bestG, state.bestID, state.bestEntry, state.bestPrio
             if bestG and bestID then
                 -- Loop guard: prevent infinite reselection loops when the game returns you
                 -- to the same gossip list, but allow a small retry burst when the client
@@ -1618,7 +1646,7 @@ function ns.Talk.TryAutoSelect(isRetry)
 
     local dbNpc = GetDbNpcTable(npcID)
     if dbNpc then
-        local bestG, bestID, bestEntry, bestPrio
+        local state = { randomPool = {} }
         for _, g in ipairs(entries) do
             local id = g and g.id
             if optionGate and g and g.kind == "option" then
@@ -1657,9 +1685,7 @@ function ns.Talk.TryAutoSelect(isRetry)
                         end
 
                         if ruleEntry ~= nil then
-                            if bestG == nil or pr > (bestPrio or 0) then
-                                bestG, bestID, bestEntry, bestPrio = g, id, ruleEntry, pr
-                            end
+                            ConsiderCandidate(state, g, id, ruleEntry, pr)
                             if debug then
                                 Debug("DB match (" .. tostring(g.kind) .. ") prio=" .. tostring(pr) .. ": " .. tostring(npcID) .. ":" .. tostring(id))
                             end
@@ -1670,6 +1696,8 @@ function ns.Talk.TryAutoSelect(isRetry)
             end
         end
 
+        PickRandomCandidate(state)
+        local bestG, bestID, bestEntry, bestPrio = state.bestG, state.bestID, state.bestEntry, state.bestPrio
         if bestG and bestID then
             -- Loop guard: prevent infinite reselection loops when the game returns you
             -- to the same gossip list, but allow a small retry burst when the client

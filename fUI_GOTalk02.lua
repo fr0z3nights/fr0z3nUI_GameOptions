@@ -20,8 +20,8 @@ local GetViewGossipState = H.GetViewGossipState
 SetZone("Hellfire Peninsula, Outland")
 
    	t = NPC("Floyd Pinkus <Innkeeper>", {16602,})
-   	t[30613] = { text = "Let me browse your goods.", prio = -5 }
-   	t[30612] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+   	t[30613] = { text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", }
+   	t[30612] = { text = "Hearth", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
 	t = NPC("Nicki Tinytech", {66550,})
     t[41046] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "You don't stand a chance" }, within = 3, }, close = true,}
@@ -39,8 +39,8 @@ SetZone("Shadowmoon Valley, Outland")
 SetZone("Shattrath City, Outland")
 
    	t = NPC("Haelthol <Innkeeper>", {19232,})
-   	t[35008] = { text = "Let me browse your goods.", prio = -5 }
-   	t[35007] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+   	t[35008] = { text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", prio = -5 }
+   	t[35007] = { text = "Hearth", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
 	t = NPC("Morulu The Elder", {66553,})
     t[40903] = { text = "Let's rumble!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it" }, within = 3, }, close = true,}
@@ -48,8 +48,8 @@ SetZone("Shattrath City, Outland")
 SetZone("Zangarmarsh, Outland")
 
    	t = NPC("Merajit <Innkeeper>", {18245,})
-   	t[31892] = { text = "Let me browse your goods.", prio = -5 }
-   	t[31891] = { text = "HOLD SHIFT TO BIND HEARTHSTONE MANUALLY", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+   	t[31892] = { text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", prio = -5 }
+   	t[31891] = { text = "Hearth", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
 
 	t = NPC("Ras'an", {66551,})
     t[40901] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's rumble" }, within = 3, }, close = true,}
