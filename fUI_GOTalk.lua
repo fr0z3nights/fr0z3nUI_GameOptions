@@ -58,6 +58,34 @@ function ns.Talk.CacheSet(key, value)
     cache[key] = value
 end
 
+function ns.Talk.QueueCacheSet(key, value, optionID)
+    if type(key) ~= "string" or key == "" then
+        return
+    end
+    if type(C_Timer) ~= "table" or type(C_Timer.After) ~= "function"
+        or not (C_GossipInfo and type(C_GossipInfo.GetOptions) == "function") then
+        return
+    end
+
+    local function ConfirmSelection()
+        local ok, options = pcall(C_GossipInfo.GetOptions)
+        if not ok or type(options) ~= "table" or #options == 0 then
+            ns.Talk.CacheSet(key, value)
+            return
+        end
+
+        for _, option in ipairs(options) do
+            if type(option) == "table" and tonumber(option.gossipOptionID) == tonumber(optionID) then
+                return
+            end
+        end
+        ns.Talk.CacheSet(key, value)
+    end
+
+    C_Timer.After(0.20, ConfirmSelection)
+    C_Timer.After(0.60, ConfirmSelection)
+end
+
 local function PlayerHasQuestInLog(questID)
     questID = tonumber(questID)
     if not questID then
@@ -140,9 +168,10 @@ function ns.Talk.PrintSelectedRuleMessage(entry)
     end
 
     local now = GetTime and GetTime() or 0
-    if ns.Talk._lastPrSelEntry == entry
-        and ns.Talk._lastPrSelMessage == entry.prSel
-        and now - (ns.Talk._lastPrSelAt or 0) < 0.5 then
+    -- The SelectOption hook and the auto-select path can both report the same
+    -- successful selection. Suppress that duplicate by message and time.
+    if ns.Talk._lastPrSelMessage == entry.prSel
+        and now - (ns.Talk._lastPrSelAt or 0) < 1.0 then
         return
     end
 
@@ -211,7 +240,7 @@ function ns.Talk.EnsureEngineInitialized()
                         if v == nil then
                             v = true
                         end
-                        pcall(ns.Talk.CacheSet, key, v)
+                        pcall(ns.Talk.QueueCacheSet, key, v, optionID)
                     end
                 end
 
@@ -220,6 +249,9 @@ function ns.Talk.EnsureEngineInitialized()
                 end
                 if ns and ns.TalkUP and type(ns.TalkUP.MaybePrintRuleHint) == "function" then
                     pcall(ns.TalkUP.MaybePrintRuleHint, npcID, optionID, entry)
+                end
+                if ns and type(ns.Dundun_OnGossipInteraction) == "function" then
+                    pcall(ns.Dundun_OnGossipInteraction, npcID, optionID)
                 end
             end)
         end
@@ -738,7 +770,115 @@ function ns.Talk.TryAutoSelect(isRetry)
             return HasCurrencyAmount(currencyID, requiredAmount)
         end
 
+        local function GetMajorFactionRenownLevel(factionID)
+            if C_MajorFactions and type(C_MajorFactions.GetMajorFactionData) == "function" then
+                local ok, majorData = pcall(C_MajorFactions.GetMajorFactionData, factionID)
+                if ok and type(majorData) == "table" and majorData.renownLevel ~= nil then
+                    return tonumber(majorData.renownLevel)
+                end
+            end
+            return nil
+        end
+
+        local function GetFriendshipRepLevel(factionID)
+            if C_GossipInfo and type(C_GossipInfo.GetFriendshipReputationRanks) == "function" then
+                local ok, a, b = pcall(C_GossipInfo.GetFriendshipReputationRanks, factionID)
+                if ok then
+                    if type(a) == "table" and a.currentLevel ~= nil then
+                        return tonumber(a.currentLevel)
+                    elseif type(a) == "number" then
+                        return a
+                    end
+                end
+            end
+            return nil
+        end
+
+        local function GetParagonLevel(factionID)
+            if C_Reputation and type(C_Reputation.IsFactionParagon) == "function" and type(C_Reputation.GetFactionParagonInfo) == "function" then
+                local okIs, isParagon = pcall(C_Reputation.IsFactionParagon, factionID)
+                if okIs and isParagon then
+                    local okInfo, currentValue, threshold = pcall(C_Reputation.GetFactionParagonInfo, factionID)
+                    if okInfo and type(currentValue) == "number" and type(threshold) == "number" and threshold > 0 then
+                        return math.floor(currentValue / threshold)
+                    end
+                end
+            end
+            return nil
+        end
+
+        local function GetFactionReputationLevel(factionID)
+            factionID = tonumber(factionID)
+            if not factionID then
+                return nil
+            end
+
+            if C_Reputation and type(C_Reputation.GetFactionDataByID) == "function" then
+                local ok, data = pcall(C_Reputation.GetFactionDataByID, factionID)
+                if ok and type(data) == "table" then
+                    -- Renown factions track progress via C_MajorFactions/Friendship ranks/Paragon cycles;
+                    -- data.reaction from C_Reputation is just the 1-8 standing enum and stays maxed (8) once Exalted.
+                    return GetMajorFactionRenownLevel(factionID)
+                        or GetFriendshipRepLevel(factionID)
+                        or GetParagonLevel(factionID)
+                        or tonumber(data.reaction), data
+                end
+            end
+            return nil, nil
+        end
+
+        local function MatchesReputationSpec(spec)
+            if type(spec) ~= "table" then
+                return nil
+            end
+            local factionID = spec[1] or spec.factionID or spec.id
+            local operator = tostring(spec[2] or spec.operator or "=")
+            local requiredLevel = tonumber(spec[3] or spec.level or spec.required)
+            local currentLevel, factionData = GetFactionReputationLevel(factionID)
+            local matches = false
+            if currentLevel ~= nil and requiredLevel ~= nil then
+                if operator == "=" or operator == "==" then
+                    matches = currentLevel == requiredLevel
+                elseif operator == "<" then
+                    matches = currentLevel < requiredLevel
+                elseif operator == "<=" then
+                    matches = currentLevel <= requiredLevel
+                elseif operator == ">" then
+                    matches = currentLevel > requiredLevel
+                elseif operator == ">=" then
+                    matches = currentLevel >= requiredLevel
+                end
+            end
+
+            if tonumber(factionID) == 2744 then
+                Debug(
+                    "replvl option="
+                        .. tostring(optionID)
+                        .. " name="
+                        .. SafeToString(factionData and factionData.name)
+                        .. " reaction="
+                        .. SafeToString(currentLevel)
+                        .. " standing="
+                        .. SafeToString(factionData and factionData.currentStanding)
+                        .. " thresholds="
+                        .. SafeToString(factionData and factionData.currentReactionThreshold)
+                        .. "/"
+                        .. SafeToString(factionData and factionData.nextReactionThreshold)
+                        .. " test="
+                        .. SafeToString(currentLevel)
+                        .. " "
+                        .. operator
+                        .. " "
+                        .. SafeToString(requiredLevel)
+                        .. " result="
+                        .. tostring(matches)
+                )
+            end
+            return matches
+        end
+
         local pred = ruleEntry.when or ruleEntry.cond or ruleEntry.condition
+        local okReputation = MatchesReputationSpec(ruleEntry.replvl or ruleEntry.repLevel)
 
         -- Shorthand (DB packs):
         --   `qil = 123` / `qil = {123, 456}` => only allow if quest(s) are in your log
@@ -767,6 +907,11 @@ function ns.Talk.TryAutoSelect(isRetry)
                 allow = allow and (okCurrency and true or false)
             end
 
+            if okReputation ~= nil then
+                saw = true
+                allow = allow and (okReputation and true or false)
+            end
+
             if not saw then
                 return true
             end
@@ -788,7 +933,7 @@ function ns.Talk.TryAutoSelect(isRetry)
                 end
                 return false
             end
-            return ret and true or false
+            return ret and okReputation ~= false and true or false
         end
 
         -- Unknown condition type -> be safe and do not auto-select.
@@ -1597,6 +1742,9 @@ function ns.Talk.TryAutoSelect(isRetry)
                 ApplyMountUpSilentOff(bestEntry)
                 if bestG.kind == "option" then
                     NoteLastGossipSelection(npcID, bestID, bestEntry)
+                    if ns.Talk and type(ns.Talk.PrintSelectedRuleMessage) == "function" then
+                        ns.Talk.PrintSelectedRuleMessage(bestEntry)
+                    end
                 end
                 local isFirst = firstAutoSelectSinceLogin and true or false
                 firstAutoSelectSinceLogin = false
@@ -1608,9 +1756,6 @@ function ns.Talk.TryAutoSelect(isRetry)
                 end
 
                 if SelectEntry(bestG, npcID, entriesKey, isFirst) then
-                    if bestG.kind == "option" and ns.Talk and type(ns.Talk.PrintSelectedRuleMessage) == "function" then
-                        ns.Talk.PrintSelectedRuleMessage(bestEntry)
-                    end
                     if type(bestEntry) == "table" and ns and ns.Talk and type(ns.Talk.CacheSet) == "function" then
                         local key = bestEntry.cacheKey or bestEntry.cacheSet or bestEntry.cache
                         if type(key) == "string" and key ~= "" then
@@ -1618,7 +1763,7 @@ function ns.Talk.TryAutoSelect(isRetry)
                             if v == nil then
                                 v = true
                             end
-                            pcall(ns.Talk.CacheSet, key, v)
+                            pcall(ns.Talk.QueueCacheSet, key, v, bestID)
                         end
                     end
                     if EntryWantsCloseAfterSelect(bestEntry) then
@@ -1741,6 +1886,9 @@ function ns.Talk.TryAutoSelect(isRetry)
             ApplyMountUpSilentOff(bestEntry)
             if bestG.kind == "option" then
                 NoteLastGossipSelection(npcID, bestID, bestEntry)
+                if ns.Talk and type(ns.Talk.PrintSelectedRuleMessage) == "function" then
+                    ns.Talk.PrintSelectedRuleMessage(bestEntry)
+                end
             end
             local isFirst = firstAutoSelectSinceLogin and true or false
             firstAutoSelectSinceLogin = false
@@ -1752,9 +1900,6 @@ function ns.Talk.TryAutoSelect(isRetry)
             end
 
             if SelectEntry(bestG, npcID, entriesKey, isFirst) then
-                if bestG.kind == "option" and ns.Talk and type(ns.Talk.PrintSelectedRuleMessage) == "function" then
-                    ns.Talk.PrintSelectedRuleMessage(bestEntry)
-                end
                 if type(bestEntry) == "table" and ns and ns.Talk and type(ns.Talk.CacheSet) == "function" then
                     local key = bestEntry.cacheKey or bestEntry.cacheSet or bestEntry.cache
                     if type(key) == "string" and key ~= "" then
@@ -1762,7 +1907,7 @@ function ns.Talk.TryAutoSelect(isRetry)
                         if v == nil then
                             v = true
                         end
-                        pcall(ns.Talk.CacheSet, key, v)
+                        pcall(ns.Talk.QueueCacheSet, key, v, bestID)
                     end
                 end
                 if EntryWantsCloseAfterSelect(bestEntry) then
@@ -1807,12 +1952,13 @@ function ns.Talk.ScheduleGossipRetry()
         end)
     end
 
-    -- Small staggered retries to handle cases where gossip info isn't ready on the first frame.
-    RetryAfter(0)
-    RetryAfter(0.12)
-    -- Cold-login / first-interaction can take longer for NPC GUID/options to populate.
-    RetryAfter(0.25)
-    RetryAfter(0.45)
+    -- Give a successful selection time to transition before reevaluating rules.
+    -- A faster retry can observe the cache value written by the first selection
+    -- while the original gossip list is still open and select the opposite rule.
+    RetryAfter(0.35)
+    RetryAfter(0.80)
+    RetryAfter(1.40)
+    RetryAfter(2.20)
 end
 
 local lastPrintOnShowAt = 0
@@ -2092,4 +2238,80 @@ function ns.Talk.Print(msg)
         return
     end
     print("|cff00ccff[FGO]|r " .. tostring(msg))
+end
+
+-- Debug: print current standing for a faction without needing to open gossip (e.g. Valeera rep = 2744).
+function ns.Talk.DebugPrintFactionRep(factionID)
+    factionID = tonumber(factionID)
+    if not factionID then
+        PrintPrefixed("DebugPrintFactionRep: missing/invalid factionID")
+        return
+    end
+
+    if not (C_Reputation and type(C_Reputation.GetFactionDataByID) == "function") then
+        PrintPrefixed("DebugPrintFactionRep: C_Reputation.GetFactionDataByID unavailable")
+        return
+    end
+
+    local ok, data = pcall(C_Reputation.GetFactionDataByID, factionID)
+    if not ok or type(data) ~= "table" then
+        PrintPrefixed("DebugPrintFactionRep: no data for faction " .. tostring(factionID))
+        return
+    end
+
+    local renownLevel
+    if C_MajorFactions and type(C_MajorFactions.GetMajorFactionData) == "function" then
+        local okMajor, majorData = pcall(C_MajorFactions.GetMajorFactionData, factionID)
+        if okMajor and type(majorData) == "table" then
+            renownLevel = majorData.renownLevel
+        end
+    end
+
+    local friendshipLevel, friendshipMax
+    if C_GossipInfo and type(C_GossipInfo.GetFriendshipReputationRanks) == "function" then
+        local okFriend, a, b = pcall(C_GossipInfo.GetFriendshipReputationRanks, factionID)
+        if okFriend then
+            if type(a) == "table" then
+                friendshipLevel, friendshipMax = a.currentLevel, a.maxLevel
+            elseif type(a) == "number" then
+                friendshipLevel, friendshipMax = a, b
+            end
+        end
+    end
+
+    local paragonLevel, paragonValue, paragonThreshold
+    if C_Reputation and type(C_Reputation.IsFactionParagon) == "function" and type(C_Reputation.GetFactionParagonInfo) == "function" then
+        local okIs, isParagon = pcall(C_Reputation.IsFactionParagon, factionID)
+        if okIs and isParagon then
+            local okInfo, currentValue, threshold = pcall(C_Reputation.GetFactionParagonInfo, factionID)
+            if okInfo and type(currentValue) == "number" and type(threshold) == "number" and threshold > 0 then
+                paragonValue, paragonThreshold = currentValue, threshold
+                paragonLevel = math.floor(currentValue / threshold)
+            end
+        end
+    end
+
+    local compareLevel = tonumber(renownLevel) or tonumber(friendshipLevel) or paragonLevel or tonumber(data.reaction)
+
+    PrintPrefixed(string.format(
+        "Faction %d (%s): compareLevel=%s renownLevel=%s friendship=%s/%s paragon=%s(%s/%s) reaction=%s standing=%s/%s",
+        factionID,
+        SafeToString(data.name),
+        SafeToString(compareLevel),
+        SafeToString(renownLevel),
+        SafeToString(friendshipLevel),
+        SafeToString(friendshipMax),
+        SafeToString(paragonLevel),
+        SafeToString(paragonValue),
+        SafeToString(paragonThreshold),
+        SafeToString(data.reaction),
+        SafeToString(data.currentStanding),
+        SafeToString(data.currentReactionThreshold or data.nextReactionThreshold)
+    ))
+end
+
+SLASH_FGOVALEERA1 = "/fgovaleera"
+---@diagnostic disable-next-line: duplicate-set-field
+SlashCmdList["FGOVALEERA"] = function()
+    ns.Talk.DebugPrintFactionRep(2744)
 end

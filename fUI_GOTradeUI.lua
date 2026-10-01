@@ -908,9 +908,6 @@ function LI.Trade.BuildTab_UI(depositPanel)
       if low:find("soulbound", 1, true) then
         out.soulbound = true
       end
-      if low:find("bind on pickup", 1, true) then
-        out.soulbound = true
-      end
       if low:find("warbound", 1, true) then
         out.warbound = true
       end
@@ -952,6 +949,10 @@ function LI.Trade.BuildTab_UI(depositPanel)
       ScanItemTooltipText("item:" .. tostring(id), scanText)
     end
 
+    -- Item-ID tooltip data can include both binding phrases; the carried Warbound state wins.
+    if out.warbound then
+      out.soulbound = false
+    end
     return out
   end
 

@@ -3,7 +3,7 @@
 ## Title: |cff00ccfffr0z3nUI|r GameOptions
 ## Notes: Game options & helpers. UI: /fgo
 ## Author: fr0z3nights
-## Version: 2026.09.15.08
+## Version: 2026.10.01.04
 ## SavedVariables: AutoGame_Acc, AutoGame_Settings, AutoGame_UI
 ## SavedVariablesPerCharacter: AutoGame_Char, AutoGame_CharSettings
 
@@ -26,12 +26,13 @@ fUI_GOTalk01EK.lua
 fUI_GOTalk01KD.lua
 fUI_GOTalkEV.lua
 
-fUI_GOSwitches.lua
-fUI_GOSwitchesLDB.lua
-fUI_GOSwitchesQA.lua
-fUI_GOSwitchesCT.lua
-fUI_GOSwitchesBP.lua
-fUI_GOSwitchesMU.lua
+fUI_GOSwitch.lua
+fUI_GOSwitchLDB.lua
+fUI_GOSwitchQueue.lua
+fUI_GOSwitchChromie.lua
+fUI_GOSwitchPetWalk.lua
+fUI_GOSwitchMount.lua
+fUI_GOSwitchMail.lua
 
 
 fUI_GOTale.lua
@@ -39,7 +40,7 @@ fUI_GOTaleUI.lua
 
 fUI_GOTalk.lua
 fUI_GOTalkUI.lua
-fUI_GOSwitchesUI.lua
+fUI_GOSwitchUI.lua
 
 textures\textures.lua
 fUI_GOTextures.lua
@@ -59,6 +60,7 @@ fUI_GOMacroUI.lua
 
 fUI_GOMacroHome.lua
 
+fUI_GOSwitchDelve.lua
 fUI_GOTalkUP.lua
 
 fUI_GOTabardDB.lua
@@ -69,7 +71,6 @@ fUI_GOLootDB.lua
 fUI_GOCore.lua
 fUI_GOTradeBank.lua
 fUI_GOLootAlias.lua
-fUI_GOSwitchesMN.lua
 fUI_GOLoot.lua
 fUI_GOLootChat.lua
 fUI_GOLootUI.lua

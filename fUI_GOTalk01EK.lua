@@ -147,7 +147,7 @@ SetZone("Founder's Point, Eastern Kingdoms")
 	t[137142] = { text = "I'll be back." }
 
 
-SetZone("The Hinterlands, Eastern Kingdoms")
+SetZone("Hinterlands, Eastern Kingdoms")
 
 
 	t = NPC("Keirnan <Innkeeper>", {43699,})
@@ -178,6 +178,10 @@ SetZone("Redridge Mountains, Eastern Kingdoms")
 
 SetZone("Searing Gorge, Eastern Kingdoms")
 
+
+	t = MAP("DUNG: Blackrock Depths", {243,})
+	t[38947] = { text = "Coren Direbrew Insult", }
+	t[38297] = { text = "Coren Direbrew Fight", }
 
 	t = NPC("Velma Rockslide <Innkeeper>", {47942,})
 	t[37168] = { text = "Vendor", prSel = "Opening Vendor, Shift+Click NPC to bind Hearth", prio = -5 }

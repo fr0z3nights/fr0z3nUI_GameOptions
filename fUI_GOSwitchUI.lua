@@ -57,8 +57,10 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
         local safari = (_G and rawget(_G, "FGO_SafariPopout"))
         local queueAccept = (_G and rawget(_G, "FGO_QueueAcceptPopout"))
+        local delve = (ns and ns.GetAutoDelveConfigPopupFrame and ns.GetAutoDelveConfigPopupFrame())
+            or (_G and rawget(_G, "FGO_DelveConfigPopup"))
 
-        for _, f in ipairs({ pet, mu, chromie, safari, queueAccept }) do
+        for _, f in ipairs({ pet, mu, chromie, safari, queueAccept, delve }) do
             if f and f ~= exceptFrame then
                 HideIfShown(f)
             end
@@ -403,7 +405,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
         SetGreenGrey(segQueueAcceptQueue, "Queue", accOn)
         SetGreenGrey(segQueueAcceptEnable, "Enable", effectiveOn)
-        SetGreenGrey(segQueueAcceptConfig, "Config", configOpen)
+        segQueueAcceptConfig:SetText("|cffffff00Config|r")
     end
 
     segQueueAcceptQueue:SetScript("OnClick", function()
@@ -603,7 +605,95 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         UpdatePopUpRow()
     end)
 
-    -- Row: Action / NPC Name / Tutorial (below popup line)
+    -- Delve segments
+    local delveSegContainer = CreateFrame("Frame", nil, panel)
+    delveSegContainer:SetSize(BTN_W, BTN_H)
+    delveSegContainer:SetPoint("TOP", queueAcceptSegContainer, "BOTTOM", 0, -GAP_Y)
+    popupRow:ClearAllPoints()
+    popupRow:SetPoint("TOP", delveSegContainer, "BOTTOM", 0, -GAP_Y)
+    if frame then
+        frame.delveSegContainer = delveSegContainer
+    end
+
+    local segDelve = CreateFrame("Button", nil, delveSegContainer, "UIPanelButtonTemplate")
+    segDelve:SetSize(SEG_W, BTN_H)
+    segDelve:SetPoint("LEFT", delveSegContainer, "LEFT", 0, 0)
+    local segDelveEnable = CreateFrame("Button", nil, delveSegContainer, "UIPanelButtonTemplate")
+    segDelveEnable:SetSize(SEG_W, BTN_H)
+    segDelveEnable:SetPoint("LEFT", segDelve, "RIGHT", SEG_GAP, 0)
+    local segDelveConfig = CreateFrame("Button", nil, delveSegContainer, "UIPanelButtonTemplate")
+    segDelveConfig:SetSize(SEG_W3, BTN_H)
+    segDelveConfig:SetPoint("LEFT", segDelveEnable, "RIGHT", SEG_GAP, 0)
+
+    local function SetDelveSegment(btn, label, enabled)
+        if enabled then
+            btn:SetText("|cff00ff00" .. label .. "|r")
+        else
+            btn:SetText("|cff888888" .. label .. "|r")
+        end
+    end
+
+    local function UpdateDelveSegments()
+        InitSV()
+        SetDelveSegment(segDelve, "Delve", ns.GetAutoDelveAccountEnabled and ns.GetAutoDelveAccountEnabled() or false)
+        SetDelveSegment(segDelveEnable, "Enable", ns.GetAutoDelveCharacterEnabled and ns.GetAutoDelveCharacterEnabled() or false)
+        segDelveConfig:SetText("|cffffff00Config|r")
+    end
+
+    segDelve:SetScript("OnClick", function()
+        if ns.SetAutoDelveEnabled then
+            ns.SetAutoDelveEnabled(not (ns.GetAutoDelveAccountEnabled and ns.GetAutoDelveAccountEnabled() or false))
+        end
+        UpdateDelveSegments()
+    end)
+    segDelve:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segDelve, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Delve")
+            GameTooltip:AddLine("Account-wide master switch for automatic Delve tier selection and entry.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segDelve:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segDelveEnable:SetScript("OnClick", function()
+        if ns.SetAutoDelveCharacterEnabled then
+            ns.SetAutoDelveCharacterEnabled(not (ns.GetAutoDelveCharacterEnabled and ns.GetAutoDelveCharacterEnabled() or false))
+        end
+        UpdateDelveSegments()
+    end)
+    segDelveEnable:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segDelveEnable, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Enable")
+            GameTooltip:AddLine("Enable automatic Delves on this character.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segDelveEnable:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    segDelveConfig:SetScript("OnEnter", function()
+        if GameTooltip then
+            GameTooltip:SetOwner(segDelveConfig, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Config")
+            GameTooltip:AddLine("Configure Delve entry and exit behavior.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    segDelveConfig:SetScript("OnClick", function()
+        local popup = ns.GetAutoDelveConfigPopupFrame and ns.GetAutoDelveConfigPopupFrame()
+        if popup and popup.IsShown and popup:IsShown() then
+            popup:Hide()
+            return
+        end
+        CloseAllConfigPopouts(popup)
+        if ns.OpenAutoDelveConfigPopup then
+            ns.OpenAutoDelveConfigPopup()
+        end
+    end)
+    segDelveConfig:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    -- Row: Action / NPC Name / Tutorial (below delve controls)
     local actionRow = CreateFrame("Frame", nil, panel)
     actionRow:SetSize(BTN_W, BTN_H)
     actionRow:SetPoint("TOP", popupRow, "BOTTOM", 0, -GAP_Y)
@@ -648,6 +738,7 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
 
     local function UpdateActionRow()
         InitSV()
+        UpdateDelveSegments()
         SetTriState(btnAction, "Action", GetActionState())
         SetTriState(btnNPCName, "NPC Name", GetNPCNameState())
 
@@ -1751,9 +1842,13 @@ function ns.SwitchesUI_Build(frame, panel, helpers)
         queueAcceptSegContainer:ClearAllPoints()
         queueAcceptSegContainer:SetPoint("TOP", safariSegContainer, "BOTTOM", 0, -GAP_Y)
     end
-    if popupRow and queueAcceptSegContainer then
+    if delveSegContainer and queueAcceptSegContainer then
+        delveSegContainer:ClearAllPoints()
+        delveSegContainer:SetPoint("TOP", queueAcceptSegContainer, "BOTTOM", 0, -GAP_Y)
+    end
+    if popupRow and delveSegContainer then
         popupRow:ClearAllPoints()
-        popupRow:SetPoint("TOP", queueAcceptSegContainer, "BOTTOM", 0, -GAP_Y)
+        popupRow:SetPoint("TOP", delveSegContainer, "BOTTOM", 0, -GAP_Y)
     end
     if actionRow and popupRow then
         actionRow:ClearAllPoints()

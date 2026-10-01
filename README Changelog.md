@@ -1,8 +1,129 @@
 ﻿# fr0z3nUI_GameOptions — Changelog
 
-Format: `YYYY.MM.DD.NN` (TOC `## Version`) — short summary. Newest at the top.
+Format: 	 (TOC `## Version`) 
+## YYYY.MM.DD
+# NN
+— short summary. Newest Entry.
+# NN
+— short summary. Older Entry.
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
+
+## 2026.10.01
+# 04
+- Files: `fUI_GOSwitchDelve.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Delves: detect an active delve from the ScenarioHeaderDelves widget as well, so the Dundun reminder still appears on delve maps missing from `DELVE_MAP_IDS`.
+# 03
+- Files: `fUI_GOSwitchLDB.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Great Vault LDB: when the weekly Coffer Key Shard cap is hit, only the decimal portion of the key count turns red instead of the whole value turning green.
+# 02
+- Files: `fUI_GOSwitchLDB.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Great Vault LDB: refresh on `WEEKLY_REWARDS_ITEM_CHANGED` with a 5s retry burst, so the reward orb clears after claiming without reopening the vault.
+# 01
+- Files: `fUI_GOSwitchLDB.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Great Vault LDB: drop the `/threshold` from the Raid/Dungeon/World lanes, hide any segment at zero, and append Abundance and Catalyst counts after Coffer Keys with the reward orb still last.
+
+## 2026.09.29
+# 01
+- Files: `fUI_GOSwitchDelve.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Zygor: require instance context before auto-hiding so the shared Atal'Aman map no longer hides the viewer in the outdoor zone.
+
+## 2026.09.27
+# 04
+- Files: `fUI_GOSwitchDelve.lua`, `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Zygor: add `/fgo zghon` and `/fgo zghoff` session controls for automatic delve and pet-battle viewer hiding.
+# 03
+- Files: `fUI_GOSwitchDelve.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Delves/Pet Battles: continuously reconcile Zygor viewer visibility and use map-aware delve detection so delayed state transitions cannot miss the hide.
+# 02
+- Files: `fUI_GOTalk.lua`, `fUI_GOTaleUI.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Talk/Tale: print selected-rule messages before Blizzard gossip selection and guard Tale truncation and row visibility against secret-value taint.
+# 01
+- Files: `fUI_GOSwitchDelve.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Delves: keep the green Dundun reminder visible after interaction when the completed delve is no longer reported as active.
+
+## 2026.09.24
+# 27
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: truncate, rather than round, the equipped item level displayed in the automatic Delve tier confirmation.
+# 26
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: print the equipped item level, automatic Delve tier, and selected tier's recommended item level when the difficulty picker opens.
+# 25
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: recognize the picker’s tier dropdown and synchronize its displayed tier text after safe native tier selection and picker refresh.
+# 24
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: extend `/fgodelve` anonymous-control diagnostics to include click, mouse-down/up, and mouse-wheel handlers for locating the real tier arrow.
+# 23
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: remove an incorrect anonymous-control heuristic that clicked Blizzard’s Delve view-rewards button and could open the Adventure Guide.
+# 22
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: advance the displayed Delve tier through the picker’s real bottom-right tier-arrow clicks, matching the manual tier-selection workflow.
+# 21
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: extend `/fgodelve` anonymous clickable-control diagnostics with position, size, and text to identify the picker’s real tier arrow control.
+# 20
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: require a real rendered tier-control click before applying automatic Delve selection, preventing the backend tier from diverging from the displayed tier; extend `/fgodelve` with clickable-control diagnostics.
+# 19
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: attempt the real rendered tier-control click after Blizzard rebuilds the picker’s tier controls, so visual selection can follow the safe native tier state update.
+# 18
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: remove unsafe picker initial-tier state calls that could make Blizzard display an incorrect Delve-in-progress status.
+# 17
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: synchronize the picker’s previous-selected tier and run Blizzard's initial-tier setup so displayed rewards match the automatically chosen Delve tier.
+# 16
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: prioritize a discovered tier widget's actual click path over model-only selection so automatic Delve choice follows the same game action as a manual tier click.
+# 15
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: refresh the Delve picker tier list and reward button after automatic native tier selection so the chosen tier is immediately visible.
+# 14
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: pass the chosen tier record to Blizzard's selected-tier change callback and verify the picker retains that tier before completing automatic selection.
+# 13
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: select Delve difficulty through Blizzard's native `tierInfos` and `SetSelectedTierInfo`, choosing the highest unlocked tier whose `suggestedILvl` does not exceed the character's equipped item level.
+# 12
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: extend `/fgodelve` to print Blizzard's native tier-info records so automatic selection can use the picker API rather than inferred buttons.
+# 11
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: restrict Delve discovery to real picker frames and tier collections, and limit verbose tier tracing to a direct `/fgodelve` probe.
+# 10
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: silence routine Delve watcher skip diagnostics and only infer tiers from explicit picker metadata, not unrelated button IDs.
+# 09
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: stop retrying an unresolved Delve picker until it closes, and expand `/fgodelve` with relevant picker-field and direct-child diagnostics.
+# 08
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: add `/fgodelve`, an independent Delve diagnostic command that enables tracing and immediately probes the visible difficulty picker.
+# 07
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: add a lightweight visible-picker watcher and login diagnostic so Delve tier selection and debug tracing run even when Blizzard does not emit a picker-specific event.
+# 06
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: add `/vap debug on` diagnostics for Delve picker discovery, tier button detection, cached requirements, item level matching, and the applied selection path.
+# 05
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: broaden Delve difficulty picker discovery to indexed button collections and live Delve/Difficulty frames, and use native picker tier setters when exposed before falling back to a tier button click.
+# 04
+- Files: `fUI_GOTalkUP.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- TalkUP: Delve difficulty pickers now select the highest enabled tier meeting the character's equipped item level, with live tooltip requirements cached account-wide until the weekly reset.
+# 03
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOTradeUI.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Deposit: resolve conflicting item-ID tooltip binding phrases as Warbound when the carried item is identified as Warbound, so Warbound reagents remain depositable to the Warband Bank.
+# 02
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOTradeUI.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Deposit: do not mistake `Bind on Pickup` text on Warbound reagents for the explicit `Soulbound` state; Warbound reagents route to the Warband Bank again.
+# 01
+- Files: `fUI_GOTradeBank.lua`, `fUI_GOTradeUI.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Deposit: prioritize Soulbound over tooltip-detected Warbound so soulbound items are not routed to the Warband Bank or shown with conflicting binding warnings.
 
 ## 2026.09.15.08
 - Files: `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`

@@ -70,13 +70,12 @@ Add("d", "fish", [[
 
 Add("d", "logout", [[
 /console Sound_MasterVolume 0.5
-/console Sound_EnableMusic 1
 ]])
 
 -- Convenience macros (d-mode)
 Add("d", "exit", [[
 /console Sound_MasterVolume 0.5
-/console Sound_EnableMusic 1
+/console Sound_EnableMusic 0
 ]])
 
 -- DK | DH | DR | EV | HN | MG | MK | PD | PT | RG | SM | WL | WR

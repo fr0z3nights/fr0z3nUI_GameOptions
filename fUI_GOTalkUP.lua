@@ -1,8 +1,847 @@
+
+
 ---@diagnostic disable: undefined-global
 
 local addonName, ns = ...
 if type(ns) ~= "table" then
     ns = {}
+end
+
+-- ============================================================================
+-- Valeera AutoProfile
+-- ============================================================================
+
+do
+    local Valeera = {}
+    local valeeraFrame
+    local valeeraHooked
+    local valeeraApplyPending
+    local valeeraPanel
+    local SaveValeeraProfile
+    local ScheduleValeeraApply
+
+    local COMPANION_OPTIONS = {
+        [140123] = true,
+        [140126] = true,
+        [140496] = true,
+    }
+
+    local function InitValeeraDB()
+        if ns and type(ns._InitSV) == "function" then
+            ns._InitSV()
+        end
+
+        AutoGame_Acc.valeeraProfiles = AutoGame_Acc.valeeraProfiles or {}
+        AutoGame_Acc.valeeraEntryNames = AutoGame_Acc.valeeraEntryNames or {}
+        AutoGame_Char.valeeraProfiles = AutoGame_Char.valeeraProfiles or {}
+        AutoGame_Settings.valeera = AutoGame_Settings.valeera or {}
+
+        -- Migrate the standalone addon's data once, without deleting its DB.
+        local legacy = rawget(_G, "ValeeraAutoProfileDB")
+        if legacy and not AutoGame_Acc.valeeraMigrated then
+            if type(legacy.profiles) == "table" and next(AutoGame_Acc.valeeraProfiles) == nil then
+                for name, profile in pairs(legacy.profiles) do
+                    if type(name) == "string" and type(profile) == "table" then
+                        AutoGame_Acc.valeeraProfiles[name] = {
+                            role = tonumber(profile.role),
+                            poisons = tonumber(profile.poisons or profile.poison),
+                            combat = tonumber(profile.combat),
+                            utility = tonumber(profile.utility),
+                        }
+                    end
+                end
+            end
+            if not AutoGame_Acc.valeeraActive then
+                AutoGame_Acc.valeeraActive = legacy.activeProfile
+            end
+            if type(legacy.charProfiles) == "table" then
+                for key, profileName in pairs(legacy.charProfiles) do
+                    if AutoGame_Char.valeeraProfiles[key] == nil then
+                        AutoGame_Char.valeeraProfiles[key] = profileName
+                    end
+                end
+            end
+            if type(legacy.settings) == "table" then
+                if type(AutoGame_Settings.valeera.autoGossip) ~= "boolean" then
+                    AutoGame_Settings.valeera.autoGossip = legacy.settings.autoGossip
+                end
+                if type(AutoGame_Settings.valeera.autoClose) ~= "boolean" then
+                    AutoGame_Settings.valeera.autoClose = legacy.settings.autoClose
+                end
+            end
+            AutoGame_Acc.valeeraMigrated = true
+        end
+
+        if type(AutoGame_Settings.valeera.autoGossip) ~= "boolean" then
+            AutoGame_Settings.valeera.autoGossip = false
+        end
+        if type(AutoGame_Settings.valeera.autoClose) ~= "boolean" then
+            AutoGame_Settings.valeera.autoClose = false
+        end
+        if AutoGame_Settings.valeera.profileMode ~= "account"
+            and AutoGame_Settings.valeera.profileMode ~= "character" then
+            AutoGame_Settings.valeera.profileMode = "account"
+        end
+    end
+
+    local function GetValeeraPlayerKey()
+        local name = UnitName and UnitName("player") or "Unknown"
+        local realm = GetNormalizedRealmName and GetNormalizedRealmName() or ""
+        return tostring(name) .. "-" .. tostring(realm or "")
+    end
+
+    local function GetValeeraFrame()
+        return rawget(_G, "DelvesCompanionConfigurationFrame")
+    end
+
+    local function GetValeeraSlots(frame)
+        if not frame then
+            return nil, nil, nil, nil
+        end
+
+        local roleSlot = frame.CompanionCombatRoleSlot or frame.RoleSlot or frame.CombatRoleSlot
+        local poisonsSlot = frame.CompanionPoisonSlot or frame.CompanionCombatPoisonSlot or frame.PoisonSlot or frame.PoisonsSlot
+        local combatSlot = frame.CompanionCombatTrinketSlot or frame.CombatTrinketSlot or frame.CombatSlot
+        local utilitySlot = frame.CompanionUtilityTrinketSlot or frame.UtilityTrinketSlot or frame.UtilitySlot
+        if roleSlot and poisonsSlot and combatSlot and utilitySlot then
+            return roleSlot, poisonsSlot, combatSlot, utilitySlot
+        end
+
+        local candidates = {}
+        local function AddCandidate(child)
+            if child and child.selectionNodeID then
+                candidates[#candidates + 1] = child
+            end
+        end
+
+        local function ScanChildren(parent, depth)
+            if not (parent and parent.GetChildren and depth > 0) then
+                return
+            end
+            local children = { parent:GetChildren() }
+            for _, child in ipairs(children) do
+                AddCandidate(child)
+                ScanChildren(child, depth - 1)
+            end
+        end
+        ScanChildren(frame, 4)
+
+        for _, candidate in ipairs(candidates) do
+            local name = candidate.GetName and candidate:GetName() or ""
+            name = tostring(name):lower()
+            if not poisonsSlot and (name:find("poison", 1, true) or name:find("venom", 1, true)) then
+                poisonsSlot = candidate
+            elseif not utilitySlot and name:find("utility", 1, true) then
+                utilitySlot = candidate
+            elseif not roleSlot and name:find("role", 1, true) then
+                roleSlot = candidate
+            elseif not combatSlot and name:find("combat", 1, true) then
+                combatSlot = candidate
+            end
+        end
+
+        local remaining = {}
+        for _, candidate in ipairs(candidates) do
+            if candidate ~= roleSlot and candidate ~= poisonsSlot
+                and candidate ~= combatSlot and candidate ~= utilitySlot then
+                remaining[#remaining + 1] = candidate
+            end
+        end
+        roleSlot = roleSlot or remaining[1]
+        poisonsSlot = poisonsSlot or remaining[2]
+        combatSlot = combatSlot or remaining[3]
+        utilitySlot = utilitySlot or remaining[4]
+        return roleSlot, poisonsSlot, combatSlot, utilitySlot
+    end
+
+    local function GetActiveValeeraProfile()
+        InitValeeraDB()
+        local key = GetValeeraPlayerKey()
+        local mode = AutoGame_Settings.valeera.profileMode
+        local name = mode == "character" and AutoGame_Char.valeeraProfiles[key] or AutoGame_Acc.valeeraActive
+        return name, name and AutoGame_Acc.valeeraProfiles[name], key, mode
+    end
+
+    local function ValeeraDebug(message)
+        InitValeeraDB()
+        if AutoGame_Settings.valeera.debug then
+            print("|cffff8000[fr0z3nUI Valeera]|r " .. tostring(message))
+        end
+    end
+
+    local function ValeeraSlotDebug(slot)
+        if not slot then
+            return "missing"
+        end
+        local name = slot.GetName and slot:GetName() or "(unnamed)"
+        return string.format(
+            "%s node=%s config=%s",
+            tostring(name),
+            tostring(slot.selectionNodeID),
+            tostring(slot.configID)
+        )
+    end
+
+    local function GetValeeraEntryName(configID, entryID)
+        entryID = tonumber(entryID)
+        if not (configID and entryID and C_Traits and C_Traits.GetEntryInfo) then
+            return nil
+        end
+
+        InitValeeraDB()
+        local cachedName = AutoGame_Acc.valeeraEntryNames[tostring(entryID)]
+        if type(cachedName) == "string" and cachedName ~= "" then
+            return cachedName
+        end
+
+        local entryOK, entryInfo = pcall(C_Traits.GetEntryInfo, configID, entryID)
+        if not entryOK or type(entryInfo) ~= "table" then
+            return nil
+        end
+        local name = entryInfo.overrideName or entryInfo.name
+        if not name and entryInfo.definitionID and C_Traits.GetDefinitionInfo then
+            local definitionOK, definitionInfo = pcall(C_Traits.GetDefinitionInfo, entryInfo.definitionID)
+            if definitionOK and type(definitionInfo) == "table" then
+                name = definitionInfo.overrideName or definitionInfo.name
+            end
+        end
+        if type(name) == "string" and name ~= "" then
+            AutoGame_Acc.valeeraEntryNames[tostring(entryID)] = name
+            return name
+        end
+        return nil
+    end
+
+    local function ResolveValeeraTraitEntry(configID, nodeInfo, entryID, savedName)
+        entryID = tonumber(entryID)
+        local entryIDs = nodeInfo and nodeInfo.entryIDs
+        if not (entryID and type(entryIDs) == "table") then
+            return entryID
+        end
+
+        for _, candidateID in ipairs(entryIDs) do
+            if tonumber(candidateID) == entryID then
+                return entryID
+            end
+        end
+
+        savedName = savedName or AutoGame_Acc.valeeraEntryNames[tostring(entryID)]
+        if type(savedName) ~= "string" or savedName == "" then
+            return nil
+        end
+        for _, candidateID in ipairs(entryIDs) do
+            local candidateName = GetValeeraEntryName(configID, candidateID)
+            if candidateName == savedName then
+                return tonumber(candidateID), candidateName
+            end
+        end
+        return nil
+    end
+
+    local function ApplyValeeraProfile()
+        local frame = GetValeeraFrame()
+        if not (frame and frame.IsShown and frame:IsShown()) then
+            return true
+        end
+
+        local profileName, profile, playerKey, profileMode = GetActiveValeeraProfile()
+        if not profileName or not profile then
+            return true
+        end
+
+        local roleSlot, poisonsSlot, combatSlot, utilitySlot = GetValeeraSlots(frame)
+        local configID = roleSlot and roleSlot.configID
+        configID = configID or (combatSlot and combatSlot.configID)
+        configID = configID or (utilitySlot and utilitySlot.configID)
+        if not configID and frame.GetChildren then
+            local children = { frame:GetChildren() }
+            for _, child in ipairs(children) do
+                configID = child and child.configID
+                if configID then break end
+            end
+        end
+        local roleConfigID = (roleSlot and roleSlot.configID) or configID
+        local poisonsConfigID = (poisonsSlot and poisonsSlot.configID) or configID
+        local combatConfigID = (combatSlot and combatSlot.configID) or configID
+        local utilityConfigID = (utilitySlot and utilitySlot.configID) or configID
+        local roleNode = roleSlot and roleSlot.selectionNodeID
+        local poisonsNode = poisonsSlot and poisonsSlot.selectionNodeID
+        local combatNode = combatSlot and combatSlot.selectionNodeID
+        local utilityNode = utilitySlot and utilitySlot.selectionNodeID
+        ValeeraDebug("apply profile=" .. tostring(profileName))
+        ValeeraDebug("role: " .. ValeeraSlotDebug(roleSlot))
+        ValeeraDebug("poisons: " .. ValeeraSlotDebug(poisonsSlot))
+        ValeeraDebug("combat: " .. ValeeraSlotDebug(combatSlot))
+        ValeeraDebug("utility: " .. ValeeraSlotDebug(utilitySlot))
+        ValeeraDebug("resolved configs role=" .. tostring(roleConfigID) .. " poisons=" .. tostring(poisonsConfigID) .. " combat=" .. tostring(combatConfigID) .. " utility=" .. tostring(utilityConfigID))
+        if not (roleConfigID and poisonsConfigID and combatConfigID and utilityConfigID and roleNode and poisonsNode and combatNode and utilityNode) then
+            ValeeraDebug("not ready: missing config or node")
+            return false
+        end
+
+        local roleInfo = C_Traits.GetNodeInfo(roleConfigID, roleNode)
+        local poisonsInfo = C_Traits.GetNodeInfo(poisonsConfigID, poisonsNode)
+        local combatInfo = C_Traits.GetNodeInfo(combatConfigID, combatNode)
+        local utilityInfo = C_Traits.GetNodeInfo(utilityConfigID, utilityNode)
+        if not (roleInfo and poisonsInfo and combatInfo and utilityInfo) then
+            ValeeraDebug("not ready: node info role=" .. tostring(roleInfo ~= nil) .. " poisons=" .. tostring(poisonsInfo ~= nil) .. " combat=" .. tostring(combatInfo ~= nil) .. " utility=" .. tostring(utilityInfo ~= nil))
+            return false
+        end
+
+        local changedConfigs = {}
+        local function ApplyTrait(configID, nodeID, nodeInfo, targetEntryID, profileIDKey, profileNameKey)
+            targetEntryID = tonumber(targetEntryID)
+            if not targetEntryID then
+                return
+            end
+            if profileIDKey then
+                local resolvedEntryID, resolvedName = ResolveValeeraTraitEntry(configID, nodeInfo, targetEntryID, profile[profileNameKey])
+                if not resolvedEntryID then
+                    ValeeraDebug("missing curio entry=" .. tostring(targetEntryID) .. " node=" .. tostring(nodeID))
+                    return
+                end
+                if resolvedEntryID ~= targetEntryID then
+                    profile[profileIDKey] = resolvedEntryID
+                    profile[profileNameKey] = resolvedName or GetValeeraEntryName(configID, resolvedEntryID)
+                    ValeeraDebug("updated curio entry=" .. tostring(targetEntryID) .. " to=" .. tostring(resolvedEntryID))
+                    targetEntryID = resolvedEntryID
+                elseif not profile[profileNameKey] then
+                    profile[profileNameKey] = GetValeeraEntryName(configID, targetEntryID)
+                end
+            end
+            local currentEntry = nodeInfo.activeEntry and nodeInfo.activeEntry.entryID
+            ValeeraDebug("node=" .. tostring(nodeID) .. " current=" .. tostring(currentEntry) .. " target=" .. tostring(targetEntryID))
+            if currentEntry ~= targetEntryID then
+                C_Traits.SetSelection(configID, nodeID, targetEntryID)
+                changedConfigs[configID] = true
+                ValeeraDebug("changed node=" .. tostring(nodeID) .. " config=" .. tostring(configID))
+            else
+                ValeeraDebug("unchanged node=" .. tostring(nodeID))
+            end
+        end
+
+        ApplyTrait(roleConfigID, roleNode, roleInfo, profile.role)
+        ApplyTrait(poisonsConfigID, poisonsNode, poisonsInfo, profile.poisons, "poisons", "poisonsName")
+        ApplyTrait(combatConfigID, combatNode, combatInfo, profile.combat, "combat", "combatName")
+        ApplyTrait(utilityConfigID, utilityNode, utilityInfo, profile.utility, "utility", "utilityName")
+
+        if next(changedConfigs) then
+            for changedConfigID in pairs(changedConfigs) do
+                C_Traits.CommitConfig(changedConfigID)
+                ValeeraDebug("committed config=" .. tostring(changedConfigID))
+            end
+            local source = profileMode == "character" and "(Char)" or "(Global)"
+            print("|cff00ff00[fr0z3nUI]|r Valeera profile '|cffffff00" .. profileName .. "|r' loaded " .. source)
+            if AutoGame_Settings.valeera.autoClose and C_Timer and C_Timer.After then
+                C_Timer.After(0.15, function()
+                    if frame and frame.IsShown and frame:IsShown() then
+                        HideUIPanel(frame)
+                    end
+                end)
+            end
+        end
+        return true
+    end
+
+    local function DumpValeeraDebug()
+        local frame = GetValeeraFrame()
+        local profileName, profile = GetActiveValeeraProfile()
+        local roleSlot, poisonsSlot, combatSlot, utilitySlot = GetValeeraSlots(frame)
+        print("|cffff8000[fr0z3nUI Valeera]|r debug=" .. tostring(AutoGame_Settings.valeera.debug))
+        print("  frame=" .. tostring(frame ~= nil) .. " shown=" .. tostring(frame and frame.IsShown and frame:IsShown()))
+        print("  profile=" .. tostring(profileName) .. " role=" .. tostring(profile and profile.role) .. " poisons=" .. tostring(profile and profile.poisons) .. " combat=" .. tostring(profile and profile.combat) .. " utility=" .. tostring(profile and profile.utility))
+        print("  role: " .. ValeeraSlotDebug(roleSlot))
+        print("  poisons: " .. ValeeraSlotDebug(poisonsSlot))
+        print("  combat: " .. ValeeraSlotDebug(combatSlot))
+        print("  utility: " .. ValeeraSlotDebug(utilitySlot))
+    end
+
+    local function GetValeeraSlotEntry(slot, fallbackConfigID)
+        if not slot or not slot.selectionNodeID then
+            return nil
+        end
+        local info = C_Traits.GetNodeInfo(slot.configID or fallbackConfigID, slot.selectionNodeID)
+        return info and info.activeEntry and tonumber(info.activeEntry.entryID)
+    end
+
+    -- Role entries have no spell/description in C_Traits data, so read the slot's own hover tooltip instead.
+    local function GetValeeraSlotTooltipLabel(slot)
+        if not (slot and slot.GetScript and GameTooltip) then
+            return nil
+        end
+        local onEnter = slot:GetScript("OnEnter")
+        if type(onEnter) ~= "function" then
+            return nil
+        end
+        local label
+        local ok = pcall(function()
+            GameTooltip:SetOwner(slot, "ANCHOR_NONE")
+            onEnter(slot)
+        end)
+        if ok and GameTooltip:IsShown() then
+            local textLine = _G["GameTooltipTextLeft1"]
+            local text = textLine and textLine.GetText and textLine:GetText()
+            if type(text) == "string" and text ~= "" then
+                label = text
+            end
+        end
+        local onLeave = slot:GetScript("OnLeave")
+        if type(onLeave) == "function" then
+            pcall(onLeave, slot)
+        end
+        GameTooltip:Hide()
+        return label
+    end
+
+    local function GetValeeraEntryLabel(slot, fallbackConfigID)
+        local entryID = GetValeeraSlotEntry(slot, fallbackConfigID)
+        if not entryID then
+            return "-"
+        end
+
+        InitValeeraDB()
+        local cachedName = AutoGame_Acc.valeeraEntryNames[tostring(entryID)]
+        if type(cachedName) == "string" and cachedName ~= "" then
+            return cachedName .. " (" .. tostring(entryID) .. ")"
+        end
+
+        local configID = slot and (slot.configID or fallbackConfigID)
+        local name
+        if configID and C_Traits.GetEntryInfo and C_Traits.GetDefinitionInfo then
+            local entryOK, entryInfo = pcall(C_Traits.GetEntryInfo, configID, entryID)
+            local definitionID = entryOK and entryInfo and entryInfo.definitionID
+            if entryOK and type(entryInfo) == "table" then
+                name = entryInfo.overrideName or entryInfo.name
+            end
+            if definitionID then
+                local definitionOK, definitionInfo = pcall(C_Traits.GetDefinitionInfo, definitionID)
+                if definitionOK and type(definitionInfo) == "table" then
+                    name = name or definitionInfo.overrideName or definitionInfo.name or definitionInfo.description
+                    local spellID = definitionInfo.spellID
+                    if not name and spellID and C_Spell then
+                        if type(C_Spell.GetSpellName) == "function" then
+                            local spellOK, spellName = pcall(C_Spell.GetSpellName, spellID)
+                            name = spellOK and spellName or nil
+                        end
+                        if not name and type(C_Spell.GetSpellInfo) == "function" then
+                            local spellOK, spellInfo = pcall(C_Spell.GetSpellInfo, spellID)
+                            name = spellOK and type(spellInfo) == "table" and spellInfo.name or nil
+                        end
+                    end
+                end
+            end
+        end
+        if not name then
+            name = GetValeeraSlotTooltipLabel(slot)
+        end
+        if type(name) == "string" and name ~= "" then
+            AutoGame_Acc.valeeraEntryNames[tostring(entryID)] = name
+            return name .. " (" .. tostring(entryID) .. ")"
+        end
+        return tostring(entryID)
+    end
+
+    local function RefreshValeeraPanel()
+        if not valeeraPanel then
+            return
+        end
+        InitValeeraDB()
+
+        local frame = GetValeeraFrame()
+        local roleSlot, poisonsSlot, combatSlot, utilitySlot = GetValeeraSlots(frame)
+        local configID = roleSlot and roleSlot.configID
+        configID = configID or (poisonsSlot and poisonsSlot.configID)
+        configID = configID or (combatSlot and combatSlot.configID)
+        configID = configID or (utilitySlot and utilitySlot.configID)
+        local role = GetValeeraEntryLabel(roleSlot, configID)
+        local poisons = GetValeeraEntryLabel(poisonsSlot, configID)
+        local combat = GetValeeraEntryLabel(combatSlot, configID)
+        local utility = GetValeeraEntryLabel(utilitySlot, configID)
+
+        valeeraPanel.current:SetText(string.format(
+            "Role: %s\nPoison: %s\nCombat: %s\nUtility: %s",
+            tostring(role or "-"), tostring(poisons or "-"),
+            tostring(combat or "-"), tostring(utility or "-")
+        ))
+        local mode = AutoGame_Settings.valeera.profileMode
+        local activeName = mode == "character" and AutoGame_Char.valeeraProfiles[GetValeeraPlayerKey()] or AutoGame_Acc.valeeraActive
+        valeeraPanel.mode:SetText(mode == "character" and "Character Companion" or "Account Companion")
+        valeeraPanel.active:SetText("Active: " .. tostring(activeName or "None"))
+        if valeeraPanel.debug then
+            valeeraPanel.debug:SetText("Debug: " .. (AutoGame_Settings.valeera.debug == true and "ON" or "OFF"))
+        end
+
+        local names = {}
+        for name in pairs(AutoGame_Acc.valeeraProfiles) do
+            names[#names + 1] = name
+        end
+        table.sort(names)
+        for index, row in ipairs(valeeraPanel.profileRows) do
+            local name = names[index]
+            row:Hide()
+            if name then
+                row.name = name
+                row.use:SetText(name)
+                row:Show()
+            end
+        end
+    end
+
+    local function EnsureValeeraPanel()
+        if valeeraPanel then
+            RefreshValeeraPanel()
+            return valeeraPanel
+        end
+        local frame = GetValeeraFrame()
+        if not (frame and CreateFrame and UIParent) then
+            return nil
+        end
+
+        valeeraPanel = CreateFrame("Frame", "FGO_ValeeraProfilePanel", UIParent, "BackdropTemplate")
+        valeeraPanel:SetSize(294, 328)
+        valeeraPanel:SetFrameStrata("DIALOG")
+        valeeraPanel:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 0, -8)
+        if valeeraPanel.SetBackdrop then
+            valeeraPanel:SetBackdrop({
+                bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+                tile = true,
+                tileSize = 32,
+            })
+        end
+
+        local function RemoveButtonBackground(button)
+            local textures = {
+                button.GetNormalTexture and button:GetNormalTexture(),
+                button.GetPushedTexture and button:GetPushedTexture(),
+                button.GetHighlightTexture and button:GetHighlightTexture(),
+                button.GetDisabledTexture and button:GetDisabledTexture(),
+                button.Left,
+                button.Middle,
+                button.Right,
+            }
+            for _, texture in ipairs(textures) do
+                if texture and texture.Hide then
+                    texture:Hide()
+                end
+            end
+        end
+
+        local title = valeeraPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOP", 0, -10)
+        title:SetText("")
+
+        valeeraPanel.mode = CreateFrame("Button", nil, valeeraPanel, "UIPanelButtonTemplate")
+        valeeraPanel.mode:SetSize(170, 22)
+        valeeraPanel.mode:SetPoint("TOP", 0, -7)
+        RemoveButtonBackground(valeeraPanel.mode)
+        valeeraPanel.mode:SetScript("OnClick", function()
+            InitValeeraDB()
+            AutoGame_Settings.valeera.profileMode = AutoGame_Settings.valeera.profileMode == "character" and "account" or "character"
+            ScheduleValeeraApply()
+            RefreshValeeraPanel()
+        end)
+
+        valeeraPanel.current = valeeraPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        valeeraPanel.current:SetPoint("TOPLEFT", 12, -38)
+        valeeraPanel.current:SetJustifyH("LEFT")
+        valeeraPanel.current:SetText("Current")
+
+        valeeraPanel.active = valeeraPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        valeeraPanel.active:SetPoint("TOPLEFT", 12, -90)
+        valeeraPanel.active:SetJustifyH("LEFT")
+
+        local nameBox = CreateFrame("EditBox", nil, valeeraPanel, "InputBoxTemplate")
+        nameBox:SetSize(130, 24)
+        nameBox:SetPoint("TOPLEFT", 12, -112)
+        nameBox:SetAutoFocus(false)
+        nameBox:SetTextInsets(6, 6, 0, 0)
+        nameBox:SetText("Default")
+        valeeraPanel.nameBox = nameBox
+
+        local saveButton = CreateFrame("Button", nil, valeeraPanel, "UIPanelButtonTemplate")
+        saveButton:SetSize(75, 24)
+        saveButton:SetPoint("LEFT", nameBox, "RIGHT", 5, 0)
+        saveButton:SetText("Save")
+        RemoveButtonBackground(saveButton)
+        saveButton:SetScript("OnClick", function()
+            local name = strtrim(nameBox:GetText() or "")
+            if name ~= "" and SaveValeeraProfile then
+                SaveValeeraProfile(name, AutoGame_Settings.valeera.profileMode)
+                RefreshValeeraPanel()
+            end
+        end)
+
+        valeeraPanel.profileRows = {}
+        for index = 1, 5 do
+            local row = CreateFrame("Frame", nil, valeeraPanel)
+            row:SetSize(270, 25)
+            row:SetPoint("TOPLEFT", 12, -142 - ((index - 1) * 26))
+            row.background = row:CreateTexture(nil, "BACKGROUND")
+            row.background:SetAllPoints()
+            if index % 2 == 0 then
+                row.background:SetColorTexture(1, 1, 1, 0.06)
+            else
+                row.background:SetColorTexture(0, 0, 0, 0.06)
+            end
+            row.use = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            row.use:SetSize(225, 23)
+            row.use:SetPoint("LEFT")
+            RemoveButtonBackground(row.use)
+            row.use:SetScript("OnClick", function()
+                if row.name and AutoGame_Acc.valeeraProfiles[row.name] then
+                    if AutoGame_Settings.valeera.profileMode == "character" then
+                        AutoGame_Char.valeeraProfiles[GetValeeraPlayerKey()] = row.name
+                    else
+                        AutoGame_Acc.valeeraActive = row.name
+                    end
+                    ScheduleValeeraApply()
+                    RefreshValeeraPanel()
+                end
+            end)
+            row.delete = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            row.delete:SetSize(35, 23)
+            row.delete:SetPoint("RIGHT")
+            row.delete:SetText("X")
+            RemoveButtonBackground(row.delete)
+            row.delete:SetScript("OnClick", function()
+                if row.name then
+                    AutoGame_Acc.valeeraProfiles[row.name] = nil
+                    if AutoGame_Acc.valeeraActive == row.name then
+                        AutoGame_Acc.valeeraActive = nil
+                    end
+                    RefreshValeeraPanel()
+                end
+            end)
+            valeeraPanel.profileRows[index] = row
+        end
+
+        valeeraPanel.debug = CreateFrame("Button", nil, valeeraPanel, "UIPanelButtonTemplate")
+        valeeraPanel.debug:SetSize(110, 20)
+        valeeraPanel.debug:SetPoint("BOTTOM", 0, 8)
+        RemoveButtonBackground(valeeraPanel.debug)
+        valeeraPanel.debug:SetScript("OnClick", function()
+            InitValeeraDB()
+            AutoGame_Settings.valeera.debug = not (AutoGame_Settings.valeera.debug == true)
+            RefreshValeeraPanel()
+            DumpValeeraDebug()
+        end)
+
+        RefreshValeeraPanel()
+        return valeeraPanel
+    end
+
+    ScheduleValeeraApply = function()
+        if valeeraApplyPending or not (C_Timer and C_Timer.After) then
+            return
+        end
+        valeeraApplyPending = true
+        local attempts = 0
+        local function TryApply()
+            attempts = attempts + 1
+            local ready = ApplyValeeraProfile()
+            -- TRAIT_CONFIG_UPDATED can fire during CommitConfig while this scheduler is
+            -- pending. Keep one delayed pass so late-created/refreshed slots are reconciled.
+            if (ready and attempts >= 2) or attempts >= 20 then
+                valeeraApplyPending = nil
+            else
+                C_Timer.After(0.1, TryApply)
+            end
+        end
+        C_Timer.After(0, TryApply)
+    end
+
+    local function HookValeeraFrame()
+        local frame = GetValeeraFrame()
+        if frame and frame.HookScript and not valeeraHooked then
+            frame:HookScript("OnShow", ScheduleValeeraApply)
+            frame:HookScript("OnShow", function()
+                local panel = EnsureValeeraPanel()
+                if panel then
+                    panel:Show()
+                end
+            end)
+            frame:HookScript("OnHide", function()
+                if valeeraPanel then
+                    valeeraPanel:Hide()
+                end
+            end)
+            valeeraHooked = true
+        end
+        if frame and frame.IsShown and frame:IsShown() then
+            ScheduleValeeraApply()
+            local panel = EnsureValeeraPanel()
+            if panel then
+                panel:Show()
+            end
+        end
+    end
+
+    local function IsValeeraGossipOption(option)
+        if type(option) ~= "table" then
+            return false
+        end
+        if COMPANION_OPTIONS[tonumber(option.gossipOptionID)] then
+            return true
+        end
+        local name = type(option.name) == "string" and option.name:lower() or ""
+        return name:find("companion", 1, true) ~= nil or name:find("begleiter", 1, true) ~= nil
+    end
+
+    local function AutoSelectValeeraGossip()
+        InitValeeraDB()
+        if not AutoGame_Settings.valeera.autoGossip or (IsShiftKeyDown and IsShiftKeyDown()) then
+            return
+        end
+        if not (C_GossipInfo and type(C_GossipInfo.GetOptions) == "function") then
+            return
+        end
+        local options = C_GossipInfo.GetOptions() or {}
+        for _, option in ipairs(options) do
+            if IsValeeraGossipOption(option) then
+                if type(C_GossipInfo.SelectOption) == "function" then
+                    C_GossipInfo.SelectOption(option.gossipOptionID)
+                end
+                return
+            end
+        end
+    end
+
+    SaveValeeraProfile = function(name, mode)
+        local frame = GetValeeraFrame()
+        if not (frame and frame.IsShown and frame:IsShown()) then
+            print("|cffff0000[fr0z3nUI]|r Open the Companion Supplies window first.")
+            return
+        end
+        local roleSlot, poisonsSlot, combatSlot, utilitySlot = GetValeeraSlots(frame)
+        local configID = roleSlot and roleSlot.configID
+        configID = configID or (poisonsSlot and poisonsSlot.configID)
+        configID = configID or (combatSlot and combatSlot.configID)
+        configID = configID or (utilitySlot and utilitySlot.configID)
+        if not (roleSlot and poisonsSlot and combatSlot and utilitySlot
+            and configID and roleSlot.selectionNodeID
+            and poisonsSlot.selectionNodeID
+            and combatSlot.selectionNodeID and utilitySlot.selectionNodeID) then
+            print("|cffff0000[fr0z3nUI]|r Valeera abilities are not ready yet.")
+            return
+        end
+        local function GetEntry(slot, fallbackConfigID)
+            local nodeID = slot.selectionNodeID
+            local info = C_Traits.GetNodeInfo(slot.configID or fallbackConfigID, nodeID)
+            return info and info.activeEntry and tonumber(info.activeEntry.entryID)
+        end
+        local role, poisons, combat, utility = GetEntry(roleSlot, configID), GetEntry(poisonsSlot, configID), GetEntry(combatSlot, configID), GetEntry(utilitySlot, configID)
+        if not (role and poisons and combat and utility) then
+            print("|cffff0000[fr0z3nUI]|r Select an ability in all four Valeera slots first.")
+            return
+        end
+        InitValeeraDB()
+        AutoGame_Acc.valeeraProfiles[name] = {
+            role = role,
+            poisons = poisons,
+            poisonsName = GetValeeraEntryName(poisonsSlot.configID or configID, poisons),
+            combat = combat,
+            combatName = GetValeeraEntryName(combatSlot.configID or configID, combat),
+            utility = utility,
+            utilityName = GetValeeraEntryName(utilitySlot.configID or configID, utility),
+        }
+        mode = mode or "account"
+        if mode == "character" then
+            AutoGame_Char.valeeraProfiles[GetValeeraPlayerKey()] = name
+        else
+            AutoGame_Acc.valeeraActive = name
+        end
+        ValeeraDebug("saved profile=" .. tostring(name) .. " role=" .. tostring(role) .. " poisons=" .. tostring(poisons) .. " combat=" .. tostring(combat) .. " utility=" .. tostring(utility))
+        print("|cff00ff00[fr0z3nUI]|r Valeera profile '|cffffff00" .. name .. "|r' saved for " .. (mode == "character" and "this character." or "the account."))
+    end
+
+    local function ValeeraCommand(message)
+        InitValeeraDB()
+        local command, argument = tostring(message or ""):match("^(%S*)%s*(.-)$")
+        command = command and command:lower() or ""
+        argument = argument or ""
+        local key = GetValeeraPlayerKey()
+
+        if command == "save" and argument ~= "" then
+            SaveValeeraProfile(argument, AutoGame_Settings.valeera.profileMode)
+        elseif command == "list" then
+            if not next(AutoGame_Acc.valeeraProfiles) then
+                print("|cff00ff00[fr0z3nUI]|r No Valeera profiles saved.")
+                return
+            end
+            print("|cff00ff00[fr0z3nUI]|r Valeera profiles:")
+            for name in pairs(AutoGame_Acc.valeeraProfiles) do
+                local tags = name == AutoGame_Acc.valeeraActive and " (Global)" or ""
+                if AutoGame_Char.valeeraProfiles[key] == name then tags = tags .. " (Char)" end
+                print("  |cffffff00" .. name .. "|r" .. tags)
+            end
+        elseif command == "use" and argument ~= "" then
+            if AutoGame_Acc.valeeraProfiles[argument] then
+                if AutoGame_Settings.valeera.profileMode == "character" then
+                    AutoGame_Char.valeeraProfiles[key] = argument
+                else
+                    AutoGame_Acc.valeeraActive = argument
+                end
+                print("|cff00ff00[fr0z3nUI]|r Valeera " .. (AutoGame_Settings.valeera.profileMode == "character" and "character" or "account") .. " profile set to '" .. argument .. "'.")
+                ScheduleValeeraApply()
+            else
+                print("|cffff0000[fr0z3nUI]|r Profile not found: " .. argument)
+            end
+        elseif command == "char" and argument ~= "" then
+            if argument:lower() == "off" then
+                AutoGame_Char.valeeraProfiles[key] = nil
+            elseif AutoGame_Acc.valeeraProfiles[argument] then
+                AutoGame_Char.valeeraProfiles[key] = argument
+            else
+                print("|cffff0000[fr0z3nUI]|r Profile not found: " .. argument)
+                return
+            end
+            ScheduleValeeraApply()
+        elseif command == "delete" and argument ~= "" then
+            AutoGame_Acc.valeeraProfiles[argument] = nil
+            if AutoGame_Acc.valeeraActive == argument then AutoGame_Acc.valeeraActive = nil end
+            for playerKey, profileName in pairs(AutoGame_Char.valeeraProfiles) do
+                if profileName == argument then AutoGame_Char.valeeraProfiles[playerKey] = nil end
+            end
+        elseif command == "off" then
+            AutoGame_Acc.valeeraActive = nil
+        elseif command == "autogossip" or command == "autoclose" then
+            local setting = command == "autogossip" and "autoGossip" or "autoClose"
+            AutoGame_Settings.valeera[setting] = not AutoGame_Settings.valeera[setting]
+            print("|cff00ff00[fr0z3nUI]|r Valeera " .. setting .. ": " .. (AutoGame_Settings.valeera[setting] and "ON" or "OFF"))
+        elseif command == "debug" then
+            if argument == "on" then
+                AutoGame_Settings.valeera.debug = true
+            elseif argument == "off" then
+                AutoGame_Settings.valeera.debug = false
+            end
+            DumpValeeraDebug()
+        else
+            print("|cff00ff00[fr0z3nUI]|r /vap save|use|char|list|delete|off|autogossip|autoclose|debug")
+        end
+    end
+
+    SLASH_VAP1 = "/vap"
+    SlashCmdList.VAP = ValeeraCommand
+
+    valeeraFrame = CreateFrame("Frame")
+    valeeraFrame:RegisterEvent("PLAYER_LOGIN")
+    valeeraFrame:RegisterEvent("ADDON_LOADED")
+    valeeraFrame:RegisterEvent("GOSSIP_SHOW")
+    valeeraFrame:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
+    valeeraFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")
+    valeeraFrame:SetScript("OnEvent", function(_, event, addon)
+        if event == "ADDON_LOADED" and addon ~= "Blizzard_DelvesCompanionConfiguration" then return end
+        InitValeeraDB()
+        HookValeeraFrame()
+        if event == "GOSSIP_SHOW" then
+            AutoSelectValeeraGossip()
+        end
+        if event ~= "PLAYER_LOGIN" then
+            ScheduleValeeraApply()
+        end
+    end)
+
+    HookValeeraFrame()
 end
 
 -- TalkUP helpers (StaticPopup hooks).
@@ -12,6 +851,7 @@ ns.TalkUP = ns.TalkUP or {}
 
 local M = ns.TalkUP
 
+-- ============================================================================
 local function InitSV()
     if ns and type(ns._InitSV) == "function" then
         ns._InitSV()
@@ -479,7 +1319,7 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
 
     DumpActivePopupDebug(which)
 
-    local norm = text:gsub("’", "'"):lower()
+    local norm = text:gsub("â€™", "'"):lower()
 
     local function IsSpiritHealerResPopupText()
         -- Conservative match: these phrases are strongly associated with Spirit Healer resurrect confirms.
@@ -503,7 +1343,7 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         for i = 1, #list do
             local needle = tostring(list[i] or "")
             if needle ~= "" then
-                if norm:find(needle:gsub("’", "'"):lower(), 1, true) == nil then
+                if norm:find(needle:gsub("â€™", "'"):lower(), 1, true) == nil then
                     return false
                 end
             end
@@ -516,7 +1356,7 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         for i = 1, #list do
             local needle = tostring(list[i] or "")
             if needle ~= "" then
-                if norm:find(needle:gsub("’", "'"):lower(), 1, true) ~= nil then
+                if norm:find(needle:gsub("â€™", "'"):lower(), 1, true) ~= nil then
                     return true
                 end
             end
@@ -596,7 +1436,7 @@ local function TryAutoConfirmSelectedRulePopup(which, text_arg1, text_arg2, dial
         local requiredAny = xpop.containsAny
         local requiredText = (type(xpop.text) == "string") and xpop.text or ""
         if requiredText ~= "" then
-            return (norm:find(requiredText:gsub("’", "'"):lower(), 1, true) ~= nil)
+            return (norm:find(requiredText:gsub("â€™", "'"):lower(), 1, true) ~= nil)
         end
         local hasConstraints = (type(requiredAll) == "table" and #requiredAll > 0) or (type(requiredAny) == "table" and #requiredAny > 0)
         if not hasConstraints then

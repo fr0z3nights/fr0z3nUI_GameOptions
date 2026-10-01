@@ -5,7 +5,7 @@ if type(ns) ~= "table" then
     ns = {}
 end
 
--- ===== Instance Reset (moved from fUI_GOSwitchesIR.lua) =====
+-- ===== Instance Reset (moved from fUI_GOSwitchIR.lua) =====
 do
     ns.SwitchesIR = ns.SwitchesIR or {}
     local IR = ns.SwitchesIR

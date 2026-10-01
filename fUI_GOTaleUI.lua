@@ -279,13 +279,31 @@ function ns.TaleUI_Build(frame, panel, helpers)
     f.reasonLabel = reasonLabel
 
     -- Helpers
+    local function IsSecretValue(value)
+        local checker = rawget(_G, "issecretvalue")
+        if type(checker) ~= "function" then
+            return false
+        end
+        local ok, secret = pcall(checker, value)
+        return ok and secret == true
+    end
+
     local function IsFontStringTruncated(fs)
         if not fs then return false end
         if fs.IsTruncated then
-            return fs:IsTruncated()
+            local ok, truncated = pcall(fs.IsTruncated, fs)
+            if not ok or IsSecretValue(truncated) then
+                return false
+            end
+            return truncated == true
         end
-        local w = fs.GetStringWidth and fs:GetStringWidth() or 0
-        local maxW = fs.GetWidth and fs:GetWidth() or 0
+        local widthOK, w = pcall(fs.GetStringWidth, fs)
+        local maxWidthOK, maxW = pcall(fs.GetWidth, fs)
+        if not widthOK or not maxWidthOK or IsSecretValue(w) or IsSecretValue(maxW) then
+            return false
+        end
+        w = tonumber(w) or 0
+        maxW = tonumber(maxW) or 0
         return w > (maxW + 1)
     end
 
@@ -339,20 +357,39 @@ function ns.TaleUI_Build(frame, panel, helpers)
         end
 
         local target = visible and true or false
-        local current = (row.IsShown and row:IsShown()) and true or false
-        if current == target then
+        local currentOK, current = false, nil
+        if row.IsShown then
+            currentOK, current = pcall(row.IsShown, row)
+        end
+        if currentOK and not IsSecretValue(current) and (current == true) == target then
             return
         end
 
         local ok = false
         if row.SetShown then
-            ok = pcall(row.SetShown, row, target)
+            if type(securecallfunction) == "function" then
+                ok = pcall(securecallfunction, row.SetShown, row, target)
+            else
+                ok = pcall(row.SetShown, row, target)
+            end
         end
         if not ok then
             if target then
-                ok = row.Show and pcall(row.Show, row)
+                if row.Show then
+                    if type(securecallfunction) == "function" then
+                        ok = pcall(securecallfunction, row.Show, row)
+                    else
+                        ok = pcall(row.Show, row)
+                    end
+                end
             else
-                ok = row.Hide and pcall(row.Hide, row)
+                if row.Hide then
+                    if type(securecallfunction) == "function" then
+                        ok = pcall(securecallfunction, row.Hide, row)
+                    else
+                        ok = pcall(row.Hide, row)
+                    end
+                end
             end
         end
 

@@ -1623,8 +1623,9 @@ do
 
     local _, cfg, bal = GetActiveScopeCfgAndBal()
     if type(cfg) ~= "table" then return end
-    if type(bal) ~= "table" then return end
     if not (cfg.enabled == true) then return end
+    -- Guild bank and Warbank accrual are independent; don't bail out of Warbank just because Guild is off.
+    if cfg.guildBankEnabled ~= true and cfg.warBankEnabled ~= true then return end
 
     local rate = Clamp(cfg.rate, 0, 100) or 0
     if rate <= 0 then return end
@@ -1632,11 +1633,13 @@ do
     local taxCopper = math.floor((rawCopper * rate / 100) + 0.5)
     if taxCopper <= 0 then return end
 
-    bal.dueTax = math.floor((tonumber(bal.dueTax) or 0) + taxCopper)
-    if bal.dueTax < 0 then bal.dueTax = 0 end
-    bal.dueBorrowed = math.floor(tonumber(bal.dueBorrowed) or 0)
-    if bal.dueBorrowed < 0 then bal.dueBorrowed = 0 end
-    bal.due = bal.dueTax + bal.dueBorrowed
+    if cfg.guildBankEnabled == true and type(bal) == "table" then
+      bal.dueTax = math.floor((tonumber(bal.dueTax) or 0) + taxCopper)
+      if bal.dueTax < 0 then bal.dueTax = 0 end
+      bal.dueBorrowed = math.floor(tonumber(bal.dueBorrowed) or 0)
+      if bal.dueBorrowed < 0 then bal.dueBorrowed = 0 end
+      bal.due = bal.dueTax + bal.dueBorrowed
+    end
 
     -- Tax should only print on deposit; other informational prints are Debug-only.
     if IsTaxDebugEnabled() and not (cfg.quiet == true) then

@@ -1243,9 +1243,6 @@ local function GetDepositItemFlagsFromLink(link)
     if low:find("soulbound", 1, true) then
       out.soulbound = true
     end
-    if low:find("bind on pickup", 1, true) then
-      out.soulbound = true
-    end
     if low:find("warbound", 1, true) then
       out.warbound = true
     end
@@ -1283,6 +1280,10 @@ local function GetDepositItemFlagsFromLink(link)
     ScanItemTooltipText(link, scanText)
   end
 
+  -- Item-ID tooltip data can include both binding phrases; the carried Warbound state wins.
+  if out.warbound then
+    out.soulbound = false
+  end
   return out
 end
 
@@ -1300,9 +1301,6 @@ local function GetDepositItemFlagsFromBagSlot(bag, slot)
     if type(s) ~= "string" or s == "" then return end
     local low = s:lower()
     if low:find("soulbound", 1, true) then
-      out.soulbound = true
-    end
-    if low:find("bind on pickup", 1, true) then
       out.soulbound = true
     end
     if low:find("warbound", 1, true) then
@@ -1329,6 +1327,9 @@ local function GetDepositItemFlagsFromBagSlot(bag, slot)
     end
   end
 
+  if out.warbound then
+    out.soulbound = false
+  end
   return out
 end
 

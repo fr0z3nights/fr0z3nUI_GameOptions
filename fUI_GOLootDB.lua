@@ -39,6 +39,10 @@ end
 fr0z3nUI_LootItDB = fr0z3nUI_LootItDB or {}
 
 fr0z3nUI_LootIt_AddonAliases = fr0z3nUI_LootIt_AddonAliases or {
+    [267649] = { text = "Boon1 Test", ignore = true }, -- ignore state lives with the alias seed
+    [260911] = { text = "Boon2 Test", ignore = true }, -- ignore state lives with the alias seed
+    [260879] = { text = "Boon3 Test", ignore = true }, -- ignore state lives with the alias seed
+    [260878] = { text = "Boon4 Test", ignore = true }, -- ignore state lives with the alias seed
     [116415] = "TW Token", -- Timewarped Badge
     [ 67151] = "Poseidus", -- Reins of Poseidus
     [ 71096] = { text = "DM Test", ignore = true }, -- ignore state lives with the alias seed

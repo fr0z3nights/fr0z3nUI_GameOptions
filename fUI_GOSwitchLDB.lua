@@ -167,6 +167,22 @@ do
         return ""
     end
 
+    -- Claiming is resolved server-side after the UI event fires, so poll for a few seconds rather than once.
+    local REFRESH_BURST_DELAYS = { 0, 0.25, 0.75, 1.5, 3, 5 }
+
+    local function ScheduleRefreshBurst()
+        if type(C_Timer) ~= "table" or type(C_Timer.After) ~= "function" then
+            LDBMod.RefreshGreatVaultLDB()
+            return
+        end
+
+        for i = 1, #REFRESH_BURST_DELAYS do
+            C_Timer.After(REFRESH_BURST_DELAYS[i], function()
+                LDBMod.RefreshGreatVaultLDB()
+            end)
+        end
+    end
+
     local function HookGreatVaultClose()
         local frame = _G and _G["WeeklyRewardsFrame"]
         if not frame or frame.fgoGreatVaultRefreshHooked then
@@ -174,24 +190,7 @@ do
         end
 
         frame.fgoGreatVaultRefreshHooked = true
-        frame:HookScript("OnHide", function()
-            local function RefreshAfterClose(attempt)
-                LDBMod.RefreshGreatVaultLDB()
-                if attempt < 3 and type(C_Timer) == "table" and type(C_Timer.After) == "function" then
-                    C_Timer.After(0.2, function()
-                        RefreshAfterClose(attempt + 1)
-                    end)
-                end
-            end
-
-            if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
-                C_Timer.After(0.1, function()
-                    RefreshAfterClose(1)
-                end)
-            else
-                RefreshAfterClose(3)
-            end
-        end)
+        frame:HookScript("OnHide", ScheduleRefreshBurst)
     end
 
     local function IsPlayerResting()
@@ -340,10 +339,19 @@ do
         return "ffffffff" -- white/default
     end
 
-    local function ComputeLanePair(activities)
+    local function GetCatalystColorTag()
+        return "|cffcc66cc"
+    end
+
+    local function GetAbundanceColorTag()
+        return "|cff66ffcc"
+    end
+
+    -- Returns nil when the lane has no progress yet, so the bar can omit the segment entirely.
+    local function ComputeLaneSegment(activities)
         local tiers = CopyAndSortActivities(activities)
         if #tiers == 0 then
-            return "-/-", "ff7f7f7f"
+            return nil
         end
 
         local completed = 0
@@ -369,7 +377,11 @@ do
             p = t
         end
 
-        return string.format("%d/%d", p, t), GetTierColorHex(activeTier, fullyComplete)
+        if p <= 0 then
+            return nil
+        end
+
+        return string.format("|c%s%d|r", GetTierColorHex(activeTier, fullyComplete), p)
     end
 
     local function IsPipeLayoutEnabled()
@@ -399,30 +411,51 @@ do
 
     local function GetProgressText()
         local sep = "   "
-        local rawStatusOrb = GetVaultStatusIconTag()
-        local statusOrb = rawStatusOrb
-        local statusSuffix = (statusOrb ~= "") and (sep .. statusOrb) or ""
+        local segments = {}
 
-        if not EnsureWeeklyRewardsLoaded() then
-            return string.format("-/-   -/-   -/-%s", statusSuffix)
+        local function Append(segment)
+            if type(segment) == "string" and segment ~= "" then
+                segments[#segments + 1] = segment
+            end
         end
 
-        local raid = C_WeeklyRewards.GetActivities and C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Raid) or nil
-        local dng = C_WeeklyRewards.GetActivities and C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Activities) or nil
-        local world = C_WeeklyRewards.GetActivities and C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.World) or nil
+        if EnsureWeeklyRewardsLoaded() and type(C_WeeklyRewards.GetActivities) == "function" then
+            Append(ComputeLaneSegment(C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Raid)))
+            Append(ComputeLaneSegment(C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Activities)))
+            Append(ComputeLaneSegment(C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.World)))
+        end
 
-        local raidPair, raidColor = ComputeLanePair(raid)
-        local dngPair, dngColor = ComputeLanePair(dng)
-        local worldPair, worldColor = ComputeLanePair(world)
         local cofferKeys = GetCurrencyQuantity(3028)
         local cofferShards = GetCurrencyQuantity(3310)
-        local weeklyShardMaximum = GetCurrencyWeeklyMaximum(3310)
-        local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
         local cofferDisplayValue = cofferKeys + (cofferShards / 100)
-        local cofferValueColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cff00ff00" or "|cffffd100"
-        local cofferSuffix = string.format("   %s%.1f|r", cofferValueColor, cofferDisplayValue)
+        if cofferDisplayValue > 0 then
+            -- Match %.1f rounding so the split digits read the same as a single formatted number.
+            local wholePart = math.floor(cofferDisplayValue)
+            local fractionDigit = math.floor((cofferDisplayValue - wholePart) * 10 + 0.5)
+            if fractionDigit >= 10 then
+                wholePart = wholePart + 1
+                fractionDigit = 0
+            end
 
-        return string.format("|c%s%s|r%s|c%s%s|r%s|c%s%s|r%s%s", raidColor, raidPair, sep, dngColor, dngPair, sep, worldColor, worldPair, cofferSuffix, statusSuffix)
+            local weeklyShardMaximum = GetCurrencyWeeklyMaximum(3310)
+            local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
+            local fractionColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cffff4040" or "|cffffd100"
+            Append(string.format("|cffffd100%d|r%s.%d|r", wholePart, fractionColor, fractionDigit))
+        end
+
+        local abundanceQuantity = GetCurrencyQuantity(3376)
+        if abundanceQuantity > 0 then
+            Append(string.format("%s%.0f|r", GetAbundanceColorTag(), abundanceQuantity))
+        end
+
+        local catalystQuantity = GetCurrencyQuantity(3465)
+        if catalystQuantity > 0 then
+            Append(string.format("%s%.0f|r", GetCatalystColorTag(), catalystQuantity))
+        end
+
+        Append(GetVaultStatusIconTag())
+
+        return table.concat(segments, sep)
     end
 
     local function AddGvLines(tooltip, rewardTable)
@@ -519,14 +552,6 @@ do
         local progStr = table.concat(levels, ", ", 1, numToShow)
         progStr = string.format("    %d %s: %s", #levels, label, progStr)
         tooltip:AddLine(progStr, 1, 1, 1)
-    end
-
-    local function GetCatalystColorTag()
-        return "|cffcc66cc"
-    end
-
-    local function GetAbundanceColorTag()
-        return "|cff66ffcc"
     end
 
     local function OnTooltipShow(tooltip)
@@ -697,6 +722,12 @@ do
             return
         end
 
+        if event == "WEEKLY_REWARDS_ITEM_CHANGED" then
+            HookGreatVaultClose()
+            ScheduleRefreshBurst()
+            return
+        end
+
         if event == "CURRENCY_DISPLAY_UPDATE" then
             QueueRefresh(0)
             return
@@ -711,6 +742,7 @@ do
     frame:RegisterEvent("PLAYER_LOGIN")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("WEEKLY_REWARDS_UPDATE")
+    frame:RegisterEvent("WEEKLY_REWARDS_ITEM_CHANGED")
     frame:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
     frame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
     frame:RegisterEvent("QUEST_TURNED_IN")

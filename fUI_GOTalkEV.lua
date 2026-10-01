@@ -114,7 +114,21 @@ SetZone("Timewalking")
 	t[137092] = { text = "I would like to buy from you" }							-- Xydan (255019)
 
 
-SetZone("Nablegarden")
+SetZone("Brewfest")
+
+
+	t = NPC("Brewfest Merchant", 23710)
+--	t.__meta.stopIfQuestAvailable = { 13503, }										-- Quest Accept before Gossip (First NPCID)
+--	t.__meta.stopIfQuestTurnIn = { 13503, }											-- Quest TurnIn before Gossip (First NPCID)
+	t[ 35424] = { text = "I want to browse your goods." }
+
+	t = NPC("Brewfest Merchant", 23710)
+--	t.__meta.stopIfQuestAvailable = { 13503, }										-- Quest Accept before Gossip (First NPCID)
+--	t.__meta.stopIfQuestTurnIn = { 13503, }											-- Quest TurnIn before Gossip (First NPCID)
+	t[ 35424] = { text = "I want to browse your goods." }
+
+
+SetZone("Noblegarden")
 
 
 	t = NPC("Noblegarden Merchant", 32837)

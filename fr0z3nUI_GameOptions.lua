@@ -64,7 +64,7 @@ end
 ns.IsSecretString = IsSecretString
 ns.SafeToString = SafeToString
 
--- Chromie Time was split out to fUI_GOSwitchesCT.lua
+    -- Chromie Time was split out to fUI_GOSwitchChromie.lua
 local InitSV
 local function GetSwitchesCT()
     return ns and ns.SwitchesCT
@@ -517,6 +517,27 @@ InitSV = function()
     if type(AutoGossip_Settings.debugPetPopupsAcc) ~= "boolean" then
         AutoGossip_Settings.debugPetPopupsAcc = false
     end
+    if type(AutoGossip_Settings.autoDelveAcc) ~= "boolean" then
+        AutoGossip_Settings.autoDelveAcc = true
+    end
+    if type(AutoGossip_Settings.autoDelveExitAcc) ~= "boolean" then
+        AutoGossip_Settings.autoDelveExitAcc = true
+    end
+    if type(AutoGossip_Settings.autoDelveEnterDelayAcc) ~= "number" then
+        AutoGossip_Settings.autoDelveEnterDelayAcc = 0
+    end
+    if type(AutoGossip_Settings.autoDelveExitDelayAcc) ~= "number" then
+        AutoGossip_Settings.autoDelveExitDelayAcc = 300
+    end
+    if type(AutoGossip_Settings.autoDelvePrintTierAcc) ~= "boolean" then
+        AutoGossip_Settings.autoDelvePrintTierAcc = true
+    end
+    if type(AutoGossip_Settings.autoDelveAllowNemesisAcc) ~= "boolean" then
+        AutoGossip_Settings.autoDelveAllowNemesisAcc = true
+    end
+    if type(AutoGossip_CharSettings.autoDelveEnabledChar) ~= "boolean" then
+        AutoGossip_CharSettings.autoDelveEnabledChar = true
+    end
 
     -- Macro / commands (/fgo m <command>)
     if type(AutoGossip_Settings.macroCmdsAcc) ~= "table" then
@@ -833,7 +854,7 @@ ns._Print = Print
 
 -- Popup handling moved to fUI_GOTalkUP.lua
 
--- Queue accept overlay moved to fUI_GOSwitchesQA.lua
+    -- Queue accept overlay moved to fUI_GOSwitchQueue.lua
 local function GetSwitchesQA()
     return ns and ns.SwitchesQA
 end
@@ -3378,6 +3399,11 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo <id>                  - open window + set option id",
                 "/fgo list                  - print current gossip options",
                 "/fgo petbattle             - force-enable pet battle auto-accept",
+                "/fgo dcdc                  - clear Delve auto-enter cooldown",
+                "/fgo zghon                 - enable automatic Zygor hiding for this session",
+                "/fgo zghoff                - disable automatic Zygor hiding until reload/relog",
+                "/fgo zghide                - hide the Zygor viewer",
+                "/fgo zgshow                - show the Zygor viewer",
                 "/fgo yum                   - force-update FGO Food/Drink macros",
                 "/fgo yump                  - yum + print status",
                 "/fgo yumd                  - yum + dump best food/drink",
@@ -3520,6 +3546,29 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 ns.Textures.HandleSlash(rest)
             else
                 Print("Textures module not loaded.")
+            end
+            return
+        end
+
+        if cmd == "zghide" or cmd == "zgshow" then
+            local method = cmd == "zghide" and ns.ZygorViewerHide or ns.ZygorViewerShow
+            if type(method) == "function" then
+                method()
+            end
+            return
+        end
+
+        if cmd == "zghon" or cmd == "zghoff" then
+            if ns and type(ns.SetZygorAutoHideEnabled) == "function" then
+                local enabled = ns.SetZygorAutoHideEnabled(cmd == "zghon")
+                Print("Zygor auto-hide " .. (enabled and "Enabled" or "Disabled until reload/relog"))
+            end
+            return
+        end
+
+        if cmd == "dcdc" then
+            if ns and type(ns.ClearDelveAutoEnterCooldown) == "function" then
+                ns.ClearDelveAutoEnterCooldown()
             end
             return
         end
@@ -3932,82 +3981,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             end
         end
 
-        -- Allow optional space after single-letter mode commands.
-        -- Examples:
-        --   /fgo mfoo   -> cmd='m', rest='foo'
-        --   /fgo xlist  -> cmd='x', rest='list'
-        -- Keep existing full commands working (e.g. /fgo chromie, /fgo mouse).
-        if cmd and #cmd > 1 then
-            local known = {
-                -- LootIt/Trade full command (starts with 'd' but is not Macro-CMD d-mode).
-                ["deposit"] = true,
-
-                -- LootIt hosted commands promoted to top-level /fgo.
-                ["status"] = true,
-                ["mail"] = true,
-                ["alias"] = true,
-                ["capture"] = true,
-                ["cap"] = true,
-                ["chatdebug"] = true,
-                ["delayflush"] = true,
-                ["delayprint"] = true,
-
-                ["m"] = true,
-                ["hm"] = true,
-                ["hs"] = true,
-                ["debug"] = true,
-                ["arm"] = true,
-                ["arms"] = true,
-                ["armtest"] = true,
-                ["mk"] = true,
-                ["mkmacro"] = true,
-                ["script"] = true,
-                ["scripterrors"] = true,
-                -- Back-compat: historical macro docs used /fgo cscript.
-                -- Treat this as a full command so it doesn't get glued into c-mode.
-                ["cscript"] = true,
-                ["cscripterrors"] = true,
-                ["cloot"] = true,
-                ["cmouse"] = true,
-                ["ctrade"] = true,
-                ["cfriend"] = true,
-                ["cbars"] = true,
-                ["cbagrev"] = true,
-                ["ctoken"] = true,
-                ["csetup"] = true,
-                ["cfish"] = true,
-                ["sharpen"] = true,
-                ["whispin"] = true,
-                ["mountequip"] = true,
-                ["mu"] = true,
-                ["mountup"] = true,
-                ["mountupon"] = true,
-                ["mountupoff"] = true,
-                ["mountupconfig"] = true,
-                ["chromie"] = true,
-                ["chromietime"] = true,
-                ["ct"] = true,
-                ["ctoff"] = true,
-
-                -- Macro CMD keys that would otherwise be mis-parsed as mode glue.
-                -- Example: /fgo mouse would become /fgo m ouse without this.
-                ["mouse"] = true,
-                ["clickmove"] = true,
-            }
-
-            if not known[cmd] then
-                local first = cmd:sub(1, 1)
-                if first == "x" or first == "m" or first == "c" or first == "d" then
-                    local glued = cmd:sub(2)
-                    if glued ~= "" then
-                        rest = glued .. ((rest and rest ~= "") and (" " .. rest) or "")
-                        cmd = first
-                    end
-                end
-            end
-        end
-
-        -- Back-compat aliases (avoid Macro CMD mode-glue parsing).
+        -- Back-compat aliases for old standalone commands.
         do
             local map = {
                 -- Legacy README-style commands (old seeds used a leading 'c').
@@ -4828,6 +4802,11 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         Print("/fgo <id>      - open window + set option id")
         Print("/fgo list      - print current gossip options")
         Print("/fgo petbattle - force-enable pet battle auto-accept")
+        Print("/fgo dcdc      - clear Delve auto-enter cooldown")
+        Print("/fgo zghon     - enable automatic Zygor hiding for this session")
+        Print("/fgo zghoff    - disable automatic Zygor hiding until reload/relog")
+        Print("/fgo zghide    - hide the Zygor viewer")
+        Print("/fgo zgshow    - show the Zygor viewer")
         Print("/fgo yum       - force-update FGO Food/Drink macros")
         Print("/fgo yump      - yum + print status")
         Print("/fgo yumd      - yum + dump best food/drink")
@@ -4890,6 +4869,11 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
     Print("/fgo <id>      - open window + set option id")
     Print("/fgo list      - print current gossip options")
     Print("/fgo petbattle - force-enable pet battle auto-accept")
+    Print("/fgo dcdc      - clear Delve auto-enter cooldown")
+    Print("/fgo zghon     - enable automatic Zygor hiding for this session")
+    Print("/fgo zghoff    - disable automatic Zygor hiding until reload/relog")
+    Print("/fgo zghide    - hide the Zygor viewer")
+    Print("/fgo zgshow    - show the Zygor viewer")
     Print("/fgo yum       - force-update FGO Food/Drink macros")
     Print("/fgo yump      - yum + print status")
     Print("/fgo yumd      - yum + dump best food/drink")
