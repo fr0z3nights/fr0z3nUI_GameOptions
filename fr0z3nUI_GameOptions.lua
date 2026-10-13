@@ -64,6 +64,92 @@ end
 ns.IsSecretString = IsSecretString
 ns.SafeToString = SafeToString
 
+-- GearMatic AutoEquip integration (/fgo gmtp, /fgo gmon)
+local SetGearMaticAutoEquip
+local HandleGearMaticTP
+do
+    local gmTpTimer = nil
+    local gmTpFrame = nil
+
+    local function GetGearMaticProfile()
+        local gm = _G.GearMatic
+        if type(gm) == "table" and type(gm.db) == "table" and type(gm.db.profile) == "table" then
+            return gm.db.profile, gm
+        end
+        local db = _G.GearMaticDB
+        if type(db) == "table" and type(db.profile) == "table" then
+            return db.profile, gm
+        end
+        return nil, gm
+    end
+
+    SetGearMaticAutoEquip = function(enabled, printOnEnable)
+        local prof, gm = GetGearMaticProfile()
+        if not prof then
+            return false
+        end
+        prof.autoEquipUpgrades = enabled and true or false
+        if enabled then
+            if type(gm) == "table" then
+                if gm.AutoEquip and type(gm.AutoEquip.RequestSweep) == "function" then
+                    pcall(gm.AutoEquip.RequestSweep, "toggle")
+                end
+                if gm.BagOverlay and type(gm.BagOverlay.Refresh) == "function" then
+                    pcall(gm.BagOverlay.Refresh)
+                end
+            end
+            if printOnEnable then
+                Print("GearMatic Enabled")
+            end
+        end
+        return true
+    end
+
+    local function ClearGearMaticTPTracking()
+        if gmTpTimer then
+            gmTpTimer:Cancel()
+            gmTpTimer = nil
+        end
+        if gmTpFrame then
+            gmTpFrame:UnregisterAllEvents()
+        end
+    end
+
+    local function OnGearMaticReenable()
+        ClearGearMaticTPTracking()
+        SetGearMaticAutoEquip(true, true)
+    end
+
+    HandleGearMaticTP = function()
+        ClearGearMaticTPTracking()
+        -- Disable GearMatic autoequip silently (no print)
+        SetGearMaticAutoEquip(false, false)
+
+        -- 300 second fallback re-enable
+        if C_Timer and type(C_Timer.NewTimer) == "function" then
+            gmTpTimer = C_Timer.NewTimer(300, function()
+                gmTpTimer = nil
+                OnGearMaticReenable()
+            end)
+        end
+
+        -- Teleport detection frame
+        if not gmTpFrame then
+            gmTpFrame = CreateFrame("Frame")
+            gmTpFrame:SetScript("OnEvent", function(_, event, isInitialLogin, isReloadingUi)
+                if event == "PLAYER_ENTERING_WORLD" then
+                    -- If it's a fresh login or UI reload, do not count as a teleport
+                    if isInitialLogin or isReloadingUi then
+                        return
+                    end
+                end
+                OnGearMaticReenable()
+            end)
+        end
+        gmTpFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    end
+end
+
     -- Chromie Time was split out to fUI_GOSwitchChromie.lua
 local InitSV
 local function GetSwitchesCT()
@@ -358,6 +444,9 @@ InitSV = function()
     end
     if type(AutoGossip_Settings.mountUpDelayAcc) ~= "number" then
         AutoGossip_Settings.mountUpDelayAcc = 1.0
+    end
+    if type(AutoGossip_Settings.mountUpEnableOnLoginDelayAcc) ~= "number" then
+        AutoGossip_Settings.mountUpEnableOnLoginDelayAcc = 120
     end
     -- Preferred mount per situation (always-smart picker): Flying/Ground/Water.
     if type(AutoGossip_Settings.mountUpPreferredMountIDFlyingAcc) ~= "number" then
@@ -785,6 +874,10 @@ InitSV = function()
     AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = math.floor((tonumber(AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc) or 3) + 0.5)
     if AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc < 1 then AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = 1 end
     if AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc > 30 then AutoGossip_Settings.queueAcceptRepeatSoundIntervalAcc = 30 end
+    if type(AutoGossip_CharSettings.autoDelveEnabledChar) ~= "boolean" then
+        AutoGossip_CharSettings.autoDelveEnabledChar = true
+    end
+
     if type(AutoGossip_CharSettings.disabled) ~= "table" then
         AutoGossip_CharSettings.disabled = {}
     end
@@ -3466,6 +3559,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo fish                  - apply fishing prep CVars",
                 "/fgo chromie               - print Chromie Time status",
                 "/fgo ctoff                 - attempt to disable Chromie Time (rested only)",
+                "/fgo gmtp                  - disable GearMatic until teleport or 300s",
+                "/fgo gmon                  - enable GearMatic autoequip",
                 "",
                 "/fgo scope                 - open this list in Macro CMD (copy/edit)",
             }
@@ -3623,6 +3718,20 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             end
 
             Print("Usage: /fgo clickdebug on|off|toggle|status|dump")
+            return
+        end
+
+        if cmd == "gmtp" then
+            if type(HandleGearMaticTP) == "function" then
+                HandleGearMaticTP()
+            end
+            return
+        end
+
+        if cmd == "gmon" then
+            if type(SetGearMaticAutoEquip) == "function" then
+                SetGearMaticAutoEquip(true, true)
+            end
             return
         end
 
@@ -4388,7 +4497,7 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             end
             local id = C_MountJournal.GetAppliedMountEquipmentID()
             if not id or tonumber(id) == 0 then
-                local msg = "WARNING: Mount needs Inflatable Mount Shoes"
+                local msg = "Mount Equipment Missing (eg. Inflatable Mount Shoes)"
                 if WrapTextInColorCode then
                     msg = WrapTextInColorCode(msg, "ffff8000")
                 end
@@ -4833,6 +4942,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         Print("/fgo sharpen   - toggle always sharpen")
         Print("/fgo whispin   - set whispers to inline")
         Print("/fgo token     - print WoW Token price")
+        Print("/fgo gmtp      - disable GearMatic until teleport or 300s")
+        Print("/fgo gmon      - enable GearMatic autoequip")
         return
     end
 

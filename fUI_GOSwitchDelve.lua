@@ -1646,6 +1646,11 @@ do
     eventFrame:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
     eventFrame:SetScript("OnEvent", function(_, event, text, isReload)
         if event == "PLAYER_LOGIN" then
+            if ns and ns.SetAutoDelveCharacterEnabled then
+                ns.SetAutoDelveCharacterEnabled(true)
+            elseif AutoGossip_CharSettings then
+                AutoGossip_CharSettings.autoDelveEnabledChar = true
+            end
             HookTierSelectionFrames()
             UpdateReminder()
             C_Timer.After(0.5, UpdateZygorDelveViewer)

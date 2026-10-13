@@ -286,6 +286,21 @@ local function SafeCall(func, ...)
     return a, b, c, d
 end
 
+local function IsSecret(v)
+    return issecretvalue and issecretvalue(v)
+end
+
+local function SafeCheckUnit(func, ...)
+    if type(func) ~= "function" then
+        return false
+    end
+    local ok, val = pcall(func, ...)
+    if not ok or val == nil or IsSecret(val) then
+        return false
+    end
+    return (val and true) or false
+end
+
 local function GetSummonedGUID()
     return SafeCall(C_PetJournal and C_PetJournal.GetSummonedPetGUID)
 end
@@ -296,14 +311,18 @@ local function IsInPetBattle()
         return false
     end
     local ok, v = pcall(fn)
-    if not ok then
+    if not ok or v == nil or IsSecret(v) then
         return false
     end
-    return v and true or false
+    return (v and true) or false
 end
 
 local function CanSummonNow()
     if not IsEnabled() then
+        return false
+    end
+
+    if SafeCheckUnit(UnitIsAFK, "player") then
         return false
     end
 
@@ -315,57 +334,62 @@ local function CanSummonNow()
         return false
     end
 
-    if UnitAffectingCombat and UnitAffectingCombat("player") then
+    if SafeCheckUnit(UnitAffectingCombat, "player") then
         return false
     end
 
-    if InCombatLockdown and InCombatLockdown() then
+    if SafeCheckUnit(InCombatLockdown) then
         return false
     end
 
-    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+    if SafeCheckUnit(UnitIsDeadOrGhost, "player") then
         return false
     end
 
-    if UnitOnTaxi and UnitOnTaxi("player") then
+    if SafeCheckUnit(UnitOnTaxi, "player") then
         return false
     end
 
-    if UnitInVehicle and UnitInVehicle("player") then
+    if SafeCheckUnit(UnitInVehicle, "player") then
         return false
     end
 
-    if UnitUsingVehicle and UnitUsingVehicle("player") then
+    if SafeCheckUnit(UnitUsingVehicle, "player") then
         return false
     end
 
-    if UnitIsSitting and UnitIsSitting("player") then
+    if SafeCheckUnit(UnitIsSitting, "player") then
         return false
     end
 
-    if IsMounted and IsMounted() then
+    if SafeCheckUnit(IsMounted) then
         return false
     end
 
-    if IsFalling and IsFalling() then
+    if SafeCheckUnit(IsFalling) then
         return false
     end
 
-    if UnitCastingInfo and UnitCastingInfo("player") then
-        return false
+    if UnitCastingInfo then
+        local ok, spell = pcall(UnitCastingInfo, "player")
+        if ok and spell ~= nil and not IsSecret(spell) then
+            return false
+        end
     end
 
-    if UnitChannelInfo and UnitChannelInfo("player") then
-        return false
+    if UnitChannelInfo then
+        local ok, spell = pcall(UnitChannelInfo, "player")
+        if ok and spell ~= nil and not IsSecret(spell) then
+            return false
+        end
     end
 
     if GetUnitSpeed then
-        local speed = GetUnitSpeed("player") or 0
-        if issecretvalue and issecretvalue(speed) then
-            return false
-        end
-        if speed > 0 then
-            return false
+        local ok, speed = pcall(GetUnitSpeed, "player")
+        if ok and speed ~= nil and not IsSecret(speed) then
+            if speed > 0 then
+                return false
+            end
         end
     end
 
@@ -667,7 +691,7 @@ local function MaybeDismissOnStealth()
         return
     end
 
-    if not (IsStealthed and IsStealthed()) then
+    if not SafeCheckUnit(IsStealthed) then
         return
     end
 
@@ -1971,11 +1995,15 @@ do
         if not GetUnitSpeed then
             return false
         end
-        local speed = GetUnitSpeed("player") or 0
-        if issecretvalue and issecretvalue(speed) then
+        local ok, speed = pcall(GetUnitSpeed, "player")
+        if not ok or speed == nil or IsSecret(speed) then
             return false
         end
         return (speed > 0) and true or false
+    end
+
+    local function IsStealthedSafe()
+        return SafeCheckUnit(IsStealthed)
     end
 
     local function OnEvent(_, event)
@@ -1987,7 +2015,7 @@ do
 
         if event == "UPDATE_STEALTH" then
             MaybeDismissOnStealth()
-            if IsEnabled() and (not (IsStealthed and IsStealthed())) then
+            if IsEnabled() and (not IsStealthedSafe()) then
                 ScheduleSummon(event, GetDelay())
             end
             return

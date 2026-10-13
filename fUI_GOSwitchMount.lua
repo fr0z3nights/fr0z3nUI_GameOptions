@@ -62,6 +62,40 @@ local function IsForceGroundEnabled()
     return (AutoGossip_CharSettings.mountUpForceGroundChar and true or false)
 end
 
+local loginEnableTimer
+local loginEnableAt
+
+-- nil (never set) counts as on.
+local function IsEnableOnLoginEnabled()
+    InitSV()
+    return not (AutoGossip_Settings and AutoGossip_Settings.mountUpEnableOnLoginAcc == false)
+end
+
+local function SetEnableOnLoginEnabled(v)
+    InitSV()
+    if type(AutoGossip_Settings) ~= "table" then
+        return
+    end
+    AutoGossip_Settings.mountUpEnableOnLoginAcc = (v and true or false)
+    if not v and loginEnableTimer then
+        loginEnableTimer:Cancel()
+        loginEnableTimer = nil
+        loginEnableAt = nil
+        if MU.UpdateMountUpFloatButton then
+            MU.UpdateMountUpFloatButton()
+        end
+    end
+end
+
+local function GetEnableOnLoginDelay()
+    InitSV()
+    local delay = tonumber(AutoGossip_Settings and AutoGossip_Settings.mountUpEnableOnLoginDelayAcc)
+    if not delay or delay ~= delay or delay == math.huge or delay == -math.huge then
+        return 120
+    end
+    return math.max(0, math.floor(delay))
+end
+
 local function SetForceGroundEnabled(v)
     InitSV()
     if type(AutoGossip_CharSettings) ~= "table" then
@@ -1568,6 +1602,12 @@ function MU.DebugPrintEatDrink()
 end
 
 function MU.OnSettingsChanged()
+    InitSV()
+    if loginEnableTimer and AutoGossip_CharSettings and AutoGossip_CharSettings.mountUpEnabledChar then
+        loginEnableTimer:Cancel()
+        loginEnableTimer = nil
+        loginEnableAt = nil
+    end
     if not IsEnabled() then
         CancelPending()
         if MU.UpdateMountUpFloatButton then
@@ -1754,12 +1794,26 @@ do
         end)
     end
 
+    local function UpdateLoginCountdown()
+        if not (btn and btn._loginCountdown) then
+            return
+        end
+        if loginEnableAt then
+            local remaining = math.max(0, math.ceil(loginEnableAt - GetTime()))
+            btn._loginCountdown:SetText(tostring(remaining) .. "s")
+            btn._loginCountdown:Show()
+        else
+            btn._loginCountdown:Hide()
+        end
+    end
+
     UpdateLabel = function()
         if not (btn and btn._label and btn._label.SetText) then
             return
         end
         local color, _ = GetStateColor()
         btn._label:SetText("|c" .. color .. "Mount Up|r")
+        UpdateLoginCountdown()
     end
 
     local function ApplyTextSize()
@@ -1776,6 +1830,9 @@ do
         local fontPath, _, fontFlags = btn._label:GetFont()
         if fontPath then
             btn._label:SetFont(fontPath, want, fontFlags)
+            if btn._loginCountdown then
+                btn._loginCountdown:SetFont(fontPath, want, fontFlags)
+            end
         end
     end
 
@@ -1801,6 +1858,26 @@ do
         fs:SetJustifyH("CENTER")
         fs:SetJustifyV("MIDDLE")
         btn._label = fs
+
+        local countdown = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        countdown:SetPoint("BOTTOM", fs, "TOP", 0, 2)
+        countdown:SetJustifyH("CENTER")
+        countdown:SetTextColor(1, 0.82, 0)
+        countdown:Hide()
+        btn._loginCountdown = countdown
+
+        local countdownElapsed = 0
+        btn:SetScript("OnUpdate", function(_, elapsed)
+            if not loginEnableAt then
+                return
+            end
+            countdownElapsed = countdownElapsed + elapsed
+            if countdownElapsed >= 0.20 then
+                countdownElapsed = 0
+                UpdateLoginCountdown()
+            end
+        end)
+        btn:SetScript("OnShow", UpdateLoginCountdown)
 
         ApplyTextSize()
 
@@ -1958,7 +2035,7 @@ local function EnsureConfigPopup()
     end
 
     local p = CreateFrame("Frame", "FGO_MountUpConfigPopup", UIParent, "BackdropTemplate")
-    p:SetSize(360, 260)
+    p:SetSize(420, 260)
     do
         local main = _G and rawget(_G, "AutoGameOptions")
         if main and main.IsShown and main:IsShown() then
@@ -2474,6 +2551,14 @@ local function EnsureConfigPopup()
     groundOnlyBtn:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -12, 12)
     p.groundOnlyBtn = groundOnlyBtn
 
+    local loginBtn = CreateTextToggleButton(p, 60, 18)
+    p.loginBtn = loginBtn
+
+    local loginDelayBox = MakeBorderlessHoverBox(p, 48, 18)
+    loginDelayBox:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -12, delayRowY)
+    loginBtn:SetPoint("RIGHT", loginDelayBox, "LEFT", -6, 0)
+    p.loginDelayBox = loginDelayBox
+
     local function IsReapDelayEnabled()
         return IsDelayUsedForReapRetry()
     end
@@ -2763,6 +2848,14 @@ local function EnsureConfigPopup()
             SetSegGreenGreyFS(groundOnlyBtn._fs, "Ground", IsForceGroundEnabled())
         end
 
+        if loginBtn and loginBtn._fs then
+            SetSegGreenGreyFS(loginBtn._fs, "Login", IsEnableOnLoginEnabled())
+        end
+
+        if not loginDelayBox.eb:HasFocus() then
+            loginDelayBox.eb:SetText(tostring(GetEnableOnLoginDelay()))
+        end
+
         if sizeBox and sizeBox.eb then
             sizeBox.eb:SetText(string.format("%02d", math.floor(size + 0.5)))
         end
@@ -2865,6 +2958,63 @@ local function EnsureConfigPopup()
         GameTooltip:Show()
     end)
     groundOnlyBtn:SetScript("OnLeave", function()
+        if GameTooltip and GameTooltip.Hide then
+            GameTooltip:Hide()
+        end
+    end)
+
+    loginBtn:RegisterForClicks("LeftButtonUp")
+    loginBtn:SetScript("OnClick", function()
+        SetEnableOnLoginEnabled(not IsEnableOnLoginEnabled())
+        RefreshFromSV()
+    end)
+    loginBtn:SetScript("OnEnter", function(self)
+        if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then
+            return
+        end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Login")
+        GameTooltip:AddLine("When enabled, Mount Up starts off at login and is switched on after the delay beside Login (seconds).", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    loginBtn:SetScript("OnLeave", function()
+        if GameTooltip and GameTooltip.Hide then
+            GameTooltip:Hide()
+        end
+    end)
+
+    loginDelayBox.eb:SetMaxLetters(6)
+    loginDelayBox.eb:SetScript("OnEditFocusGained", function(self)
+        self:HighlightText()
+    end)
+    loginDelayBox.eb:SetScript("OnEditFocusLost", function(self)
+        local delay = tonumber(self:GetText())
+        if not delay or delay ~= math.floor(delay) or delay < 0 or delay == math.huge then
+            print("|cff00ccff[FGO]|r Login delay must be a non-negative whole number of seconds.")
+        else
+            InitSV()
+            AutoGossip_Settings.mountUpEnableOnLoginDelayAcc = delay
+        end
+        RefreshFromSV()
+    end)
+    loginDelayBox.eb:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+    end)
+    loginDelayBox.eb:SetScript("OnEscapePressed", function(self)
+        self:SetText(tostring(GetEnableOnLoginDelay()))
+        self:ClearFocus()
+    end)
+    loginDelayBox.eb:HookScript("OnEnter", function(self)
+        if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then
+            return
+        end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Login Delay")
+        GameTooltip:AddLine("Seconds before Login enables Mount Up. Default: 120. Use 0 to enable immediately.", 1, 1, 1, true)
+        GameTooltip:AddLine("Changes apply at the next login. Turning Login off cancels a pending enable.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    loginDelayBox.eb:HookScript("OnLeave", function()
         if GameTooltip and GameTooltip.Hide then
             GameTooltip:Hide()
         end
@@ -3252,6 +3402,37 @@ do
     local function OnEvent(_, event, ...)
         if event == "PLAYER_LOGIN" or event == "VARIABLES_LOADED" then
             InitSV()
+            if event == "PLAYER_LOGIN" and IsEnableOnLoginEnabled() and type(AutoGossip_CharSettings) == "table" then
+                if loginEnableTimer then
+                    loginEnableTimer:Cancel()
+                    loginEnableTimer = nil
+                end
+                loginEnableAt = nil
+                local delay = GetEnableOnLoginDelay()
+                AutoGossip_CharSettings.mountUpEnabledChar = (delay == 0)
+                if delay > 0 then
+                    CancelPending()
+                    loginEnableAt = GetTime() + delay
+                    loginEnableTimer = C_Timer.NewTimer(delay, function()
+                        loginEnableTimer = nil
+                        loginEnableAt = nil
+                        if not IsEnableOnLoginEnabled() then
+                            return
+                        end
+                        AutoGossip_CharSettings.mountUpEnabledChar = true
+                        MU.OnSettingsChanged()
+                        local popup = MU.GetMountUpConfigPopupFrame()
+                        if popup and popup:IsShown() and popup.RefreshFromSV then
+                            popup.RefreshFromSV()
+                        end
+                    end)
+                end
+                if delay == 0 then
+                    MU.OnSettingsChanged()
+                elseif MU.UpdateMountUpFloatButton then
+                    MU.UpdateMountUpFloatButton()
+                end
+            end
             wasEatingOrDrinking = IsEatingOrDrinking() and true or false
             armedWhileEating = false
             CancelEatFinishTimer()

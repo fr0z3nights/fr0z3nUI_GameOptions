@@ -1209,8 +1209,8 @@ do
       if showExcessInput and viewCfg.excessMinUseToken == true then
         tokenGold, tokenLive = GetWowTokenGoldSnapshot()
         if tokenGold and tokenGold > 0 then
-          viewCfg.excessMinGold = tokenGold
-          excessMinGold = tokenGold
+          viewCfg.excessMinGold = tokenGold + minGold
+          excessMinGold = viewCfg.excessMinGold
         end
       end
       if excessEdit then
@@ -1676,7 +1676,7 @@ do
 
         local tokenGold = GetWowTokenGoldSnapshot()
         if tokenGold and tokenGold > 0 then
-          cfg.excessMinGold = tokenGold
+          cfg.excessMinGold = tokenGold + math.max(tonumber(cfg.minGold) or 0, 0)
           cfg.excessMinGoldUserSet = true
         end
       else
@@ -1703,7 +1703,7 @@ do
     wowTokenBtn:SetScript("OnEnter", function(self)
       if not (GameTooltip and GameTooltip.SetOwner and GameTooltip.SetText) then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetText("Use current cached WoW Token price for XS Min.")
+      GameTooltip:SetText("Reserve the current cached WoW Token price plus Min Gold for XS Min.")
       GameTooltip:Show()
     end)
     wowTokenBtn:SetScript("OnLeave", function() if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end end)
@@ -2218,4 +2218,3 @@ do
     Refresh()
   end
 end
-

@@ -9,6 +9,73 @@ Format: 	 (TOC `## Version`)
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+## 2026.10.13
+# 03
+- Files: `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- GearMatic integration: add `/fgo gmtp` and `/fgo gmon` slash commands to toggle GearMatic autoequip directly bypassing its prints, re-enabling on teleport or 300s timer with `[FGO] GearMatic Enabled`.
+# 02
+- Files: `fUI_GOSwitchDelve.lua`, `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Delves: turn the character Enable toggle on by default in SavedVariables and automatically re-enable it on login.
+# 01
+- Files: `fUI_GOSwitchPetWalk.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Files: `fUI_GOSwitchPetWalk.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Pet Walk: guard player state checks (AFK, combat, dead/ghost, vehicle, taxi, sitting, mounted, falling, stealth, casting, channel, speed) with pcall and `issecretvalue` protection against tainted execution errors in instances.
+
+## 2026.10.11
+# 03
+- Files: `fUI_GOSwitchMail.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mail Notifier: replace Zoom with Scroll lock, blocking notifier wheel zoom and Shift-wheel rotation while letting both pass through; preserve the saved lock setting and editor controls.
+# 02
+- Files: `fUI_GOSwitchMail.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mail Notifier: rename Zoom Lock to Zoom and release normal scroll-wheel input when locked so scrolling passes through; retain Shift-wheel rotation.
+# 01
+- Files: `fUI_GOSwitchMail.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mail Notifier: add a saved Zoom Lock toggle beside Test to block notifier scroll-wheel zoom, preserving editor zoom and Shift-wheel rotation.
+
+## 2026.10.10
+# 05
+- Files: `fUI_GOSwitchMount.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: cancel the pending Login timer and clear its countdown when Mount Up is enabled early through the floating button, settings, or commands.
+# 04
+- Files: `fUI_GOSwitchMount.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: schedule a normal mount attempt when Login enables Mount Up, both after the countdown and with a zero-second delay, rather than only updating the display.
+# 03
+- Files: `fUI_GOSwitchMount.lua`, `fr0z3nUI_GameOptions.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: change the default Login delay to 120 seconds; preserve existing saved delays.
+# 02
+- Files: `fUI_GOSwitchMount.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: show the pending Login delay as a countdown above the floating button, without moving or resizing its existing text or saved position.
+# 01
+- Files: `fUI_GOSwitchMount.lua`, `fr0z3nUI_GameOptions.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: add an account-wide Login delay input beside Login (default 300 seconds). Start disabled until the login timer expires; 0 enables immediately, and turning Login off cancels the pending enable.
+
+## 2026.10.09
+# 02
+- Files: `fUI_GOSwitchPetWalk.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Pet Walk: prevent automatic pet summons while the player is AFK, including queued summon attempts.
+# 01
+- Files: `fr0z3nUI_Tax/fr0z3nUI_Tax.lua`, `fr0z3nUI_Tax/fr0z3nUI_TaxUI.lua`, `fr0z3nUI_Tax/README.md`, `fr0z3nUI_Tax/fr0z3nUI_Tax.toc`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: WoW Token XS Min reserves the token price plus Min Gold in both Guild Bank and WarBank calculations and the configuration display.
+
+## 2026.10.03
+# 01
+- Files: `fUI_GOSwitchMount.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Mount Up: switch Mount Up on for the character at login, with a new account-wide `Login` toggle in the config popup (default on).
+
+## 2026.10.02
+# 04
+- Files: `fUI_GOSwitchLDB.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Great Vault LDB: always show Coffer Keys, Catalyst and Abundance, including at 0.
+# 03
+- Files: `fUI_GOSwitchLDB.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Great Vault LDB: Abundance now comes after Catalyst on both the bar and the tooltip.
+# 02
+- Files: `fUI_GOSwitchLDB.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Great Vault LDB: Coffer Keys now truncate from the raw shard count instead of rounding (96 shards reads `.9`, not a rolled-over whole key).
+# 01
+- Files: `fUI_GOSwitchLDB.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Great Vault LDB: hide the Coffer Key decimal entirely once the weekly shard cap is reached instead of coloring it red.
+
 ## 2026.10.01
 # 04
 - Files: `fUI_GOSwitchDelve.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`

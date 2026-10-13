@@ -29,6 +29,7 @@ SetZone("Midnight Intro")
 SetZone("Coiled Isle, Quel'Thalas")
 
 
+
 	t = MAP("DNGN: Altar of Fangs", { 2590, })
    	local INTRO_SEEN = "GOTalk:136564:136565"
 	t[139918] = { prio = 10, text = "<Recover the Fang of Ula'tek.>", qil = 93417, when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
@@ -36,8 +37,9 @@ SetZone("Coiled Isle, Quel'Thalas")
 	t[139919] = { prio = 01, text = "I'm ready to leave", }												-- Dungeon Exit Altar of Fangs (2590)
 
 	t = MAP("DELV: Gnarldor Isle", {2635,})
-	t[139635] = { text = "Delve Story", prSel = "If Dundun active, Get him, then do bottom area." }		-- Story: Speaking Their Language
 	t[139462] = { text = "Delve Story", prSel = "Olds end Ends." }										-- Story: Olds and Ends
+	t[139585] = { text = "Delve Story", prSel = "Minchi's Osseous Adventure." }							-- Story: Minchi's Osseous Adventure
+	t[139635] = { text = "Delve Story", prSel = "Speaking Their Language: Dundun active? Get him first." }		-- Story: Speaking Their Language
 	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }					-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundancex")									-- Dundun's Abundance Cooldown
@@ -217,6 +219,11 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	t = NPC("Areyn (Innkeeper)", {249879,})
 	t[136148] = { text = "Magister Rommath is looking for a new wine.", prio = 10}						-- SA The Grand Magister's Drink (92145) Nara Fadebranch (249437)
 	t[137857] = { text = "Make this inn your home.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "do you want to make", "your new home" }, within = 3, }, prio = -10, noAuto = true }
+
+	t = NPC("Chel the Chip", { 257633, })
+	t.__meta.stopIfQuestAvailable = { 91932, 89507, }													-- First NPCID, Stops Gossip until quest is accepted
+	t.__meta.stopIfQuestTurnIn = { 91932, 89507, }																-- First NPCID, Stops Gossip until quest is accepted
+	t[134905] = { text = "Let me browse your goods." }													-- Vendor Chel the Chip (241928)
 
 	t = NPC("Crusader Whitney", {242818, })
 	t[134237] = { text = "<Close the paladin's eyes.>" }
@@ -997,6 +1004,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[46950] = { text = "I would like to buy from you." }                           
 
 
+
 SetZone("Voidstorm, Eastern Kingdoms")
 
 
@@ -1142,7 +1150,7 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 	t = MAP("DELV: Twilight Crypts", {2503,2504,})
 	t[135239] = { text = "Delve Story", prSel = "1: " }													-- Story: 
 	t[135634] = { text = "Delve Story", prSel = "Trapped!: Get Key on Wall " }							-- Story: Trapped!
-	t[135811] = { text = "Delve Story", prSel = "2: " }													-- Story: 
+	t[135811] = { text = "Delve Story", prSel = "Loosed Loa: Pickup Elixir " }							-- Story: Loosed Loa
 	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
 	t[140123] = { text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }					-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundancex")									-- Dundun's Abundance Cooldown
@@ -1174,6 +1182,7 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 
 	t = NPC("Chel the Chip", { 241928, })
 	t.__meta.stopIfQuestAvailable = { 91932, 89507, }													-- First NPCID, Stops Gossip until quest is accepted
+	t.__meta.stopIfQuestTurnIn = { 91932, 89507, }														-- First NPCID, Stops Gossip until quest is accepted
 	t[134905] = { text = "Let me browse your goods." }													-- Vendor Chel the Chip (241928)
 
 	t = NPC("Daki", { 253604, })

@@ -73,6 +73,9 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 	{ key = "X12:Juljan",				text = "Jul'jan says" },
 	{ key = "X12:Junka",				text = "Jun'ka says" },
 	{ key = "X12:KulamaraFierce",		text = "Kul'amara the Fierce says" },
+	{ key = "X12:RaidingCaster",		text = "Raiding Caster says" },
+	{ key = "X12:RaidingRogue",			text = "Raiding Rogue says" },
+	{ key = "X12:RaidingWarrior",		text = "Raiding Warrior says" },
 	{ key = "X12:RngrCptnLilatha",		text = "Ranger Captain Lilatha says" },
 	{ key = "X12:SlvrmnCitzn",			text = "Silvermoon Citizen says" },
 	{ key = "X12:ThalassianProf",		text = "Thalassian Professor says" },
@@ -172,10 +175,14 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 	{ key = "X01:PBDeizaPlaguehrn",		text = "Deiza Plaguehorn says" },
 	{ key = "X01:PBDDarkhammer",		text = "Durin Darkhammer says" },
 	{ key = "X01:PBEricDavidson",		text = "Eric Davidson says" },
+	{ key = "X01:PBEveressa",			text = "Everessa says" },
 	{ key = "X01:PBKDarkhammer",		text = "Kortas Darkhammer says" },
+	{ key = "X01:PBLydiaAccoste",		text = "Lydia Accoste says" },
 	{ key = "X01:PBStevenLisbane",		text = "Steven Lisbane says" },
 	{ key = "X01:Suzanne",				text = "Suzanne says" },
 	{ key = "X01:Channel",				text = "Changed Channel" },
+--  01  Kalimdor
+	{ key = "X01:PBCassyKaboom",		text = "Cassandra Kaboom says" },
 --  00  Event 
 	{ key = "DMF:PBJeremy",				text = "Jeremy Feasel says" },
 	{ key = "DMF:PBChristoph",			text = "Christoph VonFeasel says" },
@@ -216,6 +223,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 	{ key = "BLZ:NLRested",				text = "You are no longer Rested" },
 	{ key = "BLZ:Responsibly",			text = "Remember to act responsibly, protect" },
 	{ key = "BLZ:RServicesDC",			text = "Blizzard services" },
+	{ key = "BLZ:YourAuctionOf",		text = "Your auction of" },
 
 }
 

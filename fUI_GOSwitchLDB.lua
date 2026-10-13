@@ -427,31 +427,23 @@ do
 
         local cofferKeys = GetCurrencyQuantity(3028)
         local cofferShards = GetCurrencyQuantity(3310)
-        local cofferDisplayValue = cofferKeys + (cofferShards / 100)
-        if cofferDisplayValue > 0 then
-            -- Match %.1f rounding so the split digits read the same as a single formatted number.
-            local wholePart = math.floor(cofferDisplayValue)
-            local fractionDigit = math.floor((cofferDisplayValue - wholePart) * 10 + 0.5)
-            if fractionDigit >= 10 then
-                wholePart = wholePart + 1
-                fractionDigit = 0
-            end
+        do
+            -- Integer math so the digits truncate exactly: 100 shards = 1 key, 10 shards = 0.1.
+            local wholePart = cofferKeys + math.floor(cofferShards / 100)
+            local fractionDigit = math.floor((cofferShards % 100) / 10)
 
             local weeklyShardMaximum = GetCurrencyWeeklyMaximum(3310)
             local weeklyShardQuantity = GetCurrencyWeeklyQuantity(3310)
-            local fractionColor = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum) and "|cffff4040" or "|cffffd100"
-            Append(string.format("|cffffd100%d|r%s.%d|r", wholePart, fractionColor, fractionDigit))
+            local weeklyCapped = (weeklyShardMaximum > 0 and weeklyShardQuantity >= weeklyShardMaximum)
+            if weeklyCapped then
+                Append(string.format("|cffffd100%d|r", wholePart))
+            else
+                Append(string.format("|cffffd100%d.%d|r", wholePart, fractionDigit))
+            end
         end
 
-        local abundanceQuantity = GetCurrencyQuantity(3376)
-        if abundanceQuantity > 0 then
-            Append(string.format("%s%.0f|r", GetAbundanceColorTag(), abundanceQuantity))
-        end
-
-        local catalystQuantity = GetCurrencyQuantity(3465)
-        if catalystQuantity > 0 then
-            Append(string.format("%s%.0f|r", GetCatalystColorTag(), catalystQuantity))
-        end
+        Append(string.format("%s%.0f|r", GetCatalystColorTag(), GetCurrencyQuantity(3465)))
+        Append(string.format("%s%.0f|r", GetAbundanceColorTag(), GetCurrencyQuantity(3376)))
 
         Append(GetVaultStatusIconTag())
 
@@ -589,16 +581,16 @@ do
                 string.format("|cffffa000Coffer Keys:|r  |cffffd100%.1f|r", cofferDisplayValue),
                 string.format("%s%.0f/%.0f|r", weeklyProgressColor, weeklyShardQuantity, weeklyShardMaximum)
             )
-            tooltip:AddDoubleLine(
-                string.format("%sAbundance:|r  |cffffffff%.0f/%.0f|r", GetAbundanceColorTag(), abundanceQuantity, abundanceTotalMaximum),
-                string.format("%s%.0f/%.0f|r", abundanceWeeklyProgressColor, abundanceWeeklyQuantity, abundanceWeeklyMaximum)
-            )
             tooltip:AddLine(string.format(
                 "%sCatalyst:|r  |cffffffff%.0f/%.0f|r",
                 GetCatalystColorTag(),
                 catalystQuantity,
                 catalystTotalMaximum
             ))
+            tooltip:AddDoubleLine(
+                string.format("%sAbundance:|r  |cffffffff%.0f/%.0f|r", GetAbundanceColorTag(), abundanceQuantity, abundanceTotalMaximum),
+                string.format("%s%.0f/%.0f|r", abundanceWeeklyProgressColor, abundanceWeeklyQuantity, abundanceWeeklyMaximum)
+            )
         end
 
         -- bump the title line 1pt larger than the Raids/Dungeons/World headings; AddLine has no size parameter.

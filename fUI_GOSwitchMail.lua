@@ -544,6 +544,8 @@ LI.Mail = LI.Mail or {}
     local pickerOpen = IsMailEditorOpen() and true or false
     local shiftDown = (IsShiftKeyDown and IsShiftKeyDown()) and true or false
     local interactive = pickerOpen or shiftDown
+    local mnc = env.MailNotifyCfg and env.MailNotifyCfg()
+    local scrollLocked = mnc and mnc.ui and mnc.ui.zoomLocked == true
 
     MailNotifier:EnableMouse(true)
     if MailNotifier.SetMouseClickEnabled then
@@ -557,6 +559,8 @@ LI.Mail = LI.Mail or {}
     else
       MailNotifier:EnableMouse(interactive)
     end
+
+    MailNotifier:EnableMouseWheel(not scrollLocked)
 
     if not pickerOpen then
       MailNotifier:SetMovable(false)
@@ -648,6 +652,7 @@ LI.Mail = LI.Mail or {}
       EnsureDB()
       local mnc4 = MailNotifyCfg()
       if not mnc4 then return end
+      if mnc4.ui and mnc4.ui.zoomLocked == true then return end
       mnc4.model = mnc4.model or {}
 
       if IsShiftKeyDown and IsShiftKeyDown() then
@@ -695,10 +700,9 @@ LI.Mail = LI.Mail or {}
       end
     end)
 
-    Mail.ApplyMailNotifierInteractivity()
-
     frame:Hide()
     MailNotifier = frame
+    Mail.ApplyMailNotifierInteractivity()
     return frame
   end
 
@@ -1543,12 +1547,41 @@ LI.Mail = LI.Mail or {}
       end)
       modelUI.mailTestBtn = mailTest
 
+      local zoomLockBtn = CreateFrame("Button", nil, modelUI, "UIPanelButtonTemplate")
+      zoomLockBtn:SetSize(85, 22)
+      zoomLockBtn:SetPoint("LEFT", mailTest, "RIGHT", 10, 0)
+      zoomLockBtn:SetText("Scroll")
+      zoomLockBtn:SetScript("OnClick", function()
+        EnsureDB()
+        local mnc = MailNotifyCfg()
+        if not mnc then return end
+        mnc.ui = mnc.ui or {}
+        mnc.ui.zoomLocked = not (mnc.ui.zoomLocked == true)
+        RefreshViewControls()
+      end)
+      zoomLockBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Scroll Lock")
+        GameTooltip:AddLine("Green: notifier wheel zoom and rotation are locked; scrolling, including Shift-wheel, passes through. Grey: unlocked.", 1, 1, 1, true)
+        GameTooltip:AddLine("Editor zoom and rotation controls remain available.", 1, 1, 1, true)
+        GameTooltip:Show()
+      end)
+      zoomLockBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      modelUI.mailZoomLockBtn = zoomLockBtn
+
       RefreshViewControls = function()
         EnsureDB()
         local mnc = MailNotifyCfg()
         if not mnc then return end
         mnc.ui = mnc.ui or {}
         mnc.model = mnc.model or {}
+
+        Mail.ApplyMailNotifierInteractivity()
+        if mnc.ui.zoomLocked == true then
+          zoomLockBtn:GetFontString():SetTextColor(0.20, 1.00, 0.20, 1)
+        else
+          zoomLockBtn:GetFontString():SetTextColor(0.55, 0.55, 0.55, 1)
+        end
 
         RefreshXYWHBoxesFromConfig()
 
@@ -1811,6 +1844,13 @@ LI.Mail = LI.Mail or {}
         testBtn:SetSize(reset:GetWidth(), reset:GetHeight())
       end
 
+      local zoomLockBtn = modelUI and modelUI.mailZoomLockBtn
+      if zoomLockBtn then
+        zoomLockBtn:SetParent(mailPanel)
+        zoomLockBtn:ClearAllPoints()
+        zoomLockBtn:SetPoint("LEFT", testBtn or reset, "RIGHT", 10, 0)
+      end
+
       mailUI.combatBtn:ClearAllPoints()
       -- Center Combat+Apply in the right-side bottom row.
       mailUI.combatBtn:SetPoint("LEFT", rightBottomRow, "CENTER", -95, 0)
@@ -1822,7 +1862,7 @@ LI.Mail = LI.Mail or {}
     local hint = modelUI:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     hint:SetParent(mailPanel)
     hint:ClearAllPoints()
-    hint:SetPoint("BOTTOMLEFT", (modelUI and modelUI.mailTestBtn) or reset, "BOTTOMRIGHT", 10, -2)
+    hint:SetPoint("BOTTOMLEFT", (modelUI and modelUI.mailZoomLockBtn) or reset, "BOTTOMRIGHT", 10, -2)
     if reloadBtn then
       hint:SetPoint("BOTTOMRIGHT", reloadBtn, "BOTTOMLEFT", -10, -2)
     else

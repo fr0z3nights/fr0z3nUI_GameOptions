@@ -10,5 +10,9 @@ Standalone mode provides:
 - Guild Bank and WarBank tax tracking, depositing and withdrawing when enabled.
 - Separate account and character savedvariables (FGO's tax data cannot be seen).
 
+When WoW Token is enabled, XS Min reserves the current token price plus Min Gold,
+so purchasing a token leaves the configured minimum on the character. This applies
+to both Guild Bank and WarBank excess deposits.
+
 If both FGO and FAX are running, the standalone Tax addon is inactive
 so Tax does not register duplicate events or broker objects.

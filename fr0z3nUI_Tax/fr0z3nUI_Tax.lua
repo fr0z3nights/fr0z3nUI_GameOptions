@@ -1700,7 +1700,7 @@ do
       local tokenCopper = GetWowTokenMarketPrice()
       local tokenGold = math.floor((tonumber(tokenCopper) or 0) / (COPPER_PER_GOLD or 10000))
       if tokenGold > 0 then
-        excessMinGold = tokenGold
+        excessMinGold = tokenGold + minGold
       end
     end
     if excessMinGold < 0 then excessMinGold = 0 end
@@ -2012,7 +2012,7 @@ do
       local tokenCopper = GetWowTokenMarketPrice()
       local tokenGold = math.floor((tonumber(tokenCopper) or 0) / (COPPER_PER_GOLD or 10000))
       if tokenGold > 0 then
-        excessMinGold = tokenGold
+        excessMinGold = tokenGold + minGold
       end
     end
     if excessMinGold < 0 then excessMinGold = 0 end
@@ -2833,4 +2833,3 @@ do
     end
   end
 end
-

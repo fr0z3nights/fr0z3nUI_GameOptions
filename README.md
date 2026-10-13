@@ -50,6 +50,8 @@ This tab is the “turn stuff on/off without hunting in Blizzard menus” page.
 	- `Mount Up` = account master toggle (`ON ACC` / `OFF ACC`).
 	- `Enable` = enables/disables Mount Up on this character.
 	- `Config` = opens Mount Up options.
+	- Config `Login` (account-wide, default on) starts Mount Up off at login, then enables it after the adjacent delay in seconds (default `120`; `0` enables immediately). Delay edits apply at the next login; switching `Login` off cancels a pending enable.
+	- While the login delay is pending, the floating Mount Up button shows the remaining seconds above its text without changing the button's saved position. The countdown disappears when the delay finishes, Login is switched off, or Mount Up is enabled early through the floating button, settings, or commands.
 - **Pet Walk | Enable | Config**
 	- `Pet Walk` = account master toggle (tries to keep a battle pet summoned).
 	- `Enable` = enables/disables Pet Walk on this character.
@@ -58,6 +60,7 @@ This tab is the “turn stuff on/off without hunting in Blizzard menus” page.
 	- `Mail` = account master toggle.
 	- `Enable` = per-character override (wins over the ACC value).
 	- `Config` = opens the Mail Notifier popout.
+	- `Scroll` beside `Test` locks notifier scroll-wheel zoom and Shift-wheel rotation (green = locked, grey = unlocked; default unlocked). Both normal scrolling and Shift-wheel pass through the locked notifier. Saved with the current mail configuration scope, preserving the previous Zoom lock setting; editor zoom and rotation controls are unaffected.
 
 **Right column (small utilities):**
 - **Reload Button** (`ON ACC` / `OFF ACC` + a size in parentheses)
