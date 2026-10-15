@@ -1,6 +1,8 @@
 ---@diagnostic disable: undefined-global
 
 local addonName, ns = ...
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+
 if type(ns) ~= "table" then
     ns = {}
 end

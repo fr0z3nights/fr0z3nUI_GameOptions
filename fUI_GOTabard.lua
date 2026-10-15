@@ -123,13 +123,15 @@ end
 local function isTabardItem(itemID)
 	if not itemID then return false end
 	-- Prefer instant info so we don't depend on item cache.
-	if GetItemInfoInstant then
-		local _, _, _, itemEquipLoc = GetItemInfoInstant(itemID)
+	local getItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+	if getItemInfoInstant then
+		local _, _, _, itemEquipLoc = getItemInfoInstant(itemID)
 		if itemEquipLoc == "INVTYPE_TABARD" then
 			return true
 		end
 	end
-	local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemID)
+	local getItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+	local _, _, _, _, _, _, _, _, itemEquipLoc = getItemInfo(itemID)
 	return itemEquipLoc == "INVTYPE_TABARD"
 end
 
@@ -519,7 +521,8 @@ local function equipTabard(itemID)
 	if not itemID then return false end
 	if InCombatLockdown() then return false end
 	if CursorHasItem() then return false end
-	EquipItemByName(itemID)
+	local equipItemByName = (C_Item and C_Item.EquipItemByName) or EquipItemByName
+	equipItemByName(itemID)
 	return true
 end
 

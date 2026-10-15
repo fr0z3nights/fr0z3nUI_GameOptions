@@ -2,7 +2,7 @@
 ## Title: |cff00ccfffr0z3nUI|r Tax
 ## Notes: Standalone bank tax tracker. Also embedded in fr0z3nUI GameOptions.
 ## Author: fr0z3nights
-## Version: 2026.10.09.01
+## Version: 2026.10.15.02
 ## OptionalDeps: LibStub, LibDataBroker-1.1, fr0z3nUI_GameOptions
 ## SavedVariables: fr0z3nUI_TaxDB
 ## SavedVariablesPerCharacter: fr0z3nUI_TaxCharDB

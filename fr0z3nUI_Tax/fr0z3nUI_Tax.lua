@@ -43,6 +43,20 @@ do
   local lastTokenPrice = nil
   local lastTokenPriceTS = 0
 
+  local function PrintOwedReduction(bankLabel, reason, before, after, force)
+    before = math.max(0, math.floor(tonumber(before) or 0))
+    after = math.max(0, math.floor(tonumber(after) or 0))
+    if after >= before and not force then return end
+    local function Coins(copper)
+      local gold = math.floor(copper / (COPPER_PER_GOLD or 10000))
+      local silver = math.floor((copper % (COPPER_PER_GOLD or 10000)) / (COPPER_PER_SILVER or 100))
+      local remainder = copper % (COPPER_PER_SILVER or 100)
+      return string.format("%dg %ds %dc", gold, silver, remainder)
+    end
+    local action = (after == 0 and before > 0) and "cleared" or "changed"
+    print("|cff00ccff[Tax]|r " .. tostring(bankLabel) .. " owed " .. action .. ": " .. Coins(before) .. " -> " .. Coins(after) .. "; cause: " .. tostring(reason))
+  end
+
   local function GetCurrentGuildKeyAndName()
     if type(IsInGuild) == "function" then
       local ok, inGuild = pcall(IsInGuild)
@@ -173,6 +187,7 @@ do
     -- Optionally, guild scope can use a shared per-guild balance bucket (behind a per-guild toggle).
     -- Clear legacy account-wide balances once to avoid stale/phantom owed values.
     if t._balanceMode ~= "character" then
+      local oldDue = math.max(tonumber(t.due) or 0, (tonumber(t.dueTax) or 0) + (tonumber(t.dueBorrowed) or 0))
       t._balanceMode = "character"
 
       -- Legacy account-wide fields.
@@ -181,6 +196,7 @@ do
       t.dueBorrowed = 0
       t.paidToDate = 0
       t.borrowedLastTS = 0
+      PrintOwedReduction("Legacy account", "one-time migration to character balances", oldDue, 0)
     end
 
     -- Legacy account-wide fields (kept for backward compatibility; no longer the active model).
@@ -1378,6 +1394,7 @@ do
     else
       Print(GetPrintNamePrefix() .. FormatGoldOnly(copper) .. " " .. tostring(direction or "") .. " " .. bankLabel)
     end
+    return true
   end
 
   local function GetBankPrintMode(cfg)
@@ -1405,8 +1422,7 @@ do
     if copper <= 0 then return end
 
     if mode == "basic" then
-      PrintBankMove(cfg, copper, "deposited to", bankName)
-      return
+      return PrintBankMove(cfg, copper, "deposited to", bankName)
     end
 
     local function NormalizeBankLabel(bankName2)
@@ -1478,7 +1494,7 @@ do
         if totalMoneyMinusOwed < 0 then totalMoneyMinusOwed = 0 end
         Print(name .. bankShort .. " Deposit  " .. FormatGoldOnly(totalMoneyMinusOwed) .. " - " .. FormatGoldOnly(payToXS) .. " XS")
       end
-      return
+      return true
     end
 
     -- full (multi-line)
@@ -1493,6 +1509,7 @@ do
     if available < 0 then available = 0 end
     if totalOwed < 0 then totalOwed = 0 end
     Print("  Min=" .. MoneyToString(minCopper) .. ", available=" .. MoneyToString(available) .. ", totalOwed(all banks)=" .. MoneyToString(totalOwed))
+    return true
   end
 
   local function PushPendingDelta(queue, delta)
@@ -1578,7 +1595,9 @@ do
     bal.due = bal.dueTax + bal.dueBorrowed
     bal.paidToDate = math.floor((tonumber(bal.paidToDate) or 0) + pay)
 
-    PrintBankMove(cfg, pay, "deposited to", bankLabel)
+    if not PrintBankMove(cfg, pay, "deposited to", bankLabel) then
+      PrintOwedReduction(bankLabel, "manual bank tracking: PLAYER_MONEY loss treated as deposit", due, bal.due)
+    end
     RequestUIRefresh()
   end
 
@@ -1840,6 +1859,7 @@ do
         PushPendingDelta(state._pendingGuildDeltas, -toPay)
         local ok = pcall(DepositGuildBankMoney, toPay)
         if ok then
+          local previousDue = (tonumber(bal.dueTax) or 0) + (tonumber(bal.dueBorrowed) or 0)
           ApplyBankDeltaToCaches("guild", -toPay)
           local payToDue = toPay
           if payToDue > duePayable then payToDue = duePayable end
@@ -1856,7 +1876,7 @@ do
           if bal.dueBorrowed < 0 then bal.dueBorrowed = 0 end
           bal.due = bal.dueTax + bal.dueBorrowed
           bal.paidToDate = math.floor((tonumber(bal.paidToDate) or 0) + toPay)
-          PrintTaxAutoDeposit(cfg, "Guild Bank", toPay, {
+          local printed = PrintTaxAutoDeposit(cfg, "Guild Bank", toPay, {
             totalMoney = money,
             owedTax = dueTax,
             owedBorrowed = dueBorrowed,
@@ -1868,6 +1888,9 @@ do
             available = available,
             totalOwed = totalOwed,
           })
+          if not printed then
+            PrintOwedReduction("Guild Bank", isAuto and "automatic deposit API returned without error" or "Pay Now deposit API returned without error", previousDue, bal.due)
+          end
           RequestUIRefresh()
         else
           if IsTaxDebugEnabled() and not (cfg.quiet == true) then Print("Tax deposit failed.") end
@@ -2203,6 +2226,7 @@ do
         TaxWarDbg("attempt deposit: toPay=" .. ToGoldFmt(toPay))
         local ok, err = pcall(C_Bank.DepositMoney, bankType.Account, toPay)
         if ok then
+          local previousDue = (tonumber(wb.dueTax) or 0) + (tonumber(wb.dueBorrowed) or 0)
           ApplyBankDeltaToCaches("warbank", -toPay)
           local payToDue = toPay
           if payToDue > duePayable then payToDue = duePayable end
@@ -2219,7 +2243,7 @@ do
           if wb.dueBorrowed < 0 then wb.dueBorrowed = 0 end
           wb.due = wb.dueTax + wb.dueBorrowed
           wb.paidToDate = math.floor((tonumber(wb.paidToDate) or 0) + toPay)
-          PrintTaxAutoDeposit(cfg, "Warband Bank", toPay, {
+          local printed = PrintTaxAutoDeposit(cfg, "Warband Bank", toPay, {
             totalMoney = money,
             owedTax = dueTax,
             owedBorrowed = dueBorrowed,
@@ -2231,6 +2255,9 @@ do
             available = available,
             totalOwed = totalOwed,
           })
+          if not printed then
+            PrintOwedReduction("WarBank", isAuto and "automatic deposit API returned without error" or "Pay Now deposit API returned without error", previousDue, wb.due)
+          end
           RequestUIRefresh()
         else
           TaxWarDbg("deposit call failed: " .. tostring(err))
@@ -2798,21 +2825,25 @@ do
   function Tax.ClearDue()
     local _, _, bal = GetActiveScopeCfgAndBal()
     if type(bal) ~= "table" then return end
+    local previousDue = (tonumber(bal.dueTax) or 0) + (tonumber(bal.dueBorrowed) or 0)
     bal.dueTax = 0
     bal.dueBorrowed = math.floor(tonumber(bal.dueBorrowed) or 0)
     if bal.dueBorrowed < 0 then bal.dueBorrowed = 0 end
     AccrueBorrowedInterest(bal)
     bal.due = math.floor(tonumber(bal.dueTax) or 0) + math.floor(tonumber(bal.dueBorrowed) or 0)
+    PrintOwedReduction("Guild Bank", "Clear button / Tax.ClearDue (borrowed debt retained)", previousDue, bal.due, true)
   end
 
   function Tax.ClearDueWarbank()
     local ct = EnsureCharTaxDB()
     local wb = ct and ct.warBal
     if type(wb) ~= "table" then return end
+    local previousDue = (tonumber(wb.dueTax) or 0) + (tonumber(wb.dueBorrowed) or 0)
     wb.dueTax = 0
     wb.dueBorrowed = math.floor(tonumber(wb.dueBorrowed) or 0)
     if wb.dueBorrowed < 0 then wb.dueBorrowed = 0 end
     wb.due = math.floor(tonumber(wb.dueTax) or 0) + math.floor(tonumber(wb.dueBorrowed) or 0)
+    PrintOwedReduction("WarBank", "Clear button / Tax.ClearDueWarbank (borrowed debt retained)", previousDue, wb.due, true)
   end
 
 

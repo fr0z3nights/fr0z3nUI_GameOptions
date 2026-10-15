@@ -451,6 +451,9 @@ local function HookChatFrameAddMessage(frame)
     if type(text) == "string" and text:match("^%[LootIt") then
       return orig(self, text, ...)
     end
+    if type(text) == "string" and (text:find("|cff00ccff[Tax]|r ", 1, true) == 1 or text:find("[Tax] ", 1, true) == 1) then
+      return orig(self, text, ...)
+    end
     if not IsNonEmptyPublicString(text) then
       return orig(self, text, ...)
     end

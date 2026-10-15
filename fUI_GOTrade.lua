@@ -1,6 +1,8 @@
 local addonName, ns = ...
 if type(ns) ~= "table" then ns = {} end
 
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+
 local LI = (ns and ns.LootIt) or {}
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
@@ -2990,4 +2992,3 @@ do
     end
   end
 end
-

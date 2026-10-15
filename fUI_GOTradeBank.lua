@@ -1,6 +1,9 @@
 ﻿local addonName, ns = ...
 if type(ns) ~= "table" then ns = {} end
 
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+
 local LI = (ns and ns.LootIt) or {}
 ns.LootIt = LI
 fr0z3nUI_LootIt = LI
@@ -4844,4 +4847,3 @@ LI.GetGuildbankInteractionOpen = function() return _guildbankInteractionOpen == 
 LI.IsGuildBankOpen = IsGuildBankOpen
 LI.IsPersonalBankOpen = IsPersonalBankOpen
 LI.IsWarbankOpen = IsWarbankOpen
-

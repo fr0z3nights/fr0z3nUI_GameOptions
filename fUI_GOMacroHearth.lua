@@ -1,5 +1,7 @@
 local _, ns = ...
 
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+
 -- NOTE (FGO): Do NOT reference legacy standalone addons (e.g., HearthZone / global fHZ).
 -- This module owns the hearth storage + macro rotation + bind/zone display logic.
 

@@ -9,6 +9,24 @@ Format: 	 (TOC `## Version`)
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+## 2026.10.15
+# 04
+- Tax: keep owed-change diagnostics out of LootChat's money rewriting. Omit duplicate diagnostics when a normal deposit/bank-move message was printed; retain diagnostics when those messages are disabled or the bank frame is closed, and for Clear/migration.
+# 03
+- Files: `fr0z3nUI_Tax/fr0z3nUI_Tax.lua`, `fr0z3nUI_Tax/fr0z3nUI_Tax.toc`, `fr0z3nUI_Tax/README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: always print owed reductions from automatic/Pay Now deposits, manual bank tracking, legacy account-balance migration, and explicit Clear calls, including cause and before/after amounts; bypass Quiet, Debug, and bank print settings.
+# 02
+- Files: `fUI_GOMacro.lua`, `fUI_GOMacroHearth.lua`, `fr0z3nUI_GameOptions.lua`, `fUI_GOSituateUI.lua`, `fUI_GOTrade.lua`, `fUI_GOTradeBank.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Item API compatibility: prefer `C_Item.GetItemInfo` across food/drink macros, Hearth names, slash-command diagnostics, settings item labels, and trade/bank metadata; prefer `C_Item.GetItemInfoInstant` for bank gear checks. Preserve legacy fallbacks and existing guards.
+# 01
+- Files: `fUI_GOTabard.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tabard: prefer `C_Item.EquipItemByName` when equipping tabards to avoid the failing legacy API call after the 12.1.5 update; retain legacy fallback and existing combat/cursor guards.
+
+## 2026.10.14
+# 01
+- Files: `fUI_GOTabard.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tabard: prefer `C_Item.GetItemInfoInstant` and `C_Item.GetItemInfo` when scanning bags to fix nil legacy API calls after the 12.1.5 update; retain legacy API fallback.
+
 ## 2026.10.13
 # 03
 - Files: `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
@@ -27,7 +45,7 @@ Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stay
 - Mail Notifier: replace Zoom with Scroll lock, blocking notifier wheel zoom and Shift-wheel rotation while letting both pass through; preserve the saved lock setting and editor controls.
 # 02
 - Files: `fUI_GOSwitchMail.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
-- Mail Notifier: rename Zoom Lock to Zoom and release normal scroll-wheel input when locked so scrolling passes through; retain Shift-wheel rotation.
+- Mail Notifier: rename Zoom Lock to Zoom and release normal scroll-wheel input when locked so scrolling passes through; retain Shift-wheel rotation
 # 01
 - Files: `fUI_GOSwitchMail.lua`, `README.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
 - Mail Notifier: add a saved Zoom Lock toggle beside Test to block notifier scroll-wheel zoom, preserving editor zoom and Shift-wheel rotation.

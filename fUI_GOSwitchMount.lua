@@ -792,7 +792,8 @@ local EAT_DRINK_IDS = {
     167152, -- Conjured Refreshment
     452389, -- observed newer Food & Drink
     -- Expansion/patch-specific restoration auras
-    1291946, 1269916, -- Food & Drink (variants)
+    -- /run for i=1,40 do local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL") if aura then print(aura.name .. " ID: " .. aura.spellId) end end
+    1291946, 1269916, 1284501,-- Food & Drink (variants)
     1269922, 1291842, 1290926, 1291848, 1291849, -- Food
     1269919, 1291954, -- Drink (variants)
     1291858, -- Mage food / conjured

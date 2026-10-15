@@ -203,10 +203,11 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	t = NPC("Apprentice Erilla", {251540, })
 	t[132652] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>" }      -- What's Left (86639)                Apprentice Erilla (251540)
 
-	t = NPC("Arator", {236716, 242433, 236610, })
+	t = NPC("Arator", {236716,242433,236610,260163, })
 	t[136284] = { text = "<Skip conversation> What now?" }    --                               Arator (236716)
 	t[133785] = { text = "<Skip conversation> What now?" }    --                               Arator (242433)
 	t[132886] = { text = "<Stay silent.>" }                   -- Following the Root (86643)    Arator (236610)
+	t[139157] = { text = "<Relay Lor'themar's marching orders.>" }                   -- Double-Edged Swords (95190) Arator (260163)
 
 	t = NPC("Arcanist Taemin", {249398, })
 	t[135184] = { text = "What's on your mind?" }                               -- A Ranger's Spirit (91385)     Arcanist Taemin (249398)
@@ -222,7 +223,7 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 
 	t = NPC("Chel the Chip", { 257633, })
 	t.__meta.stopIfQuestAvailable = { 91932, 89507, }													-- First NPCID, Stops Gossip until quest is accepted
-	t.__meta.stopIfQuestTurnIn = { 91932, 89507, }																-- First NPCID, Stops Gossip until quest is accepted
+	t.__meta.stopIfQuestTurnIn = { 91932, 89507, 94361, }																-- First NPCID, Stops Gossip until quest is accepted
 	t[134905] = { text = "Let me browse your goods." }													-- Vendor Chel the Chip (241928)
 
 	t = NPC("Crusader Whitney", {242818, })
@@ -233,6 +234,10 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 
 	t = NPC("Guard Captain Leonic", {239457, })
 	t[132706] = { text = " - Have you seen anything suspicious lately?" }								-- Rational Explanation (86624)       Guard Captain Leonic (239457) KILLED
+
+	t = NPC("Halduron Brightwing", {262944,261088,})
+	t[139393] = { text = "Understood. We'll see how Liadrin is faring nearby.", }						-- The Aqir Swarm (95533) Halduron Brightwing (262944)
+	t[139159] = { text = "<Relay Lor'themar's marching orders.>", }										-- Double-Edged Swords (95190) Halduron Brightwing (261088)
 
 	t = NPC("Heron Skygaze", {249861,})
 	t[136150] = { text = "Magister Rommath is looking for a new wine.", prio = 10 }                     -- SA The Grand Magister's Drink (92145) Heron Skygaze (249861)
@@ -259,6 +264,9 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	t[136155] = { text = "Magister Rommath is looking for a new wine.", prio = 10 }                     -- SA The Grand Magister's Drink (92145) Kyrenna (251409)
 	t[137755] = { text = "Open Vendor.", prio = 01 }                           							-- Vendor
 
+	t = NPC("Lady Liadrin", {262969,})
+	t[139397] = { text = "The swarm Halduron was fighting escaped. He is tracking them now." }			-- The Aqir Swarm (95533) Lady Liadrin (262969)
+
 	t = NPC("Lady Marilin", {252649,})
 	t[136158] = { text = "Magister Rommath is looking for a new wine." }                           		-- SA The Grand Magister's Drink (92145) Lady Marilin (252649)
 
@@ -268,6 +276,9 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 
 	t = NPC("Limien Bountcask", {249426, })
 	t[136161] = { text = "Magister Rommath is looking for a new wine." }                           		-- SA The Grand Magister's Drink (92145) Limien Bountcask (249426)
+
+	t = NPC("Lor'themar Theron", {260160, })
+	t[138981] = { text = "<Signal the advance.>", prio = 01, }											-- The Amani Impasse (95193) Lor'themar Theron (260160)
 
 	t = NPC("Lord Antenorian", {245004, })
 	t[134001] = { text = " - Lie to Lord Antenorian about how much you know." }                           -- The First to Know (90907) Lord Antenorian (245004)      DELVE BOSS
@@ -298,10 +309,11 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	t = NPC("Nara Fadebranch", {249437,})
 	t[136159] = { text = "Magister Rommath is looking for a new wine." }                           		-- SA The Grand Magister's Drink (92145) Nara Fadebranch (249437)
 
-	t = NPC("Orweyna", {236743, 236903, 236704, })
+	t = NPC("Orweyna", { 236743,236903,236704,260161, })
 	t[133725] = { text = "Let's follow the trail you found." }
 	t[132833] = { text = "I'm ready when you are." }
-	t[135559] = { text = "I'm ready, Lets go!" }                                                          -- The Root Cause (86899)             Orweyna (236704)
+	t[135559] = { text = "I'm ready, Lets go!" }															-- The Root Cause (86899) Orweyna (236704)
+	t[139158] = { text = "<Relay Lor'themar's marching orders.>" }											-- Double-Edged Swords (95190) Orweyna (260161)
 
 	t = NPC("Outrunner Alarion", {251542, })
 	t[135781] = { text = " - <Instruct the defender to go to the Runestone Shan'dor...>" }                -- What's Left (86639)                Outrunner Alarion (251542)
@@ -783,15 +795,19 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
 
+	t = MAP("SCNR: Silvermoon City", { 2605, })
+	t[139182] = { text = "Kith'ix is somewhere beneath Atal'Utek", }									-- The Aqir Swarm (95533) Lor'themar Theron
+
    	t = NPC("Allari the Souleater", { 263524, })
    	t[139905] = { text = "Are you joining Riftblade Maella's strike team?", close = true}				-- Stalkers of the Stars (96049) Allari the Souleater (263524)
 
-	t = NPC("Arator", { 244644, 237510, 240267, })
+	t = NPC("Arator", { 244644, 237510, 240267, 261878, })
    	t[133853] = { text = "Alonsus Faol asks that we meet him at the Sunwell." }							-- Meet at the Sunwell (86837)   Arator (244644)
    	t[133856] = { text = "Let's go." }																	-- Meet at the Sunwell (86837)   Arator (244644)
    	t[133121] = { text = "I'm ready!" }																	-- A Bulwark Remade (86833)      Arator (237510)
    	t[136685] = { text = "What will you do next?" }														-- A Bulwark Remade (86833)      Arator (237510)
    	t[133560] = { text = "Let's go. (Start Scenario)" }													-- The Battle of the Bridge (88769) Arator (240267)
+   	t[139162] = { text = "We need to track down the other aqir." }										-- The Aqir Swarm (95533) Arator (261878)
    	local INTRO_SEEN = "GOTalk:136564:136565"
    	t[136565] = { prio = 10, text = "Let's discuss the plan in full", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
    	t[136564] = { prio = 10, text = "I don't have time <Skip>", when = function() return TalkCacheSeen(INTRO_SEEN) end }
@@ -849,6 +865,9 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    	t.__meta.stopIfQuestTurnIn = { 92868, 92869, }														-- Waits for Quest Hand-Ins (First NPCID Only)
    	t[136540] = { text = "Train me." }
 
+   	t = NPC("Estelia Archtender", { 266188, })
+   	t[142260] = { text = "Offering in exchange for research on the aqir." }								-- All Along the Watchtowers (95187) Estelia Archtender (266188)
+
    	t = NPC("Gaari", { 247647, })
    	t[135588] = { text = "Mr. Brightstitch isn't accepting more work right now." }						-- Mad to Measure (91386) Gaari (247647)
 
@@ -886,11 +905,15 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t = NPC("Leona Darkstrider", { 263525, })
    	t[139507] = { text = "Grant me Spectral Sight and I will attune the Ward." }						-- Stalkers of the Stars (96049) Leona Darkstrider (263525)
 
-   	t = NPC("Lor'themar Theron", 235787)
+   	t = NPC("Lor'themar Theron", { 235787, })
    	t[132632] = { text = "<Skip conversation> I expect you'll sort things out." }						-- Unknown Quest (XXXXX) Lor'themar Theron (235787)
    	t[134143] = { text = "What now?" }																	-- Fractured (86650) Lor'themar Theron (235787)
 
-   	t = NPC("Lothene", 241458)
+   	t = NPC("Lord Solanar Bloodwrath", { 266156, })
+   	t[140769] = { text = "Aqir attack us every hour, I'll return after fending them off.", prio = 10 }	--	All Along the Watchtowers (95187) Lord Solanar Bloodwrath (266156)
+   	t[140062] = { text = "Lor'themar says you have aqir invasions info.", prio = 01 }					--	All Along the Watchtowers (95187) Lord Solanar Bloodwrath (266156)
+
+	t = NPC("Lothene", 241458)
    	t[133298] = { text = "I have a bag full of creature parts ...", prio = 10 }							-- Five Finger Discount (89204) Lothene (241458)
    	t[133299] = { text = "What do you have for sale?", prio = -5 }
 
@@ -920,6 +943,11 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[138392] = { prio = 10, text = "Combine all of my Coffer Key Shards" }								-- Coffer Keys
 	t[137442] = { prio = 01, text = "What does the Reliquary have to offer?" }							-- Vendor Naleidea Rivergleam (242398)
 	t[137445] = { prio = 01, text = "What does the Reliquary have to offer?" }							-- Vendor Naleidea Rivergleam (242398)
+
+	t = NPC("Nelthius Shadestone", { 254616, })
+-- 	t.__meta.ignoreIfQuestAvailable = { 92895, }														-- Ignores if Quest Available (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 93453, }																-- Waits for Quest Hand-Ins (First NPCID Only)
+	t[137075] = { text = "How do I choose what gravestone to leave behind in a delve should I die?", }	-- A Grave Concern (93453) Nelthius Shadestone (254616)
 
 	t = NPC("Orweyna", { 253640, })
    	t.__meta.ignoreIfQuestAvailable = { 92895, }														-- Ignores if Quest Available (First NPCID Only)

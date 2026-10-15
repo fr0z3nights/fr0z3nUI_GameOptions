@@ -16,3 +16,17 @@ to both Guild Bank and WarBank excess deposits.
 
 If both FGO and FAX are running, the standalone Tax addon is inactive
 so Tax does not register duplicate events or broker objects.
+
+Owed reductions print a `[Tax]` message with the bank/balance, cause, and
+before/after amounts unless a normal deposit/bank-move message already explains
+the change. Diagnostics remain enabled with Quiet on, Debug off, bank prints
+off, or a closed bank frame. This covers automatic and Pay Now deposits, manual
+bank tracking, legacy account-balance migration, and Clear calls. Clear messages
+are printed even when nothing is owed; borrowed debt is retained.
+LootChat leaves `[Tax]` diagnostics intact instead of rewriting them as loot money.
+
+Deposit messages report that the deposit API returned without a Lua error;
+this is not confirmation that the server accepted the transfer. Manual bank
+tracking treats player money losses while the bank is open as deposits.
+Switching character/shared owed scope displays a different balance; it does
+not clear the previous balance.

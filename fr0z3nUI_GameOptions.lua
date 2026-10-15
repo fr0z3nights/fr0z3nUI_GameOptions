@@ -1,6 +1,8 @@
 local addonName, ns = ...
 ns = ns or {}
 
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+
 local SANITY_VERSION = "260306-001"
 
 local function IsSecretString(v)
