@@ -9,6 +9,79 @@ Format: 	 (TOC `## Version`)
 
 Discipline: bump TOC `## Version` on every behavior/UI change (sanity check stays meaningful).
 
+## 2026.10.20
+# 10
+- Files: `fUI_GOSwitchDelve.lua`, `fr0z3nUI_GameOptions.toc`, `README Macros.md`, `README Changelog.md`
+- Delves: entered-tier detection no longer abandons retries after roughly five seconds. Use the existing update loop to check at most once per second until printed, only inside an actual delve instance, independent of auto-entry cooldown. Accept numeric active-tier results and labeled widget tier text. Report tier data still unavailable after 30 seconds once, continuing checks without guessing the selected tier.
+# 09
+- Files: `fUI_GOMacroAuraDB.lua`, `fUI_GOMacro.lua`, `README Macros.md`, `fr0z3nUI_GameOptions.toc`, `README Changelog.md`
+- XAura: restore beneficial-only aura scanning and remove non-cancellable Trick (24753) from the database; keep the 13 costume IDs.
+# 08
+- Files: `fUI_GOMacroAuraDB.lua`, `fUI_GOMacro.lua`, `README Macros.md`, `fr0z3nUI_GameOptions.toc`, `README Changelog.md`
+- XAura: populate the ordered database with the 14 supplied Trick/costume spell IDs. Scan both beneficial and harmful player auras so listed debuffs can be detected; normal cancellation restrictions still apply.
+# 07
+- Files: `fUI_GOMacroAuraDB.lua`, `fUI_GOMacro.lua`, `fUI_GOMacroUI.lua`, `fr0z3nUI_GameOptions.toc`, `README Macros.md`, `README Changelog.md`
+- Macro: add per-character XAura toggle (on by default) maintaining `FGO XAura`. Match readable player beneficial auras against the ordered spell-ID database; write one localized `/cancelaura` line followed by `/dejunk destroy`. No match leaves existing macros unchanged; first creation without a match uses only `/dejunk destroy`. Defer combat updates, preserve macros when disabled, and leave the data-only aura list empty pending confirmed IDs.
+# 06
+- Files: `fUI_GOMacro.lua`, `README Macros.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Macro: default Guild Cloak, Dalaran Ring, and Timeless to enabled when no per-character preference is saved. Explicitly disabled settings remain off.
+# 05
+- Files: `fUI_GOMacro.lua`, `fUI_GOMacroUI.lua`, `README Macros.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Macro: add per-character Timeless toggle (off by default), maintaining `FGO TP Timeless` on enable and login/reload. Prefer carried non-gear Time-Lost Artifact (219222) with use-only body; otherwise equip/use trinket 103678 with `/fgo gmtp` restoration. Disabling leaves the macro intact; neither item produces an inert tooltip-only macro.
+# 04
+- Files: `fUI_GOMacro.lua`, `fUI_GOMacroUI.lua`, `README Macros.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Macro: refresh Dalaran Ring on enable and login/reload only, rather than every world entry. Guild Cloak retains world-entry refreshes.
+# 03
+- Files: `fUI_GOMacro.lua`, `fUI_GOMacroUI.lua`, `README Macros.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Macro: add per-character Dalaran Ring toggle (off by default) maintaining `FGO TP Dalaran` from the 16 supported ring variants carried/equipped by the character. Share Guild Cloak's cooldown selection, enable/world-entry refresh, combat deferral, bounded data retries, and disable-without-deleting behavior. Include `/fgo gmtp` to restore original rings after teleport.
+# 02
+- Files: `fUI_GOMacro.lua`, `fUI_GOMacroUI.lua`, `README Macros.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Macro: add per-character Guild Cloak toggle (off by default). Enabling creates/updates `FGO TP Cloak`; world entry refreshes it using live cooldowns of carried/equipped faction guild cloaks. Prefer Shroud, Wrap, then Cloak when ready; otherwise select the earliest cooldown expiry. Defer edits in combat and retry unavailable data briefly. Disabling cancels updates without deleting the macro.
+# 01
+- Files: `fr0z3nUI_GameOptions.lua`, `README Macros.md`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- GearMatic: `/fgo gmtp` snapshots the exact cloak, rings, and trinkets before teleport gear is equipped. Restore changed slots after world entry or the 300s fallback before re-enabling GearMatic. Repeated commands refresh the waiting timeout without overwriting originals; restoration retries for up to 30s, reports unresolved slots, and clears the snapshot on completion or failure. `/fgo gmon` restores pending gear before enabling autoequip.
+
+## 2026.10.18
+# 04
+- Files: `fr0z3nUI_Tax/fr0z3nUI_Tax.lua`, `fr0z3nUI_Tax/README.md`, `fr0z3nUI_Tax/fr0z3nUI_Tax.toc`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Tax: routine automatic, Pay Now, and tracked manual deposits no longer emit abnormal owed-clear diagnostics when normal printing is suppressed. Remove bank-frame visibility gates from transaction messages so delayed deposits retain their normal output; Quiet and bank print modes still apply. Keep migration and explicit Clear diagnostics.
+# 03
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalkEV.lua`, `fUI_GOTalkHelp.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Gossip: add per-option `hold = "ctrl"` and `hold = "alt"` conditions, applied alongside existing conditions for saved and database rules. False or omitted requires neither key; both held allows both keyed rules, resolved by priority. Shift still suspends automation. Delve-o-Bot uses normal interaction for Midnight and Ctrl for Khaz Algar.
+# 02
+- Files: `fUI_GOSwitchDelve.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Revert .01 manual-picker tracking, including the helpers that referenced later local declarations and caused nil-function errors. Auto-entry cooldown now blocks only the entry handoff (including delayed entry), not automatic tier selection or its existing print. Always print the detected entered tier once per world entry, independent of the old print setting.
+# 01
+- Files: `fUI_GOSwitchDelve.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Delves: while auto-entry cooldown is active, manual tier picking now records and prints the selected tier ("set for ...") from the picker state, then still prints entered tier after zone-in. Keep auto-selection behavior unchanged and avoid duplicate selected-tier prints for the same tier.
+
+## 2026.10.17
+# 05
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalkHelp.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Quest autocomplete: support mixed lists such as `{{43341,68415},{43342,0},43343}`. Item-ID tuples select that offered reward; 0 and bare quest IDs choose the highest total vendor sell value (including stack quantity; ties use the first). Metadata-only NPC entries work without gossip options. Wait up to 5 seconds for reward item data, never choose from a partially cached list, and report unavailable configured rewards or timed-out data instead of selecting another item. Cancel queued claims when the quest interaction ends.
+# 04
+- Files: `fUI_GOTalk.lua`, `fUI_GOTalk07.lua`, `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Gossip: add independent `t.__meta.autocompleteQuest = { questID, ... }` opt-in turn-ins. Open listed completed quests before gossip, complete their progress page, and claim rewards when no selection is required or only one choice exists; multiple reward choices remain manual. Shift and the visible options window suspend automation. Enabled for Khadgar (43341, 45727) and Holgar (43926); existing stop gates are unchanged.
+- Revert the .03 debounce-retry change after reported addon breakage; the cause remains unconfirmed.
+# 03
+- Files: `fUI_GOTalk.lua`, `fr0z3nUI_GameOptions.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Gossip: retry pages that arrive within the previous selection's 0.25s debounce window instead of leaving them unselected (including Hoshena's right-seat submenu). Preserve rule conditions, priorities, and repeat-selection guards.
+# 02
+- Files: `fUI_GOTrade.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Restock: recognize 12.x food/drink tooltips worded "Restores up to N% of your maximum health and mana every second over 20 sec." (`up to` / `maximum` previously broke parsing), and classify "health and mana" items as food+drink instead of food-only.
+# 01
+- Files: `fUI_GOTrade.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Restock: food/drink-class restock rules whose tooltip can't be classified no longer fall back to exact Use:-text grouping (which ignored better-tier food/drink in bags and bought lower-tier stock, e.g. 4% food while holding 6%). They now fail closed; with trade debug on, print the unrecognized `Use:` line once per merchant session.
+
+## 2026.10.16
+# 02
+- Files: `fUI_GOSwitchDelve.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Zygor: match Zygor's own dungeon behavior for delves/pet battles. Hide the viewer once on entry instead of re-hiding it every tick, so it can be reopened while inside; on exit (after a 1s debounce) re-show it only if FGO hid it and it's still hidden.
+# 01
+- Files: `fUI_GOMacro.lua`, `fUI_GOMacroHearth.lua`, `fr0z3nUI_GameOptions.lua`, `fUI_GOSituate.lua`, `fUI_GOSituateUI.lua`, `README Changelog.md`, `fr0z3nUI_GameOptions.toc`
+- Food/Drink macros: fix `best food=none` after the 12.1.5 update by preferring `C_Item.GetItemCount` (with bag-slot `stackCount` first) instead of the nil legacy `GetItemCount`; compare against the real macro body each scan instead of a cached last-written item ID so stale macros get rewritten; log the picked food/drink on every scan in FoodDbg.
+- Item API compatibility: prefer `C_Item.GetItemCooldown` in `/fgo hs` cooldown checks and the Hearth macro `/run` line; prefer `C_Item.GetItemCount` for Situate bag-ownership checks. Retain legacy fallbacks in Lua code.
+
 ## 2026.10.15
 # 04
 - Tax: keep owed-change diagnostics out of LootChat's money rewriting. Omit duplicate diagnostics when a normal deposit/bank-move message was printed; retain diagnostics when those messages are disabled or the bank frame is closed, and for Clear/migration.

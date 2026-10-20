@@ -30,7 +30,7 @@ SetZone("Ashenvale, Kalimdor")
 	t = NPC("Analynn", {66136,})
 	t[40737] = { text = "Think you can take me in a pet battle? Let's fight!", mount = true, xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Let's do it" }, within = 3, }, close = true,}
 
-    
+
 SetZone("Durotar, Kalimdor")
 
 

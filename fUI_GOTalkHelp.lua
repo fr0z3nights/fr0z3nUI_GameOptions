@@ -129,6 +129,12 @@ function H.SetZone(zone)
 	H._currentZone = zone
 end
 
+-- Metadata-only NPCs need no gossip option entries. For quest turn-ins:
+-- t.__meta.autocompleteQuest = { {43341, 68415}, {43342, 0}, 43343 }
+-- Tuples select an item ID; 0 and bare quest IDs select the highest total vendor value.
+-- Option rules: hold = "ctrl" / "alt" requires that key when gossip is evaluated.
+-- hold = false or omitted requires neither Ctrl nor Alt. Shift still suspends automation.
+-- With both Ctrl and Alt held, both keyed rules qualify; normal priority selects the winner.
 function H.NPC(npcName, npcIDs)
 	if (type(npcName) == "number" and type(npcIDs) == "string") or (type(npcName) == "table" and type(npcIDs) == "string") then
 		npcName, npcIDs = npcIDs, npcName

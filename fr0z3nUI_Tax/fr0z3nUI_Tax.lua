@@ -1380,15 +1380,6 @@ do
       bankShort = "WB"
     end
 
-    -- Safety: only print while the relevant frame is actually open.
-    if bankKey == "guild" then
-      local f = _G and rawget(_G, "GuildBankFrame")
-      if not (f and f.IsShown and f:IsShown()) then return end
-    elseif bankKey == "warbank" or bankKey == "bank" then
-      local f = _G and rawget(_G, "BankFrame")
-      if not (f and f.IsShown and f:IsShown()) then return end
-    end
-
     if direction == "Withdraw" then
       Print(GetPrintNamePrefix() .. bankShort .. " " .. tostring(direction or "") .. " " .. FormatGoldOnly(copper))
     else
@@ -1442,15 +1433,6 @@ do
     end
 
     local bankLabel, bankKey = NormalizeBankLabel(bankName)
-
-    -- Safety: only print while the relevant frame is actually open.
-    if bankKey == "guild" then
-      local f = _G and rawget(_G, "GuildBankFrame")
-      if not (f and f.IsShown and f:IsShown()) then return end
-    elseif bankKey == "warbank" or bankKey == "bank" then
-      local f = _G and rawget(_G, "BankFrame")
-      if not (f and f.IsShown and f:IsShown()) then return end
-    end
 
     local owedTax = math.floor(tonumber(info and info.owedTax) or 0)
     local owedBorrowed = math.floor(tonumber(info and info.owedBorrowed) or 0)
@@ -1595,9 +1577,7 @@ do
     bal.due = bal.dueTax + bal.dueBorrowed
     bal.paidToDate = math.floor((tonumber(bal.paidToDate) or 0) + pay)
 
-    if not PrintBankMove(cfg, pay, "deposited to", bankLabel) then
-      PrintOwedReduction(bankLabel, "manual bank tracking: PLAYER_MONEY loss treated as deposit", due, bal.due)
-    end
+    PrintBankMove(cfg, pay, "deposited to", bankLabel)
     RequestUIRefresh()
   end
 
@@ -1859,7 +1839,6 @@ do
         PushPendingDelta(state._pendingGuildDeltas, -toPay)
         local ok = pcall(DepositGuildBankMoney, toPay)
         if ok then
-          local previousDue = (tonumber(bal.dueTax) or 0) + (tonumber(bal.dueBorrowed) or 0)
           ApplyBankDeltaToCaches("guild", -toPay)
           local payToDue = toPay
           if payToDue > duePayable then payToDue = duePayable end
@@ -1876,7 +1855,7 @@ do
           if bal.dueBorrowed < 0 then bal.dueBorrowed = 0 end
           bal.due = bal.dueTax + bal.dueBorrowed
           bal.paidToDate = math.floor((tonumber(bal.paidToDate) or 0) + toPay)
-          local printed = PrintTaxAutoDeposit(cfg, "Guild Bank", toPay, {
+          PrintTaxAutoDeposit(cfg, "Guild Bank", toPay, {
             totalMoney = money,
             owedTax = dueTax,
             owedBorrowed = dueBorrowed,
@@ -1888,9 +1867,6 @@ do
             available = available,
             totalOwed = totalOwed,
           })
-          if not printed then
-            PrintOwedReduction("Guild Bank", isAuto and "automatic deposit API returned without error" or "Pay Now deposit API returned without error", previousDue, bal.due)
-          end
           RequestUIRefresh()
         else
           if IsTaxDebugEnabled() and not (cfg.quiet == true) then Print("Tax deposit failed.") end
@@ -2226,7 +2202,6 @@ do
         TaxWarDbg("attempt deposit: toPay=" .. ToGoldFmt(toPay))
         local ok, err = pcall(C_Bank.DepositMoney, bankType.Account, toPay)
         if ok then
-          local previousDue = (tonumber(wb.dueTax) or 0) + (tonumber(wb.dueBorrowed) or 0)
           ApplyBankDeltaToCaches("warbank", -toPay)
           local payToDue = toPay
           if payToDue > duePayable then payToDue = duePayable end
@@ -2243,7 +2218,7 @@ do
           if wb.dueBorrowed < 0 then wb.dueBorrowed = 0 end
           wb.due = wb.dueTax + wb.dueBorrowed
           wb.paidToDate = math.floor((tonumber(wb.paidToDate) or 0) + toPay)
-          local printed = PrintTaxAutoDeposit(cfg, "Warband Bank", toPay, {
+          PrintTaxAutoDeposit(cfg, "Warband Bank", toPay, {
             totalMoney = money,
             owedTax = dueTax,
             owedBorrowed = dueBorrowed,
@@ -2255,9 +2230,6 @@ do
             available = available,
             totalOwed = totalOwed,
           })
-          if not printed then
-            PrintOwedReduction("WarBank", isAuto and "automatic deposit API returned without error" or "Pay Now deposit API returned without error", previousDue, wb.due)
-          end
           RequestUIRefresh()
         else
           TaxWarDbg("deposit call failed: " .. tostring(err))

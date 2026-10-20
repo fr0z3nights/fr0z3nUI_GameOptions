@@ -10,6 +10,8 @@ end
 
 ns.Talk = ns.Talk or {}
 
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+
 local function GetAccountDb()
     local a = rawget(_G, "AutoGame_Acc")
     if type(a) == "table" then
@@ -618,6 +620,171 @@ GetDbNpcTable = function(npcID)
     return (type(npcTable) == "table") and npcTable or nil
 end
 
+local function HasAutocompleteQuest(npcID, questID)
+    local function Contains(npcTable)
+        local meta = type(npcTable) == "table" and rawget(npcTable, "__meta")
+        local spec = type(meta) == "table" and rawget(meta, "autocompleteQuest")
+        if type(spec) == "number" or type(spec) == "string" then
+            return tonumber(spec) == questID, 0
+        end
+        if type(spec) == "table" then
+            for key, value in pairs(spec) do
+                if type(value) == "table" then
+                    if tonumber(value[1]) == questID then
+                        local rewardID = tonumber(value[2])
+                        if rewardID and rewardID >= 0 and rewardID == math.floor(rewardID) then
+                            return true, rewardID
+                        end
+                        ns.Talk.Print("Quest " .. tostring(questID) .. ": invalid autocomplete reward item ID.")
+                        return false
+                    end
+                elseif tonumber(value) == questID or (value == true and tonumber(key) == questID) then
+                    return true, 0
+                end
+            end
+        end
+        return false
+    end
+
+    if ns and type(ns.LookupNpcBucket) == "function" then
+        local found, rewardID = Contains(ns.LookupNpcBucket(AutoGossip_Char, npcID))
+        if found then return found, rewardID end
+        found, rewardID = Contains(ns.LookupNpcBucket(AutoGossip_Acc, npcID))
+        if found then return found, rewardID end
+    end
+    return Contains(GetDbNpcTable(npcID))
+end
+
+local function QuestAutomationBlocked()
+    if IsShiftKeyDown and IsShiftKeyDown() then
+        return true
+    end
+    if AutoGossipOptions and AutoGossipOptions.IsShown and AutoGossipOptions:IsShown() then
+        local visible = not AutoGossipOptions.IsVisible or AutoGossipOptions:IsVisible()
+        local alpha = AutoGossipOptions.GetEffectiveAlpha and AutoGossipOptions:GetEffectiveAlpha() or 1
+        return visible and alpha > 0.05
+    end
+    return false
+end
+
+local autocompleteToken = 0
+
+local function GetAutocompleteRewardIndex(rewardID)
+    local count = GetNumQuestChoices()
+    if count == 0 then
+        if rewardID == 0 then return 1 end
+        return nil, "configured reward item " .. tostring(rewardID) .. " is not offered"
+    end
+
+    local bestIndex, bestValue
+    local pending = false
+    for index = 1, count do
+        local _, _, quantity, _, _, itemID = GetQuestItemInfo("choice", index)
+        if not itemID then
+            pending = true
+        elseif rewardID > 0 then
+            if itemID == rewardID then return index end
+        else
+            local name, _, _, _, _, _, _, _, _, _, sellPrice = GetItemInfo(itemID)
+            if not name or sellPrice == nil then
+                pending = true
+                if C_Item and C_Item.RequestLoadItemDataByID then
+                    C_Item.RequestLoadItemDataByID(itemID)
+                end
+            else
+                local value = sellPrice * (tonumber(quantity) or 1)
+                if not bestIndex or value > bestValue then
+                    bestIndex, bestValue = index, value
+                end
+            end
+        end
+    end
+    -- Do not choose from only the cached subset of rewards.
+    if pending then return nil, "reward item data is not ready", true end
+    if rewardID > 0 then
+        return nil, "configured reward item " .. tostring(rewardID) .. " is not offered"
+    end
+    return bestIndex
+end
+
+function ns.Talk.TryAutocompleteQuest(event)
+    if QuestAutomationBlocked() then
+        return false
+    end
+    local npcID = GetCurrentRuleID()
+    if not npcID then
+        return false
+    end
+
+    if event == "GOSSIP_SHOW" then
+        if not (C_GossipInfo and C_GossipInfo.GetActiveQuests and C_GossipInfo.SelectActiveQuest) then
+            return false
+        end
+        for _, quest in ipairs(C_GossipInfo.GetActiveQuests() or {}) do
+            if quest.isComplete and HasAutocompleteQuest(npcID, quest.questID) then
+                C_GossipInfo.SelectActiveQuest(quest.questID)
+                return true
+            end
+        end
+        return false
+    end
+
+    local questID = GetQuestID()
+    if not questID or questID <= 0 then return false end
+    local enabled, rewardID = HasAutocompleteQuest(npcID, questID)
+    if not enabled then
+        return false
+    end
+    if event == "QUEST_PROGRESS" and not IsQuestCompletable() then
+        return false
+    end
+    autocompleteToken = autocompleteToken + 1
+    local token = autocompleteToken
+    local attempts = 0
+    local function Apply()
+        if token ~= autocompleteToken then return end
+        if QuestAutomationBlocked() or GetCurrentRuleID() ~= npcID or GetQuestID() ~= questID
+            or not HasAutocompleteQuest(npcID, questID) then
+            return
+        end
+        if event == "QUEST_PROGRESS" then
+            if IsQuestCompletable() then
+                CompleteQuest()
+            end
+        elseif event == "QUEST_COMPLETE" then
+            local _, currentRewardID = HasAutocompleteQuest(npcID, questID)
+            if currentRewardID ~= rewardID then return end
+            local index, reason, pending = GetAutocompleteRewardIndex(rewardID)
+            if index then
+                GetQuestReward(index)
+            elseif pending and attempts < 20 then
+                attempts = attempts + 1
+                C_Timer.After(0.25, Apply)
+            else
+                ns.Talk.Print("Quest " .. tostring(questID) .. ": " .. tostring(reason)
+                    .. "; choose a reward manually.")
+            end
+        end
+    end
+    C_Timer.After(0, Apply)
+    return true
+end
+
+do
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("QUEST_PROGRESS")
+    frame:RegisterEvent("QUEST_COMPLETE")
+    frame:RegisterEvent("QUEST_FINISHED")
+    frame:SetScript("OnEvent", function(_, event)
+        if event == "QUEST_FINISHED" then
+            autocompleteToken = autocompleteToken + 1
+            return
+        end
+        ns.Talk.InitSV()
+        ns.Talk.TryAutocompleteQuest(event)
+    end)
+end
+
 local gossipRetryToken = 0
 local lastGossipEntriesDebugAt = 0
 local lastGossipEntriesDebugKey = nil
@@ -681,6 +848,30 @@ function ns.Talk.TryAutoSelect(isRetry)
     end
 
     local function RuleAllowsAutoSelect(ruleEntry, npcID, optionID, gossipEntry)
+        local ctrlDown = IsControlKeyDown and IsControlKeyDown() or false
+        local altDown = IsAltKeyDown and IsAltKeyDown() or false
+        local hold
+        if type(ruleEntry) == "table" then
+            hold = ruleEntry.hold
+        end
+        if hold == nil or hold == false then
+            if ctrlDown or altDown then
+                return false
+            end
+        elseif hold == "ctrl" then
+            if not ctrlDown then
+                return false
+            end
+        elseif hold == "alt" then
+            if not altDown then
+                return false
+            end
+        else
+            Debug("Match ignored (invalid hold; expected ctrl, alt, or false): "
+                .. tostring(npcID) .. ":" .. tostring(optionID))
+            return false
+        end
+
         if type(ruleEntry) ~= "table" then
             return true
         end
@@ -975,6 +1166,10 @@ function ns.Talk.TryAutoSelect(isRetry)
     if not npcID then
         Debug("Blocked (could not resolve NPC/map key)")
         return false, "no-npc"
+    end
+
+    if ns.Talk.TryAutocompleteQuest("GOSSIP_SHOW") then
+        return true, "selected"
     end
 
     local now = (GetTime and GetTime()) or 0
@@ -1659,15 +1854,13 @@ function ns.Talk.TryAutoSelect(isRetry)
 
                         if ruleEntry ~= nil then
                             local pr = 0
-                            if type(ruleEntry) == "table" then
-                                if not RuleAllowsAutoSelect(ruleEntry, npcID, id, g) then
-                                    if debug then
-                                        Debug("Match ignored (condition false): " .. tostring(npcID) .. ":" .. tostring(id))
-                                    end
-                                    ruleEntry = nil
-                                else
-                                    pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
+                            if not RuleAllowsAutoSelect(ruleEntry, npcID, id, g) then
+                                if debug then
+                                    Debug("Match ignored (condition false): " .. tostring(npcID) .. ":" .. tostring(id))
                                 end
+                                ruleEntry = nil
+                            elseif type(ruleEntry) == "table" then
+                                pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
                             end
 
                             if ruleEntry ~= nil then
@@ -1818,15 +2011,13 @@ function ns.Talk.TryAutoSelect(isRetry)
 
                     if ruleEntry ~= nil then
                         local pr = 0
-                        if type(ruleEntry) == "table" then
-                            if not RuleAllowsAutoSelect(ruleEntry, npcID, id, g) then
-                                if debug then
-                                    Debug("DB match ignored (condition false): " .. tostring(npcID) .. ":" .. tostring(id))
-                                end
-                                ruleEntry = nil
-                            else
-                                pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
+                        if not RuleAllowsAutoSelect(ruleEntry, npcID, id, g) then
+                            if debug then
+                                Debug("DB match ignored (condition false): " .. tostring(npcID) .. ":" .. tostring(id))
                             end
+                            ruleEntry = nil
+                        elseif type(ruleEntry) == "table" then
+                            pr = tonumber(ruleEntry.prio or ruleEntry.order or ruleEntry.priority) or 0
                         end
 
                         if ruleEntry ~= nil then

@@ -1550,8 +1550,9 @@ local function PlayerOwnsItemForSituate(itemID)
     end
 
     -- Bags only.
-    if type(GetItemCount) == "function" then
-        local ok, count = pcall(GetItemCount, itemID, false, false)
+    local getCount = (C_Item and C_Item.GetItemCount) or GetItemCount
+    if type(getCount) == "function" then
+        local ok, count = pcall(getCount, itemID, false, false)
         if ok and tonumber(count) and tonumber(count) > 0 then
             return true
         end

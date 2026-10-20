@@ -21,7 +21,7 @@ SetZone("Everywhere")
 
 	t = NPC("Delve-o-Bot 7001", {232267,})
 	t[140192] = { text = "Take me to a Midnight delve please.", prio = 10, }
-	t[140193] = { text = "Take me to a Khaz Algar delve please.", prio = 01, }
+	t[140193] = { text = "Take me to a Khaz Algar delve please.", prio = 01, hold = "ctrl", }
 
 	t = NPC("Katy Stampwhistle", {132969,})
 	t[ 48598] = { text = "I'd like to check my mail." }
@@ -146,4 +146,3 @@ SetZone("Noblegarden")
 
 	t = NPC("Tethris Dewgazer", 217147)
 	t[120851] = { prio = 10, text = "Sylnaria sent me...", qil = 79576, close = true }								-- A Fowl Concoction (79576) Tethris Dewgazer (217147)
-

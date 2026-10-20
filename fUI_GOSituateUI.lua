@@ -2102,8 +2102,9 @@ function ns.SituateUI_Build(panel)
             end
             local owned = false
             if itemID and itemID > 0 then
-                if GetItemCount then
-                    local ok, count = pcall(GetItemCount, itemID, false, false)
+                local getCount = (C_Item and C_Item.GetItemCount) or GetItemCount
+                if getCount then
+                    local ok, count = pcall(getCount, itemID, false, false)
                     if ok and tonumber(count) and tonumber(count) > 0 then
                         owned = true
                     end

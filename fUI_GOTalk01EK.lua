@@ -230,11 +230,6 @@ SetZone("Stormwind City, Eastern Kingdoms")
 	t = NPC("Cataloger Wulferd", {189765,})
 	t[ 55650] = { text = "We need scholars for an expedition to the Dragon Isles." }                    -- Expeditionary Coordination (66589) Cataloger Wulferd (189765)
 
-	t = NPC("Recruiter Lee", {107934,})
-	t.__meta.stopIfQuestAvailable = { 42782, }                                                         -- First NPCID, Stops Gossip until quest is accepted
-	t.__meta.stopIfQuestTurnIn = { 40519, }                                                            -- First NPCID, Stops Gossip until quest is accepted
-	t[ 47484] = { text = "I've heard this tale before... <Skip>", xpop = { which = "GOSSIP_CONFIRM", containsAny = { "Are you sure" }, within = 3, } }                                   -- To Be Prepared (42782) Recruiter Lee (107934)
-
 	t = NPC("Sky Admiral Rogers", {66292,})
 	t[ 40614] = { text = "I am ready to depart." }                                                     -- The Mission (29548) Sky Admiral Rogers (66292)
 
@@ -249,6 +244,7 @@ SetZone("Stormwind City, Eastern Kingdoms")
 
 	t = NPC("Wrathion", {189569,})
 	t[55659] = { text = "<Listen to Wrathion and Turalyon.>" }                                      -- Aspectral Invitation (66577) Wrathion (189569)
+	t[55882] = { text = "<Ask about choosing a visage.>" }
 
 	t = NPC("Zone Quest NPCs", { 246155, 246154, })
 	t[134631] = { text = "Are you talking about the Twilight's Blade?" }

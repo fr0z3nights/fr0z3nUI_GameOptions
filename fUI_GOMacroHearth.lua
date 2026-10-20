@@ -156,7 +156,7 @@ do
 
     local function BuildMacroRunLine(useItemID)
         useItemID = tonumber(useItemID) or 6948
-        return ("/run local id=%d; local s,d=GetItemCooldown(id); s=s+d-GetTime(); if s>1 then print(format('Hearth in %d mins', s/60)) else print('Hearthing') end")
+        return ("/run local id=%d; local s,d=C_Item.GetItemCooldown(id); s=s+d-GetTime(); if s>1 then print(format('Hearth in %d mins', s/60)) else print('Hearthing') end")
             :format(useItemID)
     end
 

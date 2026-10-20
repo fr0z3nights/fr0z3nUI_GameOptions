@@ -40,6 +40,9 @@ SetZone("Dornogal, Khaz Algar")
 	t = NPC("Delver's Guide", 227675)
 	t[123493] = { text = "<Review information on your current delve progress.>" }
 
+	t = NPC("Roldira", {219108,})
+	t.__meta.autocompleteQuest = {{84260,228917},}														--	First NPCID, Completes Quest
+
 	t = NPC("Ronesh", 212370)
 	t[121503] = { text = "I want to browse your goods." }
 

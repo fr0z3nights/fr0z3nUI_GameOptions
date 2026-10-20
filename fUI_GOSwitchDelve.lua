@@ -461,7 +461,8 @@ do
     end
 
     local function HandoffDelveAutoEnter(tier)
-        if not ns.GetAutoDelveEnabled() then
+        if delveExitCooldownUntil > (type(GetTime) == "function" and GetTime() or 0)
+            or not ns.GetAutoDelveEnabled() then
             return
         end
 
@@ -500,7 +501,10 @@ do
         end
 
         local function EnterSelectedTier()
-            selectedDelveTier = tier
+            if delveExitCooldownUntil > (type(GetTime) == "function" and GetTime() or 0)
+                or not ns.GetAutoDelveEnabled() then
+                return
+            end
             local ok = pcall(C_DelvesUI.SelectDelveEntranceTier, tier)
             if not ok then
                 print("|cffff8000[FGO Delve]|r Auto Enter failed for Tier " .. tostring(tier) .. ".")
@@ -575,6 +579,9 @@ do
     local delveTierWasVisible = false
     local delveTierManualDebug = false
     local enteredDelveTierPrinted = false
+    local enteredDelveTierNextCheck = 0
+    local enteredDelveTierWaitingSince
+    local enteredDelveTierWarned = false
     local selectedDelveTier
 
     local function DelveTierDebug(message)
@@ -1071,15 +1078,6 @@ do
     end
 
     local function ScheduleDelveTierApply(frame)
-        local now = type(GetTime) == "function" and GetTime() or 0
-        if delveExitCooldownUntil > now then
-            if C_Timer and type(C_Timer.After) == "function" then
-                C_Timer.After(delveExitCooldownUntil - now, function()
-                    ScheduleDelveTierApply(frame)
-                end)
-            end
-            return
-        end
         if delveTierApplyPending or delveTierAppliedFrame == frame or delveTierAttemptedFrame == frame
             or not (C_Timer and C_Timer.After) then
             return
@@ -1417,7 +1415,7 @@ do
 
         if C_DelvesUI and type(C_DelvesUI.GetActiveDelveTier) == "function" then
             local ok, info = pcall(C_DelvesUI.GetActiveDelveTier)
-            local tier = ok and type(info) == "table" and tonumber(info.tier) or nil
+            local tier = ok and tonumber(type(info) == "table" and info.tier or info) or nil
             DelveTierDebug("activeTier ok=" .. tostring(ok) .. " type=" .. type(info)
                 .. " tier=" .. tostring(tier))
             if tier and tier >= 1 and tier <= 11 then
@@ -1464,7 +1462,7 @@ do
                             local infoOK, info = pcall(
                                 C_UIWidgetManager.GetScenarioHeaderDelvesWidgetVisualizationInfo,
                                 widget.widgetID)
-                            local tier = infoOK and info and tonumber(info.tierText) or nil
+                            local tier = infoOK and info and (tonumber(info.tierText) or ParseTier(info.tierText)) or nil
                             DelveTierDebug("scenario header tier=" .. tostring(tier))
                             if tier and tier >= 1 and tier <= 11 then
                                 return math.floor(tier)
@@ -1533,31 +1531,23 @@ do
         return nil
     end
 
-    local function PrintEnteredDelveTier(attempt)
+    local function PrintEnteredDelveTier()
         if enteredDelveTierPrinted then
             return
         end
-        local inDelve, mapID = IsInDelve()
+        local now = GetTime()
+        if now < enteredDelveTierNextCheck then return end
+        enteredDelveTierNextCheck = now + 1
+        if not IsInsideDelveInstance() then return end
+        enteredDelveTierWaitingSince = enteredDelveTierWaitingSince or now
         local detectedTier = GetDetectedDelveTier()
-        DelveTierDebug("entry attempt=" .. tostring(attempt or 1)
-            .. " inDelve=" .. tostring(inDelve)
-            .. " map=" .. tostring(mapID)
-            .. " detected=" .. tostring(detectedTier)
+        DelveTierDebug("entry detected=" .. tostring(detectedTier)
             .. " selected=" .. tostring(selectedDelveTier))
-        if not IsInDelve() then
-            if (tonumber(attempt) or 1) < 10 and C_Timer and type(C_Timer.After) == "function" then
-                C_Timer.After(0.5, function()
-                    PrintEnteredDelveTier((tonumber(attempt) or 1) + 1)
-                end)
-            end
-            return
-        end
         local tier = detectedTier
-        if not tier or AutoGossip_Settings.autoDelvePrintTierAcc == false then
-            if (tonumber(attempt) or 1) < 10 and C_Timer and type(C_Timer.After) == "function" then
-                C_Timer.After(0.5, function()
-                    PrintEnteredDelveTier((tonumber(attempt) or 1) + 1)
-                end)
+        if not tier then
+            if not enteredDelveTierWarned and now - enteredDelveTierWaitingSince >= 30 then
+                enteredDelveTierWarned = true
+                print("|cff00ccff[FGO]|r Delve entry detected, but tier data is still unavailable; continuing to check.")
             end
             return
         end
@@ -1565,8 +1555,13 @@ do
         print("|cff00ccff[FGO]|r |cff00ccffDelve|r  Tier " .. tostring(tier) .. " Entered")
     end
 
+    -- Mirrors Zygor's own dungeon behavior: hide once on entry, never re-hide while inside
+    -- (so the user can reopen it), and on exit re-show only if we were the ones who hid it.
     local zygorDelveViewerHidden = false
     local zygorAutoHideEnabled = true
+    local zygorContextActive = false
+    local zygorContextInactiveSince = nil
+    local ZYGOR_EXIT_GRACE_SEC = 1.0
     local function UpdateZygorDelveViewer()
         local zygor = rawget(_G, "ZGV")
         local profile = zygor and zygor.db and zygor.db.profile
@@ -1580,19 +1575,40 @@ do
                 zygor:ToggleFrame()
             end
             zygorDelveViewerHidden = false
+            zygorContextActive = false
+            zygorContextInactiveSince = nil
             return
         end
 
-        local activeDelve = IsInsideDelveInstance()
-        local activePetBattle = IsInPetBattle()
-        if activeDelve or activePetBattle then
-            if profile.zgvhideindungeons == true and frame.IsVisible and frame:IsVisible() then
-                zygor:ToggleFrame()
-                zygorDelveViewerHidden = true
+        local active = IsInsideDelveInstance() or IsInPetBattle()
+        if active then
+            zygorContextInactiveSince = nil
+            if not zygorContextActive then
+                zygorContextActive = true
+                if profile.zgvhideindungeons == true and frame.IsVisible and frame:IsVisible() then
+                    zygor:ToggleFrame()
+                    zygorDelveViewerHidden = true
+                end
             end
             return
         end
 
+        if not zygorContextActive then
+            return
+        end
+
+        -- Debounce exit so brief detection gaps during transitions don't count as leaving.
+        local now = (type(GetTime) == "function" and GetTime()) or 0
+        if not zygorContextInactiveSince then
+            zygorContextInactiveSince = now
+            return
+        end
+        if (now - zygorContextInactiveSince) < ZYGOR_EXIT_GRACE_SEC then
+            return
+        end
+
+        zygorContextActive = false
+        zygorContextInactiveSince = nil
         if zygorDelveViewerHidden then
             if profile.showafterdungeons ~= false and frame.IsVisible and not frame:IsVisible() then
                 zygor:ToggleFrame()
@@ -1661,6 +1677,9 @@ do
                 delveExitCooldownUntil = 0
             end
             enteredDelveTierPrinted = false
+            enteredDelveTierNextCheck = GetTime() + 1
+            enteredDelveTierWaitingSince = nil
+            enteredDelveTierWarned = false
             selectedDelveTier = nil
             UpdateReminder()
             C_Timer.After(0.5, UpdateZygorDelveViewer)
@@ -1709,6 +1728,9 @@ do
             return
         end
         delveTierWatchElapsed = 0
+        if not enteredDelveTierPrinted then
+            PrintEnteredDelveTier()
+        end
         UpdateZygorDelveViewer()
         if button and button.IsShown and button:IsShown() then
             local inDelve = IsInDelve()
@@ -1750,7 +1772,4 @@ do
         delveTierManualDebug = true
     end
 end
-
-
-
 

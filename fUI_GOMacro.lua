@@ -1,6 +1,7 @@
 local _, ns = ...
 
 local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+local GetItemCount = (C_Item and C_Item.GetItemCount) or GetItemCount
 
 -- NOTE (FGO): Do NOT reference legacy standalone addons (e.g., HearthZone / global fHZ).
 -- This addon’s logic should use the current FGO-integrated modules and SavedVariables (AutoGame_*).
@@ -593,12 +594,11 @@ local function CreateOrUpdateNamedMacro_NoOptional(name, body, perCharacter, ico
             end
 
             if NormalizeBodyForCompare(existingBody) == NormalizeBodyForCompare(body) then
-                return
+                return "unchanged"
             end
 
-            EditMacro(idx, name, NormalizeMacroIcon(icon), body)
-        else
-            -- No-op (can't edit). Intentionally silent.
+            local okEdit = pcall(EditMacro, idx, name, NormalizeMacroIcon(icon), body)
+            return okEdit and "edited" or nil
         end
         return
     end
@@ -609,7 +609,7 @@ local function CreateOrUpdateNamedMacro_NoOptional(name, body, perCharacter, ico
 
     local ok = CreateMacro(name, NormalizeMacroIcon(icon), body, perCharacter and true or false)
     if ok then
-        -- Success. Intentionally silent.
+        return "created"
     else
         Print("Could not create macro '" .. tostring(name) .. "' (macro slots full?).")
     end
@@ -1396,7 +1396,11 @@ local function PickBestFromBags(kind)
             if id then
                 FoodDrink.lastBagScan.anyItems = true
                 stats.items = stats.items + 1
-                local qty = (GetItemCount and GetItemCount(id, false)) or 0
+                local qty = tonumber(info and info.stackCount) or 0
+                if qty <= 0 and type(GetItemCount) == "function" then
+                    local okCount, c = pcall(GetItemCount, id, false)
+                    qty = (okCount and tonumber(c)) or 0
+                end
                 if qty and qty > 0 then
                     -- Track whether we even *recognize* food/drink items.
                     do
@@ -1532,11 +1536,7 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
     local bestFood = tonumber(PickBestFromBags("food")) or 0
     local bestDrink = tonumber(PickBestFromBags("drink")) or 0
 
-    if bestFood ~= (tonumber(FoodDrink.dbgLastBestFoodID) or 0) or bestDrink ~= (tonumber(FoodDrink.dbgLastBestDrinkID) or 0) then
-        FoodDrink.dbgLastBestFoodID = bestFood
-        FoodDrink.dbgLastBestDrinkID = bestDrink
-        FoodDrinkDbg("best food=" .. FormatItemShort(bestFood) .. ", drink=" .. FormatItemShort(bestDrink))
-    end
+    FoodDrinkDbg("best food=" .. FormatItemShort(bestFood) .. ", drink=" .. FormatItemShort(bestDrink))
 
     -- Reset percent-derived dirty flag after a pass that re-classifies candidates.
     FoodDrink.percentRatesDirty = false
@@ -1548,29 +1548,35 @@ local function UpdateFoodDrinkMacros(forceRewrite, allowCreateFood, allowCreateD
     local wroteFood = false
     local wroteDrink = false
 
+    -- Always compare against the actual macro body (CreateOrUpdateNamedMacro_NoOptional is a
+    -- no-op when unchanged) rather than a cached last-written ID, which can go stale.
     if allowCreateFood or FoodDrink.createdFood or foodIdx > 0 then
-        if bestFood ~= (tonumber(FoodDrink.lastFoodID) or 0) or foodIdx == 0 then
-            if bestFood > 0 then
+        if bestFood > 0 then
+            local res = CreateOrUpdateNamedMacro_NoOptional(FOOD_MACRO_NAME, BuildUseItemMacroBody(bestFood, true, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+            if res then
                 FoodDrink.lastFoodID = bestFood
-                CreateOrUpdateNamedMacro_NoOptional(FOOD_MACRO_NAME, BuildUseItemMacroBody(bestFood, true, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
-                wroteFood = true
+                wroteFood = (res ~= "unchanged")
             else
-                -- Never overwrite an existing macro with the placeholder body.
-                -- Defer until bags/tooltips are ready and we can pick a real item.
                 blocked = true
             end
+        elseif (tonumber(FoodDrink.lastFoodID) or 0) ~= 0 or foodIdx == 0 then
+            -- Never overwrite an existing macro with the placeholder body.
+            -- Defer until bags/tooltips are ready and we can pick a real item.
+            blocked = true
         end
     end
 
     if allowCreateDrink or FoodDrink.createdDrink or drinkIdx > 0 then
-        if bestDrink ~= (tonumber(FoodDrink.lastDrinkID) or 0) or drinkIdx == 0 then
-            if bestDrink > 0 then
+        if bestDrink > 0 then
+            local res = CreateOrUpdateNamedMacro_NoOptional(DRINK_MACRO_NAME, BuildUseItemMacroBody(bestDrink, false, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
+            if res then
                 FoodDrink.lastDrinkID = bestDrink
-                CreateOrUpdateNamedMacro_NoOptional(DRINK_MACRO_NAME, BuildUseItemMacroBody(bestDrink, false, true), GetMacroPerCharSetting(), GetDefaultMacroIcon())
-                wroteDrink = true
+                wroteDrink = (res ~= "unchanged")
             else
                 blocked = true
             end
+        elseif (tonumber(FoodDrink.lastDrinkID) or 0) ~= 0 or drinkIdx == 0 then
+            blocked = true
         end
     end
 
@@ -1883,7 +1889,260 @@ end
 ns.Macros = ns.Macros or {}
 ns.Macros.Print = Print
 ns.Macros.InCombat = InCombat
+local function RegisterTeleportMacro(label, macroName, settingKey, apiPrefix, items, factionItems, loginOnly, options)
+    local timer
+    local pending = false
+    local attempts = 0
+
+    local function IsEnabled()
+        return not _G.AutoGame_CharSettings or _G.AutoGame_CharSettings[settingKey] ~= false
+    end
+
+    local function CancelUpdate()
+        if timer then timer:Cancel(); timer = nil end
+        pending = false
+    end
+
+    local Update
+    local function Retry(why)
+        if attempts < 5 then
+            timer = C_Timer.NewTimer(1, Update)
+        else
+            pending = false
+            Print(label .. ": " .. why .. "; macro left unchanged.")
+        end
+    end
+
+    Update = function()
+        timer = nil
+        if not IsEnabled() then pending = false; return end
+        if InCombat() then return end
+        attempts = attempts + 1
+        local candidates = items or factionItems[UnitFactionGroup("player")]
+        if not candidates then
+            Retry("faction unavailable or unsupported")
+            return
+        end
+        local getCount = (C_Item and C_Item.GetItemCount) or GetItemCount
+        local getCooldown = (C_Item and C_Item.GetItemCooldown) or GetItemCooldown
+        if not getCount or (not getCooldown and not (options and options.firstOwned)) then
+            pending = false
+            Print(label .. ": item count/cooldown API unavailable.")
+            return
+        end
+        local bestID, bestRemaining
+        local now = GetTime()
+        for _, itemID in ipairs(candidates) do
+            local count = getCount(itemID, false, false, false)
+            if type(count) ~= "number" then
+                Retry("item ownership data unavailable")
+                return
+            end
+            if count > 0 then
+                if options and options.firstOwned then
+                    bestID = itemID
+                    break
+                end
+                local start, duration, enabled = getCooldown(itemID)
+                if type(start) ~= "number" or type(duration) ~= "number" or (enabled ~= 1 and enabled ~= true) then
+                    Retry("cooldown data unavailable")
+                    return
+                end
+                local remaining = math.max(0, start + duration - now)
+                if not bestRemaining or remaining < bestRemaining then
+                    bestID, bestRemaining = itemID, remaining
+                end
+            end
+        end
+        local body = "#showtooltip"
+        if bestID then
+            local item = "item:" .. tostring(bestID)
+            if options and options.buildBody then
+                body = options.buildBody(bestID)
+            else
+                body = "#showtooltip " .. item .. "\n/fgo gmtp\n/equip " .. item .. "\n/use " .. item
+            end
+        end
+        pending = false
+        local result = CreateOrUpdateNamedMacro_NoOptional(macroName, body, true, GetDefaultMacroIcon())
+        if not result then
+            Print(label .. ": could not create/update '" .. macroName .. "'. Check macro slots and macro API errors.")
+            return
+        end
+        local index = GetMacroIndexByName(macroName)
+        local _, _, writtenBody = GetMacroInfo(index)
+        if (writtenBody or ""):gsub("%s+$", "") ~= body then
+            Print(label .. ": macro verification failed; check '" .. macroName .. "' before use.")
+        elseif result == "created" then
+            Print("Created macro '" .. macroName .. "'.")
+        end
+    end
+
+    local function RequestUpdate(delay)
+        CancelUpdate()
+        if not IsEnabled() then return end
+        attempts = 0
+        pending = true
+        if delay then
+            timer = C_Timer.NewTimer(delay, Update)
+        else
+            Update()
+        end
+    end
+
+    ns.Macros[apiPrefix .. "_IsEnabled"] = IsEnabled
+    ns.Macros[apiPrefix .. "_SetEnabled"] = function(on)
+        _G.AutoGame_CharSettings = _G.AutoGame_CharSettings or {}
+        _G.AutoGame_CharSettings[settingKey] = on and true or false
+        RequestUpdate()
+        Print(label .. ": " .. (IsEnabled() and "ON" or "OFF"))
+    end
+
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent(loginOnly and "PLAYER_LOGIN" or "PLAYER_ENTERING_WORLD")
+    frame:RegisterEvent("PLAYER_LEAVING_WORLD")
+    frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    frame:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
+            RequestUpdate(1)
+        elseif event == "PLAYER_LEAVING_WORLD" then
+            CancelUpdate()
+        elseif pending and IsEnabled() and not timer then
+            Update()
+        end
+    end)
+end
+RegisterTeleportMacro("Guild Cloak", "FGO TP Cloak", "guildCloakEnabled", "GuildCloak", nil, {
+    Alliance = { 63352, 63206, 65360 },
+    Horde = { 63353, 63207, 65274 },
+})
+RegisterTeleportMacro("Dalaran Ring", "FGO TP Dalaran", "dalaranRingEnabled", "DalaranRing", {
+    40586, 44935, 40585, 44934, 45688, 45690, 45691, 45689,
+    48954, 48955, 48956, 48957, 51557, 51558, 51559, 51560,
+}, nil, true)
+RegisterTeleportMacro("Timeless", "FGO TP Timeless", "timelessEnabled", "Timeless", {
+    219222, 103678,
+}, nil, true, {
+    firstOwned = true,
+    buildBody = function(itemID)
+        local item = "item:" .. tostring(itemID)
+        if itemID == 219222 then
+            return "#showtooltip\n/use " .. item
+        end
+        return "#showtooltip\n/fgo gmtp\n/equip " .. item .. "\n/use " .. item
+    end,
+})
 ns.Macros.GetMacroPerCharSetting = GetMacroPerCharSetting
+do
+    local macroName = "FGO XAura"
+    local timer
+    local pending = false
+
+    local function IsEnabled()
+        return not _G.AutoGame_CharSettings or _G.AutoGame_CharSettings.xAuraEnabled ~= false
+    end
+
+    local function IsReadable(value)
+        return not (type(issecretvalue) == "function" and issecretvalue(value))
+    end
+
+    local function Update()
+        timer = nil
+        if not IsEnabled() then pending = false; return end
+        if InCombat() then return end
+        pending = false
+
+        local body = "/dejunk destroy"
+        local ids = ns.MacroAuraIDs
+        if type(ids) ~= "table" then
+            Print("XAura: aura database unavailable; macro left unchanged.")
+            return
+        end
+        local matchedName
+        if #ids > 0 then
+            if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then
+                Print("XAura: aura API unavailable; macro left unchanged.")
+                return
+            end
+            local active = {}
+            local index = 1
+            while true do
+                local aura = C_UnitAuras.GetAuraDataByIndex("player", index, "HELPFUL")
+                if not aura then break end
+                local id, name = aura.spellId, aura.name
+                if IsReadable(id) and IsReadable(name) and type(id) == "number" and type(name) == "string" then
+                    active[id] = name
+                end
+                index = index + 1
+            end
+            for _, id in ipairs(ids) do
+                if type(id) ~= "number" or id <= 0 or id % 1 ~= 0 then
+                    Print("XAura: invalid spell ID in aura database; macro left unchanged.")
+                    return
+                end
+                if active[id] then
+                    matchedName = active[id]
+                    break
+                end
+            end
+        end
+        if matchedName then
+            if matchedName == "" or matchedName:find("[\r\n]") then
+                Print("XAura: invalid aura name; macro left unchanged.")
+                return
+            end
+            body = "/cancelaura " .. matchedName .. "\n/dejunk destroy"
+        elseif (GetMacroIndexByName(macroName) or 0) > 0 then
+            return
+        end
+
+        local result = CreateOrUpdateNamedMacro_NoOptional(macroName, body, true, GetDefaultMacroIcon())
+        if not result then
+            Print("XAura: could not create/update '" .. macroName .. "'. Check macro slots and macro API errors.")
+            return
+        end
+        local index = GetMacroIndexByName(macroName)
+        local _, _, writtenBody = GetMacroInfo(index)
+        if (writtenBody or ""):gsub("%s+$", "") ~= body then
+            Print("XAura: macro verification failed; check '" .. macroName .. "' before use.")
+        elseif result == "created" then
+            Print("Created macro '" .. macroName .. "'.")
+        end
+    end
+
+    local function CancelUpdate()
+        if timer then timer:Cancel(); timer = nil end
+        pending = false
+    end
+
+    local function RequestUpdate()
+        if not IsEnabled() then return end
+        pending = true
+        if not timer then timer = C_Timer.NewTimer(0.1, Update) end
+    end
+
+    ns.Macros.XAura_IsEnabled = IsEnabled
+    ns.Macros.XAura_SetEnabled = function(on)
+        _G.AutoGame_CharSettings = _G.AutoGame_CharSettings or {}
+        _G.AutoGame_CharSettings.xAuraEnabled = on and true or false
+        CancelUpdate()
+        RequestUpdate()
+        Print("XAura: " .. (IsEnabled() and "ON" or "OFF"))
+    end
+
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    frame:RegisterEvent("PLAYER_LEAVING_WORLD")
+    frame:RegisterUnitEvent("UNIT_AURA", "player")
+    frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    frame:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_LEAVING_WORLD" then
+            CancelUpdate()
+        elseif event ~= "PLAYER_REGEN_ENABLED" or pending then
+            RequestUpdate()
+        end
+    end)
+end
 ns.Macros.SetMacroPerCharSetting = SetMacroPerCharSetting
 ns.Macros.GetMacroOptionalDB = GetMacroOptionalDB
 ns.Macros.GetDefaultMacroIcon = GetDefaultMacroIcon

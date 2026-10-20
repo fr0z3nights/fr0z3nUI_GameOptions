@@ -771,10 +771,21 @@ do
     if not p then return nil end
     low = low:sub(p)
     if not low:find("restores", 1, true) then return nil end
+    -- 12.x phrasing: "Restores up to 5% of your maximum health and mana every second..."
+    low = low:gsub("restores%s+up%s+to%s+", "restores ")
+    low = low:gsub("of%s+your%s+maximum%s+", "of your ")
     local healthPct = low:match("restores%s+(%d+)%s*%%%s*of your health")
     healthPct = healthPct and tonumber(healthPct) or nil
     local manaPct = low:match("restores%s+(%d+)%s*%%%s*of your mana")
     manaPct = manaPct and tonumber(manaPct) or nil
+    do
+      local both = low:match("restores%s+(%d+)%s*%%%s*of your health and mana")
+        or low:match("restores%s+(%d+)%s*%%%s*of your mana and health")
+      both = both and tonumber(both) or nil
+      if both then
+        healthPct, manaPct = both, both
+      end
+    end
 
     local function ToNum(v)
       if type(v) ~= "string" then return nil end
@@ -2104,6 +2115,37 @@ do
       local cat = fd and GetFoodDrinkCategoryKey(fd) or nil
       if cat then
         return "food:" .. tostring(cat)
+      end
+      -- Food/drink-class items must only restock via the food/drink tier comparison.
+      -- Falling back to the exact Use: text key would ignore better-tier food/drink in bags
+      -- (and buy e.g. 4% food while holding 6% food). Fail closed instead.
+      if IsFoodDrinkItemID(itemID) then
+        if dbg and type(Print) == "function" and _liMerchantWantsCache ~= true then
+          if type(_liMerchantRestockLowerTierPrinted) ~= "table" then
+            _liMerchantRestockLowerTierPrinted = {}
+          end
+          local k = "unparsed:" .. tostring(itemID)
+          if _liMerchantRestockLowerTierPrinted[k] ~= true then
+            _liMerchantRestockLowerTierPrinted[k] = true
+            local useText = nil
+            if C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" then
+              local ok, tip = pcall(C_TooltipInfo.GetHyperlink, "item:" .. tostring(itemID))
+              if ok and type(tip) == "table" and type(tip.lines) == "table" then
+                for _, line in ipairs(tip.lines) do
+                  local left = (type(line) == "table") and line.leftText or nil
+                  if type(left) == "string" and left:lower():find("use:", 1, true) then
+                    useText = CleanTooltipText(left)
+                    break
+                  end
+                end
+              end
+            end
+            Print("Restock skipped (food/drink tooltip not recognized): "
+              .. (GetItemNameSafe(itemID) or tostring(itemID))
+              .. " | " .. tostring(useText or "no Use: line"))
+          end
+        end
+        return nil
       end
       local key = GetUseKeyForItemID(itemID)
       if key then

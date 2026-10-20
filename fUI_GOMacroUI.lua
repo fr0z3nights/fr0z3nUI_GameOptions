@@ -223,6 +223,74 @@ local function BuildMacrosPanel(parent)
     btnDrinkMacro:SetSize(BTN_W, BTN_H)
     btnDrinkMacro:SetText("Drink")
 
+    local btnGuildCloak = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnGuildCloak:SetSize(BTN_W, BTN_H)
+    local function UpdateGuildCloakVisual()
+        local on = M.GuildCloak_IsEnabled() and true or false
+        btnGuildCloak:SetText(on and "|cFF00FF00Guild Cloak|r" or "|cFF888888Guild Cloak|r")
+    end
+    btnGuildCloak:SetScript("OnShow", UpdateGuildCloakVisual)
+    btnGuildCloak:SetScript("OnClick", function()
+        M.GuildCloak_SetEnabled(not M.GuildCloak_IsEnabled())
+        UpdateGuildCloakVisual()
+    end)
+    SetButtonTooltip(btnGuildCloak, function()
+        return "Guild Cloak\n\nEnable creation/update of 'FGO TP Cloak' on enable and world entry.\nUses the first ready owned guild cloak, or the one ready soonest.\nDisabling leaves the macro intact.\n\nCurrent: " ..
+            (M.GuildCloak_IsEnabled() and "ON" or "OFF")
+    end)
+    UpdateGuildCloakVisual()
+
+    local btnDalaranRing = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnDalaranRing:SetSize(BTN_W, BTN_H)
+    local function UpdateDalaranRingVisual()
+        local on = M.DalaranRing_IsEnabled() and true or false
+        btnDalaranRing:SetText(on and "|cFF00FF00Dalaran Ring|r" or "|cFF888888Dalaran Ring|r")
+    end
+    btnDalaranRing:SetScript("OnShow", UpdateDalaranRingVisual)
+    btnDalaranRing:SetScript("OnClick", function()
+        M.DalaranRing_SetEnabled(not M.DalaranRing_IsEnabled())
+        UpdateDalaranRingVisual()
+    end)
+    SetButtonTooltip(btnDalaranRing, function()
+        return "Dalaran Ring\n\nEnable creation/update of 'FGO TP Dalaran' on enable and login/reload only (not teleports or zone changes).\nFinds a carried/equipped Dalaran teleport ring variant; prefers a ready ring, or the one ready soonest.\nDisabling leaves the macro intact.\n\nCurrent: " ..
+            (M.DalaranRing_IsEnabled() and "ON" or "OFF")
+    end)
+    UpdateDalaranRingVisual()
+
+    local btnTimeless = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnTimeless:SetSize(BTN_W, BTN_H)
+    local function UpdateTimelessVisual()
+        local on = M.Timeless_IsEnabled() and true or false
+        btnTimeless:SetText(on and "|cFF00FF00Timeless|r" or "|cFF888888Timeless|r")
+    end
+    btnTimeless:SetScript("OnShow", UpdateTimelessVisual)
+    btnTimeless:SetScript("OnClick", function()
+        M.Timeless_SetEnabled(not M.Timeless_IsEnabled())
+        UpdateTimelessVisual()
+    end)
+    SetButtonTooltip(btnTimeless, function()
+        return "Timeless\n\nEnable creation/update of 'FGO TP Timeless' on enable and login/reload only.\nPrefers carried item 219222; otherwise equips/uses trinket 103678 with gear restoration.\nDisabling leaves the macro intact.\n\nCurrent: " ..
+            (M.Timeless_IsEnabled() and "ON" or "OFF")
+    end)
+    UpdateTimelessVisual()
+
+    local btnXAura = CreateFrame("Button", nil, macroCol, "UIPanelButtonTemplate")
+    btnXAura:SetSize(BTN_W, BTN_H)
+    local function UpdateXAuraVisual()
+        local on = M.XAura_IsEnabled()
+        btnXAura:SetText(on and "|cFF00FF00XAura|r" or "|cFF888888XAura|r")
+    end
+    btnXAura:SetScript("OnShow", UpdateXAuraVisual)
+    btnXAura:SetScript("OnClick", function()
+        M.XAura_SetEnabled(not M.XAura_IsEnabled())
+        UpdateXAuraVisual()
+    end)
+    SetButtonTooltip(btnXAura, function()
+        return "XAura\n\nMaintain 'FGO XAura' with one detected listed aura and /dejunk destroy.\nNo match leaves an existing macro unchanged. Combat defers updates.\nDisabling leaves the macro intact.\n\nCurrent: " ..
+            (M.XAura_IsEnabled() and "ON" or "OFF")
+    end)
+    UpdateXAuraVisual()
+
     local function UpdateConjuredButtonVisual()
         local on = (type(M.FoodDrink_GetPreferConjured) == "function") and M.FoodDrink_GetPreferConjured() or false
         btnConjured:SetText(on and "|cFF00FF00Conjured|r" or "|cFF888888Conjured|r")
@@ -1470,7 +1538,7 @@ local function BuildMacrosPanel(parent)
             local rightAreaX = leftPad + areaW + groupGap
 
             local hsButtons = { btnHSHearth, btnHS06, btnHS07, btnHS11, btnHS12, btnHS78, btnHSDelve }
-            local utilButtons = { btnInstanceIO, btnInstanceReset, btnRez, btnRezCombat, btnScriptErrors }
+            local utilButtons = { btnInstanceIO, btnInstanceReset, btnRez, btnRezCombat, btnScriptErrors, btnGuildCloak, btnDalaranRing, btnTimeless, btnXAura }
 
             local h1 = PlaceGridInArea(hsButtons, leftAreaX, areaW, yCursor)
             local h2 = PlaceGridInArea(utilButtons, rightAreaX, areaW, yCursor)

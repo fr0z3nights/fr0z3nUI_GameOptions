@@ -50,6 +50,7 @@ SetZone("Coiled Isle, Quel'Thalas")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2635")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = MAP("DELV: The Ring of Glory", {2633,})
 	t[136446] = { text = "Delve Story", prSel = "1: " }													-- Story: 
@@ -63,10 +64,13 @@ SetZone("Coiled Isle, Quel'Thalas")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2633")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = NPC("Altar of Corrosion", { 269485, })
-	t[141208] = { text = "<Commune with the altar.>" }													-- The Altar of Corrosion (98428) Altar of Corrosion (269485)
-	t[141206] = { text = "<Commune with the altar.>" }													-- Borrowed Power Altar of Corrosion (269485)
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("AltarCorrosion")											-- Gear Repair/Companion Supplies
+	t[141206] = { prio = 10, text = "<Commune with the altar.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2",  }
+	t[141779] = { prio = 10, text = "<Recite from the Corrosive Codex>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1",   }
+	t[141208] = { prio = 05, text = "<Commune with the altar.>", }
 
 	t = NPC("Angry Raider", { 265482, })
 	t[140655] = { text = "Soaking the ground with troll blood?" }										-- Strong Voice (96545) Angry Raider (265482)
@@ -81,10 +85,14 @@ SetZone("Coiled Isle, Quel'Thalas")
 	t[137235] = { text = "<Listen to the Captain.>" }													-- Delay the Venom (92931) Captain Tokka (261870)
 
 	t = NPC("Er'inye", { 262880, })
-	t.__meta.stopIfQuestAvailable = { 98428, }															-- Waits for Quest Accepted (First NPCID Only)
-	t.__meta.stopIfQuestTurnIn = { 97640, 98428, }														-- Waits for Quest Hand-Ins (First NPCID Only)
+	t.__meta.stopIfQuestAvailable = { 98428, 97616 }													-- Waits for Quest Accepted (First NPCID Only)
+	t.__meta.stopIfQuestTurnIn = { 97640, 98428, 97616, }												-- Waits for Quest Hand-Ins (First NPCID Only)
 	t[141688] = { prio = 10, text = "<Corrode Spirit [1000]>", currency = { 3448, 1000 } }				-- The Altar of Corrosion (98428) Altar of Corrosion (269485)
+	t[139674] = { prio = 10, text = "<Corrode Spirit [1500]>", currency = { 3448, 1500 } }				-- The Altar of Corrosion (98428) Altar of Corrosion (269485)
 	t[139673] = { prio = 10, text = "<Corrode Spirit [1500]>", currency = { 3448, 1500 } }				-- The Altar of Corrosion (98428) Altar of Corrosion (269485)
+	t[139672] = { prio = 10, text = "<Corrode Spirit [2000]>", currency = { 3448, 2000 } }				-- The Altar of Corrosion (98428) Altar of Corrosion (269485)
+	t[139699] = { prio = 10, text = "<Corrode Spirit [2500]>", currency = { 3448, 2500 } }				-- The Altar of Corrosion (98428) Altar of Corrosion (269485)
+	t[139697] = { prio = 10, text = "<Corrode Spirit [3000]>", currency = { 3448, 3000 } }				-- The Altar of Corrosion (98428) Altar of Corrosion (269485)
 	t[140085] = { prio = 01, text = "Let me browse your goods." }										-- Vendor Er'inye (262880)
 
 	t = NPC("Eshaye", { 256677, 258793, })
@@ -96,6 +104,9 @@ SetZone("Coiled Isle, Quel'Thalas")
 
 	t = NPC("First Mate Nama", { 256074, })
 	t[137305] = { text = "Are you okay? You should get back to camp." }									-- Haunted Shore (92933) First Mate Nama (256074)
+
+	t = NPC("Halduron Brightwing", { 263103, })
+	t[143024] = { text = "<Share Halduron's findings with the group.>" }								-- In the Mouth of Madness (95210) Halduron Brightwing (263103)
 
 	t = NPC("Hungry Villager", { 269367, })
 	t[140621] = { text = "Gladly, I will go." }															-- Last Resort (96539) Hungry Villager (269367)
@@ -117,9 +128,11 @@ SetZone("Coiled Isle, Quel'Thalas")
 	t = NPC("Kir'bo", { 256939, })
 	t[138034] = { text = "<Explain why Ja'bonu sent you.>" }											-- Communing with Ghosts (93851) Kir'bo (256939)
 
-	t = NPC("Lady Liadrin", { 258860, 259375, })
+	t = NPC("Lady Liadrin", { 258860, 259375, 276376, 275672, })
 	t[138257] = { text = "<Ask for Liadrin's perspective.>" }											-- Words to Hear (93454) Lady Liadrin (258860)
 	t[141601] = { text = "<Tell Liadrin you'd like to enter" }											-- The Vaults of Atal'Utek: Altar if Fabgs (93417) Lady Liadrin (259375)
+	t[139370] = { text = "<Proceed.>" }																	-- In the Belly of the Beast (96707) Lady Liadrin (276376)
+	t[142969] = { text = "<Enter Story Mode RAID.>" }													-- The Unbinding of Kith'ix (95211) Lady Liadrin (275672)
 
 	t = NPC("Lost Spirit", { 261867, })
 	t[139164] = { text = "<Hand the loa trinket to the spirit.>" }										-- Treasures of the Coiled Isle () Lost Spirit (261867)
@@ -183,6 +196,22 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 
 
 
+	t = MAP("DELV: The Labyrinth of Kindo'jan", { 2647, })
+	t[139659] = { text = "Labyrinth Story", }															-- Restless Dead
+	t[141655] = { text = "Labyrinth Story", }															-- Reins of the Warlord
+	t[141931] = { text = "Leave Labyrinth", prSel = "Are you sure you want to leave?" }					-- Leave, not confirmed in case of accidental click.
+	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
+	t[140123] = { text = "Abundantly Bountiful!",	prSel = "Dundun Grants Abundance", }				-- Dundun's Abundance 
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundancex")									-- Dundun's Abundance Cooldown
+	t[140513] = { text = "Grant me some Decor", 	prSel = "Dundun Grants Decor",		when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2", replvl = {2744, "=",80,} }
+	t[140495] = { text = "Grant me some Valeera", 	prSel = "Dundun Grants Val Rep",	when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2", replvl = {2744,"<=",79,} }
+	t[140126] = { text = "Grant me some Undercoin",	prSel = "Dundun Grants Undercoin",	when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt3" }
+	t[140496] = { text = "Grant me some Voidlight",	prSel = "Dundun Grants Voidlight",	when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt3" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2525")										-- Gear Repair/Companion Supplies
+	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
+	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
+
 	t = MAP("DELV: The Shadow Enclave", {2502,})
 	t[137580] = { text = "Delve Story", prSel = "1: " }													-- Story: 
 	t[137619] = { text = "Delve Story", prSel = "2: " }													-- Story: 
@@ -196,6 +225,7 @@ SetZone("Eversong Woods, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2502")										-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = NPC("Alesil Dawnblood", {252599, })
 	t[136288] = { text = "I'll defend the runestone" }      -- And Then They Came (92398) Alesil Dawnblood (252599)
@@ -438,6 +468,7 @@ SetZone("Harandar, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2510")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = MAP("DELV: Gulf of Memory", {2505,})
 	t[137389] = { text = "Delve Story", prSel = "Sporasaur Special" }									-- Story: Sporasaur Special
@@ -452,6 +483,7 @@ SetZone("Harandar, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2505")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 08, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 08, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = NPC("Akazi", { 253392, 253392, })
 	t[136773] = { text = "<Ask about mentoring Ketan.>" }												-- A Hunter's Plight (92882) Akazi (253392)
@@ -525,6 +557,17 @@ SetZone("Harandar, Eastern Kingdoms")
 
 	t = NPC("Hannan", { 241655, })
 	t[132933] = { text = "What happened here?", }														-- Alndust in Right Hands (86882) Hannan (241655)
+
+	t = NPC("Hoshena", { 273832, })
+	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("NPC:273832")
+	t[142132] = { prio = 10, text = "L Change", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2", close = true, }
+	t[142103] = { prio = 09, text = "L Postie", prSel = "Postie gets into Fungal Strider Left Seat", }
+--	t[142102] = { prio = 08, text = "L Vendor", prSel = "Vendor gets into Fungal Strider Left Seat ", }
+--	t[142262] = { prio = 07, text = "L Unseat", prSel = "Fungal Strider Left Seat Gets Ejected", }
+	t[142131] = { prio = 10, text = "R Change", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1", close = true, }
+--	t[142129] = { prio = 06, text = "R Postie", prSel = "Postie gets into Fungal Strider Right Seat", }
+	t[142128] = { prio = 05, text = "R Vendor", prSel = "Vendor gets into Fungal Strider Right Seat ", }
+--	t[142263] = { prio = 04, text = "R Unseat", prSel = "Fungal Strider Right Seat Gets Ejected", }
 
 	t = NPC("Imhayo", { 242596, })
 	t[138674] = { text = "Let me browse your goods.", }													-- Go Get Orweyna (90533) Imhayo (242596)
@@ -638,6 +681,7 @@ SetZone("Quel'Danas, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2545")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = MAP("RAID: March on Quel'Danas", {2534,})
 	t[138564] = { text = "I am ready to return to Silvermoon." }										-- March on Quel'Danas (92618)
@@ -770,7 +814,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[135798] = { text = "Delve Story", prSel = "3: " }													-- Story: 
 	t[135865] = { text = "Delve Story", prSel = "4: " }													-- Story: 
 	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
-	t[140123] = { text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }					-- Dundun's Abundance 
+	t[140123] = { text = "Abundantly Bountiful!",	prSel = "Dundun Grants Abundance", }				-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundancex")									-- Dundun's Abundance Cooldown
 	t[140513] = { text = "Grant me some Decor", 	prSel = "Dundun Grants Decor",		when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2", replvl = {2744, "=",80,} }
 	t[140495] = { text = "Grant me some Valeera", 	prSel = "Dundun Grants Val Rep",	when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2", replvl = {2744,"<=",79,} }
@@ -779,13 +823,14 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2547")										-- Gear Repair/Companion Supplies
 	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = MAP("DELV: The Darkway", { 2525, })
 	t[141485] = { text = "Delve Story", prSel = "Eggsplosive Growth" }									-- Story: Eggsplosive Growth
 	t[136141] = { text = "Delve Story", prSel = "2: " }													-- Story: 
 	t[138317] = { text = "Delve Story", prSel = "3: " }													-- Story: 
 	t[135012] = { text = "Open Vendor" } 																-- Zah'Ran
-	t[140123] = { text = "Abundantly Bountiful!", prSel = "Dundun Grants Abundance", }					-- Dundun's Abundance 
+	t[140123] = { text = "Abundantly Bountiful!",	prSel = "Dundun Grants Abundance", }				-- Dundun's Abundance 
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("DundunsAbundancex")									-- Dundun's Abundance Cooldown
 	t[140513] = { text = "Grant me some Decor", 	prSel = "Dundun Grants Decor",		when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2", replvl = {2744, "=",80,} }
 	t[140495] = { text = "Grant me some Valeera", 	prSel = "Dundun Grants Val Rep",	when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2", replvl = {2744,"<=",79,} }
@@ -794,6 +839,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2525")										-- Gear Repair/Companion Supplies
 	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = MAP("SCNR: Silvermoon City", { 2605, })
 	t[139182] = { text = "Kith'ix is somewhere beneath Atal'Utek", }									-- The Aqir Swarm (95533) Lor'themar Theron
@@ -801,13 +847,14 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    	t = NPC("Allari the Souleater", { 263524, })
    	t[139905] = { text = "Are you joining Riftblade Maella's strike team?", close = true}				-- Stalkers of the Stars (96049) Allari the Souleater (263524)
 
-	t = NPC("Arator", { 244644, 237510, 240267, 261878, })
+	t = NPC("Arator", { 244644, 237510, 240267, 261878, 263011, })
    	t[133853] = { text = "Alonsus Faol asks that we meet him at the Sunwell." }							-- Meet at the Sunwell (86837)   Arator (244644)
    	t[133856] = { text = "Let's go." }																	-- Meet at the Sunwell (86837)   Arator (244644)
    	t[133121] = { text = "I'm ready!" }																	-- A Bulwark Remade (86833)      Arator (237510)
    	t[136685] = { text = "What will you do next?" }														-- A Bulwark Remade (86833)      Arator (237510)
    	t[133560] = { text = "Let's go. (Start Scenario)" }													-- The Battle of the Bridge (88769) Arator (240267)
    	t[139162] = { text = "We need to track down the other aqir." }										-- The Aqir Swarm (95533) Arator (261878)
+   	t[141702] = { text = "Orweyna saw something-- she can explain" }
    	local INTRO_SEEN = "GOTalk:136564:136565"
    	t[136565] = { prio = 10, text = "Let's discuss the plan in full", when = function() return not TalkCacheSeen(INTRO_SEEN) end, cacheKey = INTRO_SEEN }
    	t[136564] = { prio = 10, text = "I don't have time <Skip>", when = function() return TalkCacheSeen(INTRO_SEEN) end }
@@ -866,6 +913,7 @@ SetZone("Silvermoon City, Eastern Kingdoms")
    	t[136540] = { text = "Train me." }
 
    	t = NPC("Estelia Archtender", { 266188, })
+   	t[142261] = { text = "Offering in exchange for research on the aqir." }								-- All Along the Watchtowers (95187) Estelia Archtender (266188)
    	t[142260] = { text = "Offering in exchange for research on the aqir." }								-- All Along the Watchtowers (95187) Estelia Archtender (266188)
 
    	t = NPC("Gaari", { 247647, })
@@ -905,9 +953,10 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t = NPC("Leona Darkstrider", { 263525, })
    	t[139507] = { text = "Grant me Spectral Sight and I will attune the Ward." }						-- Stalkers of the Stars (96049) Leona Darkstrider (263525)
 
-   	t = NPC("Lor'themar Theron", { 235787, })
+   	t = NPC("Lor'themar Theron", { 235787, 262755, })
    	t[132632] = { text = "<Skip conversation> I expect you'll sort things out." }						-- Unknown Quest (XXXXX) Lor'themar Theron (235787)
    	t[134143] = { text = "What now?" }																	-- Fractured (86650) Lor'themar Theron (235787)
+   	t[139378] = { text = "Everyone is here. Please begin." }											-- To the Faithful (95808) Lor'themar Theron (262755)
 
    	t = NPC("Lord Solanar Bloodwrath", { 266156, })
    	t[140769] = { text = "Aqir attack us every hour, I'll return after fending them off.", prio = 10 }	--	All Along the Watchtowers (95187) Lord Solanar Bloodwrath (266156)
@@ -949,9 +998,11 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t.__meta.stopIfQuestTurnIn = { 93453, }																-- Waits for Quest Hand-Ins (First NPCID Only)
 	t[137075] = { text = "How do I choose what gravestone to leave behind in a delve should I die?", }	-- A Grave Concern (93453) Nelthius Shadestone (254616)
 
-	t = NPC("Orweyna", { 253640, })
+	t = NPC("Orweyna", { 253640, 262877, })
    	t.__meta.ignoreIfQuestAvailable = { 92895, }														-- Ignores if Quest Available (First NPCID Only)
 	t[142319] = { text = "I've helped Zul'jan recover the Fang of Ula'tek.", xpop = { which = "GOSSIP_CONFIRM", containsAll = { "Are you sure" }, within = 3, }	}						-- Hagar's Invitation (92895) Orweyna (253640)
+	t[139398] = { text = "I'm ready. Let's begin." }
+	t[140754] = { text = "Are you all right?." }
 
 	t = NPC("Ranger Captain Lilatha", { 257411, })
 	t[139200] = { text = "<Show the Twilight's Blade missive" }											-- Torn Twilight Missive (95069) Ranger Captain Lilatha (957411)
@@ -1029,7 +1080,10 @@ SetZone("Silvermoon City, Eastern Kingdoms")
 	t[135149] = { text = "<Ask how they would enter the Voidstorm without Umbric's help.>" }			-- You Know This Evil? (91967) War Chaplain Senn (248628)
 
 	t = NPC("Warpweaver Zirka", { 249050, })
-	t[46950] = { text = "I would like to buy from you." }                           
+	t[46950] = { text = "I would like to buy from you." }
+
+	t = NPC("Zul'jarra", { 262758, })
+	t[140771] = { text = "Let's see what he has to say." }
 
 
 
@@ -1050,6 +1104,7 @@ SetZone("Voidstorm, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2506")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = MAP("DELV: Sunkiller Sanctum", {2528,2571,})
 	t[136086] = { text = "Delve Story", prSel = "Core of the Problem" }									-- Story: Core of the Problem
@@ -1065,6 +1120,7 @@ SetZone("Voidstorm, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2506")											-- Gear Repair/Companion Supplies
 	t[140227] = { prio = 10, text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { prio = 10, text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = NPC("Alleria Windrunner", { 235521, 235502, 235763, })
 	t[132609] = { text = "<Ask Alleria how you can help.>" }											-- The Far Far Frontier (86881) Alleria Windrunner (235521)
@@ -1174,6 +1230,7 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2535")											-- Gear Repair/Companion Supplies
 	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = MAP("DELV: Twilight Crypts", {2503,2504,})
 	t[135239] = { text = "Delve Story", prSel = "1: " }													-- Story: 
@@ -1189,6 +1246,7 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 	local VIEW_GOSSIP_STATE = GetCharacterCacheKey("Delve:2503")											-- Gear Repair/Companion Supplies
 	t[140227] = { text = "<View companion supplies.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt1" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt2" }
 	t[122661] = { text = "<View goods and repair gear.>", when = function() return GetViewGossipState(VIEW_GOSSIP_STATE) == "Opt2" end, cacheKey = VIEW_GOSSIP_STATE, cacheValue = "Opt1" }
+	t[141839] = { text = "<Recite from the Corrosive Codex.>" } 										-- Corrosive Codex								-- Zah'Ran
 
 	t = MAP("DNGN: Den of Nalorakk", {616377,})
 	t[135009] = { text = "<Meditate on the sound of the flames.>" }										-- Den of Nalorakk Dungeon  Ethereal Pyre (616377)
@@ -1257,6 +1315,9 @@ SetZone("Zul'Aman, Eastern Kingdoms")
 
 	t = NPC("Kulzi", { 237956, })
 	t[134375] = { text = "What would help them to remember?" }											-- Demands Unmet (87267) Kulzi (237956)
+
+	t = NPC("Lady Liadrin", { 260155, })
+	t[139857] = { text = "I will meet you at Atal'utek. (Skip conversation)", }							-- The Ties That Bind (95203) Lady Liadrin (26015)
 
 	t = NPC("Lilaju", { 245589, 245664, })
 	t[132891] = { text = "<Request lightwood report.>" }												-- Left in the Shadows (86652)   Lilaju (245589)

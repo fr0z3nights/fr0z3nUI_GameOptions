@@ -183,6 +183,7 @@ fr0z3nUI_LootIt_AddonSuppressSeeds = fr0z3nUI_LootIt_AddonSuppressSeeds or {
 	{ key = "X01:Channel",				text = "Changed Channel" },
 --  01  Kalimdor
 	{ key = "X01:PBCassyKaboom",		text = "Cassandra Kaboom says" },
+	{ key = "X01:PBZonya",				text = "Zonya the Sadist says" },
 --  00  Event 
 	{ key = "DMF:PBJeremy",				text = "Jeremy Feasel says" },
 	{ key = "DMF:PBChristoph",			text = "Christoph VonFeasel says" },

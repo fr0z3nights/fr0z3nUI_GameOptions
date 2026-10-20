@@ -69,9 +69,15 @@ ns.SafeToString = SafeToString
 -- GearMatic AutoEquip integration (/fgo gmtp, /fgo gmon)
 local SetGearMaticAutoEquip
 local HandleGearMaticTP
+local HandleGearMaticOn
 do
     local gmTpTimer = nil
     local gmTpFrame = nil
+    local snapshot = nil
+    local restoreDeadline = nil
+    local changingWorld = false
+    local trackedSlots = { 15, 11, 12, 13, 14 }
+    local slotNames = { [15] = "cloak", [11] = "ring 1", [12] = "ring 2", [13] = "trinket 1", [14] = "trinket 2" }
 
     local function GetGearMaticProfile()
         local gm = _G.GearMatic
@@ -94,10 +100,12 @@ do
         if enabled then
             if type(gm) == "table" then
                 if gm.AutoEquip and type(gm.AutoEquip.RequestSweep) == "function" then
-                    pcall(gm.AutoEquip.RequestSweep, "toggle")
+                    local ok, err = pcall(gm.AutoEquip.RequestSweep, "toggle")
+                    if not ok then Print("GearMatic sweep failed: " .. SafeToString(err)) end
                 end
                 if gm.BagOverlay and type(gm.BagOverlay.Refresh) == "function" then
-                    pcall(gm.BagOverlay.Refresh)
+                    local ok, err = pcall(gm.BagOverlay.Refresh)
+                    if not ok then Print("GearMatic overlay refresh failed: " .. SafeToString(err)) end
                 end
             end
             if printOnEnable then
@@ -115,39 +123,179 @@ do
         if gmTpFrame then
             gmTpFrame:UnregisterAllEvents()
         end
+        snapshot = nil
+        restoreDeadline = nil
+        changingWorld = false
     end
 
-    local function OnGearMaticReenable()
+    local function EquipmentGUID(slot)
+        local loc = ItemLocation:CreateFromEquipmentSlot(slot)
+        if C_Item.DoesItemExist(loc) then
+            return C_Item.GetItemGUID(loc)
+        end
+        return nil
+    end
+
+    local function ChangedSlots()
+        local changed = {}
+        for _, slot in ipairs(trackedSlots) do
+            if EquipmentGUID(slot) ~= snapshot[slot].guid then
+                changed[#changed + 1] = slot
+            end
+        end
+        return changed
+    end
+
+    local function FinishRestoring(failure)
+        if failure then Print("Teleport gear restore failed: " .. failure) end
         ClearGearMaticTPTracking()
-        SetGearMaticAutoEquip(true, true)
+        if not SetGearMaticAutoEquip(true, true) then
+            Print("GearMatic autoequip unavailable.")
+        end
+    end
+
+    local function FindOriginal(guid)
+        for _, slot in ipairs(trackedSlots) do
+            if EquipmentGUID(slot) == guid then return nil, slot end
+        end
+        for bag = 0, NUM_BAG_SLOTS do
+            for slot = 1, C_Container.GetContainerNumSlots(bag) do
+                local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+                if C_Item.DoesItemExist(loc) and C_Item.GetItemGUID(loc) == guid then
+                    local info = C_Container.GetContainerItemInfo(bag, slot)
+                    if info and not info.isLocked then return bag, slot end
+                end
+            end
+        end
+    end
+
+    local function FindEmptyBagSlot()
+        for bag = 0, NUM_BAG_SLOTS do
+            local free, family = C_Container.GetContainerNumFreeSlots(bag)
+            if free and free > 0 and family == 0 then
+                for slot = 1, C_Container.GetContainerNumSlots(bag) do
+                    if not C_Container.GetContainerItemInfo(bag, slot) then return bag, slot end
+                end
+            end
+        end
+    end
+
+    local TryRestore
+    TryRestore = function()
+        gmTpTimer = nil
+        if not snapshot or not restoreDeadline then return end
+        if not changingWorld then
+            local changed = ChangedSlots()
+            if #changed == 0 then
+                FinishRestoring()
+                return
+            end
+            if GetTime() >= restoreDeadline then
+                local names = {}
+                for _, slot in ipairs(changed) do names[#names + 1] = slotNames[slot] end
+                FinishRestoring("could not restore " .. table.concat(names, ", ") ..
+                    " within 30s (check combat, cursor, bag space, or missing/locked items).")
+                return
+            end
+            if not InCombatLockdown() and not GetCursorInfo() and not UnitIsDeadOrGhost("player") then
+                for _, target in ipairs(changed) do
+                    if not IsInventoryItemLocked(target) then
+                        local guid = snapshot[target].guid
+                        local bag, source
+                        if guid then
+                            bag, source = FindOriginal(guid)
+                        else
+                            bag, source = FindEmptyBagSlot()
+                        end
+                        if source and (bag ~= nil or not IsInventoryItemLocked(source)) then
+                            -- Swap the exact item instance, including identical rings/trinkets.
+                            if guid then
+                                if bag ~= nil then
+                                    C_Container.PickupContainerItem(bag, source)
+                                else
+                                    PickupInventoryItem(source)
+                                end
+                                if CursorHasItem() then PickupInventoryItem(target) end
+                            else
+                                PickupInventoryItem(target)
+                            end
+                            if CursorHasItem() then
+                                if bag ~= nil then
+                                    C_Container.PickupContainerItem(bag, source)
+                                else
+                                    PickupInventoryItem(source)
+                                end
+                            end
+                            if CursorHasItem() then
+                                ClearCursor()
+                                if CursorHasItem() then
+                                    FinishRestoring("an item could not be returned from the cursor; finish the swap manually.")
+                                    return
+                                end
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        elseif GetTime() >= restoreDeadline then
+            FinishRestoring("world transition exceeded the 30s recovery window.")
+            return
+        end
+        gmTpTimer = C_Timer.NewTimer(0.5, TryRestore)
+    end
+
+    local function BeginRestoring()
+        if not snapshot or restoreDeadline then return end
+        if gmTpTimer then gmTpTimer:Cancel() end
+        restoreDeadline = GetTime() + 30
+        gmTpTimer = C_Timer.NewTimer(0.5, TryRestore)
+    end
+
+    HandleGearMaticOn = function()
+        if snapshot then
+            BeginRestoring()
+        elseif not SetGearMaticAutoEquip(true, true) then
+            Print("GearMatic autoequip unavailable.")
+        end
     end
 
     HandleGearMaticTP = function()
-        ClearGearMaticTPTracking()
-        -- Disable GearMatic autoequip silently (no print)
-        SetGearMaticAutoEquip(false, false)
-
-        -- 300 second fallback re-enable
-        if C_Timer and type(C_Timer.NewTimer) == "function" then
-            gmTpTimer = C_Timer.NewTimer(300, function()
-                gmTpTimer = nil
-                OnGearMaticReenable()
-            end)
+        if restoreDeadline then
+            Print("Teleport gear restoration is still pending; wait for it to finish before starting another teleport.")
+            return
         end
+        if not snapshot then
+            snapshot = {}
+            for _, slot in ipairs(trackedSlots) do
+                local guid = EquipmentGUID(slot)
+                if GetInventoryItemID("player", slot) and not guid then
+                    snapshot = nil
+                    Print("Cannot snapshot teleport gear: item identity unavailable for " .. slotNames[slot] .. ".")
+                    return
+                end
+                snapshot[slot] = { guid = guid }
+            end
+        end
+        if not SetGearMaticAutoEquip(false, false) then
+            Print("GearMatic autoequip unavailable; teleport gear restoration is still armed.")
+        end
+        if gmTpTimer then gmTpTimer:Cancel() end
+        gmTpTimer = C_Timer.NewTimer(300, BeginRestoring)
 
-        -- Teleport detection frame
         if not gmTpFrame then
             gmTpFrame = CreateFrame("Frame")
             gmTpFrame:SetScript("OnEvent", function(_, event, isInitialLogin, isReloadingUi)
-                if event == "PLAYER_ENTERING_WORLD" then
-                    -- If it's a fresh login or UI reload, do not count as a teleport
-                    if isInitialLogin or isReloadingUi then
-                        return
-                    end
+                if event == "PLAYER_LEAVING_WORLD" then
+                    changingWorld = true
+                    return
                 end
-                OnGearMaticReenable()
+                changingWorld = false
+                if isInitialLogin or isReloadingUi then return end
+                BeginRestoring()
             end)
         end
+        gmTpFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
         gmTpFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     end
 end
@@ -3561,8 +3709,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
                 "/fgo fish                  - apply fishing prep CVars",
                 "/fgo chromie               - print Chromie Time status",
                 "/fgo ctoff                 - attempt to disable Chromie Time (rested only)",
-                "/fgo gmtp                  - disable GearMatic until teleport or 300s",
-                "/fgo gmon                  - enable GearMatic autoequip",
+                "/fgo gmtp                  - pause GearMatic; restore cloak/rings/trinkets after teleport or 300s",
+                "/fgo gmon                  - restore pending teleport gear, then enable GearMatic",
                 "",
                 "/fgo scope                 - open this list in Macro CMD (copy/edit)",
             }
@@ -3731,8 +3879,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         end
 
         if cmd == "gmon" then
-            if type(SetGearMaticAutoEquip) == "function" then
-                SetGearMaticAutoEquip(true, true)
+            if type(HandleGearMaticOn) == "function" then
+                HandleGearMaticOn()
             end
             return
         end
@@ -4794,10 +4942,11 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
             local dest = (rest or ""):lower()
 
             local function GetCooldownRemaining(itemID)
-                if not (GetItemCooldown and GetTime) then
+                local getCD = (C_Item and C_Item.GetItemCooldown) or GetItemCooldown
+                if not (getCD and GetTime) then
                     return 0
                 end
-                local s, d = GetItemCooldown(tonumber(itemID) or 0)
+                local s, d = getCD(tonumber(itemID) or 0)
                 s = tonumber(s) or 0
                 d = tonumber(d) or 0
                 if s <= 0 or d <= 0 then
@@ -4944,8 +5093,8 @@ SlashCmdList["FROZENGAMEOPTIONS"] = function(msg)
         Print("/fgo sharpen   - toggle always sharpen")
         Print("/fgo whispin   - set whispers to inline")
         Print("/fgo token     - print WoW Token price")
-        Print("/fgo gmtp      - disable GearMatic until teleport or 300s")
-        Print("/fgo gmon      - enable GearMatic autoequip")
+        Print("/fgo gmtp      - pause GearMatic; restore cloak/rings/trinkets after teleport or 300s")
+        Print("/fgo gmon      - restore pending teleport gear, then enable GearMatic")
         return
     end
 

@@ -1,4 +1,93 @@
 ﻿
+## Delve entry notification
+
+The detected `Delve Tier N Entered` message is independent of the auto-entry cooldown and prints once per world entry inside a delve instance. Detection checks at most once per second until tier data is available, rather than stopping after a short startup window. If tier data remains unavailable for 30 seconds inside, a single diagnostic is printed and checks continue. The selected entrance tier is not used as a substitute for the detected tier.
+
+## XAura
+
+The Macro tab's **XAura** toggle maintains `FGO XAura`. It defaults to on per character; a saved off preference is respected. Disabling cancels pending updates without deleting or changing the macro. New macros use character slots.
+
+Add numeric spell IDs to the ordered `ns.MacroAuraIDs` list in `fUI_GOMacroAuraDB.lua`, with names as comments. Earlier entries have priority. The database includes the 13 supplied costume IDs; Trick (24753) is excluded because it cannot be cancelled. Runtime logic stays in `fUI_GOMacro.lua`.
+
+On enable, world entry, or player aura changes, match readable beneficial auras only by spell ID. Harmful auras are not scanned. The macro uses the detected localized aura name:
+
+```text
+/cancelaura Wight Costume
+/dejunk destroy
+```
+
+Only one matching aura is selected. After cancellation, another active listed aura can replace it. If no listed aura is active, leave the existing macro unchanged. When creating a missing macro without a match, write only `/dejunk destroy`.
+
+Updates are coalesced and deferred during combat, then rescan after combat. Secret/unreadable aura data is skipped. Macro presses remain manual, and WoW's aura-cancellation restrictions apply. `/dejunk destroy` invokes the installed Dejunk addon's configured destruction behavior; XAura does not choose which items Dejunk destroys.
+
+## Teleport equipment and GearMatic
+
+### Guild Cloak automatic macro
+
+On the Macro page, toggle **Guild Cloak** to enable automatic maintenance of `FGO TP Cloak`. The setting is per character and defaults to on; an explicitly saved off setting is preserved. Enabling immediately creates or updates the macro; subsequent updates happen only after world entry (including login/reload). Disabling cancels pending updates but leaves the macro intact and usable.
+
+Only carried/equipped cloaks for your faction are considered, in this order:
+
+| Priority | Cloak | Alliance | Horde |
+| --- | --- | --- | --- |
+| 1 | Shroud of Cooperation | 63352 | 63353 |
+| 2 | Wrap of Unity | 63206 | 63207 |
+| 3 | Cloak of Coordination | 65360 | 65274 |
+
+The first ready cloak wins. If all owned cloaks are on cooldown, choose the one ready soonest (ties use the priority above). Live cooldowns are checked without storing a cooldown cache. If none are carried/equipped, the macro is inert (`#showtooltip` only).
+
+The macro uses `#showtooltip item:ID`, `/fgo gmtp`, `/equip item:ID`, and `/use item:ID`. Equipping may require another press once the equipment-use cooldown finishes. New macros use character slots; an existing same-name macro is updated in place.
+
+World-entry checks wait one second for data to settle. Combat defers the update until combat ends; unavailable ownership/cooldown data gets up to five attempts, one second apart, before reporting failure and leaving the macro unchanged. There are no periodic, bag-change, or cooldown-expiry refreshes.
+
+### Dalaran Ring automatic macro
+
+Toggle **Dalaran Ring** on the Macro page to create/update `FGO TP Dalaran`. This independent per-character setting defaults to on; an explicitly saved off setting is preserved. It refreshes on enable and login/reload only, not after teleports or zone changes. It uses the same combat deferral, data retries, and cooldown-selection rules as Guild Cloak. Disabling cancels pending updates without removing or changing the macro.
+
+Supported variants, in tie-break priority order: `40586, 44935, 40585, 44934, 45688, 45690, 45691, 45689, 48954, 48955, 48956, 48957, 51557, 51558, 51559, 51560`.
+
+Only carried/equipped rings are considered. Select the first ready variant, or the one ready soonest if all are on cooldown. With no supported ring, the macro is inert (`#showtooltip` only). The generated body shows the selected ring, runs `/fgo gmtp`, equips the ring, and uses it. Another press may be needed after the equip cooldown. Original ring slots are restored by the teleport-gear recovery.
+
+### Timeless automatic macro
+
+Toggle **Timeless** on the Macro page to create/update `FGO TP Timeless`. The setting is per character, defaults to on (preserving an explicitly saved off setting), and refreshes only on enable and login/reload. Disabling cancels pending updates without deleting or changing the macro. New macros use character slots.
+
+Prefer carried non-gear Time-Lost Artifact (219222), even if the trinket is also available:
+
+```text
+#showtooltip
+/use item:219222
+```
+
+Otherwise, use carried/equipped Time-Lost Artifact trinket (103678):
+
+```text
+#showtooltip
+/fgo gmtp
+/equip item:103678
+/use item:103678
+```
+
+Selection is based on ownership, not cooldown. Banked items are excluded. If neither is available, the macro is inert (`#showtooltip` only). Combat deferral and bounded ownership-data retries follow the other teleport macros. The trinket may require another press after its equip cooldown; `/fgo gmtp` restores the original trinket after teleport.
+
+### Manual teleport gear macros
+
+Put `/fgo gmtp` before equipping teleport gear:
+
+```text
+/fgo gmtp
+/equip Time-Lost Artifact
+/use Time-Lost Artifact
+```
+
+- Captures the exact items in cloak (15), ring (11/12), and trinket (13/14) slots, then pauses GearMatic autoequip.
+- After world entry (excluding login/reload), or after 300 seconds without teleporting, restores changed slots before re-enabling GearMatic. Originally empty slots are emptied again if normal bag space is available.
+- Repeating `/fgo gmtp` while waiting refreshes the 300-second timeout without replacing the original snapshot. Once restoration starts, another invocation is refused until recovery finishes.
+- Restoration waits for combat/death, occupied cursor, or item locks to clear, retrying every 0.5 seconds for at most 30 seconds. Unresolved slots are reported before GearMatic is re-enabled.
+- The snapshot is discarded after completion or failure; the next operation captures your current gear. It is not saved across reload/logout.
+- `/fgo gmon` starts restoration immediately if gear is pending; otherwise it enables GearMatic normally.
+- GearMatic's own normal gear selection resumes afterward; this does not permanently pin the restored items.
+
 ## Housing macros (Saved Locations)
 
 The old Home1/Home2 macro buttons are deprecated/removed.
@@ -375,4 +464,3 @@ New Macro Body
 
 Behind /fgo Command
 /run local k="ScriptErrors"; local v=tonumber(C_CVar.GetCVar(k)) or 0; C_CVar.SetCVar(k, v==1 and 0 or 1); print("ScriptErrors "..(v==1 and "Disabled" or "Enabled"))
-
